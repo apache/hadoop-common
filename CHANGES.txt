@@ -734,3 +734,5 @@ Release 0.21.0 - Unreleased
     task per heartbeat in the capacity scheduler.
     (Rahul Kumar Singh via yhemanth)
  
+    MAPREDUCE-1071. Use DataInputStream rather than FSDataInputStream in the
+    JobHistory EventReader. (Hong Tang via cdouglas)
