@@ -424,6 +424,9 @@ Release 0.21.0 - Unreleased
 
   BUG FIXES
 
+    MAPREDUCE-1089. Fix NPE in fair scheduler preemption when tasks are  
+    scheduled but not running. (Todd Lipcon via matei)
+
     MAPREDUCE-878. Rename fair scheduler design doc to 
     fair-scheduler-design-doc.tex and add Apache license header (matei)
 
