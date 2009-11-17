@@ -818,3 +818,6 @@ Release 0.21.0 - Unreleased
 
     HDFS-596. Fix memory leak in hdfsFreeFileInfo() for libhdfs.
     (Zhang Bingjun via dhruba)
+
+    MAPREDUCE-1147. Add map output counters to new API. (Amar Kamat via
+    cdouglas)
