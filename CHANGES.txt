@@ -850,3 +850,5 @@ Release 0.21.0 - Unreleased
 
     MAPREDUCE-1161. Remove ineffective synchronization in NotificationTestCase.
     (Owen O'Malley via cdouglas)
+
+    MAPREDUCE-1244. Fix eclipse-plugin's build dependencies. (gkesavan)
