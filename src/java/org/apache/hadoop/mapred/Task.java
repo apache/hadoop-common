@@ -48,8 +48,8 @@ import org.apache.hadoop.mapred.IFile.Writer;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.TaskCounter;
 import org.apache.hadoop.mapreduce.lib.reduce.WrappedReducer;
-import org.apache.hadoop.mapreduce.task.ReduceContextImpl;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
+import org.apache.hadoop.mapreduce.task.ReduceContextImpl;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.util.Progress;
 import org.apache.hadoop.util.Progressable;
@@ -65,27 +65,6 @@ abstract public class Task implements Writable, Configurable {
   private static final Log LOG =
     LogFactory.getLog(Task.class);
 
-  // Counters used by Task subclasses
-  protected static enum Counter { 
-    MAP_INPUT_RECORDS, 
-    MAP_OUTPUT_RECORDS,
-    MAP_SKIPPED_RECORDS,
-    MAP_INPUT_BYTES, 
-    MAP_OUTPUT_BYTES,
-    COMBINE_INPUT_RECORDS,
-    COMBINE_OUTPUT_RECORDS,
-    REDUCE_INPUT_GROUPS,
-    REDUCE_SHUFFLE_BYTES,
-    REDUCE_INPUT_RECORDS,
-    REDUCE_OUTPUT_RECORDS,
-    REDUCE_SKIPPED_GROUPS,
-    REDUCE_SKIPPED_RECORDS,
-    SPILLED_RECORDS,
-    FAILED_SHUFFLE,
-    SHUFFLED_MAPS,
-    MERGED_MAP_OUTPUTS,
-  }
-  
   public static String MERGED_OUTPUT_PREFIX = ".merged";
   
 
@@ -164,9 +143,12 @@ abstract public class Task implements Writable, Configurable {
   public Task() {
     taskStatus = TaskStatus.createTaskStatus(isMapTask());
     taskId = new TaskAttemptID();
-    spilledRecordsCounter = counters.findCounter(TaskCounter.SPILLED_RECORDS);
-    failedShuffleCounter = counters.findCounter(Counter.FAILED_SHUFFLE);
-    mergedMapOutputsCounter = counters.findCounter(Counter.MERGED_MAP_OUTPUTS);
+    spilledRecordsCounter = 
+      counters.findCounter(TaskCounter.SPILLED_RECORDS);
+    failedShuffleCounter = 
+      counters.findCounter(TaskCounter.FAILED_SHUFFLE);
+    mergedMapOutputsCounter = 
+      counters.findCounter(TaskCounter.MERGED_MAP_OUTPUTS);
   }
 
   public Task(String jobFile, TaskAttemptID taskId, int partition, 
@@ -185,8 +167,9 @@ abstract public class Task implements Writable, Configurable {
                                                     TaskStatus.Phase.SHUFFLE, 
                                                   counters);
     spilledRecordsCounter = counters.findCounter(TaskCounter.SPILLED_RECORDS);
-    failedShuffleCounter = counters.findCounter(Counter.FAILED_SHUFFLE);
-    mergedMapOutputsCounter = counters.findCounter(Counter.MERGED_MAP_OUTPUTS);
+    failedShuffleCounter = counters.findCounter(TaskCounter.FAILED_SHUFFLE);
+    mergedMapOutputsCounter = 
+      counters.findCounter(TaskCounter.MERGED_MAP_OUTPUTS);
   }
 
   ////////////////////////////////////////////
