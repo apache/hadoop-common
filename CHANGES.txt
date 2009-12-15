@@ -436,6 +436,9 @@ Release 0.21.0 - Unreleased
     MAPREDUCE-1229. Allow customization of job submission policy in Mumak.
     (Hong Tang via cdouglas)
 
+    MAPREDUCE-1209. Move common specific part of the test TestReflectionUtils
+    out of mapred into common. (Todd Lipcon via tomwhite)
+
   BUG FIXES
 
     MAPREDUCE-1089. Fix NPE in fair scheduler preemption when tasks are  
