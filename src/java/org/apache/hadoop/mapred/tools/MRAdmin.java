@@ -60,8 +60,9 @@ public class MRAdmin extends Configured implements Tool {
     "\t\tJobtracker will reload the authorization policy file.\n";
 
   String refreshQueues =
-        "-refreshQueues: Reload the queue acls and state.\n"
-            + "\t\tJobTracker will reload the mapred-queues.xml file.\n";
+        "-refreshQueues: Reload the queues' acls, states and "
+            + "scheduler specific properties.\n"
+            + "\t\tJobTracker will reload the mapred-queues configuration file.\n";
 
   String refreshNodes =
     "-refreshNodes: Refresh the hosts information at the jobtracker.\n";
