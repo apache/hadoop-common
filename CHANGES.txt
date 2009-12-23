@@ -441,6 +441,9 @@ Release 0.21.0 - Unreleased
 
   BUG FIXES
 
+    MAPREDUCE-1258. Fix fair scheduler event log not logging job info.
+    (matei)
+
     MAPREDUCE-1089. Fix NPE in fair scheduler preemption when tasks are  
     scheduled but not running. (Todd Lipcon via matei)
 
