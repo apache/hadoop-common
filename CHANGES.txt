@@ -905,3 +905,6 @@ Release 0.21.0 - Unreleased
 
     MAPREDUCE-1009. Update forrest documentation describing hierarchical
     queues. (Vinod Kumar Vavilapalli via yhemanth)
+    
+    MAPREDUCE-1352. Fix snapshot incorrect dependency published in .pom files
+    (Giridharan Kesavan) 
