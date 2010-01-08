@@ -439,6 +439,9 @@ Release 0.21.0 - Unreleased
     MAPREDUCE-1209. Move common specific part of the test TestReflectionUtils
     out of mapred into common. (Todd Lipcon via tomwhite)
 
+    MAPREDUCE-1317. Reduce the memory footprint of Rumen objects by interning
+    host Strings. (Hong Tang via cdouglas)
+
   BUG FIXES
 
     MAPREDUCE-1258. Fix fair scheduler event log not logging job info.
