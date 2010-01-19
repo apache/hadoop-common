@@ -911,3 +911,7 @@ Release 0.21.0 - Unreleased
     
     MAPREDUCE-1352. Fix snapshot incorrect dependency published in .pom files
     (Giridharan Kesavan) 
+
+    MAPREDUCE-1342. Fixed deadlock in global blacklisting of tasktrackers.
+    (Amareshwari Sriramadasu via acmurthy)
+

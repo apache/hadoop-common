@@ -611,6 +611,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
      * Increments faults(blacklist by job) for the tracker by one.
      * 
      * Adds the tracker to the potentially faulty list. 
+     * Assumes JobTracker is locked on the entry.
      * 
      * @param hostName 
      */
@@ -691,14 +692,17 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
         }
       }
     }
-    
+    // Assumes JobTracker is locked on entry.    
     private FaultInfo getFaultInfo(String hostName, 
         boolean createIfNeccessary) {
-      FaultInfo fi = potentiallyFaultyTrackers.get(hostName);
-      long now = clock.getTime();
-      if (fi == null && createIfNeccessary) {
-        fi = new FaultInfo(now);
-        potentiallyFaultyTrackers.put(hostName, fi);
+      FaultInfo fi = null;
+      synchronized (potentiallyFaultyTrackers) {
+        fi = potentiallyFaultyTrackers.get(hostName);
+        long now = clock.getTime();
+        if (fi == null && createIfNeccessary) {
+          fi = new FaultInfo(now);
+          potentiallyFaultyTrackers.put(hostName, fi);
+        }
       }
       return fi;
     }
@@ -736,6 +740,8 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
      * Removes the tracker from blacklist and
      * from potentially faulty list, when it is restarted.
      * 
+     * Assumes JobTracker is locked on the entry.
+     * 
      * @param hostName
      */
     void markTrackerHealthy(String hostName) {
@@ -754,6 +760,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
      * One fault of the tracker is discarded if there
      * are no faults during one day. So, the tracker will get a 
      * chance again to run tasks of a job.
+     * Assumes JobTracker is locked on the entry.
      * 
      * @param hostName The tracker name
      * @param now The current time
@@ -823,6 +830,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     /**
      * Whether a host is blacklisted across all the jobs. 
      * 
+     * Assumes JobTracker is locked on the entry.
      * @param hostName
      * @return
      */
@@ -836,6 +844,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
       return false;
     }
     
+    // Assumes JobTracker is locked on the entry.
     int getFaultCount(String hostName) {
       synchronized (potentiallyFaultyTrackers) {
         FaultInfo fi = null;
@@ -846,6 +855,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
       return 0;
     }
     
+    // Assumes JobTracker is locked on the entry.
     Set<ReasonForBlackListing> getReasonForBlackListing(String hostName) {
       synchronized (potentiallyFaultyTrackers) {
         FaultInfo fi = null;
@@ -857,6 +867,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     }
 
 
+    // Assumes JobTracker is locked on the entry.
     void setNodeHealthStatus(String hostName, boolean isHealthy, String reason) {
       FaultInfo fi = null;
       // If tracker is not healthy, create a fault info object
@@ -914,6 +925,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
   /**
    * Get all task tracker statuses on given host
    * 
+   * Assumes JobTracker is locked on the entry
    * @param hostName
    * @return {@link java.util.List} of {@link TaskTrackerStatus}
    */
@@ -1954,7 +1966,8 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    * 
    * @return {@link Collection} of {@link TaskTrackerStatus} 
    */
-  public Collection<TaskTrackerStatus> taskTrackers() {
+  // lock to taskTrackers should hold JT lock first.
+  public synchronized Collection<TaskTrackerStatus> taskTrackers() {
     Collection<TaskTrackerStatus> ttStatuses;
     synchronized (taskTrackers) {
       ttStatuses = 
@@ -1971,7 +1984,10 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    *  
    * @return {@link Collection} of active {@link TaskTrackerStatus} 
    */
-  public Collection<TaskTrackerStatus> activeTaskTrackers() {
+  // This method is synchronized to make sure that the locking order 
+  // "taskTrackers lock followed by faultyTrackers.potentiallyFaultyTrackers 
+  // lock" is under JobTracker lock to avoid deadlocks.
+  synchronized public Collection<TaskTrackerStatus> activeTaskTrackers() {
     Collection<TaskTrackerStatus> activeTrackers = 
       new ArrayList<TaskTrackerStatus>();
     synchronized (taskTrackers) {
@@ -1991,7 +2007,10 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    * The second element in the returned list contains the list of blacklisted
    * tracker names. 
    */
-  public List<List<String>> taskTrackerNames() {
+  // This method is synchronized to make sure that the locking order 
+  // "taskTrackers lock followed by faultyTrackers.potentiallyFaultyTrackers 
+  // lock" is under JobTracker lock to avoid deadlocks.
+  synchronized public List<List<String>> taskTrackerNames() {
     List<String> activeTrackers = 
       new ArrayList<String>();
     List<String> blacklistedTrackers = 
@@ -2017,7 +2036,10 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    *  
    * @return {@link Collection} of blacklisted {@link TaskTrackerStatus} 
    */
-  public Collection<TaskTrackerStatus> blacklistedTaskTrackers() {
+  // This method is synchronized to make sure that the locking order 
+  // "taskTrackers lock followed by faultyTrackers.potentiallyFaultyTrackers 
+  // lock" is under JobTracker lock to avoid deadlocks.
+  synchronized public Collection<TaskTrackerStatus> blacklistedTaskTrackers() {
     Collection<TaskTrackerStatus> blacklistedTrackers = 
       new ArrayList<TaskTrackerStatus>();
     synchronized (taskTrackers) {
@@ -2031,7 +2053,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     return blacklistedTrackers;
   }
 
-  int getFaultCount(String hostName) {
+  synchronized int getFaultCount(String hostName) {
     return faultyTrackers.getFaultCount(hostName);
   }
   
@@ -2051,7 +2073,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    * 
    * @return true if blacklisted, false otherwise
    */
-  public boolean isBlacklisted(String trackerID) {
+  synchronized public boolean isBlacklisted(String trackerID) {
     TaskTrackerStatus status = getTaskTrackerStatus(trackerID);
     if (status != null) {
       return faultyTrackers.isBlacklisted(status.getHost());
@@ -2059,7 +2081,8 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     return false;
   }
   
-  public TaskTrackerStatus getTaskTrackerStatus(String trackerID) {
+  // lock to taskTrackers should hold JT lock first.
+  synchronized public TaskTrackerStatus getTaskTrackerStatus(String trackerID) {
     TaskTracker taskTracker;
     synchronized (taskTrackers) {
       taskTracker = taskTrackers.get(trackerID);
@@ -2067,7 +2090,8 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     return (taskTracker == null) ? null : taskTracker.getStatus();
   }
 
-  public TaskTracker getTaskTracker(String trackerID) {
+  // lock to taskTrackers should hold JT lock first.
+  synchronized public TaskTracker getTaskTracker(String trackerID) {
     synchronized (taskTrackers) {
       return taskTrackers.get(trackerID);
     }
@@ -2080,7 +2104,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    * Adds a new node to the jobtracker. It involves adding it to the expiry
    * thread and adding it for resolution
    * 
-   * Assuming trackerExpiryQueue is locked on entry
+   * Assumes JobTracker, taskTrackers and trackerExpiryQueue is locked on entry
    * 
    * @param status Task Tracker's status
    */
@@ -3769,6 +3793,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     }
   }
 
+  // Assumes JobTracker, taskTrackers and trackerExpiryQueue are locked on entry
   private void removeTracker(TaskTracker tracker) {
     String trackerName = tracker.getTrackerName();
     // Remove completely after marking the tasks as 'KILLED'
@@ -4064,7 +4089,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     }
   }
   
-  String getFaultReport(String host) {
+  synchronized String getFaultReport(String host) {
     FaultInfo fi = faultyTrackers.getFaultInfo(host, false);
     if (fi == null) {
       return "";
@@ -4072,7 +4097,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     return fi.getTrackerFaultReport();
   }
 
-  Set<ReasonForBlackListing> getReasonForBlackList(String host) {
+  synchronized Set<ReasonForBlackListing> getReasonForBlackList(String host) {
     FaultInfo fi = faultyTrackers.getFaultInfo(host, false);
     if (fi == null) {
       return new HashSet<ReasonForBlackListing>();
@@ -4080,7 +4105,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     return fi.getReasonforblacklisting();
   }
   
-  Collection<BlackListInfo> getBlackListedTrackers() {
+  synchronized Collection<BlackListInfo> getBlackListedTrackers() {
     Collection<BlackListInfo> blackListedTrackers = 
       new ArrayList<BlackListInfo>();
     for(TaskTrackerStatus tracker : blacklistedTaskTrackers()) {
@@ -4105,9 +4130,12 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     return blackListedTrackers;
   }
   
-  /** Test method to increment the fault*/
-  
-  void incrementFaults(String hostName) {
+  /** Test method to increment the fault
+   * This method is synchronized to make sure that the locking order 
+   * "faultyTrackers.potentiallyFaultyTrackers lock followed by taskTrackers 
+   * lock" is under JobTracker lock to avoid deadlocks.
+   */
+  synchronized void incrementFaults(String hostName) {
     faultyTrackers.incrementFaults(hostName);
   }
 
