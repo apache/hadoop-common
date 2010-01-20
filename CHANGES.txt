@@ -918,3 +918,6 @@ Release 0.21.0 - Unreleased
     MAPREDUCE-1316. Fixes a memory leak of TaskInProgress instances in
     the jobtracker. (Amar Kamat via yhemanth)
 
+    MAPREDUCE-1359. TypedBytes TestIO doesn't mkdir its test dir first.
+    (Anatoli Fomenko via cos)
+
