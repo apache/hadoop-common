@@ -921,3 +921,4 @@ Release 0.21.0 - Unreleased
     MAPREDUCE-1359. TypedBytes TestIO doesn't mkdir its test dir first.
     (Anatoli Fomenko via cos)
 
+    HDFS-464. Fix memory leaks in libhdfs. (Christian Kunz via szetszwo)
