@@ -922,3 +922,6 @@ Release 0.21.0 - Unreleased
     (Anatoli Fomenko via cos)
 
     HDFS-464. Fix memory leaks in libhdfs. (Christian Kunz via szetszwo)
+
+    MAPREDUCE-1314. Correct errant mapreduce.x.mapreduce.x replacements from
+    bulk change. (Amareshwari Sriramadasu via cdouglas)
