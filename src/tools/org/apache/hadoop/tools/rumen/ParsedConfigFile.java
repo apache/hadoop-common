@@ -29,7 +29,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.hadoop.mapreduce.MRConfig;
-import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
@@ -39,8 +39,10 @@ import org.w3c.dom.Text;
 import org.xml.sax.SAXException;
 
 class ParsedConfigFile {
-  private static final Pattern jobIDPattern = Pattern.compile("_(job_[0-9]+_[0-9]+)_");
-  private static final Pattern heapPattern = Pattern.compile("-Xmx([0-9]+)([mMgG])");
+  private static final Pattern jobIDPattern =
+      Pattern.compile("_(job_[0-9]+_[0-9]+)_");
+  private static final Pattern heapPattern =
+      Pattern.compile("-Xmx([0-9]+)([mMgG])");
 
   final int heapMegabytes;
 
@@ -70,6 +72,7 @@ class ParsedConfigFile {
   }
 
   @SuppressWarnings("hiding")
+  @Deprecated
   ParsedConfigFile(String filenameLine, String xmlString) {
     super();
 
@@ -138,10 +141,11 @@ class ParsedConfigFile {
             value = ((Text) field.getFirstChild()).getData();
           }
           if ("final".equals(field.getTagName()) && field.hasChildNodes()) {
-            finalParameter = "true".equals(((Text) field.getFirstChild())
-                .getData());
+            finalParameter =
+                "true".equals(((Text) field.getFirstChild()).getData());
           }
         }
+
         if ("mapred.child.java.opts".equals(attr) && value != null) {
           Matcher matcher = heapPattern.matcher(value);
           if (matcher.find()) {
@@ -155,22 +159,24 @@ class ParsedConfigFile {
           }
         }
 
-        if (JobContext.QUEUE_NAME.equals(attr) && value != null) {
+        if (MRJobConfig.QUEUE_NAME.equals(attr) && value != null) {
           queue = value;
         }
 
-        if (JobContext.JOB_NAME.equals(attr) && value != null) {
+        if (MRJobConfig.JOB_NAME.equals(attr) && value != null) {
           jobName = value;
         }
 
-        clusterMapMB = maybeGetIntValue(MRConfig.MAPMEMORY_MB, attr,
-            value, clusterMapMB);
-        clusterReduceMB = maybeGetIntValue(MRConfig.REDUCEMEMORY_MB,
-            attr, value, clusterReduceMB);
-        jobMapMB = maybeGetIntValue(JobContext.MAP_MEMORY_MB, attr, value,
-            jobMapMB);
-        jobReduceMB = maybeGetIntValue(JobContext.REDUCE_MEMORY_MB, attr,
-            value, jobReduceMB);
+        clusterMapMB =
+            maybeGetIntValue(MRConfig.MAPMEMORY_MB, attr, value, clusterMapMB);
+        clusterReduceMB =
+            maybeGetIntValue(MRConfig.REDUCEMEMORY_MB, attr, value,
+                clusterReduceMB);
+        jobMapMB =
+            maybeGetIntValue(MRJobConfig.MAP_MEMORY_MB, attr, value, jobMapMB);
+        jobReduceMB =
+            maybeGetIntValue(MRJobConfig.REDUCE_MEMORY_MB, attr, value,
+                jobReduceMB);
       }
 
       valid = true;

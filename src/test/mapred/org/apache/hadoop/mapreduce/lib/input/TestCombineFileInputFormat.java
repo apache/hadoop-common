@@ -19,10 +19,12 @@ package org.apache.hadoop.mapreduce.lib.input;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.ArrayList;
 
 import junit.framework.TestCase;
 
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
@@ -31,12 +33,17 @@ import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 
-public class TestCombineFileInputFormat extends TestCase{
+public class TestCombineFileInputFormat extends TestCase {
 
   private static final String rack1[] = new String[] {
     "/r1"
@@ -73,6 +80,165 @@ public class TestCombineFileInputFormat extends TestCase{
         TaskAttemptContext context) throws IOException {
       return null;
     }
+  }
+
+  /** Dummy class to extend CombineFileInputFormat. It allows 
+   * non-existent files to be passed into the CombineFileInputFormat, allows
+   * for easy testing without having to create real files.
+   */
+  private class DummyInputFormat1 extends DummyInputFormat {
+    @Override
+    protected List<FileStatus> listStatus(JobContext job) throws IOException {
+      Path[] files = getInputPaths(job);
+      List<FileStatus> results = new ArrayList<FileStatus>();
+      for (int i = 0; i < files.length; i++) {
+        Path p = files[i];
+        FileSystem fs = p.getFileSystem(job.getConfiguration());
+        results.add(fs.getFileStatus(p));
+      }
+      return results;
+    }
+  }
+
+  private static final String DUMMY_KEY = "dummy.rr.key";
+
+  private static class DummyRecordReader extends RecordReader<Text, Text> {
+    private TaskAttemptContext context;
+    private CombineFileSplit s;
+    private int idx;
+    private boolean used;
+
+    public DummyRecordReader(CombineFileSplit split, TaskAttemptContext context,
+        Integer i) {
+      this.context = context;
+      this.idx = i;
+      this.s = split;
+      this.used = true;
+    }
+
+    /** @return a value specified in the context to check whether the
+     * context is properly updated by the initialize() method.
+     */
+    public String getDummyConfVal() {
+      return this.context.getConfiguration().get(DUMMY_KEY);
+    }
+
+    public void initialize(InputSplit split, TaskAttemptContext context) {
+      this.context = context;
+      this.s = (CombineFileSplit) split;
+
+      // By setting used to true in the c'tor, but false in initialize,
+      // we can check that initialize() is always called before use
+      // (e.g., in testReinit()).
+      this.used = false;
+    }
+
+    public boolean nextKeyValue() {
+      boolean ret = !used;
+      this.used = true;
+      return ret;
+    }
+
+    public Text getCurrentKey() {
+      return new Text(this.context.getConfiguration().get(DUMMY_KEY));
+    }
+
+    public Text getCurrentValue() {
+      return new Text(this.s.getPath(idx).toString());
+    }
+
+    public float getProgress() {
+      return used ? 1.0f : 0.0f;
+    }
+
+    public void close() {
+    }
+  }
+
+  /** Extend CFIF to use CFRR with DummyRecordReader */
+  private class ChildRRInputFormat extends CombineFileInputFormat<Text, Text> {
+    @SuppressWarnings("unchecked")
+    @Override
+    public RecordReader<Text,Text> createRecordReader(InputSplit split, 
+        TaskAttemptContext context) throws IOException {
+      return new CombineFileRecordReader((CombineFileSplit) split, context,
+          (Class) DummyRecordReader.class);
+    }
+  }
+
+  public void testRecordReaderInit() throws InterruptedException, IOException {
+    // Test that we properly initialize the child recordreader when
+    // CombineFileInputFormat and CombineFileRecordReader are used.
+
+    TaskAttemptID taskId = new TaskAttemptID("jt", 0, TaskType.MAP, 0, 0);
+    Configuration conf1 = new Configuration();
+    conf1.set(DUMMY_KEY, "STATE1");
+    TaskAttemptContext context1 = new TaskAttemptContextImpl(conf1, taskId);
+
+    // This will create a CombineFileRecordReader that itself contains a
+    // DummyRecordReader.
+    InputFormat inputFormat = new ChildRRInputFormat();
+
+    Path [] files = { new Path("file1") };
+    long [] lengths = { 1 };
+
+    CombineFileSplit split = new CombineFileSplit(files, lengths);
+
+    RecordReader rr = inputFormat.createRecordReader(split, context1);
+    assertTrue("Unexpected RR type!", rr instanceof CombineFileRecordReader);
+
+    // Verify that the initial configuration is the one being used.
+    // Right after construction the dummy key should have value "STATE1"
+    assertEquals("Invalid initial dummy key value", "STATE1",
+      rr.getCurrentKey().toString());
+
+    // Switch the active context for the RecordReader...
+    Configuration conf2 = new Configuration();
+    conf2.set(DUMMY_KEY, "STATE2");
+    TaskAttemptContext context2 = new TaskAttemptContextImpl(conf2, taskId);
+    rr.initialize(split, context2);
+
+    // And verify that the new context is updated into the child record reader.
+    assertEquals("Invalid secondary dummy key value", "STATE2",
+      rr.getCurrentKey().toString());
+  }
+
+  public void testReinit() throws Exception {
+    // Test that a split containing multiple files works correctly,
+    // with the child RecordReader getting its initialize() method
+    // called a second time.
+    TaskAttemptID taskId = new TaskAttemptID("jt", 0, TaskType.MAP, 0, 0);
+    Configuration conf = new Configuration();
+    TaskAttemptContext context = new TaskAttemptContextImpl(conf, taskId);
+
+    // This will create a CombineFileRecordReader that itself contains a
+    // DummyRecordReader.
+    InputFormat inputFormat = new ChildRRInputFormat();
+
+    Path [] files = { new Path("file1"), new Path("file2") };
+    long [] lengths = { 1, 1 };
+
+    CombineFileSplit split = new CombineFileSplit(files, lengths);
+    RecordReader rr = inputFormat.createRecordReader(split, context);
+    assertTrue("Unexpected RR type!", rr instanceof CombineFileRecordReader);
+
+    // first initialize() call comes from MapTask. We'll do it here.
+    rr.initialize(split, context);
+
+    // First value is first filename.
+    assertTrue(rr.nextKeyValue());
+    assertEquals("file1", rr.getCurrentValue().toString());
+
+    // The inner RR will return false, because it only emits one (k, v) pair.
+    // But there's another sub-split to process. This returns true to us.
+    assertTrue(rr.nextKeyValue());
+    
+    // And the 2nd rr will have its initialize method called correctly.
+    assertEquals("file2", rr.getCurrentValue().toString());
+    
+    // But after both child RR's have returned their singleton (k, v), this
+    // should also return false.
+    assertFalse(rr.nextKeyValue());
   }
 
   public void testSplitPlacement() throws IOException {
@@ -410,6 +576,28 @@ public class TestCombineFileInputFormat extends TestCase{
       assertEquals(fileSplit.getNumPaths(), 6);
       assertEquals(fileSplit.getLocations().length, 1);
       assertEquals(fileSplit.getLocations()[0], hosts3[0]); // should be on r3
+
+      // measure performance when there are multiple pools and
+      // many files in each pool.
+      int numPools = 100;
+      int numFiles = 1000;
+      DummyInputFormat1 inFormat1 = new DummyInputFormat1();
+      for (int i = 0; i < numFiles; i++) {
+        FileInputFormat.setInputPaths(job, file1);
+      }
+      inFormat1.setMinSplitSizeRack(1); // everything is at least rack local
+      final Path dirNoMatch1 = new Path(inDir, "/dirxx");
+      final Path dirNoMatch2 = new Path(inDir, "/diryy");
+      for (int i = 0; i < numPools; i++) {
+        inFormat1.createPool(new TestFilter(dirNoMatch1), 
+                            new TestFilter(dirNoMatch2));
+      }
+      long start = System.currentTimeMillis();
+      splits = inFormat1.getSplits(job);
+      long end = System.currentTimeMillis();
+      System.out.println("Elapsed time for " + numPools + " pools " +
+                         " and " + numFiles + " files is " + 
+                         ((end - start)/1000) + " seconds.");
     } finally {
       if (dfs != null) {
         dfs.shutdown();

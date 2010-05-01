@@ -64,8 +64,9 @@ public class EventReader implements Closeable {
     this.in = in;
     this.version = in.readLine();
     
-    if (!EventWriter.VERSION.equals(version))
+    if (!EventWriter.VERSION.equals(version)) {
       throw new IOException("Incompatible event log version: "+version);
+    }
     
     this.schema = Schema.parse(in.readLine());
     this.reader = new SpecificDatumReader(schema);
@@ -82,7 +83,7 @@ public class EventReader implements Closeable {
     Event wrapper;
     try {
       wrapper = (Event)reader.read(null, decoder);
-    } catch (AvroRuntimeException e) {            // at EOF
+    } catch (EOFException e) {            // at EOF
       return null;
     }
     HistoryEvent result;

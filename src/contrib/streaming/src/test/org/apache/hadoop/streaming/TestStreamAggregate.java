@@ -18,17 +18,19 @@
 
 package org.apache.hadoop.streaming;
 
-import junit.framework.TestCase;
+import org.junit.Test;
+import static org.junit.Assert.*;
 import java.io.*;
 
-import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 
 /**
  * This class tests hadoopStreaming in MapReduce local mode.
  * It uses Hadoop Aggregate to count the numbers of word occurrences 
  * in the input.
  */
-public class TestStreamAggregate extends TestCase
+public class TestStreamAggregate
 {
   protected File INPUT_FILE = new File("stream_aggregate_input.txt");
   protected File OUTPUT_DIR = new File("stream_aggregate_out");
@@ -63,16 +65,16 @@ public class TestStreamAggregate extends TestCase
       "-reducer", "aggregate",
       //"-verbose",
       //"-jobconf", "stream.debug=set"
-      "-jobconf", JobContext.PRESERVE_FAILED_TASK_FILES + "=true",
+      "-jobconf", MRJobConfig.PRESERVE_FAILED_TASK_FILES + "=true",
       "-jobconf", "stream.tmpdir="+System.getProperty("test.build.data","/tmp")
     };
   }
   
-  public void testCommandLine()
-  {
+  @Test
+  public void testCommandLine() throws Exception {
     try {
       try {
-        OUTPUT_DIR.getAbsoluteFile().delete();
+        FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
       } catch (Exception e) {
       }
 
@@ -89,21 +91,10 @@ public class TestStreamAggregate extends TestCase
       System.err.println("outEx1=" + outputExpect);
       System.err.println("  out1=" + output);
       assertEquals(outputExpect, output);
-    } catch(Exception e) {
-      failTrace(e);
     } finally {
-      File outFileCRC = new File(OUTPUT_DIR, ".part-00000.crc").getAbsoluteFile();
       INPUT_FILE.delete();
-      outFileCRC.delete();
-      OUTPUT_DIR.getAbsoluteFile().delete();
+      FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
     }
-  }
-
-  private void failTrace(Exception e)
-  {
-    StringWriter sw = new StringWriter();
-    e.printStackTrace(new PrintWriter(sw));
-    fail(sw.toString());
   }
 
   public static void main(String[]args) throws Exception

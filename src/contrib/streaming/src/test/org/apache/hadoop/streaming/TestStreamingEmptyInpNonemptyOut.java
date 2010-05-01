@@ -18,8 +18,11 @@
 
 package org.apache.hadoop.streaming;
 
-import junit.framework.TestCase;
+import org.junit.Test;
+
 import java.io.*;
+
+import org.apache.hadoop.fs.FileUtil;
 
 /**
  * This class tests hadoopStreaming in MapReduce local mode by giving
@@ -28,7 +31,7 @@ import java.io.*;
  * was hanging forever. Now this issue is solved. Similarly reducer is also
  * checked for task completion with empty input and nonempty output.
  */
-public class TestStreamingEmptyInpNonemptyOut extends TestCase
+public class TestStreamingEmptyInpNonemptyOut
 {
 
   protected File INPUT_FILE = new File("emptyInputFile.txt");
@@ -72,7 +75,8 @@ public class TestStreamingEmptyInpNonemptyOut extends TestCase
       "-jobconf", "stream.tmpdir="+System.getProperty("test.build.data","/tmp")
     };
   }
-  
+
+  @Test
   public void testEmptyInputNonemptyOutput() throws IOException
   {
     try {
@@ -100,11 +104,13 @@ public class TestStreamingEmptyInpNonemptyOut extends TestCase
       outFile = new File(OUTPUT_DIR, "part-00000").getAbsoluteFile();
       outFile.delete();
     } finally {
-      File outFileCRC = new File(OUTPUT_DIR, ".part-00000.crc").getAbsoluteFile();
-      INPUT_FILE.delete();
-      SCRIPT_FILE.delete();
-      outFileCRC.delete();
-      OUTPUT_DIR.getAbsoluteFile().delete();
+      try {
+        INPUT_FILE.delete();
+        SCRIPT_FILE.delete();
+        FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
     }
   }
 

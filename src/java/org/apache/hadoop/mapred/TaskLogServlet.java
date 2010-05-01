@@ -22,11 +22,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.JobACL;
+import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
+import org.apache.hadoop.http.HtmlQuoting;
 import org.apache.hadoop.util.StringUtils;
 
 /**
@@ -50,55 +58,7 @@ public class TaskLogServlet extends HttpServlet {
   public static String getTaskLogUrl(String taskTrackerHostName,
       String httpPort, String taskAttemptID) {
     return ("http://" + taskTrackerHostName + ":" + httpPort
-        + "/tasklog?taskid=" + taskAttemptID);
-  }
-
-  /**
-   * Find the next quotable character in the given array.
-   * @param data the bytes to look in
-   * @param offset the first index to look in
-   * @param end the index after the last one to look in
-   * @return the index of the quotable character or end if none was found
-   */
-  private static int findFirstQuotable(byte[] data, int offset, int end) {
-    while (offset < end) {
-      switch (data[offset]) {
-      case '<':
-      case '>':
-      case '&':
-        return offset;
-      default:
-        offset += 1;
-      }
-    }
-    return offset;
-  }
-
-  private static void quotedWrite(OutputStream out, byte[] data, int offset,
-                                  int length) throws IOException {
-    int end = offset + length;
-    while (offset < end) {
-      int next = findFirstQuotable(data, offset, end);
-      out.write(data, offset, next - offset);
-      offset = next;
-      if (offset < end) {
-        switch (data[offset]) {
-        case '<':
-          out.write("&lt;".getBytes());
-          break;
-        case '>':
-          out.write("&gt;".getBytes());
-          break;
-        case '&':
-          out.write("&amp;".getBytes());
-          break;
-        default:
-          out.write(data[offset]);
-          break;
-        }
-        offset += 1;
-      }
-    }
+        + "/tasklog?attemptid=" + taskAttemptID);
   }
 
   private void printTaskLog(HttpServletResponse response,
@@ -122,7 +82,7 @@ public class TaskLogServlet extends HttpServlet {
           if (plainText) {
             out.write(b, 0, result); 
           } else {
-            quotedWrite(out, b, 0, result);
+            HtmlQuoting.quoteHtmlChars(out, b, 0, result);
           }
         } else {
           break;
@@ -150,6 +110,53 @@ public class TaskLogServlet extends HttpServlet {
   }
 
   /**
+   * Validates if the given user has job view permissions for this job.
+   * conf contains jobOwner and job-view-ACLs.
+   * We allow jobOwner, superUser(i.e. mrOwner) and members of superGroup and
+   * users and groups specified in configuration using
+   * mapreduce.job.acl-view-job to view job.
+   */
+  private void checkAccessForTaskLogs(JobConf conf, String user, JobID jobId,
+      TaskTracker tracker) throws AccessControlException {
+
+    if (!tracker.isJobLevelAuthorizationEnabled()) {
+      return;
+    }
+
+    // buiild job view acl by reading from conf
+    AccessControlList jobViewACL = tracker.getJobACLsManager().
+        constructJobACLs(conf).get(JobACL.VIEW_JOB);
+
+    String jobOwner = conf.get(JobContext.USER_NAME);
+    UserGroupInformation callerUGI =
+        UserGroupInformation.createRemoteUser(user);
+
+    tracker.getJobACLsManager().checkAccess(jobId, callerUGI, JobACL.VIEW_JOB,
+        jobOwner, jobViewACL);
+  }
+
+  /**
+   * Builds a Configuration object by reading the xml file.
+   * This doesn't load the default resources.
+   *
+   * Returns null if job-acls.xml is not there in userlogs/$jobid/attempt-dir on
+   * local file system. This can happen when we restart the cluster with job
+   * level authorization enabled(but was disabled on earlier cluster) and
+   * viewing task logs of old jobs(i.e. jobs finished on earlier unsecure
+   * cluster).
+   */
+  static Configuration getConfFromJobACLsFile(String attemptIdStr) {
+    Path jobAclsFilePath = new Path(
+        TaskLog.getAttemptDir(attemptIdStr).toString(), TaskRunner.jobACLsFile);
+    Configuration conf = null;
+    if (new File(jobAclsFilePath.toUri().getPath()).exists()) {
+      conf = new Configuration(false);
+      conf.addResource(jobAclsFilePath);
+    }
+    return conf;
+  }
+
+  /**
    * Get the logs via http.
    */
   @Override
@@ -162,13 +169,45 @@ public class TaskLogServlet extends HttpServlet {
     TaskLog.LogName filter = null;
     boolean isCleanup = false;
 
-    String taskIdStr = request.getParameter("taskid");
-    if (taskIdStr == null) {
+    String attemptIdStr = request.getParameter("attemptid");
+    if (attemptIdStr == null) {
       response.sendError(HttpServletResponse.SC_BAD_REQUEST, 
-                         "Argument taskid is required");
+                         "Argument attemptid is required");
       return;
     }
-    TaskAttemptID taskId = TaskAttemptID.forName(taskIdStr);
+
+    TaskAttemptID attemptId = TaskAttemptID.forName(attemptIdStr);
+    if (!TaskLog.getAttemptDir(attemptIdStr).exists()) {
+      response.sendError(HttpServletResponse.SC_GONE,
+          "Task log directory for task " + attemptId +
+          " does not exist. May be cleaned up by Task Tracker, if older logs.");
+      return;
+    }
+
+    // get user name who is accessing
+    String user = request.getRemoteUser();
+    if (user != null) {
+      ServletContext context = getServletContext();
+      TaskTracker taskTracker = (TaskTracker) context.getAttribute(
+          "task.tracker");
+      // get jobACLConf from ACLs file
+      Configuration jobACLConf = getConfFromJobACLsFile(attemptIdStr);
+      // Ignore authorization if job-acls.xml is not found
+      if (jobACLConf != null) {
+        JobID jobId = attemptId.getJobID();
+
+        try {
+          checkAccessForTaskLogs(new JobConf(jobACLConf), user, jobId,
+              taskTracker);
+        } catch (AccessControlException e) {
+          String errMsg = "User " + user + " failed to view tasklogs of job " +
+              jobId + "!\n\n" + e.getMessage();
+          response.sendError(HttpServletResponse.SC_UNAUTHORIZED, errMsg);
+          return;
+        }
+      }
+    }
+
     String logFilter = request.getParameter("filter");
     if (logFilter != null) {
       try {
@@ -204,27 +243,27 @@ public class TaskLogServlet extends HttpServlet {
     OutputStream out = response.getOutputStream();
     if( !plainText ) {
       out.write(("<html>\n" +
-                 "<title>Task Logs: '" + taskId + "'</title>\n" +
+                 "<title>Task Logs: '" + attemptId + "'</title>\n" +
                  "<body>\n" +
-                 "<h1>Task Logs: '" +  taskId +  "'</h1><br>\n").getBytes()); 
+                 "<h1>Task Logs: '" +  attemptId +  "'</h1><br>\n").getBytes()); 
 
       if (filter == null) {
-        printTaskLog(response, out, taskId, start, end, plainText, 
+        printTaskLog(response, out, attemptId, start, end, plainText, 
                      TaskLog.LogName.STDOUT, isCleanup);
-        printTaskLog(response, out, taskId, start, end, plainText, 
+        printTaskLog(response, out, attemptId, start, end, plainText, 
                      TaskLog.LogName.STDERR, isCleanup);
-        printTaskLog(response, out, taskId, start, end, plainText, 
+        printTaskLog(response, out, attemptId, start, end, plainText,
                      TaskLog.LogName.SYSLOG, isCleanup);
-        if (haveTaskLog(taskId, TaskLog.LogName.DEBUGOUT)) {
-          printTaskLog(response, out, taskId, start, end, plainText, 
+        if (haveTaskLog(attemptId, TaskLog.LogName.DEBUGOUT)) {
+          printTaskLog(response, out, attemptId, start, end, plainText, 
                        TaskLog.LogName.DEBUGOUT, isCleanup);
         }
-        if (haveTaskLog(taskId, TaskLog.LogName.PROFILE)) {
-          printTaskLog(response, out, taskId, start, end, plainText, 
+        if (haveTaskLog(attemptId, TaskLog.LogName.PROFILE)) {
+          printTaskLog(response, out, attemptId, start, end, plainText, 
                        TaskLog.LogName.PROFILE, isCleanup);
         }
       } else {
-        printTaskLog(response, out, taskId, start, end, plainText, filter,
+        printTaskLog(response, out, attemptId, start, end, plainText, filter,
                      isCleanup);
       }
       
@@ -234,7 +273,7 @@ public class TaskLogServlet extends HttpServlet {
       response.sendError(HttpServletResponse.SC_BAD_REQUEST,
           "You must supply a value for `filter' (STDOUT, STDERR, or SYSLOG) if you set plainText = true");
     } else {
-      printTaskLog(response, out, taskId, start, end, plainText, filter, 
+      printTaskLog(response, out, attemptId, start, end, plainText, filter, 
                    isCleanup);
     } 
   }

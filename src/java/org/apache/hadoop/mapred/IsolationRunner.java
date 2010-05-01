@@ -27,13 +27,13 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JvmTask;
 import org.apache.hadoop.mapreduce.MRConfig;
+import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitIndex;
 
 /**
  * IsolationRunner is intended to facilitate debugging by re-running a specific
@@ -144,8 +144,9 @@ public class IsolationRunner {
    */
   boolean run(String[] args) 
       throws ClassNotFoundException, IOException, InterruptedException {
-    if (args.length != 1) {
-      System.out.println("Usage: IsolationRunner <path>/job.xml");
+    if (args.length < 1) {
+      System.out.println("Usage: IsolationRunner <path>/job.xml " +
+      		"<optional-user-name>");
       return false;
     }
     File jobFilename = new File(args[0]);
@@ -153,7 +154,14 @@ public class IsolationRunner {
       System.out.println(jobFilename + " is not a valid job file.");
       return false;
     }
+    String user;
+    if (args.length > 1) {
+      user = args[1];
+    } else {
+      user = UserGroupInformation.getCurrentUser().getShortUserName();
+    }
     JobConf conf = new JobConf(new Path(jobFilename.toString()));
+    conf.setUser(user);
     TaskAttemptID taskId = TaskAttemptID.forName(conf.get(JobContext.TASK_ATTEMPT_ID));
     if (taskId == null) {
       System.out.println("mapreduce.task.attempt.id not found in configuration;" + 
@@ -180,19 +188,21 @@ public class IsolationRunner {
     Thread.currentThread().setContextClassLoader(classLoader);
     conf.setClassLoader(classLoader);
 
-    // split.dta file is used only by IsolationRunner. The file can now be in
-    // any of the configured local disks, so use LocalDirAllocator to find out
-    // where it is.
-    Path localSplit =
+    // split.dta/split.meta files are used only by IsolationRunner. 
+    // The file can now be in any of the configured local disks, 
+    // so use LocalDirAllocator to find out where it is.
+    Path localMetaSplit =
         new LocalDirAllocator(MRConfig.LOCAL_DIR).getLocalPathToRead(
-            TaskTracker.getLocalSplitFile(conf.getUser(), taskId.getJobID()
-                .toString(), taskId.toString()), conf);
-    DataInputStream splitFile = FileSystem.getLocal(conf).open(localSplit);
-    String splitClass = Text.readString(splitFile);
-    BytesWritable split = new BytesWritable();
-    split.readFields(splitFile);
+            TaskTracker.getLocalSplitMetaFile(conf.getUser(), 
+              taskId.getJobID().toString(), taskId
+                .toString()), conf);
+    DataInputStream splitFile = FileSystem.getLocal(conf).open(localMetaSplit);
+    TaskSplitIndex splitIndex = new TaskSplitIndex(); 
+    splitIndex.readFields(splitFile);
     splitFile.close();
-    Task task = new MapTask(jobFilename.toString(), taskId, partition, splitClass, split, 1);
+
+    Task task = 
+      new MapTask(jobFilename.toString(), taskId, partition, splitIndex, 1);
     task.setConf(conf);
     task.run(conf, new FakeUmbilical());
     return true;

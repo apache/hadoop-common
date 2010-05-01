@@ -27,8 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import javax.security.auth.login.LoginException;
-
 import junit.framework.TestCase;
 
 import org.apache.commons.logging.Log;
@@ -36,14 +34,16 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.MRConfig;
+import org.apache.hadoop.mapreduce.TaskCounter;
 import org.apache.hadoop.mapreduce.TaskType;
-import org.apache.hadoop.security.UnixUserGroupInformation;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
 
 /**
@@ -107,7 +107,8 @@ public class TestMiniMRWithDFS extends TestCase {
     {
       
       Path[] fileList = FileUtil.stat2Paths(fs.listStatus(outDir,
-                                   new OutputLogFilter()));
+                                   new Utils.OutputFileUtils
+                                            .OutputFilesFilter()));
       for(int i=0; i < fileList.length; ++i) {
         LOG.info("File list[" + i + "]" + ": "+ fileList[i]);
         BufferedReader file = 
@@ -235,15 +236,7 @@ public class TestMiniMRWithDFS extends TestCase {
         NUM_MAPS, NUM_SAMPLES, jobconf).doubleValue();
     double error = Math.abs(Math.PI - estimate);
     assertTrue("Error in PI estimation "+error+" exceeds 0.01", (error < 0.01));
-    String userName = jobconf.getUser();
-    if (userName == null) {
-      try {
-        userName = UnixUserGroupInformation.login(jobconf).getUserName();
-      } catch (LoginException le) {
-        throw new IOException("Cannot get the login username : "
-            + StringUtils.stringifyException(le));
-      }
-    }
+    String userName = UserGroupInformation.getLoginUser().getUserName();
     checkTaskDirectories(mr, userName, new String[] {}, new String[] {});
   }
 
@@ -265,15 +258,8 @@ public class TestMiniMRWithDFS extends TestCase {
     JobID jobid = result.job.getID();
     TaskAttemptID taskid = new TaskAttemptID(
         new TaskID(jobid, TaskType.MAP, 1),0);
-    String userName = jobConf.getUser();
-    if (userName == null) {
-      try {
-        userName = UnixUserGroupInformation.login(jobConf).getUserName();
-      } catch (LoginException le) {
-        throw new IOException("Cannot get the login username : "
-            + StringUtils.stringifyException(le));
-      }
-    }
+    String userName = UserGroupInformation.getLoginUser().getUserName();
+    
     checkTaskDirectories(mr, userName, new String[] { jobid.toString() },
         new String[] { taskid.toString() });
     // test with maps=0
@@ -288,8 +274,11 @@ public class TestMiniMRWithDFS extends TestCase {
     long hdfsWrite = 
       counters.findCounter(Task.FILESYSTEM_COUNTER_GROUP, 
           Task.getFileSystemCounterNames("hdfs")[1]).getCounter();
+    long rawSplitBytesRead = 
+      counters.findCounter(TaskCounter.SPLIT_RAW_BYTES).getCounter();
     assertEquals(result.output.length(), hdfsWrite);
-    assertEquals(input.length(), hdfsRead);
+    // add the correction factor of 234 as the input split is also streamed
+    assertEquals(input.length() + rawSplitBytesRead, hdfsRead);
 
     // Run a job with input and output going to localfs even though the 
     // default fs is hdfs.
@@ -323,6 +312,9 @@ public class TestMiniMRWithDFS extends TestCase {
       dfs = new MiniDFSCluster(conf, 4, true, null);
       fileSys = dfs.getFileSystem();
       mr = new MiniMRCluster(taskTrackers, fileSys.getUri().toString(), 1);
+      // make cleanup inline sothat validation of existence of these directories
+      // can be done
+      mr.setInlineCleanupThreads();
 
       runPI(mr, mr.createJobConf());
       runWordCount(mr, mr.createJobConf());

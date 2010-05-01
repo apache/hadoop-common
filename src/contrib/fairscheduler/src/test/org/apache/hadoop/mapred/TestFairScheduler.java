@@ -43,6 +43,7 @@ import org.apache.hadoop.mapred.FakeObjectUtilities.FakeJobHistory;
 import org.apache.hadoop.mapred.UtilsForTests.FakeClock;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
+import org.apache.hadoop.mapreduce.split.JobSplit;
 import org.apache.hadoop.net.Node;
 
 public class TestFairScheduler extends TestCase {
@@ -52,6 +53,7 @@ public class TestFairScheduler extends TestCase {
       "test-pools").getAbsolutePath();
   
   private static final String POOL_PROPERTY = "pool";
+  private static final String EXPLICIT_POOL_PROPERTY = "mapred.fairscheduler.pool";
   
   private static int jobCounter;
   
@@ -64,8 +66,8 @@ public class TestFairScheduler extends TestCase {
     
     public FakeJobInProgress(JobConf jobConf,
         FakeTaskTrackerManager taskTrackerManager, 
-        String[][] mapInputLocations) throws IOException {
-      super(new JobID("test", ++jobCounter), jobConf, null);
+        String[][] mapInputLocations, JobTracker jt) throws IOException {
+      super(new JobID("test", ++jobCounter), jobConf, jt);
       this.taskTrackerManager = taskTrackerManager;
       this.mapInputLocations = mapInputLocations;
       this.startTime = System.currentTimeMillis();
@@ -110,12 +112,14 @@ public class TestFairScheduler extends TestCase {
       // create maps
       numMapTasks = conf.getNumMapTasks();
       maps = new TaskInProgress[numMapTasks];
+      // empty format
+      JobSplit.TaskSplitMetaInfo split = JobSplit.EMPTY_TASK_SPLIT;
       for (int i = 0; i < numMapTasks; i++) {
         String[] inputLocations = null;
         if (mapInputLocations != null)
           inputLocations = mapInputLocations[i];
         maps[i] = new FakeTaskInProgress(getJobID(), i,
-            getJobConf(), this, inputLocations);
+            getJobConf(), this, inputLocations, split);
         if (mapInputLocations == null) // Job has no locality info
           nonLocalMaps.add(maps[i]);
       }
@@ -136,7 +140,8 @@ public class TestFairScheduler extends TestCase {
         if (!tip.isRunning() && !tip.isComplete() &&
             getLocalityLevel(tip, tts) < localityLevel) {
           TaskAttemptID attemptId = getTaskAttemptID(tip);
-          Task task = new MapTask("", attemptId, 0, "", new BytesWritable(), 1) {
+          JobSplit.TaskSplitMetaInfo split = JobSplit.EMPTY_TASK_SPLIT;
+          Task task = new MapTask("", attemptId, 0, split.getSplitIndex(), 1) {
             @Override
             public String toString() {
               return String.format("%s on %s", getTaskID(), tts.getTrackerName());
@@ -230,8 +235,9 @@ public class TestFairScheduler extends TestCase {
     
     // Constructor for map
     FakeTaskInProgress(JobID jId, int id, JobConf jobConf,
-        FakeJobInProgress job, String[] inputLocations) {
-      super(jId, "", new Job.RawSplit(), null, jobConf, job, id, 1);
+        FakeJobInProgress job, String[] inputLocations, 
+        JobSplit.TaskSplitMetaInfo split) {
+      super(jId, "", split, null, jobConf, job, id, 1);
       this.isMap = true;
       this.fakeJob = job;
       this.inputLocations = inputLocations;
@@ -536,7 +542,7 @@ public class TestFairScheduler extends TestCase {
     if (pool != null)
       jobConf.set(POOL_PROPERTY, pool);
     JobInProgress job = new FakeJobInProgress(jobConf, taskTrackerManager,
-        mapInputLocations);
+        mapInputLocations, UtilsForTests.getJobTracker());
     job.getStatus().setRunState(state);
     taskTrackerManager.submitJob(job);
     job.startTime = clock.time;
@@ -682,8 +688,8 @@ public class TestFairScheduler extends TestCase {
     
     // Assign tasks and check that jobs alternate in filling slots
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
@@ -741,8 +747,8 @@ public class TestFairScheduler extends TestCase {
     
     // Assign tasks and check that jobs alternate in filling slots
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1",
-                           "attempt_test_0002_m_000000_0 on tt1",
                            "attempt_test_0001_r_000000_0 on tt1",
+                           "attempt_test_0002_m_000000_0 on tt1",
                            "attempt_test_0002_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2",
                            "attempt_test_0002_r_000001_0 on tt2");
@@ -802,12 +808,12 @@ public class TestFairScheduler extends TestCase {
     
     // Check that tasks are filled alternately by the jobs
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
     
     // Check that no new tasks can be launched once the tasktrackers are full
@@ -846,12 +852,12 @@ public class TestFairScheduler extends TestCase {
 
     // Check that tasks are filled alternately by the jobs
     checkAssignment("tt1", "attempt_test_0001_m_000002_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0002_m_000002_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000002_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0002_m_000002_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000002_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0002_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000003_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000003_0 on tt2");
     
     // Check scheduler variables; the demands should now be 8 because 2 tasks
@@ -911,12 +917,12 @@ public class TestFairScheduler extends TestCase {
     
     // Check that tasks are filled alternately by the jobs
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1",
-                           "attempt_test_0002_m_000000_0 on tt1",
                            "attempt_test_0001_r_000000_0 on tt1",
+                           "attempt_test_0002_m_000000_0 on tt1",
                            "attempt_test_0002_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2",
-                           "attempt_test_0002_m_000001_0 on tt2",
                            "attempt_test_0001_r_000001_0 on tt2",
+                           "attempt_test_0002_m_000001_0 on tt2",
                            "attempt_test_0002_r_000001_0 on tt2");
     
     // Check that no new tasks can be launched once the tasktrackers are full
@@ -955,12 +961,12 @@ public class TestFairScheduler extends TestCase {
 
     // Check that tasks are filled alternately by the jobs
     checkAssignment("tt1", "attempt_test_0001_m_000002_0 on tt1",
-                           "attempt_test_0002_m_000002_0 on tt1",
                            "attempt_test_0001_r_000002_0 on tt1",
+                           "attempt_test_0002_m_000002_0 on tt1",
                            "attempt_test_0002_r_000002_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2",
-                           "attempt_test_0002_m_000003_0 on tt2",
                            "attempt_test_0001_r_000003_0 on tt2",
+                           "attempt_test_0002_m_000003_0 on tt2",
                            "attempt_test_0002_r_000003_0 on tt2");
     
     // Check scheduler variables; the demands should now be 8 because 2 tasks
@@ -1017,16 +1023,16 @@ public class TestFairScheduler extends TestCase {
     // type should be handed out alternately to 1, 2, 2, 1, 2, 2, etc.
     System.out.println("HEREEEE");
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
     checkAssignment("tt3", "attempt_test_0002_m_000002_0 on tt3");
-    checkAssignment("tt3", "attempt_test_0002_m_000003_0 on tt3");
     checkAssignment("tt3", "attempt_test_0002_r_000002_0 on tt3");
+    checkAssignment("tt3", "attempt_test_0002_m_000003_0 on tt3");
     checkAssignment("tt3", "attempt_test_0002_r_000003_0 on tt3");
   }
   
@@ -1102,12 +1108,12 @@ public class TestFairScheduler extends TestCase {
     
     // Assign tasks and check that slots are first given to needy jobs
     checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0003_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0003_m_000001_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000000_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000000_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000000_0 on tt2");
   }
 
@@ -1182,12 +1188,12 @@ public class TestFairScheduler extends TestCase {
     // Assign tasks and check that slots are first given to needy jobs, but
     // that job 1 gets two tasks after due to having a larger share.
     checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0003_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000000_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000000_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
   }
   
@@ -1258,12 +1264,12 @@ public class TestFairScheduler extends TestCase {
     // Assign tasks and check that slots are first given to needy jobs, but
     // that job 1 gets two tasks after due to having a larger share.
     checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1",
-                           "attempt_test_0003_m_000000_0 on tt1",
                            "attempt_test_0002_r_000000_0 on tt1",
+                           "attempt_test_0003_m_000000_0 on tt1",
                            "attempt_test_0003_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000000_0 on tt2",
-                           "attempt_test_0001_m_000001_0 on tt2",
                            "attempt_test_0001_r_000000_0 on tt2",
+                           "attempt_test_0001_m_000001_0 on tt2",
                            "attempt_test_0001_r_000001_0 on tt2");
   }
   
@@ -1310,12 +1316,12 @@ public class TestFairScheduler extends TestCase {
     
     // Assign tasks and check that slots are first given to needy jobs
     checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000002_0 on tt2");
   }
   
@@ -1362,13 +1368,13 @@ public class TestFairScheduler extends TestCase {
     
     // Assign tasks and check that only jobs 1 and 2 get them
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
   }
 
@@ -1419,13 +1425,13 @@ public class TestFairScheduler extends TestCase {
     
     // Assign tasks and check that slots are given only to jobs 1, 3 and 4
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0003_r_000000_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0004_m_000000_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0004_r_000000_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
   }
   
@@ -1641,6 +1647,45 @@ public class TestFairScheduler extends TestCase {
     assertEquals(1.33,  info3.reduceSchedulable.getFairShare(), 0.01);
   }
 
+  public void testPoolMaxMapsReduces() throws Exception {
+    PrintWriter out = new PrintWriter(new FileWriter(ALLOC_FILE));
+    out.println("<?xml version=\"1.0\"?>");
+    out.println("<allocations>");
+    // Pool with upper bound
+    out.println("<pool name=\"poolLimited\">");
+    out.println("<weight>1.0</weight>");
+    out.println("<maxMaps>2</maxMaps>");
+    out.println("<maxReduces>1</maxReduces>");
+    out.println("</pool>");
+    out.println("</allocations>");
+    out.close();
+    scheduler.getPoolManager().reloadAllocs();
+    // Create two jobs with ten maps
+    JobInProgress job1 = submitJob(JobStatus.RUNNING, 10, 5, "poolLimited");
+    advanceTime(10);
+    JobInProgress job2 = submitJob(JobStatus.RUNNING, 10, 5);
+    checkAssignment("tt1", "attempt_test_0002_m_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0002_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_r_000002_0 on tt2");
+
+    Pool limited = scheduler.getPoolManager().getPool("poolLimited");
+    assertEquals(2, limited.getSchedulable(TaskType.MAP).getRunningTasks());
+    assertEquals(1, limited.getSchedulable(TaskType.REDUCE).getRunningTasks());
+    Pool defaultPool = scheduler.getPoolManager().getPool("default");
+    assertEquals(2, defaultPool.getSchedulable(TaskType.MAP).getRunningTasks());
+    assertEquals(3, defaultPool.getSchedulable(TaskType.REDUCE)
+        .getRunningTasks());
+    assertEquals(2, job1.runningMapTasks);
+    assertEquals(1, job1.runningReduceTasks);
+    assertEquals(2, job2.runningMapTasks);
+    assertEquals(3, job2.runningReduceTasks);
+  }
+
   /**
    * Tests that max-running-tasks per node are set by assigning load
    * equally accross the cluster in CapBasedLoadManager.
@@ -1688,13 +1733,13 @@ public class TestFairScheduler extends TestCase {
     // tasks on tt1 and tt2 to ensure that the ones on tt2 get preempted first.
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 10, 10);
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000001_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000002_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000003_0 on tt2");
     
     // Ten seconds later, submit job 2.
@@ -1766,13 +1811,13 @@ public class TestFairScheduler extends TestCase {
     // tasks on tt1 and tt2 to ensure that the ones on tt2 get preempted first.
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 10, 10);
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000001_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000002_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000003_0 on tt2");
     
     // Ten seconds later, submit job 2.
@@ -1799,8 +1844,8 @@ public class TestFairScheduler extends TestCase {
     scheduler.update();
     assertEquals(3, job1.runningMaps());
     assertEquals(2, job1.runningReduces());
-    checkAssignment("tt2", "attempt_test_0002_m_000000_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000000_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_m_000000_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
     assertNull(scheduler.assignTasks(tracker("tt1")));
     assertNull(scheduler.assignTasks(tracker("tt2")));
@@ -1845,18 +1890,18 @@ public class TestFairScheduler extends TestCase {
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 6, 6, "pool1");
     advanceTime(100);
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000001_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000002_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000003_0 on tt2");
     advanceTime(100);
     checkAssignment("tt3", "attempt_test_0001_m_000004_0 on tt3");
-    checkAssignment("tt3", "attempt_test_0001_m_000005_0 on tt3");
     checkAssignment("tt3", "attempt_test_0001_r_000004_0 on tt3");
+    checkAssignment("tt3", "attempt_test_0001_m_000005_0 on tt3");
     checkAssignment("tt3", "attempt_test_0001_r_000005_0 on tt3");
     advanceTime(100);
     
@@ -1864,8 +1909,8 @@ public class TestFairScheduler extends TestCase {
     JobInProgress job2 = submitJob(JobStatus.RUNNING, 10, 10, "pool2");
     advanceTime(100);
     checkAssignment("tt4", "attempt_test_0002_m_000000_0 on tt4");
-    checkAssignment("tt4", "attempt_test_0002_m_000001_0 on tt4");
     checkAssignment("tt4", "attempt_test_0002_r_000000_0 on tt4");
+    checkAssignment("tt4", "attempt_test_0002_m_000001_0 on tt4");
     checkAssignment("tt4", "attempt_test_0002_r_000001_0 on tt4");
     
     // Submit job 3.
@@ -1901,8 +1946,8 @@ public class TestFairScheduler extends TestCase {
     assertEquals(4, job1.runningMaps());
     assertEquals(4, job1.runningReduces());
     checkAssignment("tt3", "attempt_test_0003_m_000000_0 on tt3");
-    checkAssignment("tt3", "attempt_test_0003_m_000001_0 on tt3");
     checkAssignment("tt3", "attempt_test_0003_r_000000_0 on tt3");
+    checkAssignment("tt3", "attempt_test_0003_m_000001_0 on tt3");
     checkAssignment("tt3", "attempt_test_0003_r_000001_0 on tt3");
     assertNull(scheduler.assignTasks(tracker("tt1")));
     assertNull(scheduler.assignTasks(tracker("tt2")));
@@ -1942,13 +1987,13 @@ public class TestFairScheduler extends TestCase {
     // tasks on tt1 and tt2 to ensure that the ones on tt2 get preempted first.
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 10, 10);
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000001_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000002_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000003_0 on tt2");
     
     // Ten seconds later, submit job 2.
@@ -1984,8 +2029,8 @@ public class TestFairScheduler extends TestCase {
     assertEquals(2, job1.runningMaps());
     assertEquals(2, job1.runningReduces());
     checkAssignment("tt2", "attempt_test_0002_m_000000_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000000_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
     assertNull(scheduler.assignTasks(tracker("tt1")));
     assertNull(scheduler.assignTasks(tracker("tt2")));
@@ -2016,13 +2061,13 @@ public class TestFairScheduler extends TestCase {
     // tasks on tt1 and tt2 to ensure that the ones on tt2 get preempted first.
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 10, 10);
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000001_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000002_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000003_0 on tt2");
     
     // Ten seconds later, submit job 2.
@@ -2070,13 +2115,13 @@ public class TestFairScheduler extends TestCase {
     // tasks on tt1 and tt2 to ensure that the ones on tt2 get preempted first.
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 10, 10);
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000001_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000001_0 on tt1");
     advanceTime(100);
     checkAssignment("tt2", "attempt_test_0001_m_000002_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000002_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0001_m_000003_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000003_0 on tt2");
     
     // Ten seconds later, submit job 2.
@@ -2386,12 +2431,12 @@ public class TestFairScheduler extends TestCase {
     // Assign tasks and check that they're given first to job3 (because it is
     // high priority), then to job1, then to job2.
     checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0003_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0002_m_000000_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000000_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0002_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0002_r_000001_0 on tt2");
   }
   
@@ -2424,12 +2469,12 @@ public class TestFairScheduler extends TestCase {
     // Assign tasks and check that they alternate between jobs 1 and 3, the
     // head-of-line jobs in their respective pools.
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0003_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0003_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0003_m_000001_0 on tt2");
     checkAssignment("tt2", "attempt_test_0003_r_000001_0 on tt2");
   }
   
@@ -2465,13 +2510,94 @@ public class TestFairScheduler extends TestCase {
     // Assign tasks and check that only job 1 gets tasks in pool A, but
     // jobs 3 and 4 both get tasks in pool B.
     checkAssignment("tt1", "attempt_test_0001_m_000000_0 on tt1");
-    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0001_r_000000_0 on tt1");
+    checkAssignment("tt1", "attempt_test_0003_m_000000_0 on tt1");
     checkAssignment("tt1", "attempt_test_0003_r_000000_0 on tt1");
     checkAssignment("tt2", "attempt_test_0001_m_000001_0 on tt2");
-    checkAssignment("tt2", "attempt_test_0004_m_000000_0 on tt2");
     checkAssignment("tt2", "attempt_test_0001_r_000001_0 on tt2");
+    checkAssignment("tt2", "attempt_test_0004_m_000000_0 on tt2");
     checkAssignment("tt2", "attempt_test_0004_r_000000_0 on tt2");
+  }
+
+  /**
+   * This test uses the mapred.fairscheduler.pool property to assign jobs to pools.
+   */
+  public void testPoolAssignment() throws Exception {
+    // Set up pools file
+    PrintWriter out = new PrintWriter(new FileWriter(ALLOC_FILE));
+    out.println("<?xml version=\"1.0\"?>");
+    out.println("<allocations>");
+    out.println("<pool name=\"default\">");
+    out.println("<schedulingMode>fair</schedulingMode>");
+    out.println("</pool>");
+    out.println("<pool name=\"poolA\">");
+    out.println("<schedulingMode>fair</schedulingMode>");
+    out.println("</pool>");
+    out.println("</allocations>");
+    out.close();
+    scheduler.getPoolManager().reloadAllocs();
+    Pool defaultPool = scheduler.getPoolManager().getPool("default");
+    Pool poolA = scheduler.getPoolManager().getPool("poolA");
+ 
+    // Submit a job to the default pool.  All specifications take default values.
+    JobInProgress job1 = submitJob(JobStatus.RUNNING, 1, 3);
+
+    assertEquals(1,    defaultPool.getMapSchedulable().getDemand());
+    assertEquals(3,    defaultPool.getReduceSchedulable().getDemand());
+    assertEquals(0,    poolA.getMapSchedulable().getDemand());
+    assertEquals(0,    poolA.getReduceSchedulable().getDemand());
+
+    // Submit a job to the default pool and move it to poolA using setPool.
+    JobInProgress job2 = submitJob(JobStatus.RUNNING, 5, 7);
+
+    assertEquals(6,    defaultPool.getMapSchedulable().getDemand());
+    assertEquals(10,   defaultPool.getReduceSchedulable().getDemand());
+    assertEquals(0,    poolA.getMapSchedulable().getDemand());
+    assertEquals(0,    poolA.getReduceSchedulable().getDemand());
+
+    scheduler.getPoolManager().setPool(job2, "poolA");
+    assertEquals("poolA", scheduler.getPoolManager().getPoolName(job2));
+
+    defaultPool.getMapSchedulable().updateDemand();
+    defaultPool.getReduceSchedulable().updateDemand();
+    poolA.getMapSchedulable().updateDemand();
+    poolA.getReduceSchedulable().updateDemand();
+
+    assertEquals(1,    defaultPool.getMapSchedulable().getDemand());
+    assertEquals(3,    defaultPool.getReduceSchedulable().getDemand());
+    assertEquals(5,    poolA.getMapSchedulable().getDemand());
+    assertEquals(7,    poolA.getReduceSchedulable().getDemand());
+
+    // Submit a job to poolA by specifying mapred.fairscheduler.pool
+    JobConf jobConf = new JobConf(conf);
+    jobConf.setNumMapTasks(11);
+    jobConf.setNumReduceTasks(13);
+    jobConf.set(POOL_PROPERTY, "nonsense"); // test that this is overridden
+    jobConf.set(EXPLICIT_POOL_PROPERTY, "poolA");
+    JobInProgress job3 = new FakeJobInProgress(jobConf, taskTrackerManager,
+        null, UtilsForTests.getJobTracker());
+    job3.getStatus().setRunState(JobStatus.RUNNING);
+    taskTrackerManager.submitJob(job3);
+
+    assertEquals(1,    defaultPool.getMapSchedulable().getDemand());
+    assertEquals(3,    defaultPool.getReduceSchedulable().getDemand());
+    assertEquals(16,   poolA.getMapSchedulable().getDemand());
+    assertEquals(20,   poolA.getReduceSchedulable().getDemand());
+
+    // Submit a job to poolA by specifying pool and not mapred.fairscheduler.pool
+    JobConf jobConf2 = new JobConf(conf);
+    jobConf2.setNumMapTasks(17);
+    jobConf2.setNumReduceTasks(19);
+    jobConf2.set(POOL_PROPERTY, "poolA");
+    JobInProgress job4 = new FakeJobInProgress(jobConf2, taskTrackerManager,
+        null, UtilsForTests.getJobTracker());
+    job4.getStatus().setRunState(JobStatus.RUNNING);
+    taskTrackerManager.submitJob(job4);
+
+    assertEquals(1,    defaultPool.getMapSchedulable().getDemand());
+    assertEquals(3,    defaultPool.getReduceSchedulable().getDemand());
+    assertEquals(33,   poolA.getMapSchedulable().getDemand());
+    assertEquals(39,   poolA.getReduceSchedulable().getDemand());
   }
   
   private void advanceTime(long time) {

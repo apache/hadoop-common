@@ -34,7 +34,7 @@ public class MySQLDataDrivenDBRecordReader<T extends DBWritable>
   public MySQLDataDrivenDBRecordReader(DBInputFormat.DBInputSplit split,
       Class<T> inputClass, Configuration conf, Connection conn, DBConfiguration dbConfig,
       String cond, String [] fields, String table) throws SQLException {
-    super(split, inputClass, conf, conn, dbConfig, cond, fields, table);
+    super(split, inputClass, conf, conn, dbConfig, cond, fields, table, "MYSQL");
   }
 
   // Execute statements for mysql in unbuffered mode.

@@ -22,11 +22,14 @@
   import="javax.servlet.*"
   import="javax.servlet.http.*"
   import="java.io.*"
-  import="java.net.URL"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.fs.*"
   import="org.apache.hadoop.util.*"
   import="org.apache.hadoop.mapreduce.jobhistory.*"
+  import="org.apache.hadoop.mapreduce.JobACL"
+  import="org.apache.hadoop.security.UserGroupInformation"
+  import="org.apache.hadoop.security.authorize.AccessControlList"
+  import="org.apache.hadoop.security.AccessControlException"
 %>
 
 <%!	private static final long serialVersionUID = 1L;
@@ -34,11 +37,16 @@
 
 <%
   JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
-  String jobId = request.getParameter("jobid");
-  if (jobId == null) {
-    out.println("<h2>Missing 'jobid' for fetching job configuration!</h2>");
- 	return;
+
+  String logFileString = request.getParameter("logFile");
+  if (logFileString == null) {
+    out.println("<h2>Missing 'logFile' for fetching job configuration!</h2>");
+    return;
   }
+
+  Path logFile = new Path(logFileString);
+  String jobId = JobHistory.getJobIDFromHistoryFilePath(logFile).toString();
+
 %>
   
 <html>
@@ -49,14 +57,20 @@
 <h2>Job Configuration: JobId - <%= jobId %></h2><br>
 
 <%
-  Path logDir = new Path(request.getParameter("jobLogDir"));
-  Path jobFilePath = new Path(logDir, 
-                       request.getParameter("jobUniqueString") + "_conf.xml");
+  Path jobFilePath = JSPUtil.getJobConfFilePath(logFile);
   FileSystem fs = (FileSystem) application.getAttribute("fileSys");
   FSDataInputStream jobFile = null; 
   try {
     jobFile = fs.open(jobFilePath);
     JobConf jobConf = new JobConf(jobFilePath);
+    JobTracker jobTracker = (JobTracker) application.getAttribute("job.tracker");
+
+    JobHistoryParser.JobInfo job = JSPUtil.checkAccessAndGetJobInfo(request,
+        response, jobTracker, fs, logFile);
+    if (job == null) {
+      return;
+    }
+
     XMLUtils.transform(
         jobConf.getConfResourceAsInputStream("webapps/static/jobconf.xsl"),
         jobFile, out);

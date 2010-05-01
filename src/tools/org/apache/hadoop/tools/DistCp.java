@@ -34,6 +34,8 @@ import java.util.Random;
 import java.util.Stack;
 import java.util.StringTokenizer;
 
+import javax.security.auth.login.LoginException;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -46,12 +48,14 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FsShell;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Trash;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -66,7 +70,11 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.SequenceFileRecordReader;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobSubmissionFiles;
+import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -97,6 +105,9 @@ public class DistCp implements Tool {
     "\n-m <num_maps>          Maximum number of simultaneous copies" +
     "\n-overwrite             Overwrite destination" +
     "\n-update                Overwrite if src size different from dst size" +
+    "\n-skipcrccheck          Do not use CRC check to determine if src is " +
+    "\n                       different from dest. Relevant only if -update" +
+    "\n                       is specified" +
     "\n-f <urilist_uri>       Use list at <urilist_uri> as src list" +
     "\n-filelimit <n>         Limit the total number of files to be <= n" +
     "\n-sizelimit <n>         Limit the total size to be <= n bytes" +
@@ -134,7 +145,8 @@ public class DistCp implements Tool {
     IGNORE_READ_FAILURES("-i", NAME + ".ignore.read.failures"),
     PRESERVE_STATUS("-p", NAME + ".preserve.status"),
     OVERWRITE("-overwrite", NAME + ".overwrite.always"),
-    UPDATE("-update", NAME + ".overwrite.ifnewer");
+    UPDATE("-update", NAME + ".overwrite.ifnewer"),
+    SKIPCRC("-skipcrccheck", NAME + ".skip.crc.check");
 
     final String cmd, propertyname;
 
@@ -327,7 +339,8 @@ public class DistCp implements Tool {
     private Path destPath = null;
     private byte[] buffer = null;
     private JobConf job;
-
+    private boolean skipCRCCheck = false;
+    
     // stats
     private int failcount = 0;
     private int skipcount = 0;
@@ -351,7 +364,7 @@ public class DistCp implements Tool {
     private boolean needsUpdate(FileStatus srcstatus,
         FileSystem dstfs, Path dstpath) throws IOException {
       return update && !sameFile(srcstatus.getPath().getFileSystem(job),
-          srcstatus, dstfs, dstpath);
+          srcstatus, dstfs, dstpath, skipCRCCheck);
     }
     
     private FSDataOutputStream create(Path f, Reporter reporter,
@@ -384,7 +397,7 @@ public class DistCp implements Tool {
             throws IOException {
       if (destFileSys.exists(absdst)) {
         if (sameFile(srcstat.getPath().getFileSystem(job), srcstat,
-            destFileSys, absdst)) {
+            destFileSys, absdst, skipCRCCheck)) {
           return true;
         }
       }
@@ -622,6 +635,7 @@ public class DistCp implements Tool {
       }
       update = job.getBoolean(Options.UPDATE.propertyname, false);
       overwrite = !update && job.getBoolean(Options.OVERWRITE.propertyname, false);
+      skipCRCCheck = job.getBoolean(Options.SKIPCRC.propertyname, false);
       this.job = job;
     }
 
@@ -728,7 +742,14 @@ public class DistCp implements Tool {
   private static void checkSrcPath(Configuration conf, List<Path> srcPaths
       ) throws IOException {
     List<IOException> rslt = new ArrayList<IOException>();
-    List<Path> unglobbed = new LinkedList<Path>(); 
+    List<Path> unglobbed = new LinkedList<Path>();
+    
+    // get tokens for all the required FileSystems..
+    Path[] ps = new Path[srcPaths.size()];
+    ps = srcPaths.toArray(ps);
+    TokenCache.obtainTokensForNamenodes(ps, conf);
+    
+    
     for (Path p : srcPaths) {
       FileSystem fs = p.getFileSystem(conf);
       FileStatus[] inputs = fs.globStatus(p);
@@ -965,8 +986,14 @@ public class DistCp implements Tool {
       final boolean isOverwrite = flags.contains(Options.OVERWRITE);
       final boolean isUpdate = flags.contains(Options.UPDATE);
       final boolean isDelete = flags.contains(Options.DELETE);
+      final boolean skipCRC = flags.contains(Options.SKIPCRC);
       if (isOverwrite && isUpdate) {
         throw new IllegalArgumentException("Conflicting overwrite policies");
+      }
+      if (!isUpdate && skipCRC) {
+        throw new IllegalArgumentException(
+            Options.SKIPCRC.cmd + " is relevant only with the " +
+            Options.UPDATE.cmd + " option");
       }
       if (isDelete && !isOverwrite && !isUpdate) {
         throw new IllegalArgumentException(Options.DELETE.cmd
@@ -1171,9 +1198,11 @@ public class DistCp implements Tool {
 
     //set boolean values
     final boolean update = args.flags.contains(Options.UPDATE);
+    final boolean skipCRCCheck = args.flags.contains(Options.SKIPCRC);
     final boolean overwrite = !update && args.flags.contains(Options.OVERWRITE)
                               && !args.dryrun;
     jobConf.setBoolean(Options.UPDATE.propertyname, update);
+    jobConf.setBoolean(Options.SKIPCRC.propertyname, skipCRCCheck);
     jobConf.setBoolean(Options.OVERWRITE.propertyname, overwrite);
     jobConf.setBoolean(Options.IGNORE_READ_FAILURES.propertyname,
         args.flags.contains(Options.IGNORE_READ_FAILURES));
@@ -1182,10 +1211,28 @@ public class DistCp implements Tool {
 
     final String randomId = getRandomId();
     JobClient jClient = new JobClient(jobConf);
-    Path jobDirectory = new Path(jClient.getSystemDir(), NAME + "_" + randomId);
+    Path stagingArea;
+    try {
+      stagingArea = 
+        JobSubmissionFiles.getStagingDir(jClient.getClusterHandle(), conf);
+    } catch (InterruptedException ie) {
+      throw new IOException(ie);
+    }
+    
+    Path jobDirectory = new Path(stagingArea + NAME + "_" + randomId);
+    FsPermission mapredSysPerms = 
+      new FsPermission(JobSubmissionFiles.JOB_DIR_PERMISSION);
+    FileSystem.mkdirs(jClient.getFs(), jobDirectory, mapredSysPerms);
     jobConf.set(JOB_DIR_LABEL, jobDirectory.toString());
 
+    long maxBytesPerMap = conf.getLong(BYTES_PER_MAP_LABEL, BYTES_PER_MAP);
+
     FileSystem dstfs = args.dst.getFileSystem(conf);
+    
+    // get tokens for all the required FileSystems..
+    TokenCache.obtainTokensForNamenodes(new Path[] {args.dst}, conf);
+    
+    
     boolean dstExists = dstfs.exists(args.dst);
     boolean dstIsDir = false;
     if (dstExists) {
@@ -1335,7 +1382,8 @@ public class DistCp implements Tool {
                 }
               }
               //skip path if the src and the dst files are the same.
-              skipPath = update && sameFile(srcfs, child, dstfs, destPath);
+              skipPath = update && 
+              	sameFile(srcfs, child, dstfs, destPath, skipCRCCheck);
               //skip path if it exceed file limit or size limit
               skipPath |= fileCount == args.filelimit
                           || byteCount + child.getLen() > args.sizelimit; 
@@ -1350,7 +1398,7 @@ public class DistCp implements Tool {
 
                 ++cnsyncf;
                 cbsyncs += child.getLen();
-                if (cnsyncf > SYNC_FILE_MAX || cbsyncs > BYTES_PER_MAP) {
+                if (cnsyncf > SYNC_FILE_MAX || cbsyncs > maxBytesPerMap) {
                   src_writer.sync();
                   dst_writer.sync();
                   cnsyncf = 0;
@@ -1460,7 +1508,7 @@ public class DistCp implements Tool {
    * two files are considered as the same if they have the same size.
    */
   static private boolean sameFile(FileSystem srcfs, FileStatus srcstatus,
-      FileSystem dstfs, Path dstpath) throws IOException {
+      FileSystem dstfs, Path dstpath, boolean skipCRCCheck) throws IOException {
     FileStatus dststatus;
     try {
       dststatus = dstfs.getFileStatus(dstpath);
@@ -1473,6 +1521,11 @@ public class DistCp implements Tool {
       return false;
     }
 
+    if (skipCRCCheck) {
+      LOG.debug("Skipping the CRC check");
+      return true;
+    }
+    
     //get src checksum
     final FileChecksum srccs;
     try {
@@ -1520,7 +1573,7 @@ public class DistCp implements Tool {
     //write dst lsr results
     final Path dstlsr = new Path(jobdir, "_distcp_dst_lsr");
     final SequenceFile.Writer writer = SequenceFile.createWriter(jobfs, jobconf,
-        dstlsr, Text.class, FileStatus.class,
+        dstlsr, Text.class, NullWritable.class,
         SequenceFile.CompressionType.NONE);
     try {
       //do lsr to get all file statuses in dstroot
@@ -1530,7 +1583,7 @@ public class DistCp implements Tool {
         if (status.isDir()) {
           for(FileStatus child : dstfs.listStatus(status.getPath())) {
             String relative = makeRelative(dstroot.getPath(), child.getPath());
-            writer.append(new Text(relative), child);
+            writer.append(new Text(relative), NullWritable.get());
             lsrstack.push(child);
           }
         }
@@ -1542,7 +1595,7 @@ public class DistCp implements Tool {
     //sort lsr results
     final Path sortedlsr = new Path(jobdir, "_distcp_dst_lsr_sorted");
     SequenceFile.Sorter sorter = new SequenceFile.Sorter(jobfs,
-        new Text.Comparator(), Text.class, FileStatus.class, jobconf);
+        new Text.Comparator(), Text.class, NullWritable.class, jobconf);
     sorter.sort(dstlsr, sortedlsr);
 
     //compare lsr list and dst list  
@@ -1555,16 +1608,15 @@ public class DistCp implements Tool {
 
       //compare sorted lsr list and sorted dst list
       final Text lsrpath = new Text();
-      final FileStatus lsrstatus = new FileStatus();
       final Text dstpath = new Text();
       final Text dstfrom = new Text();
-      final FsShell shell = new FsShell(conf);
-      final String[] shellargs = {"-rmr", null};
+      final Trash trash = new Trash(dstfs, conf);
+      Path lastpath = null;
 
       boolean hasnext = dstin.next(dstpath, dstfrom);
-      for(; lsrin.next(lsrpath, lsrstatus); ) {
+      while (lsrin.next(lsrpath, NullWritable.get())) {
         int dst_cmp_lsr = dstpath.compareTo(lsrpath);
-        for(; hasnext && dst_cmp_lsr < 0; ) {
+        while (hasnext && dst_cmp_lsr < 0) {
           hasnext = dstin.next(dstpath, dstfrom);
           dst_cmp_lsr = dstpath.compareTo(lsrpath);
         }
@@ -1572,23 +1624,15 @@ public class DistCp implements Tool {
         if (dst_cmp_lsr == 0) {
           //lsrpath exists in dst, skip it
           hasnext = dstin.next(dstpath, dstfrom);
-        }
-        else {
+        } else {
           //lsrpath does not exist, delete it
-          String s = new Path(dstroot.getPath(), lsrpath.toString()).toString();
+          final Path rmpath = new Path(dstroot.getPath(), lsrpath.toString());
           ++deletedPathsCount;
-          if (shellargs[1] == null || !isAncestorPath(shellargs[1], s)) {
-            shellargs[1] = s;
-            int r = 0;
-            try {
-               r = shell.run(shellargs);
-            } catch(Exception e) {
-              throw new IOException("Exception from shell.", e);
+          if ((lastpath == null || !isAncestorPath(lastpath, rmpath))) {
+            if (!(trash.moveToTrash(rmpath) || dstfs.delete(rmpath, true))) {
+              throw new IOException("Failed to delete " + rmpath);
             }
-            if (r != 0) {
-              throw new IOException("\"" + shellargs[0] + " " + shellargs[1]
-                  + "\" returns non-zero value " + r);
-            }
+            lastpath = rmpath;
           }
         }
       }
@@ -1600,7 +1644,9 @@ public class DistCp implements Tool {
   }
 
   //is x an ancestor path of y?
-  static private boolean isAncestorPath(String x, String y) {
+  static private boolean isAncestorPath(Path xp, Path yp) {
+    final String x = xp.toString();
+    final String y = yp.toString();
     if (!y.startsWith(x)) {
       return false;
     }

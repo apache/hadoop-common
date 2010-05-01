@@ -24,8 +24,10 @@ import org.apache.hadoop.conf.*;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.mapred.DefaultTaskController;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 
 import java.net.URI;
 
@@ -198,9 +200,9 @@ public class DistributedCache {
       boolean isArchive, long confFileStamp,
       Path currentWorkDir, boolean honorSymLinkConf) throws IOException {
 
-    return new TrackerDistributedCacheManager(conf).getLocalCache(cache, conf,
-        baseDir, fileStatus, isArchive, confFileStamp, currentWorkDir,
-        honorSymLinkConf);
+    return new TrackerDistributedCacheManager(conf, new DefaultTaskController())
+        .getLocalCache(cache, conf, baseDir.toString(), fileStatus, isArchive,
+            confFileStamp, currentWorkDir, honorSymLinkConf, false);
   }
 
   /**
@@ -250,7 +252,35 @@ public class DistributedCache {
   @Deprecated
   public static void releaseCache(URI cache, Configuration conf)
       throws IOException {
-    new TrackerDistributedCacheManager(conf).releaseCache(cache, conf);
+	// find the timestamp of the uri
+    URI[] archives = DistributedCache.getCacheArchives(conf);
+    URI[] files = DistributedCache.getCacheFiles(conf);
+    String[] archivesTimestamps =
+          DistributedCache.getArchiveTimestamps(conf);
+    String[] filesTimestamps =
+          DistributedCache.getFileTimestamps(conf);
+    String timestamp = null;
+    if (archives != null) {
+      for (int i = 0; i < archives.length; i++) {
+        if (archives[i].equals(cache)) {
+          timestamp = archivesTimestamps[i];
+          break;
+        }
+      }
+    }
+    if (timestamp == null && files != null) {
+      for (int i = 0; i < files.length; i++) {
+        if (files[i].equals(cache)) {
+          timestamp = filesTimestamps[i];
+          break;
+        }
+      }
+    }
+    if (timestamp == null) {
+      throw new IOException("TimeStamp of the uri couldnot be found");
+    }
+    new TrackerDistributedCacheManager(conf, new DefaultTaskController())
+        .releaseCache(cache, conf, Long.parseLong(timestamp));
   }
   
   /**
@@ -266,7 +296,8 @@ public class DistributedCache {
   @Deprecated
   public static String makeRelative(URI cache, Configuration conf)
       throws IOException {
-    return new TrackerDistributedCacheManager(conf).makeRelative(cache, conf);
+    return new TrackerDistributedCacheManager(conf, new DefaultTaskController())
+        .makeRelative(cache, conf);
   }
 
   /**
@@ -310,7 +341,7 @@ public class DistributedCache {
   @Deprecated
   public static void setCacheArchives(URI[] archives, Configuration conf) {
     String sarchives = StringUtils.uriToString(archives);
-    conf.set(JobContext.CACHE_ARCHIVES, sarchives);
+    conf.set(MRJobConfig.CACHE_ARCHIVES, sarchives);
   }
 
   /**
@@ -323,7 +354,7 @@ public class DistributedCache {
   @Deprecated
   public static void setCacheFiles(URI[] files, Configuration conf) {
     String sfiles = StringUtils.uriToString(files);
-    conf.set(JobContext.CACHE_FILES, sfiles);
+    conf.set(MRJobConfig.CACHE_FILES, sfiles);
   }
 
   /**
@@ -336,7 +367,7 @@ public class DistributedCache {
    */
   @Deprecated
   public static URI[] getCacheArchives(Configuration conf) throws IOException {
-    return StringUtils.stringToURI(conf.getStrings(JobContext.CACHE_ARCHIVES));
+    return StringUtils.stringToURI(conf.getStrings(MRJobConfig.CACHE_ARCHIVES));
   }
 
   /**
@@ -349,7 +380,7 @@ public class DistributedCache {
    */
   @Deprecated
   public static URI[] getCacheFiles(Configuration conf) throws IOException {
-    return StringUtils.stringToURI(conf.getStrings(JobContext.CACHE_FILES));
+    return StringUtils.stringToURI(conf.getStrings(MRJobConfig.CACHE_FILES));
   }
 
   /**
@@ -364,7 +395,7 @@ public class DistributedCache {
   public static Path[] getLocalCacheArchives(Configuration conf)
     throws IOException {
     return StringUtils.stringToPath(conf
-                                    .getStrings(JobContext.CACHE_LOCALARCHIVES));
+                                    .getStrings(MRJobConfig.CACHE_LOCALARCHIVES));
   }
 
   /**
@@ -378,7 +409,7 @@ public class DistributedCache {
   @Deprecated
   public static Path[] getLocalCacheFiles(Configuration conf)
     throws IOException {
-    return StringUtils.stringToPath(conf.getStrings(JobContext.CACHE_LOCALFILES));
+    return StringUtils.stringToPath(conf.getStrings(MRJobConfig.CACHE_LOCALFILES));
   }
 
   /**
@@ -391,7 +422,7 @@ public class DistributedCache {
    */
   @Deprecated
   public static String[] getArchiveTimestamps(Configuration conf) {
-    return conf.getStrings(JobContext.CACHE_ARCHIVES_TIMESTAMPS);
+    return conf.getStrings(MRJobConfig.CACHE_ARCHIVES_TIMESTAMPS);
   }
 
 
@@ -405,7 +436,7 @@ public class DistributedCache {
    */
   @Deprecated
   public static String[] getFileTimestamps(Configuration conf) {
-    return conf.getStrings(JobContext.CACHE_FILE_TIMESTAMPS);
+    return conf.getStrings(MRJobConfig.CACHE_FILE_TIMESTAMPS);
   }
 
   /**
@@ -475,8 +506,8 @@ public class DistributedCache {
    */
   @Deprecated
   public static void addCacheArchive(URI uri, Configuration conf) {
-    String archives = conf.get(JobContext.CACHE_ARCHIVES);
-    conf.set(JobContext.CACHE_ARCHIVES, archives == null ? uri.toString()
+    String archives = conf.get(MRJobConfig.CACHE_ARCHIVES);
+    conf.set(MRJobConfig.CACHE_ARCHIVES, archives == null ? uri.toString()
              : archives + "," + uri.toString());
   }
   
@@ -489,8 +520,8 @@ public class DistributedCache {
    */
   @Deprecated
   public static void addCacheFile(URI uri, Configuration conf) {
-    String files = conf.get(JobContext.CACHE_FILES);
-    conf.set(JobContext.CACHE_FILES, files == null ? uri.toString() : files + ","
+    String files = conf.get(MRJobConfig.CACHE_FILES);
+    conf.set(MRJobConfig.CACHE_FILES, files == null ? uri.toString() : files + ","
              + uri.toString());
   }
 
@@ -505,8 +536,8 @@ public class DistributedCache {
   @Deprecated
   public static void addFileToClassPath(Path file, Configuration conf)
     throws IOException {
-    String classpath = conf.get(JobContext.CLASSPATH_FILES);
-    conf.set(JobContext.CLASSPATH_FILES, classpath == null ? file.toString()
+    String classpath = conf.get(MRJobConfig.CLASSPATH_FILES);
+    conf.set(MRJobConfig.CLASSPATH_FILES, classpath == null ? file.toString()
              : classpath + "," + file.toString());
     FileSystem fs = FileSystem.get(conf);
     URI uri = fs.makeQualified(file).toUri();
@@ -524,7 +555,7 @@ public class DistributedCache {
   @Deprecated
   public static Path[] getFileClassPaths(Configuration conf) {
     ArrayList<String> list = (ArrayList<String>)conf.getStringCollection(
-                                JobContext.CLASSPATH_FILES);
+                                MRJobConfig.CLASSPATH_FILES);
     if (list.size() == 0) { 
       return null; 
     }
@@ -546,8 +577,8 @@ public class DistributedCache {
   @Deprecated
   public static void addArchiveToClassPath(Path archive, Configuration conf)
     throws IOException {
-    String classpath = conf.get(JobContext.CLASSPATH_ARCHIVES);
-    conf.set(JobContext.CLASSPATH_ARCHIVES, classpath == null ? archive
+    String classpath = conf.get(MRJobConfig.CLASSPATH_ARCHIVES);
+    conf.set(MRJobConfig.CLASSPATH_ARCHIVES, classpath == null ? archive
              .toString() : classpath + "," + archive.toString());
     FileSystem fs = FileSystem.get(conf);
     URI uri = fs.makeQualified(archive).toUri();
@@ -565,7 +596,7 @@ public class DistributedCache {
   @Deprecated
   public static Path[] getArchiveClassPaths(Configuration conf) {
     ArrayList<String> list = (ArrayList<String>)conf.getStringCollection(
-                                JobContext.CLASSPATH_ARCHIVES);
+                                MRJobConfig.CLASSPATH_ARCHIVES);
     if (list.size() == 0) { 
       return null; 
     }
@@ -585,7 +616,7 @@ public class DistributedCache {
    */
   @Deprecated
   public static void createSymlink(Configuration conf){
-    conf.set(JobContext.CACHE_SYMLINK, "yes");
+    conf.set(MRJobConfig.CACHE_SYMLINK, "yes");
   }
   
   /**
@@ -598,7 +629,7 @@ public class DistributedCache {
    */
   @Deprecated
   public static boolean getSymlink(Configuration conf){
-    String result = conf.get(JobContext.CACHE_SYMLINK);
+    String result = conf.get(MRJobConfig.CACHE_SYMLINK);
     if ("yes".equals(result)){
       return true;
     }
@@ -629,6 +660,7 @@ public class DistributedCache {
    */
   @Deprecated
   public static void purgeCache(Configuration conf) throws IOException {
-    new TrackerDistributedCacheManager(conf).purgeCache();
+    new TrackerDistributedCacheManager(conf, new DefaultTaskController())
+        .purgeCache();
   }
 }

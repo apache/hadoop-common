@@ -20,6 +20,8 @@ package org.apache.hadoop.mapred;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 import junit.framework.TestCase;
 
@@ -33,6 +35,7 @@ import org.apache.hadoop.mapreduce.SleepJob;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
+import org.apache.hadoop.mapreduce.split.JobSplit;
 
 /**
  * Test if the job retire works fine. 
@@ -98,6 +101,20 @@ public class TestJobRetire extends TestCase {
     File file = new File(name);
  
     assertFalse("JobConf file not deleted", file.exists());
+    
+    //test redirection
+    URL jobUrl = new URL(rj.getTrackingURL());
+    HttpURLConnection conn = (HttpURLConnection) jobUrl.openConnection();
+    conn.setInstanceFollowRedirects(false);
+    conn.connect();
+    assertEquals(HttpURLConnection.HTTP_MOVED_TEMP, conn.getResponseCode());
+    conn.disconnect();
+    
+    URL redirectedUrl = new URL(conn.getHeaderField("Location"));
+    conn = (HttpURLConnection) redirectedUrl.openConnection();
+    conn.connect();
+    assertEquals(HttpURLConnection.HTTP_OK, conn.getResponseCode());
+    conn.disconnect();
     return id;
   }
 
@@ -118,7 +135,7 @@ public class TestJobRetire extends TestCase {
    */
   class WaitingTaskTracker extends TaskTracker {
     
-    WaitingTaskTracker(JobConf conf) throws IOException {
+    WaitingTaskTracker(JobConf conf) throws IOException, InterruptedException {
       super(conf);
     }
     
@@ -181,7 +198,8 @@ public class TestJobRetire extends TestCase {
       TaskTrackerRunner testTrackerRunner = 
         mr.new TaskTrackerRunner(1, 1, null, mr.createJobConf()) {
         @Override
-        TaskTracker createTaskTracker(JobConf conf) throws IOException {
+        TaskTracker createTaskTracker(JobConf conf) 
+        throws IOException, InterruptedException {
           return new WaitingTaskTracker(conf);
         }
       };
@@ -273,24 +291,25 @@ public class TestJobRetire extends TestCase {
                                          JobInProgress jip, TaskType type) {
     JobConf conf = jip.getJobConf();
     JobID id = jip.getJobID();
-    Job.RawSplit emptySplit = new Job.RawSplit();
     // now create a fake tip for this fake job
     TaskInProgress tip = null;
     if (type == TaskType.MAP) {
-      tip = new TaskInProgress(id, "dummy", emptySplit, jobtracker, conf, jip, 
-                               0, 1);
+      tip = new TaskInProgress(id, "dummy", JobSplit.EMPTY_TASK_SPLIT, 
+                               jobtracker, conf, jip, 0, 1);
       jip.maps = new TaskInProgress[] {tip};
     } else if (type == TaskType.REDUCE) {
       tip = new TaskInProgress(id, "dummy", jip.desiredMaps(), 0, 
                                jobtracker, conf, jip, 1);
       jip.reduces = new TaskInProgress[] {tip};
     } else if (type == TaskType.JOB_SETUP) {
-      tip = new TaskInProgress(id, "dummy", emptySplit, jobtracker, conf, jip, 
-                               0, 1);
+      tip = 
+        new TaskInProgress(id, "dummy", JobSplit.EMPTY_TASK_SPLIT, 
+                           jobtracker, conf, jip, 0, 1);
       jip.setup = new TaskInProgress[] {tip};
     } else if (type == TaskType.JOB_CLEANUP) {
-      tip = new TaskInProgress(id, "dummy", emptySplit, jobtracker, conf, jip, 
-                               0, 1);
+      tip = 
+        new TaskInProgress(id, "dummy", JobSplit.EMPTY_TASK_SPLIT, 
+                           jobtracker, conf, jip, 0, 1);
       jip.cleanup = new TaskInProgress[] {tip};
     }
     return tip;

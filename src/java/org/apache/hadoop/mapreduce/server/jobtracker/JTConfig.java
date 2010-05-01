@@ -41,12 +41,19 @@ public interface JTConfig extends MRConfig {
     "mapreduce.jobtracker.maxtasks.perjob";
   public static final String JT_HEARTBEATS_IN_SECOND = 
     "mapreduce.jobtracker.heartbeats.in.second";
+  public static final String JT_HEARTBEATS_SCALING_FACTOR = 
+    "mapreduce.jobtracker.heartbeats.scaling.factor";
   public static final String JT_PERSIST_JOBSTATUS = 
     "mapreduce.jobtracker.persist.jobstatus.active";
   public static final String JT_PERSIST_JOBSTATUS_HOURS = 
     "mapreduce.jobtracker.persist.jobstatus.hours";
   public static final String JT_PERSIST_JOBSTATUS_DIR = 
     "mapreduce.jobtracker.persist.jobstatus.dir";
+
+  /**
+   * @deprecated Use MR_SUPERGROUP instead
+   */
+  @Deprecated
   public static final String JT_SUPERGROUP = 
     "mapreduce.jobtracker.permissions.supergroup";
   public static final String JT_RETIREJOBS = 
@@ -78,6 +85,8 @@ public interface JTConfig extends MRConfig {
   public static final String JT_AVG_BLACKLIST_THRESHOLD = 
     "mapreduce.jobtracker.blacklist.average.threshold";
   public static final String JT_SYSTEM_DIR = "mapreduce.jobtracker.system.dir";
+  public static final String JT_STAGING_AREA_ROOT = 
+    "mapreduce.jobtracker.staging.root.dir";
   public static final String JT_MAX_TRACKER_BLACKLISTS = 
     "mapreduce.jobtracker.tasktracker.maxblacklists";
   public static final String JT_JOBHISTORY_MAXAGE = 
@@ -86,4 +95,9 @@ public interface JTConfig extends MRConfig {
     "mapreduce.jobtracker.maxmapmemory.mb";
   public static final String JT_MAX_REDUCEMEMORY_MB = 
     "mapreduce.jobtracker.maxreducememory.mb";
+  public static final String JT_MAX_JOB_SPLIT_METAINFO_SIZE = 
+  "mapreduce.jobtracker.split.metainfo.maxsize";
+  public static final String JT_USER_NAME = "mapreduce.jobtracker.user.name";
+  public static final String JT_KEYTAB_FILE = 
+    "mapreduce.jobtracker.keytab.file";
 }

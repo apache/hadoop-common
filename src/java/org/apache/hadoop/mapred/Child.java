@@ -23,20 +23,28 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
+import java.security.PrivilegedExceptionAction;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSError;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RPC;
-import org.apache.hadoop.mapred.JvmTask;
+import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapreduce.security.TokenCache;
+import org.apache.hadoop.security.TokenStorage;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
+import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.metrics.MetricsContext;
 import org.apache.hadoop.metrics.MetricsUtil;
 import org.apache.hadoop.metrics.jvm.JvmMetrics;
-import org.apache.log4j.LogManager;
+import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.log4j.LogManager;
 
 /** 
  * The main() for child processes. 
@@ -53,23 +61,48 @@ class Child {
   public static void main(String[] args) throws Throwable {
     LOG.debug("Child starting");
 
-    JobConf defaultConf = new JobConf();
+    final JobConf defaultConf = new JobConf();
     // set tcp nodelay
     defaultConf.setBoolean("ipc.client.tcpnodelay", true);
     
     String host = args[0];
     int port = Integer.parseInt(args[1]);
-    InetSocketAddress address = new InetSocketAddress(host, port);
+    final InetSocketAddress address = new InetSocketAddress(host, port);
     final TaskAttemptID firstTaskid = TaskAttemptID.forName(args[2]);
     final int SLEEP_LONGER_COUNT = 5;
     int jvmIdInt = Integer.parseInt(args[3]);
     JVMId jvmId = new JVMId(firstTaskid.getJobID(),
         firstTaskid.getTaskType() == TaskType.MAP,jvmIdInt);
-    TaskUmbilicalProtocol umbilical =
-      (TaskUmbilicalProtocol)RPC.getProxy(TaskUmbilicalProtocol.class,
-          TaskUmbilicalProtocol.versionID,
-          address,
-          defaultConf);
+    
+    //load token cache storage
+    String jobTokenFile = 
+      System.getenv().get(UserGroupInformation.HADOOP_TOKEN_FILE_LOCATION);
+    TokenStorage ts = 
+      TokenCache.loadTaskTokenStorage(jobTokenFile, defaultConf);
+    LOG.debug("loading token. # keys =" +ts.numberOfSecretKeys() + 
+        "; from file=" + jobTokenFile);
+    Token<JobTokenIdentifier> jt = TokenCache.getJobToken(ts);
+    jt.setService(new Text(address.getAddress().getHostAddress() + ":"
+        + address.getPort()));
+    UserGroupInformation current = UserGroupInformation.getCurrentUser();
+    current.addToken(jt);
+    
+    // Create TaskUmbilicalProtocol as actual task owner.
+    UserGroupInformation taskOwner 
+     = UserGroupInformation.createRemoteUser(firstTaskid.getJobID().toString());
+    taskOwner.addToken(jt);
+    
+    final TaskUmbilicalProtocol umbilical = 
+      taskOwner.doAs(new PrivilegedExceptionAction<TaskUmbilicalProtocol>() {
+      @Override
+      public TaskUmbilicalProtocol run() throws Exception {
+        return (TaskUmbilicalProtocol)RPC.getProxy(TaskUmbilicalProtocol.class,
+            TaskUmbilicalProtocol.versionID,
+            address,
+            defaultConf);
+      }
+    });
+    
     int numTasksToExecute = -1; //-1 signifies "no limit"
     int numTasksExecuted = 0;
     Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -111,6 +144,9 @@ class Child {
     JvmContext context = new JvmContext(jvmId, pid);
     int idleLoopCount = 0;
     Task task = null;
+    
+    UserGroupInformation childUGI = null;
+    
     try {
       while (true) {
         taskid = null;
@@ -140,8 +176,12 @@ class Child {
         //create the index file so that the log files 
         //are viewable immediately
         TaskLog.syncLogs(firstTaskid, taskid, isCleanup);
-        JobConf job = new JobConf(task.getJobFile());
-
+        final JobConf job = new JobConf(task.getJobFile());
+        
+        // set the jobTokenFile into task
+        task.setJobTokenSecret(JobTokenSecretManager.
+                               createSecretKey(jt.getPassword()));
+        
         // setup the child's Configs.LOCAL_DIR. The child is now sandboxed and
         // can only see files down and under attemtdir only.
         TaskRunner.setupChildMapredLocalDirs(task, job);
@@ -153,19 +193,35 @@ class Child {
 
         numTasksToExecute = job.getNumTasksToExecutePerJvm();
         assert(numTasksToExecute != 0);
-        TaskLog.cleanup(job.getInt(JobContext.TASK_LOG_RETAIN_HOURS, 24));
 
         task.setConf(job);
 
         // Initiate Java VM metrics
         JvmMetrics.init(task.getPhase().toString(), job.getSessionId());
-        // use job-specified working directory
-        FileSystem.get(job).setWorkingDirectory(job.getWorkingDirectory());
-        try {
-          task.run(job, umbilical);             // run the task
-        } finally {
-          TaskLog.syncLogs(firstTaskid, taskid, isCleanup);
+        LOG.debug("Creating remote user to execute task: " + job.get("user.name"));
+        childUGI = UserGroupInformation.createRemoteUser(job.get("user.name"));
+        // Add tokens to new user so that it may execute its task correctly.
+        for(Token<?> token : UserGroupInformation.getCurrentUser().getTokens()) {
+          childUGI.addToken(token);
         }
+        
+        // Create a final reference to the task for the doAs block
+        final Task taskFinal = task;
+        childUGI.doAs(new PrivilegedExceptionAction<Object>() {
+          @Override
+          public Object run() throws Exception {
+            try {
+              // use job-specified working directory
+              FileSystem.get(job).setWorkingDirectory(job.getWorkingDirectory());
+              taskFinal.run(job, umbilical);             // run the task
+            } finally {
+              TaskLog.syncLogs(firstTaskid, taskid, isCleanup);
+            }
+            
+            return null;
+          }
+        });
+
         if (numTasksToExecute > 0 && ++numTasksExecuted == numTasksToExecute) {
           break;
         }
@@ -179,7 +235,18 @@ class Child {
       try {
         if (task != null) {
           // do cleanup for the task
-          task.taskCleanup(umbilical);
+          if(childUGI == null) { // no need to job into doAs block
+            task.taskCleanup(umbilical);
+          } else {
+            final Task taskFinal = task;
+            childUGI.doAs(new PrivilegedExceptionAction<Object>() {
+              @Override
+              public Object run() throws Exception {
+                taskFinal.taskCleanup(umbilical);
+                return null;
+              }
+            });
+          }
         }
       } catch (Exception e) {
         LOG.info("Exception cleaning up : " + StringUtils.stringifyException(e));

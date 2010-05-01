@@ -21,14 +21,18 @@ package org.apache.hadoop.mapred;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+
+import javax.crypto.SecretKey;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -42,14 +46,18 @@ import org.apache.hadoop.io.DataInputBuffer;
 import org.apache.hadoop.io.RawComparator;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableUtils;
 import org.apache.hadoop.io.serializer.Deserializer;
 import org.apache.hadoop.io.serializer.SerializationFactory;
 import org.apache.hadoop.mapred.IFile.Writer;
-import org.apache.hadoop.mapreduce.MRConfig;
+import org.apache.hadoop.mapreduce.Counter;
+import org.apache.hadoop.mapreduce.OutputCommitter;
 import org.apache.hadoop.mapreduce.TaskCounter;
+import org.apache.hadoop.mapreduce.JobStatus;
+import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.lib.reduce.WrappedReducer;
-import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.mapreduce.task.ReduceContextImpl;
+import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.util.Progress;
 import org.apache.hadoop.util.Progressable;
@@ -108,6 +116,7 @@ abstract public class Task implements Writable, Configurable {
   private TaskAttemptID taskId;                   // unique, includes job id
   private int partition;                          // id within job
   TaskStatus taskStatus;                          // current status of the task
+  protected JobStatus.State jobRunStateForCleanup;
   protected boolean jobCleanup = false;
   protected boolean jobSetup = false;
   protected boolean taskCleanup = false;
@@ -135,6 +144,8 @@ abstract public class Task implements Writable, Configurable {
   protected final Counters.Counter mergedMapOutputsCounter;
   private int numSlotsRequired;
   protected TaskUmbilicalProtocol umbilical;
+  protected SecretKey tokenSecret;
+  protected GcTimeUpdater gcUpdater;
 
   ////////////////////////////////////////////
   // Constructors
@@ -149,6 +160,7 @@ abstract public class Task implements Writable, Configurable {
       counters.findCounter(TaskCounter.FAILED_SHUFFLE);
     mergedMapOutputsCounter = 
       counters.findCounter(TaskCounter.MERGED_MAP_OUTPUTS);
+    gcUpdater = new GcTimeUpdater();
   }
 
   public Task(String jobFile, TaskAttemptID taskId, int partition, 
@@ -170,6 +182,7 @@ abstract public class Task implements Writable, Configurable {
     failedShuffleCounter = counters.findCounter(TaskCounter.FAILED_SHUFFLE);
     mergedMapOutputsCounter = 
       counters.findCounter(TaskCounter.MERGED_MAP_OUTPUTS);
+    gcUpdater = new GcTimeUpdater();
   }
 
   ////////////////////////////////////////////
@@ -191,6 +204,23 @@ abstract public class Task implements Writable, Configurable {
   public JobID getJobID() {
     return taskId.getJobID();
   }
+
+  /**
+   * Set the job token secret 
+   * @param tokenSecret the secret
+   */
+  public void setJobTokenSecret(SecretKey tokenSecret) {
+    this.tokenSecret = tokenSecret;
+  }
+
+  /**
+   * Get the job token secret
+   * @return the token secret
+   */
+  public SecretKey getJobTokenSecret() {
+    return this.tokenSecret;
+  }
+
   
   /**
    * Get the index of this task within the job.
@@ -305,6 +335,14 @@ abstract public class Task implements Writable, Configurable {
     return jobCleanup;
   }
 
+  boolean isJobAbortTask() {
+    // the task is an abort task if its marked for cleanup and the final 
+    // expected state is either failed or killed.
+    return isJobCleanupTask() 
+           && (jobRunStateForCleanup == JobStatus.State.KILLED 
+               || jobRunStateForCleanup == JobStatus.State.FAILED);
+  }
+  
   boolean isJobSetupTask() {
     return jobSetup;
   }
@@ -317,6 +355,14 @@ abstract public class Task implements Writable, Configurable {
     jobCleanup = true; 
   }
 
+  /**
+   * Sets the task to do job abort in the cleanup.
+   * @param status the final runstate of the job. 
+   */
+  void setJobCleanupTaskState(JobStatus.State status) {
+    jobRunStateForCleanup = status;
+  }
+  
   boolean isMapOrReduce() {
     return !jobSetup && !jobCleanup && !taskCleanup;
   }
@@ -330,6 +376,10 @@ abstract public class Task implements Writable, Configurable {
    */
   String getUser() {
     return user;
+  }
+  
+  void setUser(String user) {
+    this.user = user;
   }
 
   ////////////////////////////////////////////
@@ -345,6 +395,9 @@ abstract public class Task implements Writable, Configurable {
     skipRanges.write(out);
     out.writeBoolean(skipping);
     out.writeBoolean(jobCleanup);
+    if (jobCleanup) {
+      WritableUtils.writeEnum(out, jobRunStateForCleanup);
+    }
     out.writeBoolean(jobSetup);
     out.writeBoolean(writeSkipRecs);
     out.writeBoolean(taskCleanup);
@@ -362,6 +415,10 @@ abstract public class Task implements Writable, Configurable {
     currentRecStartIndex = currentRecIndexIterator.next();
     skipping = in.readBoolean();
     jobCleanup = in.readBoolean();
+    if (jobCleanup) {
+      jobRunStateForCleanup = 
+        WritableUtils.readEnum(in, JobStatus.State.class);
+    }
     jobSetup = in.readBoolean();
     writeSkipRecs = in.readBoolean();
     taskCleanup = in.readBoolean();
@@ -450,6 +507,7 @@ abstract public class Task implements Writable, Configurable {
     private InputSplit split = null;
     private Progress taskProgress;
     private Thread pingThread = null;
+
     /**
      * flag that indicates whether progress update needs to be sent to parent.
      * If true, it has been set. If false, it has been reset. 
@@ -462,6 +520,7 @@ abstract public class Task implements Writable, Configurable {
       this.umbilical = umbilical;
       this.taskProgress = taskProgress;
     }
+
     // getters and setters for flag
     void setProgressFlag() {
       progressFlag.set(true);
@@ -631,6 +690,48 @@ abstract public class Task implements Writable, Configurable {
   }
 
   /**
+   * An updater that tracks the amount of time this task has spent in GC.
+   */
+  class GcTimeUpdater {
+    private long lastGcMillis = 0;
+    private List<GarbageCollectorMXBean> gcBeans = null;
+
+    public GcTimeUpdater() {
+      this.gcBeans = ManagementFactory.getGarbageCollectorMXBeans();
+      getElapsedGc(); // Initialize 'lastGcMillis' with the current time spent.
+    }
+
+    /**
+     * @return the number of milliseconds that the gc has used for CPU
+     * since the last time this method was called.
+     */
+    protected long getElapsedGc() {
+      long thisGcMillis = 0;
+      for (GarbageCollectorMXBean gcBean : gcBeans) {
+        thisGcMillis += gcBean.getCollectionTime();
+      }
+
+      long delta = thisGcMillis - lastGcMillis;
+      this.lastGcMillis = thisGcMillis;
+      return delta;
+    }
+
+    /**
+     * Increment the gc-elapsed-time counter.
+     */
+    public void incrementGcCounter() {
+      if (null == counters) {
+        return; // nothing to do.
+      }
+
+      Counter gcCounter = counters.findCounter(TaskCounter.GC_TIME_MILLIS);
+      if (null != gcCounter) {
+        gcCounter.increment(getElapsedGc());
+      }
+    }
+  }
+
+  /**
    * An updater that tracks the last number reported for a given file
    * system and only creates the counters when they are needed.
    */
@@ -685,6 +786,8 @@ abstract public class Task implements Writable, Configurable {
       }
       updater.updateCounters();      
     }
+
+    gcUpdater.incrementGcCounter();
   }
 
   public void done(TaskUmbilicalProtocol umbilical,
@@ -694,8 +797,7 @@ abstract public class Task implements Writable, Configurable {
              + " And is in the process of commiting");
     updateCounters();
 
-    // check whether the commit is required.
-    boolean commitRequired = committer.needsTaskCommit(taskContext);
+    boolean commitRequired = isCommitRequired();
     if (commitRequired) {
       int retries = MAX_RETRIES;
       setState(TaskStatus.State.COMMIT_PENDING);
@@ -719,9 +821,28 @@ abstract public class Task implements Writable, Configurable {
     }
     taskDone.set(true);
     reporter.stopCommunicationThread();
+    // Make sure we send at least one set of counter increments. It's
+    // ok to call updateCounters() in this thread after comm thread stopped.
+    updateCounters();
     sendLastUpdate(umbilical);
     //signal the tasktracker that we are done
     sendDone(umbilical);
+  }
+
+  /**
+   * Checks if this task has anything to commit, depending on the
+   * type of task, as well as on whether the {@link OutputCommitter}
+   * has anything to commit.
+   * 
+   * @return true if the task has to commit
+   * @throws IOException
+   */
+  boolean isCommitRequired() throws IOException {
+    boolean commitRequired = false;
+    if (isMapOrReduce()) {
+      commitRequired = committer.needsTaskCommit(taskContext);
+    }
+    return commitRequired;
   }
 
   /**
@@ -752,13 +873,39 @@ abstract public class Task implements Writable, Configurable {
     }
   }
   
+  /**
+   * Sends last status update before sending umbilical.done(); 
+   */
   private void sendLastUpdate(TaskUmbilicalProtocol umbilical) 
   throws IOException {
+    taskStatus.setOutputSize(calculateOutputSize());
     // send a final status report
     taskStatus.statusUpdate(taskProgress.get(),
                             taskProgress.toString(), 
                             counters);
     statusUpdate(umbilical);
+  }
+
+  /**
+   * Calculates the size of output for this task.
+   * 
+   * @return -1 if it can't be found.
+   */
+   private long calculateOutputSize() throws IOException {
+    if (!isMapOrReduce()) {
+      return -1;
+    }
+
+    if (isMapTask() && conf.getNumReduceTasks() > 0) {
+      try {
+        Path mapOutput =  mapOutputFile.getOutputFile();
+        FileSystem localFS = FileSystem.getLocal(conf);
+        return localFS.getFileStatus(mapOutput).getLen();
+      } catch (IOException e) {
+        LOG.warn ("Could not find output size " , e);
+      }
+    }
+    return -1;
   }
 
   private void sendDone(TaskUmbilicalProtocol umbilical) throws IOException {
@@ -855,8 +1002,42 @@ abstract public class Task implements Writable, Configurable {
     getProgress().setStatus("cleanup");
     statusUpdate(umbilical);
     // do the cleanup
-    committer.cleanupJob(jobContext);
+    LOG.info("Cleaning up job");
+    if (jobRunStateForCleanup == JobStatus.State.FAILED 
+        || jobRunStateForCleanup == JobStatus.State.KILLED) {
+      LOG.info("Aborting job with runstate : " + jobRunStateForCleanup.name());
+      if (conf.getUseNewMapper()) {
+        committer.abortJob(jobContext, jobRunStateForCleanup);
+      } else {
+        org.apache.hadoop.mapred.OutputCommitter oldCommitter = 
+          (org.apache.hadoop.mapred.OutputCommitter)committer;
+        oldCommitter.abortJob(jobContext, jobRunStateForCleanup);
+      }
+    } else if (jobRunStateForCleanup == JobStatus.State.SUCCEEDED){
+      LOG.info("Committing job");
+      committer.commitJob(jobContext);
+    } else {
+      throw new IOException("Invalid state of the job for cleanup. State found "
+                            + jobRunStateForCleanup + " expecting "
+                            + JobStatus.State.SUCCEEDED + ", " 
+                            + JobStatus.State.FAILED + " or "
+                            + JobStatus.State.KILLED);
+    }
+    
+    // delete the staging area for the job
+    JobConf conf = new JobConf(jobContext.getConfiguration());
+    if (!supportIsolationRunner(conf)) {
+      String jobTempDir = conf.get("mapreduce.job.dir");
+      Path jobTempDirPath = new Path(jobTempDir);
+      FileSystem fs = jobTempDirPath.getFileSystem(conf);
+      fs.delete(jobTempDirPath, true);
+    }
     done(umbilical, reporter);
+  }
+  
+  protected boolean supportIsolationRunner(JobConf conf) {
+    return (conf.getKeepTaskFilesPattern() != null || conf
+        .getKeepFailedTaskFiles());
   }
 
   protected void runJobSetupTask(TaskUmbilicalProtocol umbilical,
@@ -887,7 +1068,6 @@ abstract public class Task implements Writable, Configurable {
         NetUtils.addStaticResolution(name, resolvedName);
       }
     }
-    this.user = this.conf.getUser();
   }
 
   public Configuration getConf() {
@@ -1236,7 +1416,6 @@ abstract public class Task implements Writable, Configurable {
                                                 reporter, comparator, keyClass,
                                                 valueClass);
       reducer.run(reducerContext);
-    }
-    
+    } 
   }
 }

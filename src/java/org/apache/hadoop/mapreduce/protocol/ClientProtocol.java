@@ -20,12 +20,15 @@ package org.apache.hadoop.mapreduce.protocol;
 
 import java.io.IOException;
 
-import org.apache.hadoop.fs.Path;
+
+import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenSelector;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.mapreduce.ClusterMetrics;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.JobStatus;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.QueueAclsInfo;
 import org.apache.hadoop.mapreduce.QueueInfo;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
@@ -33,13 +36,20 @@ import org.apache.hadoop.mapreduce.TaskCompletionEvent;
 import org.apache.hadoop.mapreduce.TaskReport;
 import org.apache.hadoop.mapreduce.TaskTrackerInfo;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
+import org.apache.hadoop.security.TokenStorage;
 import org.apache.hadoop.mapreduce.server.jobtracker.State;
+import org.apache.hadoop.security.KerberosInfo;
+import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.security.token.TokenInfo;
 
 /** 
  * Protocol that a JobClient and the central JobTracker use to communicate.  The
  * JobClient can use these methods to submit a Job for execution, and learn about
  * the current system status.
  */ 
+@KerberosInfo(MRJobConfig.JOB_JOBTRACKER_ID)
+@TokenInfo(DelegationTokenSelector.class)
 public interface ClientProtocol extends VersionedProtocol {
   /* 
    *Changing the versionID to 2L since the getTaskCompletionEvents method has
@@ -85,8 +95,16 @@ public interface ClientProtocol extends VersionedProtocol {
    * Version 27: Changed protocol to use new api objects. And the protocol is 
    *             renamed from JobSubmissionProtocol to ClientProtocol.
    * Version 28: Added getJobHistoryDir() as part of MAPREDUCE-975.
+   * Version 29: Added reservedSlots, runningTasks and totalJobSubmissions
+   *             to ClusterMetrics as part of MAPREDUCE-1048.
+   * Version 30: Job submission files are uploaded to a staging area under
+   *             user home dir. JobTracker reads the required files from the
+   *             staging area using user credentials passed via the rpc.
+   * Version 31: Added TokenStorage to submitJob      
+   * Version 32: Added delegation tokens (add, renew, cancel)
+   * Version 33: Added JobACLs to JobStatus as part of MAPREDUCE-1307
    */
-  public static final long versionID = 28L;
+  public static final long versionID = 33L;
 
   /**
    * Allocate a name for the job.
@@ -98,9 +116,8 @@ public interface ClientProtocol extends VersionedProtocol {
   /**
    * Submit a Job for execution.  Returns the latest profile for
    * that job.
-   * The job files should be submitted in <b>system-dir</b>/<b>jobName</b>.
    */
-  public JobStatus submitJob(JobID jobName) 
+  public JobStatus submitJob(JobID jobId, String jobSubmitDir, TokenStorage ts) 
   throws IOException, InterruptedException;
 
   /**
@@ -217,7 +234,15 @@ public interface ClientProtocol extends VersionedProtocol {
    * 
    * @return the system directory where job-specific files are to be placed.
    */
-  public String getSystemDir() throws IOException, InterruptedException;  
+  public String getSystemDir() throws IOException, InterruptedException;
+  
+  /**
+   * Get a hint from the JobTracker 
+   * where job-specific files are to be placed.
+   * 
+   * @return the directory where job-specific files are to be placed.
+   */
+  public String getStagingAreaDir() throws IOException, InterruptedException;
 
   /**
    * Gets the directory location of the completed job history files.
@@ -269,4 +294,37 @@ public interface ClientProtocol extends VersionedProtocol {
   public QueueInfo[] getChildQueues(String queueName) 
   throws IOException, InterruptedException;
 
+  /**
+   * Get a new delegation token.
+   * @param renewer the user other than the creator (if any) that can renew the 
+   *        token
+   * @return the new delegation token
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public 
+  Token<DelegationTokenIdentifier> getDelegationToken(Text renewer
+                                                      ) throws IOException,
+                                                          InterruptedException;
+  
+  /**
+   * Renew an existing delegation token
+   * @param token the token to renew
+   * @return the new expiration time
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public long renewDelegationToken(Token<DelegationTokenIdentifier> token
+                                   ) throws IOException,
+                                            InterruptedException;
+  
+  /**
+   * Cancel a delegation token.
+   * @param token the token to cancel
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public void cancelDelegationToken(Token<DelegationTokenIdentifier> token
+                                    ) throws IOException,
+                                             InterruptedException;
 }

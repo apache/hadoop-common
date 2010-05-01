@@ -43,6 +43,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.mapreduce.Cluster;
 import org.apache.hadoop.mapreduce.Counters;
+import org.apache.hadoop.mapreduce.JobACL;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.TaskID;
@@ -54,6 +55,8 @@ import org.apache.hadoop.mapreduce.jobhistory.JobSubmittedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskAttemptInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
 
 /**
  *
@@ -352,10 +355,10 @@ public class TestJobHistory extends TestCase {
                "match the expected value", 
                conf.getJobName().equals(
                jobInfo.getJobname()));
-
+    String user = UserGroupInformation.getCurrentUser().getUserName();
     assertTrue("User Name of job obtained from history file did not " +
                "match the expected value", 
-               conf.getUser().equals(
+               user.equals(
                jobInfo.getUsername()));
 
     // Validate job counters
@@ -807,9 +810,10 @@ public class TestJobHistory extends TestCase {
       JobConf conf, JobID id, 
       Path doneDir) throws IOException {
     String name = null;
+    String user = UserGroupInformation.getCurrentUser().getUserName();
     for (int i = 0; name == null && i < 20; i++) {
       Path path = JobHistory.getJobHistoryFile(
-          jobHistory.getCompletedJobHistoryLocation(), id, conf.getUser());
+          jobHistory.getCompletedJobHistoryLocation(), id, user);
       if (path.getFileSystem(conf).exists(path)) {
         name = path.toString();
       }
@@ -936,8 +940,10 @@ public class TestJobHistory extends TestCase {
       JobHistory jh = jt.getJobHistory();
       final JobID jobId = JobID.forName("job_200809171136_0001");
       jh.setupEventWriter(jobId, conf);
+      Map<JobACL, AccessControlList> jobACLs =
+          new HashMap<JobACL, AccessControlList>();
       JobSubmittedEvent jse =
-        new JobSubmittedEvent(jobId, "job", "user", 12345, "path");
+        new JobSubmittedEvent(jobId, "job", "user", 12345, "path", jobACLs);
       jh.logEvent(jse, jobId);
       jh.closeWriter(jobId);
 

@@ -41,6 +41,7 @@ import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -160,10 +161,21 @@ public class DataDrivenDBInputFormat<T extends DBWritable>
   /** {@inheritDoc} */
   public List<InputSplit> getSplits(JobContext job) throws IOException {
 
+    int targetNumTasks = job.getConfiguration().getInt(MRJobConfig.NUM_MAPS, 1);
+    if (1 == targetNumTasks) {
+      // There's no need to run a bounding vals query; just return a split
+      // that separates nothing. This can be considerably more optimal for a
+      // large table with no index.
+      List<InputSplit> singletonSplit = new ArrayList<InputSplit>();
+      singletonSplit.add(new DataDrivenDBInputSplit("1=1", "1=1"));
+      return singletonSplit;
+    }
+
     ResultSet results = null;
     Statement statement = null;
+    Connection connection = getConnection();
     try {
-      statement = getConnection().createStatement();
+      statement = connection.createStatement();
 
       results = statement.executeQuery(getBoundingValsQuery());
       results.next();
@@ -199,7 +211,8 @@ public class DataDrivenDBInputFormat<T extends DBWritable>
       }
 
       try {
-        getConnection().commit();
+        connection.commit();
+        closeConnection();
       } catch (SQLException se) {
         LOG.debug("SQLException committing split transaction: " + se.toString());
       }
@@ -264,18 +277,21 @@ public class DataDrivenDBInputFormat<T extends DBWritable>
     Class<T> inputClass = (Class<T>) (dbConf.getInputClass());
     String dbProductName = getDBProductName();
 
+    LOG.debug("Creating db record reader for db product: " + dbProductName);
+
     try {
       // use database product name to determine appropriate record reader.
       if (dbProductName.startsWith("MYSQL")) {
         // use MySQL-specific db reader.
         return new MySQLDataDrivenDBRecordReader<T>(split, inputClass,
-            conf, getConnection(), dbConf, dbConf.getInputConditions(), dbConf.getInputFieldNames(),
-            dbConf.getInputTableName());
+            conf, getConnection(), dbConf, dbConf.getInputConditions(),
+            dbConf.getInputFieldNames(), dbConf.getInputTableName());
       } else {
         // Generic reader.
         return new DataDrivenDBRecordReader<T>(split, inputClass,
-            conf, getConnection(), dbConf, dbConf.getInputConditions(), dbConf.getInputFieldNames(),
-            dbConf.getInputTableName());
+            conf, getConnection(), dbConf, dbConf.getInputConditions(),
+            dbConf.getInputFieldNames(), dbConf.getInputTableName(),
+            dbProductName);
       }
     } catch (SQLException ex) {
       throw new IOException(ex.getMessage());

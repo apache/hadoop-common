@@ -18,18 +18,21 @@
 
 package org.apache.hadoop.streaming;
 
-import junit.framework.TestCase;
 import java.io.*;
 import java.util.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.lib.KeyFieldBasedPartitioner;
+
+import org.junit.Test;
+import static org.junit.Assert.*;
 
 /**
  * This class tests hadoopStreaming in MapReduce local mode.
  */
-public class TestStreamDataProtocol extends TestCase
+public class TestStreamDataProtocol
 {
 
   // "map" command: grep -E (red|green|blue)
@@ -77,15 +80,16 @@ public class TestStreamDataProtocol extends TestCase
       "-jobconf", "stream.tmpdir="+System.getProperty("test.build.data","/tmp")
     };
   }
-  
-  public void testCommandLine()
+
+  @Test
+  public void testCommandLine() throws Exception
   {
     try {
-      try {
-        OUTPUT_DIR.getAbsoluteFile().delete();
-      } catch (Exception e) {
-      }
+      FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
+    } catch (Exception e) {
+    }
 
+    try {
       createInput();
       boolean mayExit = false;
 
@@ -100,21 +104,10 @@ public class TestStreamDataProtocol extends TestCase
       System.err.println("  out1=" + output);
       System.err.println("  equals=" + outputExpect.compareTo(output));
       assertEquals(outputExpect, output);
-    } catch(Exception e) {
-      failTrace(e);
     } finally {
-      File outFileCRC = new File(OUTPUT_DIR, ".part-00000.crc").getAbsoluteFile();
       INPUT_FILE.delete();
-      outFileCRC.delete();
-      OUTPUT_DIR.getAbsoluteFile().delete();
+      FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
     }
-  }
-
-  private void failTrace(Exception e)
-  {
-    StringWriter sw = new StringWriter();
-    e.printStackTrace(new PrintWriter(sw));
-    fail(sw.toString());
   }
 
   public static void main(String[]args) throws Exception

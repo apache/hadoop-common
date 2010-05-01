@@ -57,6 +57,7 @@ public class ZombieJob implements JobStory {
   private JobConf jobConf;
 
   private long seed;
+  private long numRandomSeeds = 0;
   private boolean hasRandomSeed = false;
 
   private Map<LoggedDiscreteCDF, CDFRandomGenerator> interpolatorMap =
@@ -125,6 +126,7 @@ public class ZombieJob implements JobStory {
       jobConf.setUser(getUser());
       jobConf.setNumMapTasks(getNumberMaps());
       jobConf.setNumReduceTasks(getNumberReduces());
+      jobConf.setQueueName(getQueueName());
     }
     return jobConf;
   }
@@ -194,7 +196,8 @@ public class ZombieJob implements JobStory {
         if (cluster == null) {
           splitsList.add(new FileSplit(emptyPath, 0, 0, new String[0]));
         } else {
-          MachineNode[] mNodes = cluster.getRandomMachines(avgHostPerSplit);
+          MachineNode[] mNodes = cluster.getRandomMachines(avgHostPerSplit,
+                                                           random);
           String[] hosts = new String[mNodes.length];
           for (int j = 0; j < hosts.length; ++j) {
             hosts[j] = mNodes[j].getName();
@@ -252,6 +255,12 @@ public class ZombieJob implements JobStory {
     return job.getSubmitTime() - job.getRelativeTime();
   }
 
+  @Override
+  public String getQueueName() {
+    String queue = job.getQueue();
+    return (queue == null)? JobConf.DEFAULT_QUEUE_NAME : queue;
+  }
+  
   /**
    * Getting the number of map tasks that are actually logged in the trace.
    * @return The number of map tasks that are actually logged in the trace.
@@ -794,7 +803,13 @@ public class ZombieJob implements JobStory {
 
     return makeUpRuntimeCore(loggedDiscreteCDF);
   }
-
+  
+  private synchronized long getNextRandomSeed() {
+    numRandomSeeds++;
+    return RandomSeedGenerator.getSeed("forZombieJob" + job.getJobID(),
+                                       numRandomSeeds);
+  }
+   
   private long makeUpRuntimeCore(LoggedDiscreteCDF loggedDiscreteCDF) {
     CDFRandomGenerator interpolator;
 
@@ -809,7 +824,7 @@ public class ZombieJob implements JobStory {
 
       interpolator =
           hasRandomSeed ? new CDFPiecewiseLinearRandomGenerator(
-              loggedDiscreteCDF, ++seed)
+              loggedDiscreteCDF, getNextRandomSeed())
               : new CDFPiecewiseLinearRandomGenerator(loggedDiscreteCDF);
 
       /*

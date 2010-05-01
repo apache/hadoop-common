@@ -22,6 +22,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
+import org.apache.hadoop.fs.FileUtil;
+
+import org.junit.Test;
+import static org.junit.Assert.*;
+
 /**
  * This class tests StreamXmlRecordReader
  * The test creates an XML file, uses StreamXmlRecordReader and compares
@@ -58,10 +63,11 @@ public class TestStreamXmlRecordReader extends TestStreaming
     };
   }
 
-  public void testCommandLine() {
+  @Test
+  public void testCommandLine() throws Exception {
     try {
       try {
-        OUTPUT_DIR.getAbsoluteFile().delete();
+        FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
       } catch (Exception e) {
       }
       createInput();
@@ -71,13 +77,13 @@ public class TestStreamXmlRecordReader extends TestStreaming
       String output = StreamUtil.slurp(outFile);
       outFile.delete();
       assertEquals(input, output);
-    } catch (Exception e) {
-      e.printStackTrace();
     } finally {
-      INPUT_FILE.delete();
-      File outFileCRC = new File(OUTPUT_DIR, ".part-00000.crc").getAbsoluteFile();
-      outFileCRC.delete();
-      OUTPUT_DIR.getAbsoluteFile().delete();
+      try {
+        INPUT_FILE.delete();
+        FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
     }
   }
 

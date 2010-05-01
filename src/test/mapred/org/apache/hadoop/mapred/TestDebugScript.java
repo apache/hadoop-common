@@ -23,10 +23,13 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
-import org.apache.hadoop.security.UnixUserGroupInformation;
+import org.apache.hadoop.security.Groups;
+import org.apache.hadoop.security.ShellBasedUnixGroupsMapping;
+import org.apache.hadoop.security.UserGroupInformation;
 import static org.junit.Assert.*;
 
 import org.junit.After;
@@ -130,7 +133,7 @@ public class TestDebugScript {
    * @throws Exception
    */
   static void verifyDebugScriptOutput(TaskAttemptID taskId) throws Exception {
-    verifyDebugScriptOutput(taskId, null, null);
+    verifyDebugScriptOutput(taskId, null, null, null);
   }
   /**
    * Method which verifies if debug script ran and ran correctly.
@@ -142,7 +145,7 @@ public class TestDebugScript {
    * @throws Exception
    */
   static void verifyDebugScriptOutput(TaskAttemptID taskId, String expectedUser, 
-      String expectedPerms) throws Exception {
+      String expectedGroup, String expectedPerms) throws Exception {
     File output = TaskLog.getRealTaskLogFileLocation(taskId, 
         TaskLog.LogName.DEBUGOUT);
     // Check the presence of the output file if the script is to be run.
@@ -158,9 +161,8 @@ public class TestDebugScript {
     assertTrue(out.contains("failing map"));
     if (expectedPerms != null && expectedUser != null) {
       //check whether the debugout file ownership/permissions are as expected
-      String ttGroup = UnixUserGroupInformation.login().getGroupNames()[0];
       TestTaskTrackerLocalization.checkFilePermissions(output.getAbsolutePath(),
-          expectedPerms, expectedUser, ttGroup);
+          expectedPerms, expectedUser, expectedGroup);
     }
   }
 

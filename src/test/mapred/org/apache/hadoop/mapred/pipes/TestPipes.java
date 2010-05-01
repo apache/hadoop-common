@@ -37,9 +37,9 @@ import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MiniMRCluster;
-import org.apache.hadoop.mapred.OutputLogFilter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.TestMiniMRWithDFS;
+import org.apache.hadoop.mapred.Utils;
 import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
@@ -73,8 +73,8 @@ public class TestPipes extends TestCase {
     }
     MiniDFSCluster dfs = null;
     MiniMRCluster mr = null;
-    Path inputPath = new Path("/testing/in");
-    Path outputPath = new Path("/testing/out");
+    Path inputPath = new Path("testing/in");
+    Path outputPath = new Path("testing/out");
     try {
       final int numSlaves = 2;
       Configuration conf = new Configuration();
@@ -151,7 +151,7 @@ public class TestPipes extends TestCase {
                           int numMaps, int numReduces, String[] expectedResults,
                           JobConf conf
                          ) throws IOException {
-    Path wordExec = new Path("/testing/bin/application");
+    Path wordExec = new Path("testing/bin/application");
     JobConf job = null;
     if(conf == null) {
       job = mr.createJobConf();
@@ -197,7 +197,8 @@ public class TestPipes extends TestCase {
 
     List<String> results = new ArrayList<String>();
     for (Path p:FileUtil.stat2Paths(dfs.getFileSystem().listStatus(outputPath,
-    		                        new OutputLogFilter()))) {
+    		                        new Utils.OutputFileUtils
+    		                                 .OutputFilesFilter()))) {
       results.add(TestMiniMRWithDFS.readOutput(p, job));
     }
     assertEquals("number of reduces is wrong", 
@@ -231,7 +232,7 @@ public class TestPipes extends TestCase {
                             "pipes");
     Path inDir = new Path(testDir, "input");
     nonPipedOutDir = new Path(testDir, "output");
-    Path wordExec = new Path("/testing/bin/application");
+    Path wordExec = new Path("testing/bin/application");
     Path jobXml = new Path(testDir, "job.xml");
     {
       FileSystem fs = dfs.getFileSystem();

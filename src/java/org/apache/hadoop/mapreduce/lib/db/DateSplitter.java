@@ -32,6 +32,7 @@ import org.apache.commons.logging.LogFactory;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 
 /**
  * Implement DBSplitter over date/time values.
@@ -52,10 +53,10 @@ public class DateSplitter extends IntegerSplitter {
     minVal = resultSetColToLong(results, 1, sqlDataType);
     maxVal = resultSetColToLong(results, 2, sqlDataType);
 
-    String lowClausePrefix = colName + " >= '";
-    String highClausePrefix = colName + " < '";
+    String lowClausePrefix = colName + " >= ";
+    String highClausePrefix = colName + " < ";
 
-    int numSplits = conf.getInt("mapred.map.tasks", 1);
+    int numSplits = conf.getInt(MRJobConfig.NUM_MAPS, 1);
     if (numSplits < 1) {
       numSplits = 1;
     }
@@ -99,13 +100,13 @@ public class DateSplitter extends IntegerSplitter {
         }
         // This is the last one; use a closed interval.
         splits.add(new DataDrivenDBInputFormat.DataDrivenDBInputSplit(
-            lowClausePrefix + startDate.toString() + "'",
-            colName + " <= '" + endDate.toString() + "'"));
+            lowClausePrefix + dateToString(startDate),
+            colName + " <= " + dateToString(endDate)));
       } else {
         // Normal open-interval case.
         splits.add(new DataDrivenDBInputFormat.DataDrivenDBInputSplit(
-            lowClausePrefix + startDate.toString() + "'",
-            highClausePrefix + endDate.toString() + "'"));
+            lowClausePrefix + dateToString(startDate),
+            highClausePrefix + dateToString(endDate)));
       }
 
       start = end;
@@ -131,11 +132,11 @@ public class DateSplitter extends IntegerSplitter {
     try {
       switch (sqlDataType) {
       case Types.DATE:
-        return rs.getDate(1).getTime();
+        return rs.getDate(colNum).getTime();
       case Types.TIME:
-        return rs.getTime(1).getTime();
+        return rs.getTime(colNum).getTime();
       case Types.TIMESTAMP:
-        return rs.getTimestamp(1).getTime();
+        return rs.getTimestamp(colNum).getTime();
       default:
         throw new SQLException("Not a date-type field");
       }
@@ -158,5 +159,16 @@ public class DateSplitter extends IntegerSplitter {
     default: // Shouldn't ever hit this case.
       return null;
     }
+  }
+
+  /**
+   * Given a Date 'd', format it as a string for use in a SQL date
+   * comparison operation.
+   * @param d the date to format.
+   * @return the string representing this date in SQL with any appropriate
+   * quotation characters, etc.
+   */
+  protected String dateToString(Date d) {
+    return "'" + d.toString() + "'";
   }
 }

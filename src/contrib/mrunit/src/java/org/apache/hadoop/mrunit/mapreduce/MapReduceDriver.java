@@ -21,6 +21,7 @@ package org.apache.hadoop.mrunit.mapreduce;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,8 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.RawComparator;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -45,7 +48,7 @@ import org.apache.hadoop.mrunit.types.Pair;
  * This is designed to handle a single (k, v)* -> (k, v)* case from the
  * Mapper/Reducer pair, representing a single unit test.
  */
-public class MapReduceDriver<K1, V1, K2, V2, K3, V3>
+public class MapReduceDriver<K1, V1, K2 extends Comparable, V2, K3, V3>
     extends MapReduceDriverBase<K1, V1, K2, V2, K3, V3> {
 
   public static final Log LOG = LogFactory.getLog(MapReduceDriver.class);
@@ -202,7 +205,7 @@ public class MapReduceDriver<K1, V1, K2, V2, K3, V3>
       LOG.debug("Mapping input " + input.toString() + ")");
 
       mapOutputs.addAll(new MapDriver<K1, V1, K2, V2>(myMapper).withInput(
-              input).withCounters(getCounters()).run());
+              input).withCounters(getCounters()).withConfiguration(configuration).run());
     }
 
     List<Pair<K2, List<V2>>> reduceInputs = shuffle(mapOutputs);
@@ -217,7 +220,7 @@ public class MapReduceDriver<K1, V1, K2, V2, K3, V3>
           + sb.toString() + ")");
 
       reduceOutputs.addAll(new ReduceDriver<K2, V2, K3, V3>(myReducer)
-              .withCounters(getCounters())
+              .withCounters(getCounters()).withConfiguration(configuration)
               .withInputKey(inputKey).withInputValues(inputValues).run());
     }
 
@@ -227,5 +230,42 @@ public class MapReduceDriver<K1, V1, K2, V2, K3, V3>
   @Override
   public String toString() {
     return "MapReduceDriver (0.20+) (" + myMapper + ", " + myReducer + ")";
+  }
+  
+  /** 
+   * @param configuration The configuration object that will given to the 
+   *        mapper and reducer associated with the driver
+   * @return this driver object for fluent coding
+   */
+  public MapReduceDriver<K1, V1, K2, V2, K3, V3> withConfiguration(
+      Configuration configuration) {
+    setConfiguration(configuration);
+    return this;
+  }
+  
+  /**
+   * Identical to {@link #setKeyGroupingComparator(RawComparator)}, but with a 
+   * fluent programming style 
+   * @param groupingComparator Comparator to use in the shuffle stage for key 
+   * grouping 
+   * @return this
+   */
+  public MapReduceDriver<K1, V1, K2, V2, K3, V3> withKeyGroupingComparator(
+      RawComparator<K2> groupingComparator) {
+    setKeyGroupingComparator(groupingComparator);
+    return this;
+  }
+  
+  /**
+   * Identical to {@link #setKeyOrderComparator(RawComparator)}, but with a 
+   * fluent programming style 
+   * @param orderComparator Comparator to use in the shuffle stage for key 
+   * value ordering 
+   * @return this
+   */
+  public MapReduceDriver<K1, V1, K2, V2, K3, V3> withKeyOrderComparator(
+      RawComparator<K2> orderComparator) {
+    setKeyOrderComparator(orderComparator);
+    return this;
   }
 }

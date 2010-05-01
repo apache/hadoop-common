@@ -22,17 +22,24 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.List;
+import java.util.ArrayList;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.mapreduce.filecache.TestTrackerDistributedCacheManager;
 import org.apache.hadoop.mapreduce.MRConfig;
+import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
-import org.apache.hadoop.security.UnixUserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.util.StringUtils;
 
 import junit.framework.TestCase;
 
@@ -45,10 +52,17 @@ import junit.framework.TestCase;
  * <ol>
  * <li>Build LinuxTaskController by not passing any
  * <code>-Dhadoop.conf.dir</code></li>
- * <li>Make the built binary to setuid executable</li>
+ * <li>Change ownership of the built binary to root:group1, where group1 is
+ * a secondary group of the test runner.</li>
+ * <li>Change permissions on the binary so that <em>others</em> component does
+ * not have any permissions on binary</li> 
+ * <li>Make the built binary to setuid and setgid executable</li>
  * <li>Execute following targets:
  * <code>ant test -Dcompile.c++=true -Dtaskcontroller-path=<em>path to built binary</em> 
- * -Dtaskcontroller-ugi=<em>user,group</em></code></li>
+ * -Dtaskcontroller-ugi=<em>user,group</em></code>
+ *  <br/>(Note that "path to built binary" means the directory containing task-controller -
+ *  not the actual complete path of the binary itself. This path must end in ".../bin")
+ *  </li>
  * </ol>
  * 
  */
@@ -62,7 +76,18 @@ public class ClusterWithLinuxTaskController extends TestCase {
    * 
    **/
   public static class MyLinuxTaskController extends LinuxTaskController {
-    String taskControllerExePath;
+    String taskControllerExePath = System.getProperty(TASKCONTROLLER_PATH)
+        + "/task-controller";
+    
+    @Override
+    public void setup() throws IOException {
+      getConf().set(TTConfig.TT_GROUP, taskTrackerSpecialGroup);
+
+      // write configuration file
+      configurationFile = createTaskControllerConf(System
+          .getProperty(TASKCONTROLLER_PATH), getConf());
+      super.setup();
+    }
 
     @Override
     protected String getTaskControllerExecutablePath() {
@@ -71,6 +96,24 @@ public class ClusterWithLinuxTaskController extends TestCase {
 
     void setTaskControllerExe(String execPath) {
       this.taskControllerExePath = execPath;
+    }
+
+    volatile static int attemptedSigQuits = 0;
+    volatile static int failedSigQuits = 0;
+
+    /** Work like LinuxTaskController, but also count the number of
+      * attempted and failed SIGQUIT sends via the task-controller
+      * executable.
+      */
+    @Override
+    void dumpTaskStack(TaskControllerContext context) {
+      attemptedSigQuits++;
+      try {
+        signalTask(context, TaskControllerCommands.SIGQUIT_TASK_JVM);
+      } catch (Exception e) {
+        LOG.warn("Execution sending SIGQUIT: " + StringUtils.stringifyException(e));
+        failedSigQuits++;
+      }
     }
   }
 
@@ -81,21 +124,53 @@ public class ClusterWithLinuxTaskController extends TestCase {
   private JobConf clusterConf = null;
   protected Path homeDirectory;
 
+  /** changing this to a larger number needs more work for creating 
+   *  taskcontroller.cfg.
+   *  see {@link #startCluster()} and
+   *  {@link #createTaskControllerConf(String, Configuration)}
+   */ 
   private static final int NUMBER_OF_NODES = 1;
 
   static final String TASKCONTROLLER_PATH = "taskcontroller-path";
   static final String TASKCONTROLLER_UGI = "taskcontroller-ugi";
 
-  private File configurationFile = null;
+  private static File configurationFile = null;
 
-  private UserGroupInformation taskControllerUser;
+  protected UserGroupInformation jobOwner;
+  
+  protected static String taskTrackerSpecialGroup = null;
+  /**
+   * Primary group of the tasktracker - i.e. the user running the
+   * test.
+   */
+  protected static String taskTrackerPrimaryGroup = null;
+  static {
+    if (isTaskExecPathPassed()) {
+      try {
+        taskTrackerSpecialGroup = FileSystem.getLocal(new Configuration())
+            .getFileStatus(
+                new Path(System.getProperty(TASKCONTROLLER_PATH),
+                    "task-controller")).getGroup();
+      } catch (IOException e) {
+        LOG.warn("Could not get group of the binary", e);
+        fail("Could not get group of the binary");
+      }
+      try {
+        taskTrackerPrimaryGroup = 
+          UserGroupInformation.getCurrentUser().getGroupNames()[0];
+      } catch (IOException ioe) {
+        LOG.warn("Could not get primary group of the current user", ioe);
+        fail("Could not get primary group of the current user");
+      }
+    }
+  }
 
   /*
    * Utility method which subclasses use to start and configure the MR Cluster
    * so they can directly submit a job.
    */
   protected void startCluster()
-      throws IOException {
+      throws IOException, InterruptedException {
     JobConf conf = new JobConf();
     dfsCluster = new MiniDFSCluster(conf, NUMBER_OF_NODES, true, null);
     conf.set(TTConfig.TT_TASK_CONTROLLER,
@@ -104,52 +179,50 @@ public class ClusterWithLinuxTaskController extends TestCase {
         new MiniMRCluster(NUMBER_OF_NODES, dfsCluster.getFileSystem().getUri()
             .toString(), 4, null, null, conf);
 
-    // Get the configured taskcontroller-path
-    String path = System.getProperty(TASKCONTROLLER_PATH);
-    configurationFile =
-        createTaskControllerConf(path, mrCluster.getTaskTrackerRunner(0)
-            .getLocalDirs());
-    String execPath = path + "/task-controller";
-    TaskTracker tracker = mrCluster.getTaskTrackerRunner(0).tt;
-    // TypeCasting the parent to our TaskController instance as we
-    // know that that would be instance which should be present in TT.
-    ((MyLinuxTaskController) tracker.getTaskController())
-        .setTaskControllerExe(execPath);
-    String ugi = System.getProperty(TASKCONTROLLER_UGI);
     clusterConf = mrCluster.createJobConf();
+
+    String ugi = System.getProperty(TASKCONTROLLER_UGI);
     String[] splits = ugi.split(",");
-    taskControllerUser = new UnixUserGroupInformation(splits);
-    clusterConf.set(UnixUserGroupInformation.UGI_PROPERTY_NAME, ugi);
-    createHomeDirectory(clusterConf);
+    jobOwner = UserGroupInformation.createUserForTesting(splits[0], 
+        new String[]{splits[1]});
+    createHomeAndStagingDirectory(clusterConf);
   }
 
-  private void createHomeDirectory(JobConf conf)
+  private void createHomeAndStagingDirectory(JobConf conf)
       throws IOException {
     FileSystem fs = dfsCluster.getFileSystem();
-    String path = "/user/" + taskControllerUser.getUserName();
+    String path = "/user/" + jobOwner.getUserName();
     homeDirectory = new Path(path);
     LOG.info("Creating Home directory : " + homeDirectory);
     fs.mkdirs(homeDirectory);
-    changePermission(conf, homeDirectory);
+    changePermission(fs);
+    Path stagingArea = new Path(conf.get(JTConfig.JT_STAGING_AREA_ROOT));
+    LOG.info("Creating Staging root directory : " + stagingArea);
+    fs.mkdirs(stagingArea);
+    fs.setPermission(stagingArea, new FsPermission((short)0777));
   }
 
-  private void changePermission(JobConf conf, Path p)
+  private void changePermission(FileSystem fs)
       throws IOException {
-    FileSystem fs = dfsCluster.getFileSystem();
-    fs.setOwner(homeDirectory, taskControllerUser.getUserName(),
-        taskControllerUser.getGroupNames()[0]);
+    fs.setOwner(homeDirectory, jobOwner.getUserName(),
+        jobOwner.getGroupNames()[0]);
   }
 
+  static File getTaskControllerConfFile(String path) {
+    File confDirectory = new File(path, "../conf");
+    return new File(confDirectory, "taskcontroller.cfg");
+  }
+  
   /**
    * Create taskcontroller.cfg.
    * 
    * @param path Path to the taskcontroller binary.
-   * @param localDirs
+   * @param conf TaskTracker's configuration
    * @return the created conf file
    * @throws IOException
    */
-  static File createTaskControllerConf(String path, String[] localDirs)
-      throws IOException {
+  static File createTaskControllerConf(String path,
+      Configuration conf) throws IOException {
     File confDirectory = new File(path, "../conf");
     if (!confDirectory.exists()) {
       confDirectory.mkdirs();
@@ -158,17 +231,13 @@ public class ClusterWithLinuxTaskController extends TestCase {
     PrintWriter writer =
         new PrintWriter(new FileOutputStream(configurationFile));
 
-    StringBuffer sb = new StringBuffer();
-    for (int i = 0; i < localDirs.length; i++) {
-      sb.append(localDirs[i]);
-      if ((i + 1) != localDirs.length) {
-        sb.append(",");
-      }
-    }
-    writer.println(String.format(MRConfig.LOCAL_DIR + "=%s", sb.toString()));
+    writer.println(String.format(MRConfig.LOCAL_DIR + "=%s", conf
+        .get(MRConfig.LOCAL_DIR)));
 
     writer
         .println(String.format("hadoop.log.dir=%s", TaskLog.getBaseLogDir()));
+    writer.println(String.format(TTConfig.TT_GROUP + "=%s",
+        conf.get(TTConfig.TT_GROUP)));
 
     writer.flush();
     writer.close();
@@ -188,7 +257,7 @@ public class ClusterWithLinuxTaskController extends TestCase {
     return true;
   }
 
-  private static boolean isTaskExecPathPassed() {
+  static boolean isTaskExecPathPassed() {
     String path = System.getProperty(TASKCONTROLLER_PATH);
     if (path == null || path.isEmpty()
         || path.equals("${" + TASKCONTROLLER_PATH + "}")) {
@@ -257,17 +326,185 @@ public class ClusterWithLinuxTaskController extends TestCase {
    */
   protected void assertOwnerShip(Path outDir, FileSystem fs)
       throws IOException {
-    for (FileStatus status : fs.listStatus(outDir, new OutputLogFilter())) {
+    for (FileStatus status : fs.listStatus(outDir, 
+                                           new Utils.OutputFileUtils
+                                                    .OutputFilesFilter())) {
       String owner = status.getOwner();
       String group = status.getGroup();
       LOG.info("Ownership of the file is " + status.getPath() + " is " + owner
           + "," + group);
       assertTrue("Output part-file's owner is not correct. Expected : "
-          + taskControllerUser.getUserName() + " Found : " + owner, owner
-          .equals(taskControllerUser.getUserName()));
+          + jobOwner.getUserName() + " Found : " + owner, owner
+          .equals(jobOwner.getUserName()));
       assertTrue("Output part-file's group is not correct. Expected : "
-          + taskControllerUser.getGroupNames()[0] + " Found : " + group, group
-          .equals(taskControllerUser.getGroupNames()[0]));
+          + jobOwner.getGroupNames()[0] + " Found : " + group, group
+          .equals(jobOwner.getGroupNames()[0]));
+    }
+  }
+  
+  /**
+   * Validates permissions of private distcache dir and its contents fully
+   */
+  public static void checkPermissionsOnPrivateDistCache(String[] localDirs,
+      String user, String taskTrackerUser, String groupOwner)
+      throws IOException {
+    // user-dir, jobcache and distcache will have
+    //     2770 permissions if jobOwner is same as tt_user
+    //     2570 permissions for any other user
+    String expectedDirPerms  = taskTrackerUser.equals(user)
+                               ? "drwxrws---"
+                               : "dr-xrws---";
+    String expectedFilePerms = taskTrackerUser.equals(user)
+                               ? "-rwxrwx---"
+                               : "-r-xrwx---";
+    for (String localDir : localDirs) {
+      File distCacheDir = new File(localDir,
+          TaskTracker.getPrivateDistributedCacheDir(user));
+      if (distCacheDir.exists()) {
+        checkPermissionsOnDir(distCacheDir, user, groupOwner, expectedDirPerms,
+            expectedFilePerms);
+      }
+    }
+  }
+ 
+  /**
+   * Check that files expected to be localized in distributed cache for a user
+   * are present.
+   * @param localDirs List of mapred local directories.
+   * @param user User against which localization is happening
+   * @param expectedFileNames List of files expected to be localized
+   * @throws IOException
+   */
+  public static void checkPresenceOfPrivateDistCacheFiles(String[] localDirs,
+      String user, String[] expectedFileNames) throws IOException {
+    FileGatherer gatherer = new FileGatherer();
+    for (String localDir : localDirs) {
+      File distCacheDir = new File(localDir,
+          TaskTracker.getPrivateDistributedCacheDir(user));
+      findExpectedFiles(expectedFileNames, distCacheDir, gatherer);
+    }
+    assertEquals("Files expected in private distributed cache were not found",
+        expectedFileNames.length, gatherer.getCount());
+  }
+
+  /**
+   * Validates permissions and ownership of public distcache dir and its 
+   * contents fully in all local dirs
+   */
+  public static void checkPermissionsOnPublicDistCache(FileSystem localFS,
+      String[] localDirs, String owner, String group) throws IOException {
+    for (String localDir : localDirs) {
+      File distCacheDir = new File(localDir,
+          TaskTracker.getPublicDistributedCacheDir());
+
+      if (distCacheDir.exists()) {
+        checkPublicFilePermissions(localFS, distCacheDir, owner, group);
+      }
+    }
+  }
+
+  /**
+   * Checks that files expected to be localized in the public distributed
+   * cache are present
+   * @param localDirs List of mapred local directories
+   * @param expectedFileNames List of expected file names.
+   * @throws IOException
+   */
+  public static void checkPresenceOfPublicDistCacheFiles(String[] localDirs,
+      String[] expectedFileNames) throws IOException {
+    FileGatherer gatherer = new FileGatherer();
+    for (String localDir : localDirs) {
+      File distCacheDir = new File(localDir,
+          TaskTracker.getPublicDistributedCacheDir());
+      findExpectedFiles(expectedFileNames, distCacheDir, gatherer);
+    }
+    assertEquals("Files expected in public distributed cache were not found",
+        expectedFileNames.length, gatherer.getCount());
+  }
+  
+  /**
+   * Validates permissions and ownership on the public distributed cache files
+   */
+  private static void checkPublicFilePermissions(FileSystem localFS, File dir,
+      String owner, String group)
+      throws IOException {
+    Path dirPath = new Path(dir.getAbsolutePath());
+    TestTrackerDistributedCacheManager.checkPublicFilePermissions(localFS, 
+        new Path[] {dirPath});
+    TestTrackerDistributedCacheManager.checkPublicFileOwnership(localFS,
+        new Path[] {dirPath}, owner, group);
+    if (dir.isDirectory()) {
+      File[] files = dir.listFiles();
+      for (File file : files) {
+        checkPublicFilePermissions(localFS, file, owner, group);
+      }
+    }
+  }
+
+  /**
+   * Validates permissions of given dir and its contents fully(i.e. recursively)
+   */
+  private static void checkPermissionsOnDir(File dir, String user,
+      String groupOwner, String expectedDirPermissions,
+      String expectedFilePermissions) throws IOException {
+    TestTaskTrackerLocalization.checkFilePermissions(dir.toString(),
+        expectedDirPermissions, user, groupOwner);
+    File[] files = dir.listFiles();
+    for (File file : files) {
+      if (file.isDirectory()) {
+        checkPermissionsOnDir(file, user, groupOwner, expectedDirPermissions,
+            expectedFilePermissions);
+      } else {
+        TestTaskTrackerLocalization.checkFilePermissions(file.toString(),
+            expectedFilePermissions, user, groupOwner);
+      }
+    }
+  }
+
+  // Check which files among those expected are present in the rootDir
+  // Add those present to the FileGatherer.
+  private static void findExpectedFiles(String[] expectedFileNames,
+      File rootDir, FileGatherer gatherer) {
+    
+    File[] files = rootDir.listFiles();
+    if (files == null) {
+      return;
+    }
+    for (File file : files) {
+      if (file.isDirectory()) {
+        findExpectedFiles(expectedFileNames, file, gatherer);
+      } else {
+        if (isFilePresent(expectedFileNames, file)) {
+          gatherer.addFileName(file.getName());
+        }
+      }
+    }
+    
+  }
+  
+  // Test if the passed file is present in the expected list of files.
+  private static boolean isFilePresent(String[] expectedFileNames, File file) {
+    boolean foundFileName = false;
+    for (String name : expectedFileNames) {
+      if (name.equals(file.getName())) {
+        foundFileName = true;
+        break;
+      }
+    }
+    return foundFileName;
+  }
+  
+  // Helper class to collect a list of file names across multiple
+  // method calls. Wrapper around a collection defined for clarity
+  private static class FileGatherer {
+    List<String> foundFileNames = new ArrayList<String>();
+    
+    void addFileName(String fileName) {
+      foundFileNames.add(fileName);
+    }
+    
+    int getCount() {
+      return foundFileNames.size();
     }
   }
 }

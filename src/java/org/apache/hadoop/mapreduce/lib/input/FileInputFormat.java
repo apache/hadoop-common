@@ -35,6 +35,7 @@ import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.StringUtils;
 
@@ -60,6 +61,8 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
     "mapreduce.input.fileinputformat.split.minsize";
   public static final String PATHFILTER_CLASS = 
     "mapreduce.input.pathFilter.class";
+  public static final String NUM_INPUT_FILES =
+    "mapreduce.input.fileinputformat.numinputfiles";
 
   private static final Log LOG = LogFactory.getLog(FileInputFormat.class);
 
@@ -196,6 +199,9 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
     if (dirs.length == 0) {
       throw new IOException("No input paths specified in job");
     }
+    
+    // get tokens for all the required FileSystems..
+    TokenCache.obtainTokensForNamenodes(dirs, job.getConfiguration());
 
     List<IOException> errors = new ArrayList<IOException>();
     
@@ -238,45 +244,59 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
     return result;
   }
   
+  /**
+   * A factory that makes the split for this class. It can be overridden
+   * by sub-classes to make sub-types
+   */
+  protected FileSplit makeSplit(Path file, long start, long length, 
+                                String[] hosts) {
+    return new FileSplit(file, start, length, hosts);
+  }
 
   /** 
    * Generate the list of files and make them into FileSplits.
-   */ 
-  public List<InputSplit> getSplits(JobContext job
-                                    ) throws IOException {
+   * @param job the job context
+   * @throws IOException
+   */
+  public List<InputSplit> getSplits(JobContext job) throws IOException {
     long minSize = Math.max(getFormatMinSplitSize(), getMinSplitSize(job));
     long maxSize = getMaxSplitSize(job);
 
     // generate splits
     List<InputSplit> splits = new ArrayList<InputSplit>();
-    for (FileStatus file: listStatus(job)) {
+    List<FileStatus> files = listStatus(job);
+    for (FileStatus file: files) {
       Path path = file.getPath();
-      FileSystem fs = path.getFileSystem(job.getConfiguration());
       long length = file.getLen();
-      BlockLocation[] blkLocations = fs.getFileBlockLocations(file, 0, length);
-      if ((length != 0) && isSplitable(job, path)) { 
-        long blockSize = file.getBlockSize();
-        long splitSize = computeSplitSize(blockSize, minSize, maxSize);
+      if (length != 0) {
+        FileSystem fs = path.getFileSystem(job.getConfiguration());
+        BlockLocation[] blkLocations = fs.getFileBlockLocations(file, 0, length);
+        if (isSplitable(job, path)) {
+          long blockSize = file.getBlockSize();
+          long splitSize = computeSplitSize(blockSize, minSize, maxSize);
 
-        long bytesRemaining = length;
-        while (((double) bytesRemaining)/splitSize > SPLIT_SLOP) {
-          int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
-          splits.add(new FileSplit(path, length-bytesRemaining, splitSize, 
-                                   blkLocations[blkIndex].getHosts()));
-          bytesRemaining -= splitSize;
+          long bytesRemaining = length;
+          while (((double) bytesRemaining)/splitSize > SPLIT_SLOP) {
+            int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
+            splits.add(makeSplit(path, length-bytesRemaining, splitSize,
+                                     blkLocations[blkIndex].getHosts()));
+            bytesRemaining -= splitSize;
+          }
+
+          if (bytesRemaining != 0) {
+            splits.add(makeSplit(path, length-bytesRemaining, bytesRemaining,
+                       blkLocations[blkLocations.length-1].getHosts()));
+          }
+        } else { // not splitable
+          splits.add(makeSplit(path, 0, length, blkLocations[0].getHosts()));
         }
-        
-        if (bytesRemaining != 0) {
-          splits.add(new FileSplit(path, length-bytesRemaining, bytesRemaining, 
-                     blkLocations[blkLocations.length-1].getHosts()));
-        }
-      } else if (length != 0) {
-        splits.add(new FileSplit(path, 0, length, blkLocations[0].getHosts()));
       } else { 
         //Create empty hosts array for zero length files
-        splits.add(new FileSplit(path, 0, length, new String[0]));
+        splits.add(makeSplit(path, 0, length, new String[0]));
       }
     }
+    // Save the number of input files for metrics/loadgen
+    job.getConfiguration().setLong(NUM_INPUT_FILES, files.size());
     LOG.debug("Total # of splits: " + splits.size());
     return splits;
   }

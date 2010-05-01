@@ -43,7 +43,7 @@ import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
-import org.apache.hadoop.mapred.OutputLogFilter;
+import org.apache.hadoop.mapred.Utils;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -133,7 +133,7 @@ public class MapReduceTestUtil {
    */
   public static Job createCopyJob(Configuration conf, Path outdir, 
       Path... indirs) throws Exception {
-    conf.setInt(JobContext.NUM_MAPS, 3);
+    conf.setInt(MRJobConfig.NUM_MAPS, 3);
     Job theJob = new Job(conf);
     theJob.setJobName("DataMoveJob");
 
@@ -158,8 +158,11 @@ public class MapReduceTestUtil {
    */
   public static Job createFailJob(Configuration conf, Path outdir, 
       Path... indirs) throws Exception {
-
-    conf.setInt(JobContext.MAP_MAX_ATTEMPTS, 2);
+    FileSystem fs = outdir.getFileSystem(conf);
+    if (fs.exists(outdir)) {
+      fs.delete(outdir, true);
+    }
+    conf.setInt(MRJobConfig.MAP_MAX_ATTEMPTS, 2);
     Job theJob = new Job(conf);
     theJob.setJobName("Fail-Job");
 
@@ -371,7 +374,7 @@ public class MapReduceTestUtil {
   public static TaskAttemptContext createDummyMapTaskAttemptContext(
       Configuration conf) {
     TaskAttemptID tid = new TaskAttemptID("jt", 1, TaskType.MAP, 0, 0);
-    conf.set(JobContext.TASK_ATTEMPT_ID, tid.toString());
+    conf.set(MRJobConfig.TASK_ATTEMPT_ID, tid.toString());
     return new TaskAttemptContextImpl(conf, tid);    
   }
 
@@ -396,7 +399,7 @@ public class MapReduceTestUtil {
     StringBuffer result = new StringBuffer();
 
     Path[] fileList = FileUtil.stat2Paths(fs.listStatus(outDir,
-           new OutputLogFilter()));
+           new Utils.OutputFileUtils.OutputFilesFilter()));
     for (Path outputFile : fileList) {
       LOG.info("Path" + ": "+ outputFile);
       BufferedReader file = 

@@ -22,6 +22,7 @@
   import="javax.servlet.http.*"
   import="java.io.*"
   import="java.util.*"
+  import="org.apache.hadoop.http.HtmlQuoting"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.fs.*"
   import="org.apache.hadoop.util.*"
@@ -38,17 +39,21 @@
 %>
 
 <%	
-  String jobid = request.getParameter("jobid");
   String logFile = request.getParameter("logFile");
-  String taskid = request.getParameter("taskid"); 
+  String tipid = request.getParameter("tipid"); 
   FileSystem fs = (FileSystem) application.getAttribute("fileSys");
-  JobHistoryParser.JobInfo job = JSPUtil.getJobInfo(request, fs);
-  JobHistoryParser.TaskInfo task = job.getAllTasks().get(TaskID.forName(taskid)); 
+  JobTracker jobTracker = (JobTracker) application.getAttribute("job.tracker");
+  JobHistoryParser.JobInfo job = JSPUtil.checkAccessAndGetJobInfo(request,
+      response, jobTracker, fs, new Path(logFile));
+  if (job == null) {
+    return;
+  }
+  JobHistoryParser.TaskInfo task = job.getAllTasks().get(TaskID.forName(tipid)); 
   TaskType type = task.getTaskType();
 %>
 <html>
 <body>
-<h2><%=taskid %> attempts for <a href="jobdetailshistory.jsp?jobid=<%=jobid%>&&logFile=<%=logFile%>"> <%=jobid %> </a></h2>
+<h2><%=tipid %> attempts for <a href="jobdetailshistory.jsp?logFile=<%=logFile%>"> <%=job.getJobId() %> </a></h2>
 <center>
 <table border="2" cellpadding="5" cellspacing="2">
 <tr><td>Task Id</td><td>Start Time</td>
@@ -105,7 +110,8 @@
               taskAttempt.getFinishTime(),
               taskAttempt.getStartTime()) + "</td>"); 
     out.print("<td>" + taskAttempt.getHostname() + "</td>");
-    out.print("<td>" + taskAttempt.getError() + "</td>");
+    out.print("<td>" + HtmlQuoting.quoteHtmlChars(taskAttempt.getError()) +
+              "</td>");
 
     // Print task log urls
     out.print("<td>");	
@@ -124,12 +130,8 @@
     Counters counters = taskAttempt.getCounters();
     if (counters != null) {
       TaskAttemptID attemptId = taskAttempt.getAttemptId();
-      TaskID taskId = attemptId.getTaskID();
-      org.apache.hadoop.mapreduce.JobID jobId = taskId.getJobID();
       out.print("<td>" 
-       + "<a href=\"/taskstatshistory.jsp?jobid=" + jobId
-           + "&taskid=" + taskId
-           + "&attemptid=" + attemptId
+       + "<a href=\"/taskstatshistory.jsp?attemptid=" + attemptId
            + "&logFile=" + logFile + "\">"
            + counters.countCounters() + "</a></td>");
     } else {

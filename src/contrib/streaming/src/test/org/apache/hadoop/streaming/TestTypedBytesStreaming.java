@@ -24,10 +24,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileUtil;
 
-import junit.framework.TestCase;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import static org.junit.Assert.*;
 
-public class TestTypedBytesStreaming extends TestCase {
+public class TestTypedBytesStreaming {
 
   protected File INPUT_FILE = new File("input.txt");
   protected File OUTPUT_DIR = new File("out");
@@ -59,35 +63,29 @@ public class TestTypedBytesStreaming extends TestCase {
       "-io", "typedbytes"
     };
   }
-  
+
+  @Before
+  @After
+  public void cleanupOutput() throws Exception {
+    FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
+    INPUT_FILE.delete();
+    createInput();
+  }
+
+  @Test
   public void testCommandLine() throws Exception {
-    try {
-      try {
-        OUTPUT_DIR.getAbsoluteFile().delete();
-      } catch (Exception e) {
-      }
-
-      createInput();
-      OUTPUT_DIR.delete();
-
-      // During tests, the default Configuration will use a local mapred
-      // So don't specify -config or -cluster
-      StreamJob job = new StreamJob();
-      job.setConf(new Configuration());
-      job.run(genArgs());
-      File outFile = new File(OUTPUT_DIR, "part-00000").getAbsoluteFile();
-      String output = StreamUtil.slurp(outFile);
-      outFile.delete();
-      System.out.println("   map=" + map);
-      System.out.println("reduce=" + reduce);
-      System.err.println("outEx1=" + outputExpect);
-      System.err.println("  out1=" + output);
-      assertEquals(outputExpect, output);
-    } finally {
-      File outFileCRC = new File(OUTPUT_DIR, ".part-00000.crc").getAbsoluteFile();
-      INPUT_FILE.delete();
-      outFileCRC.delete();
-      OUTPUT_DIR.getAbsoluteFile().delete();
-    }
+    // During tests, the default Configuration will use a local mapred
+    // So don't specify -config or -cluster
+    StreamJob job = new StreamJob();
+    job.setConf(new Configuration());
+    job.run(genArgs());
+    File outFile = new File(OUTPUT_DIR, "part-00000").getAbsoluteFile();
+    String output = StreamUtil.slurp(outFile);
+    outFile.delete();
+    System.out.println("   map=" + map);
+    System.out.println("reduce=" + reduce);
+    System.err.println("outEx1=" + outputExpect);
+    System.err.println("  out1=" + output);
+    assertEquals(outputExpect, output);
   }
 }

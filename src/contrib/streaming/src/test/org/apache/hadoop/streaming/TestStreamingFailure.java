@@ -18,7 +18,9 @@
 
 package org.apache.hadoop.streaming;
 
-import junit.framework.TestCase;
+import org.junit.Test;
+import static org.junit.Assert.*;
+
 import java.io.*;
 import java.util.*;
 import org.apache.hadoop.conf.Configuration;
@@ -56,6 +58,7 @@ public class TestStreamingFailure extends TestStreaming
     };
   }
 
+  @Test
   public void testCommandLine()
   {
     try {
@@ -75,7 +78,11 @@ public class TestStreamingFailure extends TestStreaming
     } catch(Exception e) {
       // Expecting an exception
     } finally {
-      OUTPUT_DIR.getAbsoluteFile().delete();
+      try {
+      FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
     }
   }
 

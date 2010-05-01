@@ -32,11 +32,11 @@ import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.filecache.DistributedCache;
-import org.apache.hadoop.util.DiskChecker.DiskErrorException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.classification.InterfaceAudience;
 
 /**
  * Helper class of {@link TrackerDistributedCacheManager} that represents
@@ -44,9 +44,8 @@ import org.apache.hadoop.fs.Path;
  * by TaskRunner/LocalJobRunner to parse out the job configuration
  * and setup the local caches.
  * 
- * <b>This class is internal to Hadoop, and should not be treated as a public
- * interface.</b>
  */
+@InterfaceAudience.Private
 public class TaskDistributedCacheManager {
   private final TrackerDistributedCacheManager distributedCacheManager;
   private final Configuration taskConf;
@@ -67,16 +66,19 @@ public class TaskDistributedCacheManager {
       REGULAR,
       ARCHIVE
     }
+    boolean isPublic = true;
     /** Whether to decompress */
     final FileType type;
     final long timestamp;
     /** Whether this is to be added to the classpath */
     final boolean shouldBeAddedToClassPath;
+    boolean localized = false;
 
-    private CacheFile(URI uri, FileType type, long timestamp, 
+    private CacheFile(URI uri, FileType type, boolean isPublic, long timestamp, 
         boolean classPath) {
       this.uri = uri;
       this.type = type;
+      this.isPublic = isPublic;
       this.timestamp = timestamp;
       this.shouldBeAddedToClassPath = classPath;
     }
@@ -87,7 +89,7 @@ public class TaskDistributedCacheManager {
      * files.
      */
     private static List<CacheFile> makeCacheFiles(URI[] uris, 
-        String[] timestamps, Path[] paths, FileType type) {
+        String[] timestamps, String cacheVisibilities[], Path[] paths, FileType type) {
       List<CacheFile> ret = new ArrayList<CacheFile>();
       if (uris != null) {
         if (uris.length != timestamps.length) {
@@ -103,10 +105,19 @@ public class TaskDistributedCacheManager {
           URI u = uris[i];
           boolean isClassPath = (null != classPaths.get(u.getPath()));
           long t = Long.parseLong(timestamps[i]);
-          ret.add(new CacheFile(u, type, t, isClassPath));
+          ret.add(new CacheFile(u, type, Boolean.valueOf(cacheVisibilities[i]),
+              t, isClassPath));
         }
       }
       return ret;
+    }
+    
+    boolean getLocalized() {
+      return localized;
+    }
+    
+    void setLocalized(boolean val) {
+      localized = val;
     }
   }
 
@@ -119,11 +130,13 @@ public class TaskDistributedCacheManager {
     this.cacheFiles.addAll(
         CacheFile.makeCacheFiles(DistributedCache.getCacheFiles(taskConf),
             DistributedCache.getFileTimestamps(taskConf),
+            TrackerDistributedCacheManager.getFileVisibilities(taskConf),
             DistributedCache.getFileClassPaths(taskConf),
             CacheFile.FileType.REGULAR));
     this.cacheFiles.addAll(
         CacheFile.makeCacheFiles(DistributedCache.getCacheArchives(taskConf),
           DistributedCache.getArchiveTimestamps(taskConf),
+          TrackerDistributedCacheManager.getArchiveVisibilities(taskConf),
           DistributedCache.getArchiveClassPaths(taskConf), 
           CacheFile.FileType.ARCHIVE));
   }
@@ -136,9 +149,9 @@ public class TaskDistributedCacheManager {
    * file, if necessary.
    */
   public void setup(LocalDirAllocator lDirAlloc, File workDir, 
-      String cacheSubdir) throws IOException {
+      String privateCacheSubdir, String publicCacheSubDir) throws IOException {
     setupCalled = true;
-    
+      
     if (cacheFiles.isEmpty()) {
       return;
     }
@@ -151,25 +164,15 @@ public class TaskDistributedCacheManager {
       URI uri = cacheFile.uri;
       FileSystem fileSystem = FileSystem.get(uri, taskConf);
       FileStatus fileStatus = fileSystem.getFileStatus(new Path(uri.getPath()));
-      String cacheId = this.distributedCacheManager.makeRelative(uri, taskConf);
-      String cachePath = cacheSubdir + Path.SEPARATOR + cacheId;
-
-      // Get the local path if the cacheFile is already localized or create one
-      // if it doesn't
-      Path localPath;
-      try {
-        localPath = lDirAlloc.getLocalPathToRead(cachePath, taskConf);
-      } catch (DiskErrorException de) {
-        localPath =
-            lDirAlloc.getLocalPathForWrite(cachePath, fileStatus.getLen(),
-                taskConf);
+      String cacheSubdir = publicCacheSubDir;
+      if (!cacheFile.isPublic) {
+        cacheSubdir = privateCacheSubdir;
       }
-
-      String baseDir = localPath.toString().replace(cacheId, "");
       Path p = distributedCacheManager.getLocalCache(uri, taskConf,
-          new Path(baseDir), fileStatus, 
+          cacheSubdir, fileStatus, 
           cacheFile.type == CacheFile.FileType.ARCHIVE,
-          cacheFile.timestamp, workdirPath, false);
+          cacheFile.timestamp, workdirPath, false, cacheFile.isPublic);
+      cacheFile.setLocalized(true);
 
       if (cacheFile.type == CacheFile.FileType.ARCHIVE) {
         localArchives.add(p);
@@ -193,6 +196,13 @@ public class TaskDistributedCacheManager {
 
   }
 
+  /*
+   * This method is called from unit tests.
+   */
+  List<CacheFile> getCacheFiles() {
+    return cacheFiles;
+  }
+  
   private static String stringifyPathList(List<Path> p){
     if (p == null || p.isEmpty()) {
       return null;
@@ -224,7 +234,9 @@ public class TaskDistributedCacheManager {
    */
   public void release() throws IOException {
     for (CacheFile c : cacheFiles) {
-      distributedCacheManager.releaseCache(c.uri, taskConf);
+      if (c.getLocalized()) {
+        distributedCacheManager.releaseCache(c.uri, taskConf, c.timestamp);
+      }
     }
   }
 

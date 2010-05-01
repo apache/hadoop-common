@@ -30,7 +30,7 @@
  
   <property name="Name" value="Hadoop-Mapred"/>
   <property name="name" value="hadoop-mapred"/>
-  <property name="version" value="0.21.0-SNAPSHOT"/>
+  <property name="version" value="0.22.0-SNAPSHOT"/>
   <property name="final.name" value="${name}-${version}"/>
   <property name="test.final.name" value="${name}-test-${version}"/>
   <property name="examples.final.name" value="${name}-examples-${version}"/>
@@ -49,7 +49,6 @@
   <property name="c++.utils.src" value="${c++.src}/utils"/>
   <property name="c++.pipes.src" value="${c++.src}/pipes"/>
   <property name="c++.examples.pipes.src" value="${examples.dir}/pipes"/>
-  <property name="c++.libhdfs.src" value="${c++.src}/libhdfs"/>
   <property name="librecordio.src" value="${c++.src}/librecordio"/>
   <property name="tools.src" value="${basedir}/src/tools"/>
 
@@ -61,10 +60,12 @@
   <property name="build.webapps" value="${build.dir}/webapps"/>
   <property name="build.examples" value="${build.dir}/examples"/>
   <property name="build.librecordio" value="${build.dir}/librecordio"/>
+
   <!-- convert spaces to _ so that mac os doesn't break things -->
-  <exec executable="sed" inputstring="${os.name}" 
+  <exec executable="tr" inputstring="${os.name}" 
         outputproperty="nonspace.os">
-     <arg value="s/ /_/g"/>
+     <arg value="[:space:]"/>
+     <arg value="_"/>
   </exec>
   <property name="build.platform" 
             value="${nonspace.os}-${os.arch}-${sun.arch.data.model}"/>
@@ -74,7 +75,6 @@
   <property name="build.c++" value="${build.dir}/c++-build/${build.platform}"/>
   <property name="build.c++.utils" value="${build.c++}/utils"/>
   <property name="build.c++.pipes" value="${build.c++}/pipes"/>
-  <property name="build.c++.libhdfs" value="${build.c++}/libhdfs"/>
   <property name="build.c++.examples.pipes" 
             value="${build.c++}/examples/pipes"/>
   <property name="build.docs" value="${build.dir}/docs"/>
@@ -120,9 +120,6 @@
   <property name="test.mapred.commit.tests.file" value="${test.src.dir}/commit-tests" />
   <property name="test.mapred.all.tests.file" value="${test.src.dir}/all-tests" />
 
-  <property name="test.libhdfs.conf.dir" value="${c++.libhdfs.src}/tests/conf"/>
-  <property name="test.libhdfs.dir" value="${test.build.dir}/libhdfs"/>
-
   <property name="librecordio.test.dir" value="${test.build.dir}/librecordio"/>
   <property name="web.src.dir" value="${basedir}/src/web"/>
   <property name="src.webapps" value="${basedir}/src/webapps"/>
@@ -148,6 +145,8 @@
 
   <property name="jdiff.build.dir" value="${build.docs}/jdiff"/>
   <property name="jdiff.xml.dir" value="${lib.dir}/jdiff"/>
+  <property name="jdiff.stability" value="-unstable"/>
+  <property name="jdiff.compatibility" value=""/>
   <property name="jdiff.stable" value="0.21.0"/>
   <property name="jdiff.stable.javadoc" 
             value="http://hadoop.apache.org/core/docs/r${jdiff.stable}/api/"/>
@@ -209,6 +208,11 @@
   <property name="hadoop-mapred-test.jar" location="${build.dir}/${test.final.name}.jar" />
   <property name="hadoop-mapred-examples.jar" location="${build.dir}/${examples.final.name}.jar" />
   <property name="hadoop-mapred-tools.jar" location="${build.dir}/${tools.final.name}.jar" />
+
+  <property name="hadoop-mapred-sources.jar" location="${build.dir}/${final.name}-sources.jar" />
+  <property name="hadoop-mapred-test-sources.jar" location="${build.dir}/${test.final.name}-sources.jar" />
+  <property name="hadoop-mapred-examples-sources.jar" location="${build.dir}/${examples.final.name}-sources.jar" />
+  <property name="hadoop-mapred-tools-sources.jar" location="${build.dir}/${tools.final.name}-sources.jar" />
 
   <!-- jdiff.home property set -->
   <property name="jdiff.home" value="${build.ivy.lib.dir}/${ant.project.name}/jdiff"/>
@@ -406,7 +410,7 @@
 
   <target name="compile-core" depends="clover, compile-mapred-classes, compile-c++" description="Compile core only"/> 
 
-  <target name="compile-contrib" depends="compile-core,tools,compile-c++-libhdfs">
+  <target name="compile-contrib" depends="compile-core,tools">
      <subant target="compile">
         <property name="version" value="${version}"/>
         <property name="hadoop-core.version" value="${hadoop-core.version}"/>
@@ -456,6 +460,12 @@
       <fileset file="${conf.dir}/log4j.properties"/>
       <fileset file="${conf.dir}/hadoop-metrics.properties"/> -->
       <zipfileset dir="${build.webapps}" prefix="webapps"/>
+      <fileset file="${jar.extra.properties.list}" />
+    </jar>
+
+    <jar jarfile="${hadoop-mapred-sources.jar}">
+      <fileset dir="${mapred.src.dir}" includes="org/apache/hadoop/**/*.java" />
+      <fileset dir="${build.src}" includes="org/apache/hadoop/**/*.java" />
     </jar>
   </target>
 
@@ -472,12 +482,20 @@
                    value="org/apache/hadoop/examples/ExampleDriver"/>
       </manifest>
     </jar>
+
+    <jar jarfile="${hadoop-mapred-examples-sources.jar}">
+      <fileset dir="${examples.dir}" includes="org/apache/hadoop/**/*.java" />
+    </jar>
   </target>
 
   <target name="tools" depends="jar, compile-tools" 
           description="Make the Hadoop tools jar.">
     <jar jarfile="${build.dir}/${tools.final.name}.jar"
          basedir="${build.tools}">
+    </jar>
+
+    <jar jarfile="${hadoop-mapred-tools-sources.jar}">
+      <fileset dir="${tools.src}" includes="org/apache/hadoop/**/*.java" />
     </jar>
   </target>
 
@@ -493,7 +511,7 @@
 
     <javac 
       encoding="${build.encoding}" 
-      srcdir="${test.src.dir}/mapred"
+      srcdir="${test.src.dir}/mapred;${test.src.dir}/unit"
       includes="org/apache/hadoop/**/*.java"
       destdir="${test.mapred.build.classes}"
       debug="${javac.debug}"
@@ -578,16 +596,26 @@
           </section>
          </manifest>
     </jar>
+
+    <jar jarfile="${hadoop-mapred-test-sources.jar}">
+      <fileset dir="${test.src.dir}/mapred" includes="org/apache/hadoop/**/*.java" />
+      <fileset dir="${test.src.dir}/unit" includes="org/apache/hadoop/**/*.java" />
+      <fileset dir="${test.src.dir}/mapred/testjar" includes="*.java" />
+      <fileset dir="${test.src.dir}/mapred/testshell" includes="*.java" />
+    </jar>
   </target>
 
   <macrodef name="macro-test-runner">
     <attribute name="test.file" />
+    <attribute name="suite.type" />
     <sequential>
       <delete dir="${test.build.data}"/>
       <mkdir dir="${test.build.data}"/>
       <delete dir="${test.log.dir}"/>
       <mkdir dir="${test.log.dir}"/>
       <copy file="${test.src.dir}/hadoop-policy.xml" 
+        todir="${test.build.extraconf}" />
+      <copy file="${test.src.dir}/fi-site.xml"
         todir="${test.build.extraconf}" />
       <junit showoutput="${test.output}"
         printsummary="${test.junit.printsummary}"
@@ -617,10 +645,16 @@
         <syspropertyset dynamic="no">
           <propertyref name="compile.c++"/>
         </syspropertyset>
+        
+        <!-- Pass probability specifications to the spawn JVM -->
+        <syspropertyset id="FaultProbabilityProperties">
+          <propertyref regex="fi.*"/>
+        </syspropertyset>
+        
         <classpath refid="test.classpath"/>
         <formatter type="${test.junit.output.format}" />
         <batchtest todir="${test.build.dir}" unless="testcase">
-          <fileset dir="${test.src.dir}/mapred" excludes="**/${test.exclude}.java">
+          <fileset dir="${test.src.dir}/@{suite.type}" excludes="**/${test.exclude}.java">
             <patternset>
               <includesfile name="@{test.file}"/>
             </patternset>
@@ -628,20 +662,42 @@
         </batchtest>
         <batchtest todir="${test.build.dir}" if="testcase">
           <fileset dir="${test.src.dir}/mapred" includes="**/${testcase}.java"/>
+          <fileset dir="${test.src.dir}/unit" includes="**/${testcase}.java"/>
+        </batchtest>
+        <!--batch test to test all the testcases in aop folder with fault 
+        injection-->
+        <batchtest todir="${test.build.dir}" if="tests.notestcase.fi">
+          <fileset dir="${test.src.dir}/aop"
+            includes="**/${test.include}.java"
+            excludes="**/${test.exclude}.java" />
+        </batchtest>
+        <!-- batch test for testing a single test case in aop folder with
+        fault injection-->
+        <batchtest todir="${test.build.dir}" if="tests.testcase.fi">
+         <fileset dir="${test.src.dir}/aop" includes="**/${testcase}.java"/>
+        </batchtest>
+         <!--The following batch is for very special occasions only when
+         a non-FI tests are needed to be executed against FI-environment -->
+         <batchtest todir="${test.build.dir}" if="tests.testcaseonly.fi">
+          <fileset dir="${test.src.dir}/mapred" 
+            includes="**/${testcase}.java"/>
         </batchtest>
       </junit>
       <antcall target="checkfailure"/>
     </sequential>
   </macrodef>
 
-  <target name="run-test-mapred" depends="compile-mapred-test" description="Run mapred unit tests">
-    <macro-test-runner test.file="${test.mapred.all.tests.file}" />
+  <target name="run-test-mapred" depends="compile-mapred-test" description="Run mapred functional and system tests">
+    <macro-test-runner test.file="${test.mapred.all.tests.file}" suite.type="mapred"/>
   </target> 
 
    <target name="run-commit-test" depends="compile-mapred-test" description="Run approximate 10-minute set of unit tests prior to commiting">
-     <macro-test-runner test.file="${test.mapred.commit.tests.file}" />
+     <macro-test-runner test.file="${test.mapred.commit.tests.file}" suite.type="mapred"/>
    </target>
  
+   <target name="run-test-unit" depends="compile-mapred-test" description="Run unit tests">
+     <macro-test-runner test.file="${test.mapred.all.tests.file}" suite.type="unit"/>
+   </target>
 
 
   <target name="checkfailure" if="tests.failed">
@@ -665,7 +721,7 @@
     <fail if="testsfailed">Tests failed!</fail>
   </target>
 
-  <target name="test" depends="test-c++-libhdfs, jar-test, test-core" description="Run all unit tests">
+  <target name="test" depends="jar-test, test-core" description="Run all unit tests">
     <subant target="test-contrib">
       <fileset file="${basedir}/build.xml"/>
      </subant>
@@ -713,6 +769,7 @@
    <subant target="jar">
       <property name="version" value="${version}"/>
       <property name="dist.dir" value="${dist.dir}"/>
+      <fileset file="${contrib.dir}/capacity-scheduler/build.xml"/>
       <fileset file="${contrib.dir}/streaming/build.xml"/>
       <fileset file="${contrib.dir}/gridmix/build.xml"/>
       <fileset file="${contrib.dir}/mumak/build.xml"/>
@@ -744,12 +801,14 @@
       <sourcePath path="${mapred.src.dir}"/>
       <sourcePath path="${examples.dir}" />
       <sourcePath path="${tools.src}" />
+      <sourcePath path="${basedir}/src/contrib/capacity-scheduler/src/java" />
       <sourcePath path="${basedir}/src/contrib/streaming/src/java" />
       <sourcePath path="${basedir}/src/contrib/gridmix/src/java" />
       <sourcePath path="${basedir}/src/contrib/mumak/src/java" />
       <class location="${basedir}/build/${final.name}.jar" />
       <class location="${basedir}/build/${examples.final.name}.jar" />
       <class location="${basedir}/build/${tools.final.name}.jar" />
+      <class location="${basedir}/build/contrib/capacity-scheduler/hadoop-${version}-capacity-scheduler.jar" />
       <class location="${basedir}/build/contrib/streaming/hadoop-${version}-streaming.jar" />
       <class location="${basedir}/build/contrib/gridmix/hadoop-${version}-gridmix.jar" />
       <class location="${basedir}/build/contrib/mumak/hadoop-${version}-mumak.jar" />
@@ -807,11 +866,11 @@
         <packageset dir="${mapred.src.dir}"/>
     	<packageset dir="${examples.dir}"/>
 
-    	<packageset dir="src/contrib/streaming/src/java"/>
-    	<packageset dir="src/contrib/data_join/src/java"/>
-    	<packageset dir="src/contrib/index/src/java"/>
-    	<packageset dir="src/contrib/gridmix/src/java"/>
-    	<packageset dir="src/contrib/mumak/src/java"/>
+       <packageset dir="src/contrib/data_join/src/java"/>
+       <packageset dir="src/contrib/gridmix/src/java"/>
+       <packageset dir="src/contrib/index/src/java"/>
+       <packageset dir="src/contrib/mumak/src/java"/>
+       <packageset dir="src/contrib/streaming/src/java"/>
 
         <link href="${javadoc.link.java}"/>
 
@@ -826,16 +885,18 @@
           <pathelement location="${build.tools}"/>
         </classpath>
 
-    	<group title="Examples" packages="org.apache.hadoop.examples*"/>
+       <group title="Packages" packages="org.apache.*"/>
+       <group title="Libraries" packages="org.apache.hadoop.mapred.lib*:org.apache.hadoop.mapreduce.lib*"/>
+       <group title="Examples" packages="org.apache.hadoop.examples*"/>
 
-       <group title="contrib: Streaming" packages="org.apache.hadoop.streaming*"/>
        <group title="contrib: DataJoin" packages="org.apache.hadoop.contrib.utils.join*"/>
+       <group title="contrib: Gridmix" packages="org.apache.hadoop.mapred.gridmix*"/>
        <group title="contrib: Index" packages="org.apache.hadoop.contrib.index*"/>
-
+       <group title="contrib: Streaming" packages="org.apache.hadoop.streaming*:org.apache.hadoop.typedbytes*"/>
     </javadoc>
   </target>	
 
-  <target name="javadoc-uptodate" depends="compile, ivy-retrieve-javadoc">
+  <target name="javadoc-uptodate" depends="compile, ivy-retrieve-common, ivy-retrieve-javadoc">
     <uptodate property="javadoc.is.uptodate">
       <srcfiles dir="${src.dir}">
         <include name="**/*.java" />
@@ -863,11 +924,13 @@
         <packageset dir="${mapred.src.dir}"/>
     	<packageset dir="${examples.dir}"/>
 
-    	<packageset dir="src/contrib/streaming/src/java"/>
-    	<packageset dir="src/contrib/data_join/src/java"/>
-    	<packageset dir="src/contrib/index/src/java"/>
-    	<packageset dir="src/contrib/gridmix/src/java"/>
-    	<packageset dir="src/contrib/mumak/src/java"/>
+       <!-- Don't include contrib modules that use the same packages as core
+       MapReduce. This includes capacity-scheduler, dynamic-scheduler,
+       fairscheduler, mumak. See also the javadoc-dev target. -->
+       <packageset dir="src/contrib/data_join/src/java"/>
+       <packageset dir="src/contrib/gridmix/src/java"/>
+       <packageset dir="src/contrib/index/src/java"/>
+       <packageset dir="src/contrib/streaming/src/java"/>
 	
         <link href="${javadoc.link.java}"/>
 
@@ -882,20 +945,27 @@
           <pathelement location="${build.tools}"/>
         </classpath>
 
-    	<group title="Examples" packages="org.apache.hadoop.examples*"/>
+       <group title="Packages" packages="org.apache.*"/>
+       <group title="Libraries" packages="org.apache.hadoop.mapred.lib*:org.apache.hadoop.mapreduce.lib*"/>
+       <group title="Examples" packages="org.apache.hadoop.examples*"/>
 
-       <group title="contrib: Streaming" packages="org.apache.hadoop.streaming*"/>
        <group title="contrib: DataJoin" packages="org.apache.hadoop.contrib.utils.join*"/>
+       <group title="contrib: Gridmix" packages="org.apache.hadoop.mapred.gridmix*"/>
        <group title="contrib: Index" packages="org.apache.hadoop.contrib.index*"/>
+       <group title="contrib: Streaming" packages="org.apache.hadoop.streaming*:org.apache.hadoop.typedbytes*"/>
+       <doclet name="org.apache.hadoop.classification.tools.ExcludePrivateAnnotationsStandardDoclet"
+         path="${common.ivy.lib.dir}/hadoop-core-${version}.jar"/>
     </javadoc>
   </target>	
 
   <target name="api-xml" depends="ivy-retrieve-jdiff,javadoc,write-null">
     <javadoc maxmemory="${javadoc.maxmemory}">
-       <doclet name="jdiff.JDiff"
-               path="${jdiff.jar}:${xerces.jar}">
+       <doclet name="org.apache.hadoop.classification.tools.ExcludePrivateAnnotationsJDiffDoclet"
+         path="${common.ivy.lib.dir}/hadoop-core-${version}.jar:${jdiff.jar}:${xerces.jar}">
          <param name="-apidir" value="${jdiff.xml.dir}"/>
          <param name="-apiname" value="hadoop-mapred ${version}"/>
+         <param name="${jdiff.stability}"/>
+         <param name="${jdiff.compatibility}"/>
        </doclet>
        <packageset dir="src/java"/>
        <packageset dir="src/tools"/>
@@ -915,12 +985,11 @@
 
   <target name="api-report" depends="ivy-retrieve-jdiff,api-xml">
     <mkdir dir="${jdiff.build.dir}"/>
-    <javadoc sourcepath="src/java,src/tools"
-             destdir="${jdiff.build.dir}"
+    <javadoc destdir="${jdiff.build.dir}"
 	     sourceFiles="${jdiff.home}/Null.java"
 	     maxmemory="${javadoc.maxmemory}">
-       <doclet name="jdiff.JDiff"
-               path="${jdiff.jar}:${xerces.jar}">
+       <doclet name="org.apache.hadoop.classification.tools.ExcludePrivateAnnotationsJDiffDoclet"
+         path="${common.ivy.lib.dir}/hadoop-core-${version}.jar:${jdiff.jar}:${xerces.jar}">
          <param name="-oldapi" value="hadoop-mapred ${jdiff.stable}"/>
          <param name="-newapi" value="hadoop-mapred ${version}"/>
          <param name="-oldapidir" value="${jdiff.xml.dir}"/>
@@ -928,7 +997,11 @@
          <param name="-javadocold" value="${jdiff.stable.javadoc}"/>
          <param name="-javadocnew" value="../../api/"/>
          <param name="-stats"/>
+         <param name="${jdiff.stability}"/>
+         <param name="${jdiff.compatibility}"/>
        </doclet>
+       <packageset dir="src/java"/>
+       <packageset dir="src/tools"/>
        <classpath >
          <path refid="classpath" />
          <path refid="jdiff-classpath"/>
@@ -972,6 +1045,13 @@
       </fileset>
     </copy>
 
+    <subant target="compile-test">
+      <!--Pass down the version in case its needed again and the target
+      distribution directory so contribs know where to install to.-->
+      <property name="version" value="${version}"/>
+      <property name="dist.dir" value="${dist.dir}"/>
+      <fileset file="${contrib.dir}/build.xml"/>
+    </subant>  	
     <subant target="package">
       <!--Pass down the version in case its needed again and the target
       distribution directory so contribs know where to install to.-->
@@ -1150,12 +1230,15 @@
 
      <artifact:install file="${hadoop-mapred.jar}">
         <pom refid="hadoop.mapred"/>
+	<attach file="${hadoop-mapred-sources.jar}" classifier="sources" />
      </artifact:install>
      <artifact:install file="${hadoop-mapred-examples.jar}">
         <pom refid="hadoop.mapred.examples"/>
+	<attach file="${hadoop-mapred-examples-sources.jar}" classifier="sources" />
      </artifact:install>
      <artifact:install file="${hadoop-mapred-tools.jar}">
         <pom refid="hadoop.mapred.tools"/>
+	<attach file="${hadoop-mapred-tools-sources.jar}" classifier="sources" />
      </artifact:install>
   </target>
 
@@ -1166,15 +1249,19 @@
      <artifact:pom file="${hadoop-mapred-tools.pom}" id="hadoop.mapred.tools"/>
      <artifact:install file="${hadoop-mapred.jar}">
         <pom refid="hadoop.mapred"/>
+	<attach file="${hadoop-mapred-sources.jar}" classifier="sources" />
      </artifact:install>
      <artifact:install file="${hadoop-mapred-test.jar}">
         <pom refid="hadoop.mapred.test"/>
+	<attach file="${hadoop-mapred-test-sources.jar}" classifier="sources" />
      </artifact:install>
      <artifact:install file="${hadoop-mapred-examples.jar}">
         <pom refid="hadoop.mapred.examples"/>
+	<attach file="${hadoop-mapred-examples-sources.jar}" classifier="sources" />
      </artifact:install>
      <artifact:install file="${hadoop-mapred-tools.jar}">
         <pom refid="hadoop.mapred.tools"/>
+	<attach file="${hadoop-mapred-tools-sources.jar}" classifier="sources" />
      </artifact:install>
   </target>
 
@@ -1188,18 +1275,22 @@
      <artifact:deploy file="${hadoop-mapred.jar}">
          <remoteRepository id="apache.snapshots.https" url="${asfrepo}"/>
          <pom refid="hadoop.mapred"/>
+	 <attach file="${hadoop-mapred-sources.jar}" classifier="sources" />
      </artifact:deploy>
      <artifact:deploy file="${hadoop-mapred-test.jar}">
          <remoteRepository id="apache.snapshots.https" url="${asfrepo}"/>
          <pom refid="hadoop.mapred.test"/>
+	 <attach file="${hadoop-mapred-test-sources.jar}" classifier="sources" />
      </artifact:deploy>
      <artifact:deploy file="${hadoop-mapred-examples.jar}">
          <remoteRepository id="apache.snapshots.https" url="${asfrepo}"/>
          <pom refid="hadoop.mapred.examples"/>
+	 <attach file="${hadoop-mapred-examples-sources.jar}" classifier="sources" />
      </artifact:deploy>
      <artifact:deploy file="${hadoop-mapred-tools.jar}">
          <remoteRepository id="apache.snapshots.https" url="${asfrepo}"/>
          <pom refid="hadoop.mapred.tools"/>
+	 <attach file="${hadoop-mapred-tools-sources.jar}" classifier="sources" />
      </artifact:deploy>
   </target>
   
@@ -1250,14 +1341,32 @@
       classpathref="releaseaudit-classpath"/>
   </target>
 
+  <!--<target name="releaseaudit" depends="package, rats-taskdef" description="Release Audit activities"> -->
   <target name="releaseaudit" depends="package, rats-taskdef" description="Release Audit activities">
    <rat:report xmlns:rat="antlib:org.apache.rat.anttasks">
       <fileset dir="${dist.dir}">
         <exclude name="CHANGES.txt"/>
-        <exclude name="docs/"/>
+        <exclude name="**/conf/*"/>
+        <exclude name="**/docs/"/>
+        <exclude name="**/VERSION"/>
+        <exclude name="webapps/**/WEB-INF/web.xml"/>
         <exclude name="lib/jdiff/"/>
         <exclude name="src/test/all-tests"/>
         <exclude name="src/test/commit-tests"/>
+        <exclude name="src/test/mapred/org/apache/hadoop/mapred/test.tgz"/>
+        <exclude name="src/test/tools/data/rumen/**/*"/>
+        <exclude name="src/test/mapred/org/apache/hadoop/mapred/*.txt"/>
+        <exclude name="src/contrib/mumak/src/test/data/*.json"/>
+        <exclude name="src/contrib/index/sample/*.txt"/>
+        <exclude name="src/test/mapred/org/apache/hadoop/cli/data60bytes"/>
+        <exclude name="src/examples/org/apache/hadoop/examples/dancing/puzzle1.dta"/>
+        <exclude name="src/contrib/eclipse-plugin/META-INF/MANIFEST.MF"/>
+        <exclude name="src/c++/librecordio/*"/>
+        <exclude name="src/c++/pipes/*"/>
+        <exclude name="src/c++/utils/*"/>
+        <exclude name="src/c++/task-controller/*"/>
+        <exclude name="src/examples/pipes/*"/>
+        <exclude name="src/c++/pipes/debug/*"/>
       </fileset>
     </rat:report>
   </target>
@@ -1290,26 +1399,6 @@
      </subant>  	
   </target>
 	
- <target name="test-c++-libhdfs" depends="compile-c++-libhdfs, compile-core" if="islibhdfs">
-    <delete dir="${test.libhdfs.dir}"/>
-    <mkdir dir="${test.libhdfs.dir}"/>
-    <mkdir dir="${test.libhdfs.dir}/logs"/>
-    <mkdir dir="${test.libhdfs.dir}/hdfs/name"/>
-
-    <exec dir="${build.c++.libhdfs}" executable="${make.cmd}" failonerror="true">
-        <env key="OS_NAME" value="${os.name}"/>
-        <env key="OS_ARCH" value="${os.arch}"/>
-        <env key="JVM_ARCH" value="${jvm.arch}"/>
-        <env key="LIBHDFS_BUILD_DIR" value="${build.c++.libhdfs}"/>
-        <env key="HADOOP_HOME" value="${basedir}"/>
-        <env key="HADOOP_CONF_DIR" value="${test.libhdfs.conf.dir}"/>
-        <env key="HADOOP_LOG_DIR" value="${test.libhdfs.dir}/logs"/>
-        <env key="LIBHDFS_SRC_DIR" value="${c++.libhdfs.src}"/>
-        <env key="LIBHDFS_INSTALL_DIR" value="${install.c++}/lib"/>  
-        <env key="LIB_DIR" value="${common.ivy.lib.dir}"/>
-		<arg value="test"/>
-    </exec>
-  </target>
 
 <!-- ================================================================== -->
 <!-- librecordio targets.                                               -->
@@ -1362,16 +1451,8 @@
           searchpath="yes" failonerror="yes">
        <arg value="-if"/>
     </exec>
-    <antcall target="create-c++-configure-libhdfs"/>
-  </target>
+   </target>
    
-  <target name="create-c++-configure-libhdfs" depends="check-c++-libhdfs" if="islibhdfs">
-    <exec executable="autoreconf" dir="${c++.libhdfs.src}" 
-          searchpath="yes" failonerror="yes">
-       <arg value="-if"/>
-    </exec>
-  </target>
-
   <target name="check-c++-makefiles" depends="init" if="compile.c++">
     <condition property="need.c++.utils.makefile">
        <not> <available file="${build.c++.utils}/Makefile"/> </not>
@@ -1382,33 +1463,6 @@
     <condition property="need.c++.examples.pipes.makefile">
        <not> <available file="${build.c++.examples.pipes}/Makefile"/> </not>
     </condition>
-  </target>
-
-  <target name="check-c++-libhdfs">
-    <condition property="islibhdfs">
-      <and>
-        <isset property="compile.c++"/>
-        <isset property="libhdfs"/>
-      </and>
-    </condition>
-  </target>
-
-  <target name="check-c++-makefile-libhdfs" depends="init,check-c++-libhdfs" if="islibhdfs">
-    <condition property="need.c++.libhdfs.makefile">
-       <not> <available file="${build.c++.libhdfs}/Makefile"/> </not>
-    </condition>
-  </target>
-
-  <target name="create-c++-libhdfs-makefile" depends="check-c++-makefile-libhdfs" 
-                                           if="need.c++.libhdfs.makefile">
-    <mkdir dir="${build.c++.libhdfs}"/>
-    <chmod file="${c++.libhdfs.src}/configure" perm="ugo+x"/>
-    <exec executable="${c++.libhdfs.src}/configure" dir="${build.c++.libhdfs}"
-          failonerror="yes">
-      <env key="ac_cv_func_malloc_0_nonnull" value="yes"/>
-      <env key="JVM_ARCH" value="${jvm.arch}"/>
-      <arg value="--prefix=${install.c++}"/>
-    </exec>
   </target>
 
   <target name="create-c++-utils-makefile" depends="check-c++-makefiles" 
@@ -1476,15 +1530,6 @@
 
   <target name="compile-c++-examples" 
           depends="compile-c++-examples-pipes"/>
-
-  <target name="compile-c++-libhdfs" depends="create-c++-libhdfs-makefile" if="islibhdfs">
-    <exec executable="${make.cmd}" dir="${build.c++.libhdfs}" searchpath="yes"
-          failonerror="yes">
-      <env key="ac_cv_func_malloc_0_nonnull" value="yes"/>
-      <env key="JVM_ARCH" value="${jvm.arch}"/>
-      <arg value="install"/>
-    </exec>
-  </target>
 
  <target name="clover" depends="clover.setup, clover.info" description="Instrument the Unit tests using Clover.  To use, specify -Dclover.home=&lt;base of clover installation&gt; -Drun.clover=true on the command line."/>
 
@@ -1631,6 +1676,9 @@
   </target>
 
 
+  <property name="ivyresolvelog" value="download-only"/>
+  <property name="ivyretrievelog" value="quite"/>
+
   <target name="ivy-init" depends="ivy-init-antlib" >
 
     <!--Configure Ivy by reading in the settings file
@@ -1640,78 +1688,92 @@
   </target>
 
   <target name="ivy-resolve" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-javadoc" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="javadoc"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="javadoc"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-releaseaudit" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="releaseaudit"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="releaseaudit"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-test" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="test" />
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="test"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-common" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="common" />
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="common"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-jdiff" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="jdiff" />
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="jdiff" 
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-checkstyle" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="checkstyle"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="checkstyle"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-retrieve" depends="ivy-resolve"
     description="Retrieve Ivy-managed artifacts">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-retrieve-checkstyle" depends="ivy-resolve-checkstyle"
     description="Retrieve Ivy-managed artifacts for the checkstyle configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyresolvelog}"/>
     <ivy:cachepath pathid="checkstyle-classpath" conf="checkstyle"/>
   </target>
 
   <target name="ivy-retrieve-jdiff" depends="ivy-resolve-jdiff"
     description="Retrieve Ivy-managed artifacts for the javadoc configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyresolvelog}"/>
     <ivy:cachepath pathid="jdiff-classpath" conf="jdiff"/>
   </target>
 
   <target name="ivy-retrieve-javadoc" depends="ivy-resolve-javadoc"
     description="Retrieve Ivy-managed artifacts for the javadoc configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyresolvelog}"/>
     <ivy:cachepath pathid="javadoc-classpath" conf="javadoc"/>
   </target>
 
   <target name="ivy-retrieve-test" depends="ivy-resolve-test"
     description="Retrieve Ivy-managed artifacts for the test configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyresolvelog}"/>
     <ivy:cachepath pathid="ivy-test.classpath" conf="test"/>
   </target>
 
   <target name="ivy-retrieve-common" depends="ivy-resolve-common"
     description="Retrieve Ivy-managed artifacts for the compile configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyresolvelog}"/>
     <ivy:cachepath pathid="ivy-common.classpath" conf="common"/>
   </target>
 
   <target name="ivy-retrieve-releaseaudit" depends="ivy-resolve-releaseaudit"
     description="Retrieve Ivy-managed artifacts for the compile configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" />
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyresolvelog}"/>
     <ivy:cachepath pathid="releaseaudit-classpath" conf="releaseaudit"/>
   </target>
 
@@ -1782,6 +1844,86 @@
         failonerror="yes">
     </exec>
   </target>
-
   <!-- end of task-controller targets -->
+  
+  <!-- Begining of fault-injection targets-->
+  <import file="${test.src.dir}/aop/build/aop.xml"/>
+  
+  <!-- declaring mapred.src.dir as java.src.dir for aop.xml -->
+  <property name="java.src.dir" value="${src.dir}/java"/>
+  
+  <!-- target dependency from aop.xml -->
+  <target name="-classes-compilation" 
+    depends="compile-mapred-classes, compile-mapred-test"/>
+  
+  <target name="jar-test-fault-inject" depends="jar-mapred-test-fault-inject"
+            description="Make hadoop-mapred-test-fi.jar files"/>
+  
+  <!-- target to build test-fi.jar-->
+  <target name="jar-mapred-test-fault-inject" depends="injectfaults"
+    description="Make hadoop-mapred-test-fi.jar">
+    <macro-jar-test-fault-inject target.name="jar-test" 
+      jar.final.name="test.final.name"
+      jar.final.value="${name}-test-${version}-fi"/>
+  </target>
+  
+  <!-- target to build the hadoop-fi.jar -->
+  <target name="jar-fault-inject" depends="injectfaults"
+    description="Make hadoop-fi.jar">
+    <macro-jar-fault-inject
+      target.name="jar"
+      jar.final.name="final.name"
+      jar.final.value="${final.name}-fi" />
+  </target>
+  
+  <!-- target to run fault injected test cases will run entire mapred test 
+       suite-->
+  <target name="run-test-mapred-fault-inject" depends="injectfaults"
+    description="Run full suite of unit tests with fault injection">
+    <macro-run-tests-fault-inject target.name="run-test-mapred"
+      testcasesonly="false"/>
+  </target>
+
+  <!-- target to run non-FI tests in a FI environment-->
+  <target name="run-fault-inject-with-testcaseonly" depends="injectfaults">
+    <fail unless="testcase">
+    Can't run this target without -Dtestcase setting!
+    </fail>
+    <macro-run-tests-fault-inject target.name="run-test-mapred"
+      testcasesonly="true"/>
+  </target>
+  <condition property="tests.notestcase">
+    <and>
+      <isfalse value="${test.fault.inject}"/>
+      <not>
+        <isset property="testcase"/>
+      </not>
+    </and>
+  </condition>
+  <condition property="tests.notestcase.fi">
+    <and>
+      <not>
+        <isset property="testcase"/>
+      </not>
+      <istrue value="${test.fault.inject}"/>
+    </and>
+  </condition>
+  <condition property="test.testcase">
+    <and>
+      <isfalse value="${test.fault.inject}"/>
+      <isset property="testcase"/>
+    </and>
+  </condition>
+  <condition property="tests.testcaseonly.fi">
+    <istrue value="${special.fi.testcasesonly}" />
+  </condition>
+  <condition property="tests.testcase.fi">
+    <and>
+      <istrue value="${test.fault.inject}" />
+      <isset property="testcase" />
+      <isfalse value="${special.fi.testcasesonly}" />
+    </and>
+  </condition>
+  <!-- End of fault injection targets-->
+  
 </project>

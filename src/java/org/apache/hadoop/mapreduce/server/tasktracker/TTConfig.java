@@ -67,13 +67,33 @@ public interface TTConfig extends MRConfig {
     "mapreduce.tasktracker.instrumentation";
   public static final String TT_MAP_SLOTS = 
     "mapreduce.tasktracker.map.tasks.maximum";
+  /**
+   * @deprecated Use {@link #TT_RESOURCE_CALCULATOR_PLUGIN} instead
+   */
+  @Deprecated
   public static final String TT_MEMORY_CALCULATOR_PLUGIN = 
     "mapreduce.tasktracker.memorycalculatorplugin";
+  public static final String TT_RESOURCE_CALCULATOR_PLUGIN = 
+    "mapreduce.tasktracker.resourcecalculatorplugin";
   public static final String TT_REDUCE_SLOTS = 
     "mapreduce.tasktracker.reduce.tasks.maximum";
   public static final String TT_MEMORY_MANAGER_MONITORING_INTERVAL = 
     "mapreduce.tasktracker.taskmemorymanager.monitoringinterval";
   public static final String TT_LOCAL_CACHE_SIZE = 
     "mapreduce.tasktracker.cache.local.size";
-
+  public static final String TT_LOCAL_CACHE_SUBDIRS_LIMIT =
+    "mapreduce.tasktracker.cache.local.numberdirectories";
+  public static final String TT_OUTOFBAND_HEARBEAT =
+    "mapreduce.tasktracker.outofband.heartbeat";
+  public static final String TT_RESERVED_PHYSCIALMEMORY_MB =
+    "mapreduce.tasktracker.reserved.physicalmemory.mb";
+  public static final String TT_USER_NAME = "mapreduce.tasktracker.user.name";
+  public static final String TT_KEYTAB_FILE = 
+    "mapreduce.tasktracker.keytab.file";
+  public static final String TT_GROUP = 
+    "mapreduce.tasktracker.group";
+  public static final String TT_USERLOGCLEANUP_SLEEPTIME = 
+    "mapreduce.tasktracker.userlogcleanup.sleeptime";
+  public static final String TT_DISTRIBUTED_CACHE_CHECK_PERIOD =
+    "mapreduce.tasktracker.distributedcache.checkperiod";
 }

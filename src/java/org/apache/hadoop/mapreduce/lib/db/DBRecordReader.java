@@ -156,6 +156,7 @@ public class DBRecordReader<T extends DBWritable> extends
       }
       if (null != connection) {
         connection.commit();
+        connection.close();
       }
     } catch (SQLException e) {
       throw new IOException(e.getMessage());
@@ -231,7 +232,7 @@ public class DBRecordReader<T extends DBWritable> extends
 
       pos ++;
     } catch (SQLException e) {
-      throw new IOException(e.getMessage());
+      throw new IOException("SQLException in nextKeyValue", e);
     }
     return true;
   }

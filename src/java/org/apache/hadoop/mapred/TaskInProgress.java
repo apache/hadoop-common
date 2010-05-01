@@ -21,7 +21,6 @@ package org.apache.hadoop.mapred;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -32,13 +31,12 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.mapred.JobInProgress.DataStatistics;
 import org.apache.hadoop.mapred.SortedRanges.Range;
-import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
 import org.apache.hadoop.mapreduce.jobhistory.TaskUpdatedEvent;
+import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
 import org.apache.hadoop.net.Node;
 
 
@@ -66,7 +64,7 @@ class TaskInProgress {
 
   // Defines the TIP
   private String jobFile = null;
-  private Job.RawSplit rawSplit;
+  private TaskSplitMetaInfo splitInfo;
   private int numMaps;
   private int partition;
   private JobTracker jobtracker;
@@ -136,17 +134,19 @@ class TaskInProgress {
   private HashMap<TaskAttemptID, Long> dispatchTimeMap = 
     new HashMap<TaskAttemptID, Long>();
   
+  private String user;
+  
 
   /**
    * Constructor for MapTask
    */
   public TaskInProgress(JobID jobid, String jobFile, 
-                        Job.RawSplit rawSplit, 
+                        TaskSplitMetaInfo split, 
                         JobTracker jobtracker, JobConf conf, 
                         JobInProgress job, int partition,
                         int numSlotsRequired) {
     this.jobFile = jobFile;
-    this.rawSplit = rawSplit;
+    this.splitInfo = split;
     this.jobtracker = jobtracker;
     this.job = job;
     this.conf = conf;
@@ -158,6 +158,7 @@ class TaskInProgress {
     if (jobtracker != null) {
       this.jobHistory = jobtracker.getJobHistory();
     }
+    this.user = job.getUser();
   }
         
   /**
@@ -180,6 +181,7 @@ class TaskInProgress {
     if (jobtracker != null) {
       this.jobHistory = jobtracker.getJobHistory();
     }
+    this.user = job.getUser();
   }
   
   /**
@@ -317,7 +319,7 @@ class TaskInProgress {
    * Whether this is a map task
    */
   public boolean isMapTask() {
-    return rawSplit != null;
+    return splitInfo != null;
   }
     
   /**
@@ -383,7 +385,14 @@ class TaskInProgress {
   private void resetSuccessfulTaskid() {
     this.successfulTaskId = null; 
   }
+
+  String getUser() {
+    return user;
+  }
   
+  void setUser(String user) {
+    this.user = user;
+  }
   /**
    * Is this tip complete?
    * 
@@ -570,15 +579,16 @@ class TaskInProgress {
    * A status message from a client has arrived.
    * It updates the status of a single component-thread-task,
    * which might result in an overall TaskInProgress status update.
-   * @return has the task changed its state noticably?
+   * @return has the task changed its state noticeably?
    */
   synchronized boolean updateStatus(TaskStatus status) {
     TaskAttemptID taskid = status.getTaskID();
+    String tracker = status.getTaskTracker();
     String diagInfo = status.getDiagnosticInfo();
     TaskStatus oldStatus = taskStatuses.get(taskid);
     boolean changed = true;
     if (diagInfo != null && diagInfo.length() > 0) {
-      LOG.info("Error from "+taskid+": "+diagInfo);
+      LOG.info("Error from " + taskid + " on " +  tracker + ": "+ diagInfo);
       addDiagnosticInfo(taskid, diagInfo);
     }
     
@@ -733,6 +743,12 @@ class TaskInProgress {
     if (tasks.contains(taskid)) {
       if (taskState == TaskStatus.State.FAILED) {
         numTaskFailures++;
+        if (isMapTask()) {
+          jobtracker.getInstrumentation().failedMap(taskid);
+        } else {
+          jobtracker.getInstrumentation().failedReduce(taskid);
+        }
+        
         machinesWhereFailed.add(trackerHostName);
         if(maxSkipRecords>0) {
           //skipping feature enabled
@@ -743,6 +759,11 @@ class TaskInProgress {
 
       } else if (taskState == TaskStatus.State.KILLED) {
         numKilledTasks++;
+        if (isMapTask()) {
+            jobtracker.getInstrumentation().killedMap(taskid);
+          } else {
+            jobtracker.getInstrumentation().killedReduce(taskid);
+          }
       }
     }
 
@@ -823,7 +844,7 @@ class TaskInProgress {
    */
   public String[] getSplitLocations() {
     if (isMapTask() && !jobSetup && !jobCleanup) {
-      return rawSplit.getLocations();
+      return splitInfo.getLocations();
     }
     return new String[0];
   }
@@ -1035,16 +1056,8 @@ class TaskInProgress {
     if (isMapTask()) {
       LOG.debug("attempt " + numTaskFailures + " sending skippedRecords "
           + failedRanges.getIndicesCount());
-      String splitClass = null;
-      BytesWritable split;
-      if (!jobSetup && !jobCleanup) {
-        splitClass = rawSplit.getClassName();
-        split = rawSplit.getBytes();
-      } else {
-        split = new BytesWritable();
-      }
-      t = new MapTask(jobFile, taskid, partition, splitClass, split,
-                      numSlotsNeeded);
+      t = new MapTask(jobFile, taskid, partition, splitInfo.getSplitIndex(),
+          numSlotsNeeded);
     } else {
       t = new ReduceTask(jobFile, taskid, partition, numMaps, numSlotsNeeded);
     }
@@ -1060,6 +1073,7 @@ class TaskInProgress {
       cleanupTasks.put(taskid, taskTracker);
     }
     t.setConf(conf);
+    t.setUser(getUser());
     LOG.debug("Launching task with skipRanges:"+failedRanges.getSkipRanges());
     t.setSkipRanges(failedRanges.getSkipRanges());
     t.setSkipping(skipping);
@@ -1157,7 +1171,7 @@ class TaskInProgress {
     if (!isMapTask() || jobSetup || jobCleanup) {
       return "";
     }
-    String[] splits = rawSplit.getLocations();
+    String[] splits = splitInfo.getLocations();
     Node[] nodes = new Node[splits.length];
     for (int i = 0; i < splits.length; i++) {
       nodes[i] = jobtracker.getNode(splits[i]);
@@ -1187,14 +1201,10 @@ class TaskInProgress {
 
   public long getMapInputSize() {
     if(isMapTask() && !jobSetup && !jobCleanup) {
-      return rawSplit.getDataLength();
+      return splitInfo.getInputDataLength();
     } else {
       return 0;
     }
-  }
-  
-  public void clearSplit() {
-    rawSplit.clearBytes();
   }
   
   /**

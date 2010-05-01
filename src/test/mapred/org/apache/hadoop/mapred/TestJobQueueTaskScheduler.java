@@ -30,6 +30,7 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.mapred.JobStatusChangeEvent.EventType;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
+import org.apache.hadoop.mapreduce.split.JobSplit;
 
 public class TestJobQueueTaskScheduler extends TestCase {
   
@@ -46,8 +47,9 @@ public class TestJobQueueTaskScheduler extends TestCase {
     private FakeTaskTrackerManager taskTrackerManager;
     
     public FakeJobInProgress(JobConf jobConf,
-        FakeTaskTrackerManager taskTrackerManager) throws IOException {
-      super(new JobID("test", ++jobCounter), jobConf, null);
+        FakeTaskTrackerManager taskTrackerManager, JobTracker jt) 
+          throws IOException {
+      super(new JobID("test", ++jobCounter), jobConf, jt);
       this.taskTrackerManager = taskTrackerManager;
       this.startTime = System.currentTimeMillis();
       this.status = new JobStatus(getJobID(), 0f, 0f, JobStatus.PREP, 
@@ -80,7 +82,7 @@ public class TestJobQueueTaskScheduler extends TestCase {
     public Task obtainNewMapTask(final TaskTrackerStatus tts, int clusterSize,
         int ignored) throws IOException {
       TaskAttemptID attemptId = getTaskAttemptID(TaskType.MAP);
-      Task task = new MapTask("", attemptId, 0, "", new BytesWritable(), 1) {
+      Task task = new MapTask("", attemptId, 0, new JobSplit.TaskSplitIndex(), 1) {
         @Override
         public String toString() {
           return String.format("%s on %s", getTaskID(), tts.getTrackerName());
@@ -281,7 +283,8 @@ public class TestJobQueueTaskScheduler extends TestCase {
                          int numJobs, int state)
     throws IOException {
     for (int i = 0; i < numJobs; i++) {
-      JobInProgress job = new FakeJobInProgress(jobConf, taskTrackerManager);
+      JobInProgress job = new FakeJobInProgress(jobConf, taskTrackerManager, 
+      UtilsForTests.getJobTracker());
       job.getStatus().setRunState(state);
       taskTrackerManager.submitJob(job);
     }

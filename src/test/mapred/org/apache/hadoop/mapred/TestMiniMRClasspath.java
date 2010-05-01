@@ -38,15 +38,13 @@ import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 public class TestMiniMRClasspath extends TestCase {
   
   
-  static String launchWordCount(URI fileSys,
+  static void configureWordCount(FileSystem fs,
                                 String jobTracker,
                                 JobConf conf,
                                 String input,
                                 int numMaps,
-                                int numReduces) throws IOException {
-    final Path inDir = new Path("/testing/wc/input");
-    final Path outDir = new Path("/testing/wc/output");
-    FileSystem fs = FileSystem.get(fileSys, conf);
+                                int numReduces,
+                                Path inDir, Path outDir) throws IOException {
     fs.delete(outDir, true);
     if (!fs.mkdirs(inDir)) {
       throw new IOException("Mkdirs failed to create " + inDir.toString());
@@ -56,7 +54,7 @@ public class TestMiniMRClasspath extends TestCase {
       file.writeBytes(input);
       file.close();
     }
-    FileSystem.setDefaultUri(conf, fileSys);
+    FileSystem.setDefaultUri(conf, fs.getUri());
     conf.set(JTConfig.JT_IPC_ADDRESS, jobTracker);
     conf.setJobName("wordcount");
     conf.setInputFormat(TextInputFormat.class);
@@ -75,12 +73,22 @@ public class TestMiniMRClasspath extends TestCase {
     conf.setNumReduceTasks(numReduces);
     //pass a job.jar already included in the hadoop build
     conf.setJar("build/test/mapred/testjar/testjob.jar");
+  }
+  
+  static String launchWordCount(URI fileSys, String jobTracker, JobConf conf,
+                                String input, int numMaps, int numReduces) 
+  throws IOException {
+    final Path inDir = new Path("/testing/wc/input");
+    final Path outDir = new Path("/testing/wc/output");
+    FileSystem fs = FileSystem.get(fileSys, conf);
+    configureWordCount(fs, jobTracker, conf, input, numMaps, numReduces, inDir, 
+                       outDir);
     JobClient.runJob(conf);
     StringBuffer result = new StringBuffer();
     {
       Path[] parents = FileUtil.stat2Paths(fs.listStatus(outDir.getParent()));
       Path[] fileList = FileUtil.stat2Paths(fs.listStatus(outDir,
-              new OutputLogFilter()));
+              new Utils.OutputFileUtils.OutputFilesFilter()));
       for(int i=0; i < fileList.length; ++i) {
         BufferedReader file = 
           new BufferedReader(new InputStreamReader(fs.open(fileList[i])));
@@ -135,7 +143,8 @@ public class TestMiniMRClasspath extends TestCase {
     JobClient.runJob(conf);
     StringBuffer result = new StringBuffer();
     Path[] fileList = FileUtil.stat2Paths(fs.listStatus(outDir,
-                                 new OutputLogFilter()));
+                                 new Utils.OutputFileUtils
+                                          .OutputFilesFilter()));
     for (int i = 0; i < fileList.length; ++i) {
       BufferedReader file = new BufferedReader(new InputStreamReader(
                                                                      fs.open(fileList[i])));

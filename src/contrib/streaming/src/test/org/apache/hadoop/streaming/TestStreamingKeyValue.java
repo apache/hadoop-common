@@ -18,14 +18,19 @@
 
 package org.apache.hadoop.streaming;
 
-import junit.framework.TestCase;
+import org.junit.Test;
+import static org.junit.Assert.*;
+
 import java.io.*;
+
+import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 
 /**
  * This class tests hadoopStreaming in MapReduce local mode.
  * This testcase looks at different cases of tab position in input. 
  */
-public class TestStreamingKeyValue extends TestCase
+public class TestStreamingKeyValue
 {
   protected File INPUT_FILE = new File("input.txt");
   protected File OUTPUT_DIR = new File("stream_out");
@@ -66,19 +71,20 @@ public class TestStreamingKeyValue extends TestCase
       "-input", INPUT_FILE.getAbsolutePath(),
       "-output", OUTPUT_DIR.getAbsolutePath(),
       "-mapper", "cat",
-      "-jobconf", "mapreduce.task.files.preserve.failedtasks=true",
+      "-jobconf", MRJobConfig.PRESERVE_FAILED_TASK_FILES + "=true", 
       "-jobconf", "stream.non.zero.exit.is.failure=true",
       "-jobconf", "stream.tmpdir="+System.getProperty("test.build.data","/tmp")
     };
   }
   
-  public void testCommandLine()
+  @Test
+  public void testCommandLine() throws Exception
   {
     String outFileName = "part-00000";
     File outFile = null;
     try {
       try {
-        OUTPUT_DIR.getAbsoluteFile().delete();
+        FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
       } catch (Exception e) {
       }
 
@@ -94,23 +100,10 @@ public class TestStreamingKeyValue extends TestCase
       System.err.println("outEx1=" + outputExpect);
       System.err.println("  out1=" + output);
       assertEquals(outputExpect, output);
-    } catch(Exception e) {
-      failTrace(e);
     } finally {
-      outFile.delete();
-      File outFileCRC = new File(OUTPUT_DIR,
-                          "." + outFileName + ".crc").getAbsoluteFile();
       INPUT_FILE.delete();
-      outFileCRC.delete();
-      OUTPUT_DIR.getAbsoluteFile().delete();
+      FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
     }
-  }
-
-  private void failTrace(Exception e)
-  {
-    StringWriter sw = new StringWriter();
-    e.printStackTrace(new PrintWriter(sw));
-    fail(sw.toString());
   }
 
   public static void main(String[]args) throws Exception

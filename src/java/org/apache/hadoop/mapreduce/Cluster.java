@@ -20,32 +20,40 @@ package org.apache.hadoop.mapreduce;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RPC;
+import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobTracker;
 import org.apache.hadoop.mapred.LocalJobRunner;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
 import org.apache.hadoop.mapreduce.protocol.ClientProtocol;
+import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.mapreduce.server.jobtracker.State;
 import org.apache.hadoop.mapreduce.util.ConfigUtil;
 import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.security.UnixUserGroupInformation;
+import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 
 /**
  * Provides a way to access information about the map/reduce cluster.
  */
 public class Cluster {
   private ClientProtocol client;
-  private UnixUserGroupInformation ugi;
+  private UserGroupInformation ugi;
   private Configuration conf;
   private FileSystem fs = null;
   private Path sysDir = null;
+  private Path stagingAreaDir = null;
   private Path jobHistoryDir = null;
 
   static {
@@ -54,14 +62,14 @@ public class Cluster {
   
   public Cluster(Configuration conf) throws IOException {
     this.conf = conf;
-    this.ugi = Job.getUGI(conf);
+    this.ugi = UserGroupInformation.getCurrentUser();
     client = createClient(conf);
   }
 
   public Cluster(InetSocketAddress jobTrackAddr, Configuration conf) 
       throws IOException {
     this.conf = conf;
-    this.ugi = Job.getUGI(conf);
+    this.ugi = UserGroupInformation.getCurrentUser();
     client = createRPCProxy(jobTrackAddr, conf);
   }
 
@@ -74,8 +82,9 @@ public class Cluster {
 
   private ClientProtocol createClient(Configuration conf) throws IOException {
     ClientProtocol client;
-    String tracker = conf.get("mapred.job.tracker", "local");
+    String tracker = conf.get("mapreduce.jobtracker.address", "local");
     if ("local".equals(tracker)) {
+      conf.setInt("mapreduce.job.maps", 1);
       client = new LocalJobRunner(conf);
     } else {
       client = createRPCProxy(JobTracker.getAddress(conf), conf);
@@ -118,7 +127,7 @@ public class Cluster {
   public synchronized FileSystem getFileSystem() 
       throws IOException, InterruptedException {
     if (this.fs == null) {
-      Path sysDir = new Path(client.getSystemDir());
+      final Path sysDir = new Path(client.getSystemDir());
       this.fs = sysDir.getFileSystem(getConf());
     }
     return fs;
@@ -222,6 +231,19 @@ public class Cluster {
     }
     return sysDir;
   }
+  
+  /**
+   * Grab the jobtracker's view of the staging directory path where 
+   * job-specific files will  be placed.
+   * 
+   * @return the staging directory where job-specific files are to be placed.
+   */
+  public Path getStagingAreaDir() throws IOException, InterruptedException {
+    if (stagingAreaDir == null) {
+      stagingAreaDir = new Path(client.getStagingAreaDir());
+    }
+    return stagingAreaDir;
+  }
 
   /**
    * Get the job history file path for a given job id. The job history file at 
@@ -238,7 +260,7 @@ public class Cluster {
       jobHistoryDir = new Path(client.getJobHistoryDir());
     }
     return JobHistory.getJobHistoryFile(jobHistoryDir, jobId, 
-        ugi.getUserName()).toString();
+        ugi.getShortUserName()).toString();
   }
 
   /**
@@ -289,6 +311,60 @@ public class Cluster {
   public long getTaskTrackerExpiryInterval() throws IOException,
       InterruptedException {
     return client.getTaskTrackerExpiryInterval();
+  }
+
+  /**
+   * Get a delegation token for the user from the JobTracker.
+   * @param renewer the user who can renew the token
+   * @return the new token
+   * @throws IOException
+   */
+  public Token<DelegationTokenIdentifier> 
+      getDelegationToken(Text renewer) throws IOException, InterruptedException{
+    Token<DelegationTokenIdentifier> result =
+      client.getDelegationToken(renewer);
+    InetSocketAddress addr = JobTracker.getAddress(conf);
+    StringBuilder service = new StringBuilder();
+    service.append(NetUtils.normalizeHostName(addr.getAddress().
+                                              getHostAddress()));
+    service.append(':');
+    service.append(addr.getPort());
+    result.setService(new Text(service.toString()));
+    return result;
+  }
+
+  /**
+   * Renew a delegation token
+   * @param token the token to renew
+   * @return the new expiration time
+   * @throws InvalidToken
+   * @throws IOException
+   */
+  public long renewDelegationToken(Token<DelegationTokenIdentifier> token
+                                   ) throws InvalidToken, IOException,
+                                            InterruptedException {
+    try {
+      return client.renewDelegationToken(token);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(InvalidToken.class, 
+                                     AccessControlException.class);
+    }
+  }
+
+  /**
+   * Cancel a delegation token from the JobTracker
+   * @param token the token to cancel
+   * @throws IOException
+   */
+  public void cancelDelegationToken(Token<DelegationTokenIdentifier> token
+                                    ) throws IOException,
+                                             InterruptedException {
+    try {
+      client.cancelDelegationToken(token);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(InvalidToken.class,
+                                     AccessControlException.class);
+    }
   }
 
 }

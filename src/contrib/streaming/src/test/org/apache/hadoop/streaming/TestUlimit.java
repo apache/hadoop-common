@@ -27,11 +27,12 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.mapred.TestMiniMRWithDFS;
-import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.util.StringUtils;
 
-import junit.framework.TestCase;
+import org.junit.Test;
+import static org.junit.Assert.*;
 
 /**
  * This tests the setting of memory limit for streaming processes.
@@ -40,7 +41,7 @@ import junit.framework.TestCase;
  * it to succeed. Then program is launched with insufficient memory and 
  * is expected to be a failure.  
  */
-public class TestUlimit extends TestCase {
+public class TestUlimit {
   String input = "the dummy input";
   Path inputPath = new Path("/testing/in");
   Path outputPath = new Path("/testing/out");
@@ -57,7 +58,7 @@ public class TestUlimit extends TestCase {
       "-mapper", map,
       "-reducer", "org.apache.hadoop.mapred.lib.IdentityReducer",
       "-numReduceTasks", "0",
-      "-jobconf", JobContext.NUM_MAPS + "=1",
+      "-jobconf", MRJobConfig.NUM_MAPS + "=1",
       "-jobconf", JobConf.MAPRED_MAP_TASK_ULIMIT + "=" + memLimit,
       "-jobconf", JTConfig.JT_IPC_ADDRESS + "=localhost:" +
                                            mr.getJobTrackerPort(),
@@ -75,6 +76,7 @@ public class TestUlimit extends TestCase {
    * it to succeed. Then program is launched with insufficient memory and 
    * is expected to be a failure.  
    */
+  @Test
   public void testCommandLine() {
     if (StreamUtil.isCygwin()) {
       return;

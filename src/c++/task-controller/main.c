@@ -44,6 +44,80 @@ void display_usage(FILE *stream) {
       "Usage: task-controller [-l logfile] user command command-args\n");
 }
 
+/**
+ * Check the permissions on taskcontroller to make sure that security is
+ * promisable. For this, we need task-controller binary to
+ *    * be user-owned by root
+ *    * be group-owned by a configured special group.
+ *    * others do not have any permissions
+ *    * be setuid/setgid
+ */
+int check_taskcontroller_permissions(char *executable_file) {
+
+  errno = 0;
+  char * resolved_path = (char *) canonicalize_file_name(executable_file);
+  if (resolved_path == NULL) {
+    fprintf(LOGFILE,
+        "Error resolving the canonical name for the executable : %s!",
+        strerror(errno));
+    return -1;
+  }
+
+  struct stat filestat;
+  errno = 0;
+  if (stat(resolved_path, &filestat) != 0) {
+    fprintf(LOGFILE, "Could not stat the executable : %s!.\n", strerror(errno));
+    return -1;
+  }
+
+  uid_t binary_euid = filestat.st_uid; // Binary's user owner
+  gid_t binary_egid = filestat.st_gid; // Binary's group owner
+
+  // Effective uid should be root
+  if (binary_euid != 0) {
+    fprintf(LOGFILE,
+        "The task-controller binary should be user-owned by root.\n");
+    return -1;
+  }
+
+  // Get the group entry for the special_group
+  errno = 0;
+  struct group *special_group_entry = getgrgid(binary_egid);
+  if (special_group_entry == NULL) {
+    fprintf(LOGFILE,
+      "Unable to get information for effective group of the binary : %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  char * binary_group = special_group_entry->gr_name;
+  // verify that the group name of the special group 
+  // is same as the one in configuration
+  if (check_variable_against_config(TT_GROUP_KEY, binary_group) != 0) {
+    fprintf(LOGFILE,
+      "Group of the binary does not match with that in configuration\n");
+    return -1;
+  }
+  
+  // check others do not have read/write/execute permissions
+  if ((filestat.st_mode & S_IROTH) == S_IROTH || (filestat.st_mode & S_IWOTH)
+      == S_IWOTH || (filestat.st_mode & S_IXOTH) == S_IXOTH) {
+    fprintf(LOGFILE,
+      "The task-controller binary should not have read or write or execute for others.\n");
+    return -1;
+  }
+
+  // Binary should be setuid/setgid executable
+  if ((filestat.st_mode & S_ISUID) != S_ISUID || (filestat.st_mode & S_ISGID)
+      != S_ISGID) {
+    fprintf(LOGFILE,
+        "The task-controller binary should be set setuid and setgid bits.\n");
+    return -1;
+  }
+  
+  return 0;
+}
+
 int main(int argc, char **argv) {
   int command;
   int next_option = 0;
@@ -51,6 +125,7 @@ int main(int argc, char **argv) {
   const char * task_id = NULL;
   const char * tt_root = NULL;
   const char *log_dir = NULL;
+  const char * unique_string = NULL;
   int exit_code = 0;
   const char * task_pid = NULL;
   const char* const short_options = "l:";
@@ -58,19 +133,23 @@ int main(int argc, char **argv) {
       NULL, 0 } };
 
   const char* log_file = NULL;
+  char * dir_to_be_deleted = NULL;
+  int conf_dir_len = 0;
 
-  //Minimum number of arguments required to run the task-controller
-  //command-name user command tt-root
-  if (argc < 3) {
-    display_usage(stdout);
-    return INVALID_ARGUMENT_NUMBER;
-  }
-
+  char *executable_file = argv[0];
 #ifndef HADOOP_CONF_DIR
-  hadoop_conf_dir = (char *) malloc (sizeof(char) *
-      (strlen(argv[0]) - strlen(EXEC_PATTERN)) + 1);
-  strncpy(hadoop_conf_dir,argv[0],(strlen(argv[0]) - strlen(EXEC_PATTERN)));
-  hadoop_conf_dir[(strlen(argv[0]) - strlen(EXEC_PATTERN))] = '\0';
+  conf_dir_len = (strlen(executable_file) - strlen(EXEC_PATTERN)) + 1;
+  if (conf_dir_len < 1) {
+    // We didn't get an absolute path to our executable_file; bail.
+    printf("Cannot find configuration directory.\n");
+    printf("This program must be run with its full absolute path.\n");
+    return INVALID_CONF_DIR;
+  } else {
+    hadoop_conf_dir = (char *) malloc (sizeof(char) * conf_dir_len);
+    strncpy(hadoop_conf_dir, executable_file,
+      (strlen(executable_file) - strlen(EXEC_PATTERN)));
+    hadoop_conf_dir[(strlen(executable_file) - strlen(EXEC_PATTERN))] = '\0';
+  }
 #endif
   do {
     next_option = getopt_long(argc, argv, short_options, long_options, NULL);
@@ -83,6 +162,18 @@ int main(int argc, char **argv) {
   } while (next_option != -1);
 
   open_log_file(log_file);
+
+  if (check_taskcontroller_permissions(executable_file) != 0) {
+    fprintf(LOGFILE, "Invalid permissions on task-controller binary.\n");
+    return INVALID_TASKCONTROLLER_PERMISSIONS;
+  }
+
+  //Minimum number of arguments required to run the task-controller
+  //command-name user command tt-root
+  if (argc < 3) {
+    display_usage(stdout);
+    return INVALID_ARGUMENT_NUMBER;
+  }
 
   //checks done for user name
   //checks done if the user is root or not.
@@ -112,8 +203,11 @@ int main(int argc, char **argv) {
     job_id = argv[optind++];
     exit_code = initialize_job(job_id, user_detail->pw_name);
     break;
-  case INITIALIZE_DISTRIBUTEDCACHE:
-    exit_code = initialize_distributed_cache(user_detail->pw_name);
+  case INITIALIZE_DISTRIBUTEDCACHE_FILE:
+    tt_root = argv[optind++];
+    unique_string = argv[optind++];
+    exit_code = initialize_distributed_cache_file(tt_root, unique_string,
+        user_detail->pw_name);
     break;
   case LAUNCH_TASK_JVM:
     tt_root = argv[optind++];
@@ -141,6 +235,22 @@ int main(int argc, char **argv) {
     task_id = argv[optind++];
     exit_code
         = run_debug_script_as_user(user_detail->pw_name, job_id, task_id, tt_root);
+    break;
+  case SIGQUIT_TASK_JVM:
+    task_pid = argv[optind++];
+    exit_code = kill_user_task(user_detail->pw_name, task_pid, SIGQUIT);
+    break;
+  case ENABLE_TASK_FOR_CLEANUP:
+    tt_root = argv[optind++];
+    job_id = argv[optind++];
+    dir_to_be_deleted = argv[optind++];
+    exit_code = enable_task_for_cleanup(tt_root, user_detail->pw_name, job_id,
+                                        dir_to_be_deleted);
+    break;
+  case ENABLE_JOB_FOR_CLEANUP:
+    tt_root = argv[optind++];
+    job_id = argv[optind++];
+    exit_code = enable_job_for_cleanup(tt_root, user_detail->pw_name, job_id);
     break;
   default:
     exit_code = INVALID_COMMAND_PROVIDED;

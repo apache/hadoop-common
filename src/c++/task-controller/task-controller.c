@@ -35,6 +35,7 @@ int change_user(const char * user) {
   }
 
   if(initgroups(user_detail->pw_name, user_detail->pw_gid) != 0) {
+    fprintf(LOGFILE, "unable to initgroups : %s\n", strerror(errno));
 	  cleanup();
 	  return SETUID_OPER_FAILED;
   }
@@ -172,9 +173,10 @@ char *get_user_directory(const char *tt_root, const char *user) {
 /**
  * Get the distributed cache directory for a particular user
  */
-char *get_distributed_cache_directory(const char *tt_root, const char *user) {
-  return concatenate(USER_DISTRIBUTED_CACHE_DIR_PATTERN, "dist_cache_path", 2,
-      tt_root, user);
+char *get_distributed_cache_directory(const char *tt_root, const char *user,
+    const char* unique_string) {
+  return concatenate(USER_DISTRIBUTED_CACHE_DIR_PATTERN, 
+      "dist_cache_unique_path", 3, tt_root, user, unique_string);
 }
 
 char *get_job_work_directory(const char *job_dir) {
@@ -197,12 +199,31 @@ char *get_task_launcher_file(const char *job_dir, const char *attempt_dir) {
       attempt_dir);
 }
 
+/*
+ * Builds the full path of the dir(localTaskDir or localWorkDir)
+ * tt_root : is the base path(i.e. mapred-local-dir) sent to task-controller
+ * dir_to_be_deleted : is either taskDir($taskId) OR taskWorkDir($taskId/work)
+ */
+char *get_task_dir_path(const char *tt_root, const char *user,
+                        const char *jobid, const char *dir_to_be_deleted) {
+  return concatenate(TT_LOCAL_TASK_DIR_PATTERN, "task_dir_full_path", 4,
+                     tt_root, user, jobid, dir_to_be_deleted);
+}
+
 /**
  * Get the log directory for the given attempt.
  */
-char *get_task_log_dir(const char *log_dir, const char *attempt_id) {
-  return concatenate(ATTEMPT_LOG_DIR_PATTERN, "task_log_dir", 2, log_dir,
-      attempt_id);
+char *get_task_log_dir(const char *log_dir, const char *job_id, 
+    const char *attempt_id) {
+  return concatenate(ATTEMPT_LOG_DIR_PATTERN, "task_log_dir", 3, log_dir,
+      job_id, attempt_id);
+}
+
+/**
+ * Get the log directory for the given job.
+ */
+char *get_job_log_dir(const char *log_dir, const char *job_id) {
+  return concatenate(JOB_LOG_DIR_PATTERN, "job_log_dir", 2, log_dir, job_id);
 }
 
 /**
@@ -218,17 +239,17 @@ int check_tt_root(const char *tt_root) {
  * launcher file resolve to one and same. This is done so as to avoid
  * security pitfalls because of relative path components in the file name.
  */
-int check_task_launcher_path(char *path) {
+int check_path_for_relative_components(char *path) {
   char * resolved_path = (char *) canonicalize_file_name(path);
   if (resolved_path == NULL) {
     fprintf(LOGFILE,
-        "Error resolving the task launcher file path: %s. Passed path: %s\n",
+        "Error resolving the path: %s. Passed path: %s\n",
         strerror(errno), path);
     return ERROR_RESOLVING_FILE_PATH;
   }
   if (strcmp(resolved_path, path) != 0) {
     fprintf(LOGFILE,
-        "Relative path components in the file path: %s. Resolved path: %s\n",
+        "Relative path components in the path: %s. Resolved path: %s\n",
         path, resolved_path);
     free(resolved_path);
     return RELATIVE_PATH_COMPONENTS_IN_FILE_PATH;
@@ -255,20 +276,23 @@ static int change_owner(const char *path, uid_t uid, gid_t gid) {
 static int change_mode(const char *path, mode_t mode) {
   int exit_code = chmod(path, mode);
   if (exit_code != 0) {
-    fprintf(LOGFILE, "chown %d of path %s failed: %s.\n", mode, path,
+    fprintf(LOGFILE, "chmod %d of path %s failed: %s.\n", mode, path,
         strerror(errno));
   }
   return exit_code;
 }
 
 /**
- * Function to secure the given path. It does the following recursively:
+ * Function to change permissions of the given path. It does the following
+ * recursively:
  *    1) changes the owner/group of the paths to the passed owner/group
  *    2) changes the file permission to the passed file_mode and directory
  *       permission to the passed dir_mode
+ *
+ * should_check_ownership : boolean to enable checking of ownership of each path
  */
 static int secure_path(const char *path, uid_t uid, gid_t gid,
-    mode_t file_mode, mode_t dir_mode) {
+    mode_t file_mode, mode_t dir_mode, int should_check_ownership) {
   FTS *tree = NULL; // the file hierarchy
   FTSENT *entry = NULL; // a file in the hierarchy
   char *paths[] = { (char *) path, NULL };//array needs to be NULL-terminated
@@ -328,11 +352,13 @@ static int secure_path(const char *path, uid_t uid, gid_t gid,
       break;
     case FTS_SL:
       // A symbolic link
-      process_path = 1;
+      // We don't want to change-ownership(and set-permissions) for the file/dir
+      // pointed to by any symlink.
+      process_path = 0;
       break;
     case FTS_SLNONE:
       // A symbolic link with a nonexistent target
-      process_path = 1;
+      process_path = 0;
       break;
     case FTS_NS:
       // A  file for which no stat(2) information was available
@@ -361,36 +387,35 @@ static int secure_path(const char *path, uid_t uid, gid_t gid,
     if (!process_path) {
       continue;
     }
-    if (compare_ownership(uid, gid, entry->fts_path) == 0) {
-      // already set proper permissions.
-      // This might happen with distributed cache.
-#ifdef DEBUG
-      fprintf(
-          LOGFILE,
-          "already has private permissions. Not trying to change again for %s",
-          entry->fts_path);
-#endif
-      continue;
-    }
+    error_code = secure_single_path(entry->fts_path, uid, gid,
+      (dir ? dir_mode : file_mode), should_check_ownership);
 
-    if (check_ownership(entry->fts_path) != 0) {
-      fprintf(LOGFILE,
-          "Invalid file path. %s not user/group owned by the tasktracker.\n",
-          entry->fts_path);
-      error_code = -1;
-    } else if (change_owner(entry->fts_path, uid, gid) != 0) {
-      fprintf(LOGFILE, "couldn't change the ownership of %s\n",
-          entry->fts_path);
-      error_code = -3;
-    } else if (change_mode(entry->fts_path, (dir ? dir_mode : file_mode)) != 0) {
-      fprintf(LOGFILE, "couldn't change the permissions of %s\n",
-          entry->fts_path);
-      error_code = -3;
-    }
   }
   if (fts_close(tree) != 0) {
     fprintf(LOGFILE, "couldn't close file traversal structure:%s.\n",
         strerror(errno));
+  }
+  return error_code;
+}
+
+/**
+ * Function to change ownership and permissions of the given path. 
+ * This call sets ownership and permissions just for the path, not recursive.  
+ */
+int secure_single_path(char *path, uid_t uid, gid_t gid,
+    mode_t perm, int should_check_ownership) {
+  int error_code = 0;
+  if (should_check_ownership && 
+      (check_ownership(path, uid, gid) != 0)) {
+    fprintf(LOGFILE,
+      "Invalid file path. %s not user/group owned by the tasktracker.\n", path);
+    error_code = -1;
+  } else if (change_owner(path, uid, gid) != 0) {
+    fprintf(LOGFILE, "couldn't change the ownership of %s\n", path);
+    error_code = -3;
+  } else if (change_mode(path, perm) != 0) {
+    fprintf(LOGFILE, "couldn't change the permissions of %s\n", path);
+    error_code = -3;
   }
   return error_code;
 }
@@ -466,8 +491,9 @@ int prepare_attempt_directories(const char *job_id, const char *attempt_id,
         free(job_dir);
         break;
       }
-    } else if (secure_path(attempt_dir, user_detail->pw_uid, tasktracker_gid,
-        S_IRWXU | S_IRWXG, S_ISGID | S_IRWXU | S_IRWXG) != 0) {
+    } else if (secure_path(attempt_dir, user_detail->pw_uid,
+               tasktracker_gid, S_IRWXU | S_IRWXG, S_ISGID | S_IRWXU | S_IRWXG,
+               1) != 0) {
       // No setgid on files and setgid on dirs, 770
       fprintf(LOGFILE, "Failed to secure the attempt_dir %s\n", attempt_dir);
       failed = 1;
@@ -491,15 +517,63 @@ int prepare_attempt_directories(const char *job_id, const char *attempt_id,
 }
 
 /**
+ * Function to prepare the job log dir for the child. It gives the user
+ * ownership of the job's log-dir to the user and group ownership to the
+ * user running tasktracker.
+ *     *  sudo chown user:mapred log-dir/userlogs/$jobid
+ *     *  sudo chmod -R 2770 log-dir/userlogs/$jobid // user is same as tt_user
+ *     *  sudo chmod -R 2570 log-dir/userlogs/$jobid // user is not tt_user
+ */
+int prepare_job_logs(const char *log_dir, const char *job_id,
+    mode_t permissions) {
+
+  char *job_log_dir = get_job_log_dir(log_dir, job_id);
+  if (job_log_dir == NULL) {
+    fprintf(LOGFILE, "Couldn't get job log directory %s.\n", job_log_dir);
+    return -1;
+  }
+
+  struct stat filestat;
+  if (stat(job_log_dir, &filestat) != 0) {
+    if (errno == ENOENT) {
+#ifdef DEBUG
+      fprintf(LOGFILE, "job_log_dir %s doesn't exist. Not doing anything.\n",
+          job_log_dir);
+#endif
+      free(job_log_dir);
+      return 0;
+    } else {
+      // stat failed because of something else!
+      fprintf(LOGFILE, "Failed to stat the job log dir %s\n", job_log_dir);
+      free(job_log_dir);
+      return -1;
+    }
+  }
+
+  gid_t tasktracker_gid = getegid(); // the group permissions of the binary.
+  // job log directory should not be set permissions recursively
+  // because, on tt restart/reinit, it would contain directories of earlier run
+  if (secure_single_path(job_log_dir, user_detail->pw_uid, tasktracker_gid,
+      S_ISGID | permissions, 1) != 0) {
+    fprintf(LOGFILE, "Failed to secure the log_dir %s\n", job_log_dir);
+    free(job_log_dir);
+    return -1;
+  }
+  free(job_log_dir);
+  return 0;
+}
+
+/**
  * Function to prepare the task logs for the child. It gives the user
  * ownership of the attempt's log-dir to the user and group ownership to the
  * user running tasktracker.
- *     *  sudo chown user:mapred log-dir/userlogs/$attemptid
- *     *  sudo chmod -R 2770 log-dir/userlogs/$attemptid
+ *     *  sudo chown user:mapred log-dir/userlogs/$jobid/$attemptid
+ *     *  sudo chmod -R 2770 log-dir/userlogs/$jobid/$attemptid
  */
-int prepare_task_logs(const char *log_dir, const char *task_id) {
+int prepare_task_logs(const char *log_dir, const char *job_id, 
+    const char *task_id) {
 
-  char *task_log_dir = get_task_log_dir(log_dir, task_id);
+  char *task_log_dir = get_task_log_dir(log_dir, job_id, task_id);
   if (task_log_dir == NULL) {
     fprintf(LOGFILE, "Couldn't get task_log directory %s.\n", task_log_dir);
     return -1;
@@ -517,21 +591,25 @@ int prepare_task_logs(const char *log_dir, const char *task_id) {
       fprintf(LOGFILE, "task_log_dir %s doesn't exist. Not doing anything.\n",
           task_log_dir);
 #endif
+      free(task_log_dir);
       return 0;
     } else {
       // stat failed because of something else!
       fprintf(LOGFILE, "Failed to stat the task_log_dir %s\n", task_log_dir);
+      free(task_log_dir);
       return -1;
     }
   }
 
   gid_t tasktracker_gid = getegid(); // the group permissions of the binary.
-  if (secure_path(task_log_dir, user_detail->pw_uid, tasktracker_gid, S_IRWXU
-      | S_IRWXG, S_ISGID | S_IRWXU | S_IRWXG) != 0) {
+  if (secure_path(task_log_dir, user_detail->pw_uid, tasktracker_gid,
+      S_IRWXU | S_IRWXG, S_ISGID | S_IRWXU | S_IRWXG, 1) != 0) {
     // setgid on dirs but not files, 770. As of now, there are no files though
     fprintf(LOGFILE, "Failed to secure the log_dir %s\n", task_log_dir);
+    free(task_log_dir);
     return -1;
   }
+  free(task_log_dir);
   return 0;
 }
 
@@ -547,24 +625,11 @@ int get_user_details(const char *user) {
   return 0;
 }
 
-/**
- * Compare ownership of a file with the given ids.
- */
-int compare_ownership(uid_t uid, gid_t gid, char *path) {
-  struct stat filestat;
-  if (stat(path, &filestat) != 0) {
-    return UNABLE_TO_STAT_FILE;
-  }
-  if (uid == filestat.st_uid && gid == filestat.st_gid) {
-    return 0;
-  }
-  return 1;
-}
-
 /*
  * Function to check if the TaskTracker actually owns the file.
-  */
-int check_ownership(char *path) {
+ * Or it has right ownership already. 
+ */
+int check_ownership(char *path, uid_t uid, gid_t gid) {
   struct stat filestat;
   if (stat(path, &filestat) != 0) {
     return UNABLE_TO_STAT_FILE;
@@ -572,8 +637,10 @@ int check_ownership(char *path) {
   // check user/group. User should be TaskTracker user, group can either be
   // TaskTracker's primary group or the special group to which binary's
   // permissions are set.
-  if (getuid() != filestat.st_uid || (getgid() != filestat.st_gid && getegid()
-      != filestat.st_gid)) {
+  // Or it can be the user/group owned by uid and gid passed. 
+  if ((getuid() != filestat.st_uid || (getgid() != filestat.st_gid && getegid()
+      != filestat.st_gid)) &&
+      ((uid != filestat.st_uid) || (gid != filestat.st_gid))) {
     return FILE_NOT_OWNED_BY_TASKTRACKER;
   }
   return 0;
@@ -583,7 +650,10 @@ int check_ownership(char *path) {
  * Function to initialize the user directories of a user.
  * It does the following:
  *     *  sudo chown user:mapred -R taskTracker/$user
- *     *  sudo chmod 2570 -R taskTracker/$user
+ *     *  if user is not $tt_user,
+ *     *    sudo chmod 2570 -R taskTracker/$user
+ *     *  else // user is tt_user
+ *     *    sudo chmod 2770 -R taskTracker/$user
  * This is done once per every user on the TaskTracker.
  */
 int initialize_user(const char *user) {
@@ -613,6 +683,11 @@ int initialize_user(const char *user) {
       full_local_dir_str);
 #endif
 
+  int is_tt_user = (user_detail->pw_uid == getuid());
+  
+  // for tt_user, set 770 permissions; otherwise set 570
+  mode_t permissions = is_tt_user ? (S_IRWXU | S_IRWXG)
+                                  : (S_IRUSR | S_IXUSR | S_IRWXG);
   char *user_dir;
   char **local_dir_ptr = local_dir;
   int failed = 0;
@@ -639,12 +714,12 @@ int initialize_user(const char *user) {
         free(user_dir);
         break;
       }
-    } else if (secure_path(user_dir, user_detail->pw_uid, tasktracker_gid,
-        S_IRUSR | S_IXUSR | S_IRWXG, S_ISGID | S_IRUSR | S_IXUSR | S_IRWXG)
-        != 0) {
-      // No setgid on files and setgid on dirs, 570
+    } else if (secure_path(user_dir, user_detail->pw_uid,
+        tasktracker_gid, permissions, S_ISGID | permissions, 1) != 0) {
+      // No setgid on files and setgid on dirs,
+      // 770 for tt_user and 570 for any other user
       fprintf(LOGFILE, "Failed to secure the user_dir %s\n",
-          user_dir);
+              user_dir);
       failed = 1;
       free(user_dir);
       break;
@@ -665,9 +740,16 @@ int initialize_user(const char *user) {
 /**
  * Function to prepare the job directories for the task JVM.
  * We do the following:
- *     *  sudo chown user:mapred -R taskTracker/jobcache/$jobid
- *     *  sudo chmod 2570 -R taskTracker/jobcache/$jobid
- *     *  sudo chmod 2770 taskTracker/jobcache/$jobid/work
+ *     *  sudo chown user:mapred -R taskTracker/$user/jobcache/$jobid
+ *     *  sudo chown user:mapred -R logs/userlogs/$jobid
+ *     *  if user is not $tt_user,
+ *     *    sudo chmod 2570 -R taskTracker/$user/jobcache/$jobid
+ *     *    sudo chmod 2570 -R logs/userlogs/$jobid
+ *     *  else // user is tt_user
+ *     *    sudo chmod 2770 -R taskTracker/$user/jobcache/$jobid
+ *     *    sudo chmod 2770 -R logs/userlogs/$jobid
+ *     *
+ *     *  For any user, sudo chmod 2770 taskTracker/$user/jobcache/$jobid/work
  */
 int initialize_job(const char *jobid, const char *user) {
   if (jobid == NULL || user == NULL) {
@@ -695,6 +777,11 @@ int initialize_job(const char *jobid, const char *user) {
       full_local_dir_str);
 #endif
 
+  int is_tt_user = (user_detail->pw_uid == getuid());
+  
+  // for tt_user, set 770 permissions; for any other user, set 570 for job-dir
+  mode_t permissions = is_tt_user ? (S_IRWXU | S_IRWXG)
+                                  : (S_IRUSR | S_IXUSR | S_IRWXG);
   char *job_dir, *job_work_dir;
   char **local_dir_ptr = local_dir;
   int failed = 0;
@@ -721,14 +808,16 @@ int initialize_job(const char *jobid, const char *user) {
         break;
       }
     } else if (secure_path(job_dir, user_detail->pw_uid, tasktracker_gid,
-        S_IRUSR | S_IXUSR | S_IRWXG, S_ISGID | S_IRUSR | S_IXUSR | S_IRWXG)
-        != 0) {
-      // No setgid on files and setgid on dirs, 570
+               permissions, S_ISGID | permissions, 1) != 0) {
+      // No setgid on files and setgid on dirs,
+      // 770 for tt_user and 570 for any other user
       fprintf(LOGFILE, "Failed to secure the job_dir %s\n", job_dir);
       failed = 1;
       free(job_dir);
       break;
-    } else {
+    } else if (!is_tt_user) {
+      // For tt_user, we don't need this as we already set 2770 for
+      // job-work-dir because of "chmod -R" done above
       job_work_dir = get_job_work_directory(job_dir);
       if (job_work_dir == NULL) {
         fprintf(LOGFILE, "Couldn't get job-work directory for %s.\n", jobid);
@@ -770,30 +859,57 @@ int initialize_job(const char *jobid, const char *user) {
   }
   free(local_dir);
   free(full_local_dir_str);
-  cleanup();
+  int exit_code = 0;
   if (failed) {
-    return INITIALIZE_JOB_FAILED;
+    exit_code = INITIALIZE_JOB_FAILED;
+    goto cleanup;
   }
-  return 0;
+
+  char *log_dir = (char *) get_value(TT_LOG_DIR_KEY);
+  if (log_dir == NULL) {
+    fprintf(LOGFILE, "Log directory is not configured.\n");
+    exit_code = INVALID_TT_LOG_DIR;
+    goto cleanup;
+  }
+
+  if (prepare_job_logs(log_dir, jobid, permissions) != 0) {
+    fprintf(LOGFILE, "Couldn't prepare job logs directory %s for %s.\n",
+        log_dir, jobid);
+    exit_code = PREPARE_JOB_LOGS_FAILED;
+  }
+
+  cleanup:
+  // free configurations
+  cleanup();
+  if (log_dir != NULL) {
+    free(log_dir);
+  }
+  return exit_code;
 }
 
 /**
- * Function to initialize the distributed cache files of a user.
+ * Function to initialize the distributed cache file for a user.
  * It does the following:
- *     *  sudo chown user:mapred -R taskTracker/$user/distcache
- *     *  sudo chmod 2570 -R taskTracker/$user/distcache
- * This is done once per every JVM launch. Tasks reusing JVMs just create
+ *     *  sudo chown user:mapred -R taskTracker/$user/distcache/<randomdir>
+ *     *  if user is not $tt_user,
+ *     *    sudo chmod 2570 -R taskTracker/$user/distcache/<randomdir>
+ *     *  else // user is tt_user
+ *     *    sudo chmod 2770 -R taskTracker/$user/distcache/<randomdir>
+ * This is done once per localization. Tasks reusing JVMs just create
  * symbolic links themselves and so there isn't anything specific to do in
  * that case.
- * Sometimes, it happens that a task uses the whole or part of a directory
- * structure in taskTracker/$user/distcache. In this case, some paths are
- * already set proper private permissions by this same function called during
- * a previous JVM launch. In the current invocation, we only do the
- * chown/chmod operation of files/directories that are newly created by the
- * TaskTracker (i.e. those that still are not owned by user:mapred)
  */
-int initialize_distributed_cache(const char *user) {
-
+int initialize_distributed_cache_file(const char *tt_root, 
+    const char *unique_string, const char *user) {
+  if (tt_root == NULL) {
+    fprintf(LOGFILE, "tt_root passed is null.\n");
+    return INVALID_ARGUMENT_NUMBER;
+  }
+  if (unique_string == NULL) {
+    fprintf(LOGFILE, "unique_string passed is null.\n");
+    return INVALID_ARGUMENT_NUMBER;
+  }
+ 
   if (user == NULL) {
     fprintf(LOGFILE, "user passed is null.\n");
     return INVALID_ARGUMENT_NUMBER;
@@ -803,69 +919,47 @@ int initialize_distributed_cache(const char *user) {
     fprintf(LOGFILE, "Couldn't get the user details of %s", user);
     return INVALID_USER_NAME;
   }
-
-  gid_t tasktracker_gid = getegid(); // the group permissions of the binary.
-
-  char **local_dir = (char **) get_values(TT_SYS_DIR_KEY);
-  if (local_dir == NULL) {
-    fprintf(LOGFILE, "%s is not configured.\n", TT_SYS_DIR_KEY);
+  //Check tt_root
+  if (check_tt_root(tt_root) < 0) {
+    fprintf(LOGFILE, "invalid tt root passed %s\n", tt_root);
     cleanup();
     return INVALID_TT_ROOT;
   }
 
-  char *full_local_dir_str = (char *) get_value(TT_SYS_DIR_KEY);
-#ifdef DEBUG
-  fprintf(LOGFILE, "Value from config for %s is %s.\n", TT_SYS_DIR_KEY,
-      full_local_dir_str);
-#endif
+  // set permission on the unique directory
+  char *localized_unique_dir = get_distributed_cache_directory(tt_root, user,
+      unique_string);
+  if (localized_unique_dir == NULL) {
+    fprintf(LOGFILE, "Couldn't get unique distcache directory for %s.\n", user);
+    cleanup();
+    return INITIALIZE_DISTCACHEFILE_FAILED;
+  }
 
-  char *distcache_dir;
-  char **local_dir_ptr = local_dir;
+  gid_t binary_gid = getegid(); // the group permissions of the binary.
+  
+  int is_tt_user = (user_detail->pw_uid == getuid());
+  
+  // for tt_user, set 770 permissions; for any other user, set 570
+  mode_t permissions = is_tt_user ? (S_IRWXU | S_IRWXG)
+                                  : (S_IRUSR | S_IXUSR | S_IRWXG);
   int failed = 0;
-  while (*local_dir_ptr != NULL) {
-    distcache_dir = get_distributed_cache_directory(*local_dir_ptr, user);
-    if (distcache_dir == NULL) {
-      fprintf(LOGFILE, "Couldn't get distcache directory for %s.\n", user);
-      failed = 1;
-      break;
-    }
-
-    struct stat filestat;
-    if (stat(distcache_dir, &filestat) != 0) {
-      if (errno == ENOENT) {
-#ifdef DEBUG
-        fprintf(LOGFILE, "distcache_dir %s doesn't exist. Not doing anything.\n",
-            distcache_dir);
-#endif
-      } else {
-        // stat failed because of something else!
-        fprintf(LOGFILE, "Failed to stat the distcache_dir %s\n",
-            distcache_dir);
-        failed = 1;
-        free(distcache_dir);
-        break;
-      }
-    } else if (secure_path(distcache_dir, user_detail->pw_uid,
-        tasktracker_gid, S_IRUSR | S_IXUSR | S_IRWXG, S_ISGID | S_IRUSR
-            | S_IXUSR | S_IRWXG) != 0) {
-      // No setgid on files and setgid on dirs, 570
-      fprintf(LOGFILE, "Failed to secure the distcache_dir %s\n",
-          distcache_dir);
-      failed = 1;
-      free(distcache_dir);
-      break;
-    }
-
-    local_dir_ptr++;
-    free(distcache_dir);
+  struct stat filestat;
+  if (stat(localized_unique_dir, &filestat) != 0) {
+    // stat on distcache failed because of something
+    fprintf(LOGFILE, "Failed to stat the localized_unique_dir %s\n",
+        localized_unique_dir);
+    failed = INITIALIZE_DISTCACHEFILE_FAILED;
+  } else if (secure_path(localized_unique_dir, user_detail->pw_uid,
+        binary_gid, permissions, S_ISGID | permissions, 1) != 0) {
+    // No setgid on files and setgid on dirs,
+    // 770 for tt_user and 570 for any other user
+    fprintf(LOGFILE, "Failed to secure the localized_unique_dir %s\n",
+        localized_unique_dir);
+    failed = INITIALIZE_DISTCACHEFILE_FAILED;
   }
-  free(local_dir);
-  free(full_local_dir_str);
+  free(localized_unique_dir);
   cleanup();
-  if (failed) {
-    return INITIALIZE_DISTCACHE_FAILED;
-  }
-  return 0;
+  return failed;
 }
 
 /**
@@ -894,7 +988,7 @@ int initialize_task(const char *jobid, const char *taskid, const char *user) {
     goto cleanup;
   }
 
-  if (prepare_task_logs(log_dir, taskid) != 0) {
+  if (prepare_task_logs(log_dir, jobid, taskid) != 0) {
     fprintf(LOGFILE, "Couldn't prepare task logs directory %s for %s.\n",
         log_dir, taskid);
     exit_code = PREPARE_TASK_LOGS_FAILED;
@@ -980,7 +1074,7 @@ const char *taskid, const char *tt_root, int command) {
   }
 
   errno = 0;
-  exit_code = check_task_launcher_path(task_script_path);
+  exit_code = check_path_for_relative_components(task_script_path);
   if(exit_code != 0) {
     goto cleanup;
   }
@@ -1029,7 +1123,8 @@ int run_debug_script_as_user(const char * user, const char *jobid, const char *t
   return run_process_as_user(user, jobid, taskid, tt_root, RUN_DEBUG_SCRIPT);
 }
 /**
- * Function used to terminate/kill a task launched by the user.
+ * Function used to terminate/kill a task launched by the user,
+ * or dump the process' stack (by sending SIGQUIT).
  * The function sends appropriate signal to the process group
  * specified by the task_pid.
  */
@@ -1075,4 +1170,83 @@ int kill_user_task(const char *user, const char *task_pid, int sig) {
   }
   cleanup();
   return 0;
+}
+
+/**
+ * Enables the path for deletion by changing the owner, group and permissions
+ * of the specified path and all the files/directories in the path recursively.
+ *     *  sudo chown user:mapred -R full_path
+ *     *  sudo chmod 2770 -R full_path
+ * Before changing permissions, makes sure that the given path doesn't contain
+ * any relative components.
+ * tt_root : is the base path(i.e. mapred-local-dir) sent to task-controller
+ * full_path : is either jobLocalDir, taskDir OR taskWorkDir that is to be 
+ *             deleted
+ */
+static int enable_path_for_cleanup(const char *tt_root, const char *user,
+                                   char *full_path) {
+  int exit_code = 0;
+  gid_t tasktracker_gid = getegid(); // the group permissions of the binary.
+
+  if (check_tt_root(tt_root) < 0) {
+    fprintf(LOGFILE, "invalid tt root passed %s\n", tt_root);
+    cleanup();
+    return INVALID_TT_ROOT;
+  }
+ 
+  if (full_path == NULL) {
+    fprintf(LOGFILE,
+            "Could not build the full path. Not deleting the dir %s\n",
+            full_path);
+    exit_code = UNABLE_TO_BUILD_PATH; // may be malloc failed
+  }
+     // Make sure that the path given is not having any relative components
+  else if ((exit_code = check_path_for_relative_components(full_path)) != 0) {
+    fprintf(LOGFILE,
+    "Not changing permissions. Path may contain relative components.\n",
+         full_path);
+  }
+  else if (get_user_details(user) < 0) {
+    fprintf(LOGFILE, "Couldn't get the user details of %s.\n", user);
+    exit_code = INVALID_USER_NAME;
+  }
+  else if (exit_code = secure_path(full_path, user_detail->pw_uid,
+               tasktracker_gid,
+               S_IRWXU | S_IRWXG, S_ISGID | S_IRWXU | S_IRWXG, 0) != 0) {
+    // No setgid on files and setgid on dirs, 770.
+    // set 770 permissions for user, TTgroup for all files/directories in
+    // 'full_path' recursively sothat deletion of path by TaskTracker succeeds.
+
+    fprintf(LOGFILE, "Failed to set permissions for %s\n", full_path);
+  }
+
+  if (full_path != NULL) {
+    free(full_path);
+  }
+  // free configurations
+  cleanup();
+  return exit_code;
+}
+
+/**
+ * Enables the task work-dir/local-dir path for deletion.
+ * tt_root : is the base path(i.e. mapred-local-dir) sent to task-controller
+ * dir_to_be_deleted : is either taskDir OR taskWorkDir that is to be deleted
+ */
+int enable_task_for_cleanup(const char *tt_root, const char *user,
+           const char *jobid, const char *dir_to_be_deleted) {
+  char *full_path = get_task_dir_path(tt_root, user, jobid, dir_to_be_deleted);
+  return enable_path_for_cleanup(tt_root, user, full_path);
+}
+
+/**
+ * Enables the jobLocalDir for deletion.
+ * tt_root : is the base path(i.e. mapred-local-dir) sent to task-controller
+ * user    : owner of the job
+ * jobid   : id of the job for which the cleanup is needed.
+ */
+int enable_job_for_cleanup(const char *tt_root, const char *user, 
+                           const char *jobid) {
+  char *full_path = get_job_directory(tt_root, user, jobid);
+  return enable_path_for_cleanup(tt_root, user, full_path);
 }

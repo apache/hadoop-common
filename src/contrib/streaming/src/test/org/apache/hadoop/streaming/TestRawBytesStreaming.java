@@ -24,10 +24,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileUtil;
 
-import junit.framework.TestCase;
+import org.junit.Test;
+import static org.junit.Assert.*;
 
-public class TestRawBytesStreaming extends TestCase {
+public class TestRawBytesStreaming {
 
   protected File INPUT_FILE = new File("input.txt");
   protected File OUTPUT_DIR = new File("out");
@@ -61,11 +63,12 @@ public class TestRawBytesStreaming extends TestCase {
       "-verbose"
     };
   }
-  
+
+  @Test
   public void testCommandLine() throws Exception {
     try {
       try {
-        OUTPUT_DIR.getAbsoluteFile().delete();
+        FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
       } catch (Exception e) {
       }
 
@@ -86,10 +89,8 @@ public class TestRawBytesStreaming extends TestCase {
       System.err.println("  out1=" + output);
       assertEquals(outputExpect, output);
     } finally {
-      File outFileCRC = new File(OUTPUT_DIR, ".part-00000.crc").getAbsoluteFile();
       INPUT_FILE.delete();
-      outFileCRC.delete();
-      OUTPUT_DIR.getAbsoluteFile().delete();
+      FileUtil.fullyDelete(OUTPUT_DIR.getAbsoluteFile());
     }
   }
 }

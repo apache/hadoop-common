@@ -1,4 +1,20 @@
 <?xml version="1.0"?>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
 
 <!-- Do not modify this file directly.  Instead, copy entries that you -->
@@ -60,22 +76,13 @@
 </property>
 
 <property>
-  <name>mapreduce.map.sort.record.percent</name>
-  <value>0.05</value>
-  <description>The percentage of mapreduce.task.io.sort.mb dedicated to 
-  tracking record boundaries. Let this value be r, 
-  mapreduce.task.io.sort.mb be x. The maximum number
-  of records collected before the collection thread must block is equal
-  to (r * x) / 4</description>
-</property>
-
-<property>
   <name>mapreduce.map.sort.spill.percent</name>
   <value>0.80</value>
-  <description>The soft limit in either the buffer or record collection
-  buffers. Once reached, a thread will begin to spill the contents to disk
-  in the background. Note that this does not imply any chunking of data to
-  the spill. A value less than 0.5 is not recommended.</description>
+  <description>The soft limit in the serialization buffer. Once reached, a
+  thread will begin to spill the contents to disk in the background. Note that
+  collection will not block if this threshold is exceeded while a spill is
+  already in progress, so spills may be larger than this threshold when it is
+  set to less than .5</description>
 </property>
 
 <property>
@@ -127,7 +134,16 @@
 <property>
   <name>mapreduce.jobtracker.system.dir</name>
   <value>${hadoop.tmp.dir}/mapred/system</value>
-  <description>The shared directory where MapReduce stores control files.
+  <description>The directory where MapReduce stores control files.
+  </description>
+</property>
+
+<property>
+  <name>mapreduce.jobtracker.staging.root.dir</name>
+  <value>${hadoop.tmp.dir}/mapred/staging</value>
+  <description>The root of the staging area for users' job files
+  In practice, this should be the directory where users' home 
+  directories are located (usually /user)
   </description>
 </property>
 
@@ -175,14 +191,14 @@
 </property>
 
 <property>
-  <name>mapreduce.tasktracker.memorycalculatorplugin</name>
+  <name>mapreduce.tasktracker.resourcecalculatorplugin</name>
   <value></value>
   <description>
-   Name of the class whose instance will be used to query memory information
+   Name of the class whose instance will be used to query resource information
    on the tasktracker.
    
    The class must be an instance of 
-   org.apache.hadoop.util.MemoryCalculatorPlugin. If the value is null, the
+   org.apache.hadoop.util.ResourceCalculatorPlugin. If the value is null, the
    tasktracker attempts to use a class appropriate to the platform. 
    Currently, the only platform supported is Linux.
   </description>
@@ -246,6 +262,17 @@
   <name>mapreduce.jobtracker.taskscheduler</name>
   <value>org.apache.hadoop.mapred.JobQueueTaskScheduler</value>
   <description>The class responsible for scheduling the tasks.</description>
+</property>
+
+
+<property>
+  <name>mapreduce.job.split.metainfo.maxsize</name>
+  <value>10000000</value>
+  <description>The maximum permissible size of the split metainfo file. 
+  The JobTracker won't attempt to read split metainfo files bigger than
+  the configured value.
+  No limits if set to -1.
+  </description>
 </property>
 
 <property>
@@ -328,6 +355,14 @@
   <name>mapreduce.jobtracker.retiredjobs.cache.size</name>
   <value>1000</value>
   <description>The number of retired job status to keep in the cache.
+  </description>
+</property>
+
+<property>
+  <name>mapreduce.tasktracker.outofband.heartbeat</name>
+  <value>false</value>
+  <description>Expert: Set this to true to let the tasktracker send an 
+  out-of-band heartbeat on task-completion for better latency.
   </description>
 </property>
 
@@ -637,10 +672,10 @@
 </property>
 
 <property>
-  <name>mapreduce.task.userlog.retain.hours</name>
+  <name>mapreduce.job.userlog.retain.hours</name>
   <value>24</value>
   <description>The maximum time, in hours, for which the user-logs are to be 
-          retained.
+               retained after the job completion.
   </description>
 </property>
 
@@ -664,7 +699,7 @@
   <name>mapreduce.jobtracker.heartbeats.in.second</name>
   <value>100</value>
   <description>Expert: Approximate number of heart-beats that could arrive 
-               JobTracker in a second. Assuming each RPC can be processed 
+               at JobTracker in a second. Assuming each RPC can be processed 
                in 10msec, the default value is made 100 RPCs in a second.
   </description>
 </property> 
@@ -896,6 +931,73 @@
 </property>
 
 <property>
+  <name>mapreduce.cluster.job-authorization-enabled</name>
+  <value>false</value>
+  <description> Boolean flag that specifies if job-level authorization checks
+  should be enabled on the jobs submitted to the cluster.  Job-level
+  authorization is enabled if this flag is set to true or disabled otherwise.
+  It is disabled by default. If enabled, access control checks are made by
+  JobTracker and TaskTracker when requests are made by users for viewing the
+  job-details (See mapreduce.job.acl-view-job) or for modifying the job
+  (See mapreduce.job.acl-modify-job) using Map/Reduce APIs, RPCs or via the
+  console and web user interfaces.
+  </description>
+</property>
+
+<property>
+  <name>mapreduce.job.acl-modify-job</name>
+  <value></value>
+  <description> Job specific access-control list for 'modifying' the job. It
+    is only used if authorization is enabled in Map/Reduce by setting the
+    configuration property mapreduce.cluster.job-authorization-enabled to true.
+    This specifies the list of users and/or groups who can do modification
+    operations on the job. For specifying a list of users and groups the
+    format to use is "user1,user2 group1,group". If set to '*', it allows all
+    users/groups to modify this job. If set to '', it allows none. This
+    configuration is used to guard all the modifications with respect to this
+    job and takes care of all the following operations:
+      o killing this job
+      o killing a task of this job, failing a task of this job
+      o setting the priority of this job
+    Each of these operations are also protected by the per-queue level ACL
+    "acl-administer-jobs" configured via mapred-queues.xml. So a caller should
+    have the authorization to satisfy both the queue-level ACL and the
+    job-level ACL.
+
+    Irrespective of this ACL configuration, job-owner, superuser and members
+    of supergroup configured on JobTracker via 
+    "mapreduce.cluster.permissions.supergroup",
+    can do all the modification operations.
+
+    By default, nobody else besides job-owner, superuser/supergroup can
+    perform modification operations on a job that they don't own.
+  </description>
+</property>
+
+<property>
+  <name>mapreduce.job.acl-view-job</name>
+  <value></value>
+  <description> Job specific access-control list for 'viewing' the job. It is
+    only used if authorization is enabled in Map/Reduce by setting the
+    configuration property mapreduce.cluster.job-authorization-enabled to true.
+    This specifies the list of users and/or groups who can view private details
+    about the job. For specifying a list of users and groups the
+    format to use is "user1,user2 group1,group". If set to '*', it allows all
+    users/groups to modify this job. If set to '', it allows none. This
+    configuration is used to guard some of the job-views and at present only
+    protects APIs that can return possibly sensitive information of the
+    job-owner like
+      o job-level counters
+      o task-level counters
+      o tasks' diagnostic information
+      o task-logs displayed on the TaskTracker web-UI and
+      o job.xml showed by the JobTracker's web-UI
+    Every other piece information of jobs is still accessible by any other
+    users, for e.g., JobStatus, JobProfile, list of jobs in the queue, etc.
+  </description>
+</property>
+
+<property>
   <name>mapreduce.tasktracker.indexcache.mb</name>
   <value>10</value>
   <description> The maximum memory that a task tracker allows for the 
@@ -920,9 +1022,26 @@
 </property>
 
 <property>
+<name>mapreduce.job.complete.cancel.delegation.tokens</name>
+  <value>true</value>
+  <description> if false - do not unregister/cancel delegation tokens from 
+    renewal, because same tokens may be used by spawned jobs
+  </description>
+</property>
+
+<property>
   <name>mapreduce.tasktracker.taskcontroller</name>
   <value>org.apache.hadoop.mapred.DefaultTaskController</value>
   <description>TaskController which is used to launch and manage task execution 
+  </description>
+</property>
+
+<property>
+  <name>mapreduce.tasktracker.group</name>
+  <value></value>
+  <description>Expert: Group to which TaskTracker belongs. If 
+   LinuxTaskController is configured via mapreduce.tasktracker.taskcontroller,
+   the group owner of the task-controller binary should be same as this group.
   </description>
 </property>
 

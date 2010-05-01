@@ -192,9 +192,9 @@ class JobQueueClient extends Configured implements Tool {
    
   private void displayQueueAclsInfoForCurrentUser() throws IOException {
     QueueAclsInfo[] queueAclsInfoList = jc.getQueueAclsForCurrentUser();
-    UserGroupInformation ugi = UserGroupInformation.readFrom(getConf());
+    UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
     if (queueAclsInfoList.length > 0) {
-      System.out.println("Queue acls for user :  " + ugi.getUserName());
+      System.out.println("Queue acls for user :  " + ugi.getShortUserName());
       System.out.println("\nQueue  Operations");
       System.out.println("=====================");
       for (QueueAclsInfo queueInfo : queueAclsInfoList) {
@@ -210,7 +210,7 @@ class JobQueueClient extends Configured implements Tool {
         System.out.println();
       }
     } else {
-      System.out.println("User " + ugi.getUserName()
+      System.out.println("User " + ugi.getShortUserName()
           + " does not have access to any queue. \n");
     }
   }

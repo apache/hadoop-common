@@ -21,14 +21,14 @@ package org.apache.hadoop.mapred;
 import java.io.File;
 import java.io.IOException;
 
-import javax.security.auth.login.LoginException;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.ClusterWithLinuxTaskController.MyLinuxTaskController;
 import org.apache.hadoop.mapreduce.filecache.TestTrackerDistributedCacheManager;
+import org.apache.hadoop.security.UserGroupInformation;
 
 /**
  * Test the DistributedCacheManager when LinuxTaskController is used.
@@ -38,8 +38,6 @@ public class TestTrackerDistributedCacheManagerWithLinuxTaskController extends
     TestTrackerDistributedCacheManager {
 
   private File configFile;
-  private MyLinuxTaskController taskController;
-  private String taskTrackerSpecialGroup;
 
   private static final Log LOG =
       LogFactory
@@ -47,7 +45,7 @@ public class TestTrackerDistributedCacheManagerWithLinuxTaskController extends
 
   @Override
   protected void setUp()
-      throws IOException {
+      throws IOException, InterruptedException {
 
     if (!ClusterWithLinuxTaskController.shouldRun()) {
       return;
@@ -63,16 +61,20 @@ public class TestTrackerDistributedCacheManagerWithLinuxTaskController extends
     taskController = new MyLinuxTaskController();
     String path =
         System.getProperty(ClusterWithLinuxTaskController.TASKCONTROLLER_PATH);
-    configFile =
-        ClusterWithLinuxTaskController.createTaskControllerConf(path, conf
-            .getStrings(JobConf.MAPRED_LOCAL_DIR_PROPERTY));
     String execPath = path + "/task-controller";
-    taskController.setTaskControllerExe(execPath);
+    ((MyLinuxTaskController)taskController).setTaskControllerExe(execPath);
     taskController.setConf(conf);
     taskController.setup();
+  }
 
-    taskTrackerSpecialGroup =
-        TestTaskTrackerLocalization.getFilePermissionAttrs(execPath)[2];
+  @Override
+  protected void refreshConf(Configuration conf) throws IOException {
+    super.refreshConf(conf);
+    String path =
+      System.getProperty(ClusterWithLinuxTaskController.TASKCONTROLLER_PATH);
+    configFile =
+      ClusterWithLinuxTaskController.createTaskControllerConf(path, conf);
+   
   }
 
   @Override
@@ -87,19 +89,9 @@ public class TestTrackerDistributedCacheManagerWithLinuxTaskController extends
     super.tearDown();
   }
 
-  /**
-   * Test the control flow of distributed cache manager when LinuxTaskController
-   * is used.
-   */
   @Override
-  public void testManagerFlow()
-      throws IOException,
-      LoginException {
-    if (!ClusterWithLinuxTaskController.shouldRun()) {
-      return;
-    }
-
-    super.testManagerFlow();
+  protected boolean canRun() {
+    return ClusterWithLinuxTaskController.shouldRun();
   }
 
   @Override
@@ -111,27 +103,22 @@ public class TestTrackerDistributedCacheManagerWithLinuxTaskController extends
   }
 
   @Override
-  protected TaskController getTaskController() {
-    return taskController;
-  }
-
-  @Override
   protected void checkFilePermissions(Path[] localCacheFiles)
       throws IOException {
-    String cachedFirstFile = localCacheFiles[0].toUri().getPath();
-    String cachedSecondFile = localCacheFiles[1].toUri().getPath();
     String userName = getJobOwnerName();
+    String filePermissions = UserGroupInformation.getLoginUser()
+        .getShortUserName().equals(userName) ? "-rwxrwx---" : "-r-xrwx---";
 
-    // First make sure that the cache files have proper permissions.
-    TestTaskTrackerLocalization.checkFilePermissions(cachedFirstFile,
-        "-r-xrwx---", userName, taskTrackerSpecialGroup);
-    TestTaskTrackerLocalization.checkFilePermissions(cachedSecondFile,
-        "-r-xrwx---", userName, taskTrackerSpecialGroup);
+    for (Path p : localCacheFiles) {
+      // First make sure that the cache file has proper permissions.
+      TestTaskTrackerLocalization.checkFilePermissions(p.toUri().getPath(),
+          filePermissions, userName,
+          ClusterWithLinuxTaskController.taskTrackerSpecialGroup);
+      // Now. make sure that all the path components also have proper
+      // permissions.
+      checkPermissionOnPathComponents(p.toUri().getPath(), userName);
+    }
 
-    // Now. make sure that all the path components also have proper
-    // permissions.
-    checkPermissionOnPathComponents(cachedFirstFile, userName);
-    checkPermissionOnPathComponents(cachedSecondFile, userName);
   }
 
   /**
@@ -146,9 +133,9 @@ public class TestTrackerDistributedCacheManagerWithLinuxTaskController extends
     String trailingStringForFirstFile =
         cachedFilePath.replaceFirst(ROOT_MAPRED_LOCAL_DIR.getAbsolutePath()
             + Path.SEPARATOR + "0_[0-" + (numLocalDirs - 1) + "]"
-            + Path.SEPARATOR + TaskTracker.getDistributedCacheDir(userName),
+            + Path.SEPARATOR + TaskTracker.getPrivateDistributedCacheDir(userName),
             "");
-    LOG.info("Leading path for cacheFirstFile is : "
+    LOG.info("Trailing path for cacheFirstFile is : "
         + trailingStringForFirstFile);
     // The leading mapreduce.cluster.local.dir/0_[0-n]/taskTracker/$user string.
     String leadingStringForFirstFile =
@@ -157,30 +144,16 @@ public class TestTrackerDistributedCacheManagerWithLinuxTaskController extends
     LOG.info("Leading path for cacheFirstFile is : "
         + leadingStringForFirstFile);
 
+    String dirPermissions = UserGroupInformation.getLoginUser()
+        .getShortUserName().equals(userName) ? "drwxrws---" : "dr-xrws---";
+
     // Now check path permissions, starting with cache file's parent dir.
     File path = new File(cachedFilePath).getParentFile();
     while (!path.getAbsolutePath().equals(leadingStringForFirstFile)) {
       TestTaskTrackerLocalization.checkFilePermissions(path.getAbsolutePath(),
-          "dr-xrws---", userName, taskTrackerSpecialGroup);
+          dirPermissions, userName, 
+          ClusterWithLinuxTaskController.taskTrackerSpecialGroup);
       path = path.getParentFile();
     }
-  }
-
-  @Override
-  public void testDeleteCache()
-      throws Exception {
-    if (!ClusterWithLinuxTaskController.shouldRun()) {
-      return;
-    }
-    super.testDeleteCache();
-  }
-
-  @Override
-  public void testFileSystemOtherThanDefault()
-      throws Exception {
-    if (!ClusterWithLinuxTaskController.shouldRun()) {
-      return;
-    }
-    super.testFileSystemOtherThanDefault();
   }
 }

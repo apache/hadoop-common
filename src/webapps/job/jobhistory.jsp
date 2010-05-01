@@ -21,11 +21,13 @@
   contentType="text/html; charset=UTF-8"
   import="java.io.*"
   import="java.util.*"
+  import="java.net.URLEncoder"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.util.*"
   import="org.apache.hadoop.fs.*"
   import="javax.servlet.jsp.*"
   import="java.text.SimpleDateFormat"
+  import="org.apache.hadoop.http.HtmlQuoting"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.mapreduce.jobhistory.*"
 %>
@@ -46,6 +48,7 @@
 <head>
 <script type="text/JavaScript">
 <!--
+<% // assuming search is already quoted %>
 function showUserHistory(search)
 {
 var url
@@ -79,13 +82,15 @@ window.location.href = url;
     final String jobid = (parts.length >= 2)
                            ? parts[1].toLowerCase()
                            : "";
+    final String rawUser = HtmlQuoting.unquoteHtmlChars(user);
+    final String rawJobid = HtmlQuoting.unquoteHtmlChars(jobid);
 
     PathFilter jobLogFileFilter = new PathFilter() {
       private boolean matchUser(String fileName) {
         // return true if 
         //  - user is not specified
         //  - user matches
-        return "".equals(user) || user.equals(fileName.split("_")[3]);
+        return "".equals(rawUser) || rawUser.equals(fileName.split("_")[3]);
       }
 
       private boolean matchJobId(String fileName) {
@@ -94,7 +99,7 @@ window.location.href = url;
         //  - jobid matches 
         String[] jobDetails = fileName.split("_");
         String actualId = jobDetails[0] + "_" +jobDetails[1] + "_" + jobDetails[2] ;
-        return "".equals(jobid) || jobid.equalsIgnoreCase(actualId);
+        return "".equals(rawJobid) || jobid.equalsIgnoreCase(actualId);
       }
 
       public boolean accept(Path path) {
@@ -168,10 +173,10 @@ window.location.href = url;
     // display the number of jobs, start index, end index
     out.println("(<i> <span class=\"small\">Displaying <b>" + length + "</b> jobs from <b>" + start + "</b> to <b>" + (start + length - 1) + "</b> out of <b>" + jobFiles.length + "</b> jobs");
     if (!"".equals(user)) {
-      out.println(" for user <b>" + user + "</b>"); // show the user if present
+      out.println(" for user <b>" + HtmlQuoting.quoteHtmlChars(user) + "</b>"); // show the user if present
     }
     if (!"".equals(jobid)) {
-      out.println(" for jobid <b>" + jobid + "</b> in it."); // show the jobid keyword if present
+      out.println(" for jobid <b>" + HtmlQuoting.quoteHtmlChars(jobid) + "</b> in it."); // show the jobid keyword if present
     }
     out.print("</span></i>)");
 
@@ -228,11 +233,9 @@ window.location.href = url;
     Set<String> displayedJobs = new HashSet<String>();
     for (int i = start - 1; i < start + length - 1; ++i) {
       Path jobFile = jobFiles[i];
-      
-      String[] jobDetails = jobFile.getName().split("_");
 
-      String jobId = jobDetails[0] + "_" +jobDetails[1] + "_" + jobDetails[2] ;
-      String userName = jobDetails[3];
+      String jobId = JobHistory.getJobIDFromHistoryFilePath(jobFile).toString();
+      String userName = JobHistory.getUserFromHistoryFilePath(jobFile);
 
       // Check if the job is already displayed. There can be multiple job 
       // history files for jobs that have restarted
@@ -261,9 +264,10 @@ window.location.href = url;
                           String user, Path logFile, JspWriter out)
     throws IOException {
       out.print("<tr>"); 
-      out.print("<td>" + "<a href=\"jobdetailshistory.jsp?jobid=" + jobId + 
-                "&logFile=" + logFile.toString() + "\">" + jobId + "</a></td>"); 
-      out.print("<td>" + user + "</td>"); 
+      out.print("<td>" + "<a href=\"jobdetailshistory.jsp?logFile=" +
+       URLEncoder.encode(logFile.toString(), "UTF-8") +
+                "\">" + HtmlQuoting.quoteHtmlChars(jobId) + "</a></td>");
+      out.print("<td>" + HtmlQuoting.quoteHtmlChars(user) + "</td>");
       out.print("</tr>");
     }
 
@@ -276,7 +280,8 @@ window.location.href = url;
 
       // show previous link
       if (pageno > 1) {
-        out.println("<a href=\"jobhistory.jsp?pageno=" + (pageno - 1) + "&search=" + search + "\">Previous</a>");
+        out.println("<a href=\"jobhistory.jsp?pageno=" + (pageno - 1) +
+            "&search=" + search + "\">Previous</a>");
       }
 
       // display the numbered index 1 2 3 4
@@ -295,7 +300,8 @@ window.location.href = url;
 
       for (int i = firstPage; i <= lastPage; ++i) {
         if (i != pageno) {// needs hyperlink
-          out.println(" <a href=\"jobhistory.jsp?pageno=" + i + "&search=" + search + "\">" + i + "</a> ");
+          out.println(" <a href=\"jobhistory.jsp?pageno=" + i + "&search=" +
+              search + "\">" + i + "</a> ");
         } else { // current page
           out.println(i);
         }

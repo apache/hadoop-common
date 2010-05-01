@@ -34,11 +34,17 @@ import org.apache.hadoop.mapreduce.QueueInfo;
 import org.apache.hadoop.mapreduce.TaskTrackerInfo;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.filecache.DistributedCache;
+import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.mapreduce.tools.CLI;
 import org.apache.hadoop.mapreduce.util.ConfigUtil;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.ipc.RemoteException;
+import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -155,6 +161,10 @@ public class JobClient extends CLI {
 
     public NetworkedJob(Job job) throws IOException {
       this.job = job;
+    }
+
+    public Configuration getConfiguration() {
+      return job.getConfiguration();
     }
 
     /**
@@ -476,6 +486,13 @@ public class JobClient extends CLI {
   }
   
   /**
+   * Get a handle to the Cluster
+   */
+  public Cluster getClusterHandle() {
+    return cluster;
+  }
+  
+  /**
    * Submit a job to the MR system.
    * 
    * This returns a handle to the {@link RunningJob} which can be used to track
@@ -514,44 +531,12 @@ public class JobClient extends CLI {
       conf.setBooleanIfUnset("mapred.reducer.new-api", false);
       Job job = Job.getInstance(cluster, conf);
       job.submit();
-      conf.setUser(job.getUser());
       return new NetworkedJob(job);
     } catch (InterruptedException ie) {
       throw new IOException("interrupted", ie);
     } catch (ClassNotFoundException cnfe) {
       throw new IOException("class not found", cnfe);
     }
-  }
-
-  /** 
-   * Checks if the job directory is clean and has all the required components 
-   * for (re) starting the job
-   */
-  public static boolean isJobDirValid(Path jobDirPath, FileSystem fs) 
-  throws IOException {
-    FileStatus[] contents = null;
-    
-    try {
-      contents = fs.listStatus(jobDirPath);
-    } catch(FileNotFoundException fnfe) {
-      return false;
-    }
-    
-    int matchCount = 0;
-    if (contents.length >=2) {
-      for (FileStatus status : contents) {
-        if ("job.xml".equals(status.getPath().getName())) {
-          ++matchCount;
-        }
-        if ("job.split".equals(status.getPath().getName())) {
-          ++matchCount;
-        }
-      }
-      if (matchCount == 2) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**
@@ -816,7 +801,7 @@ public class JobClient extends CLI {
   }
 
   static String getTaskLogURL(TaskAttemptID taskId, String baseUrl) {
-    return (baseUrl + "/tasklog?plaintext=true&taskid=" + taskId); 
+    return (baseUrl + "/tasklog?plaintext=true&attemptid=" + taskId); 
   }
   
   static Configuration getConfiguration(String jobTrackerSpec)
@@ -1053,6 +1038,41 @@ public class JobClient extends CLI {
     } catch (InterruptedException ie) {
       throw new IOException(ie);
     }
+  }
+
+  /**
+   * Get a delegation token for the user from the JobTracker.
+   * @param renewer the user who can renew the token
+   * @return the new token
+   * @throws IOException
+   */
+  public Token<DelegationTokenIdentifier> 
+    getDelegationToken(Text renewer) throws IOException, InterruptedException {
+    return cluster.getDelegationToken(renewer);
+  }
+
+  /**
+   * Renew a delegation token
+   * @param token the token to renew
+   * @return true if the renewal went well
+   * @throws InvalidToken
+   * @throws IOException
+   */
+  public long renewDelegationToken(Token<DelegationTokenIdentifier> token
+                                   ) throws InvalidToken, IOException, 
+                                            InterruptedException {
+    return cluster.renewDelegationToken(token);
+  }
+
+  /**
+   * Cancel a delegation token from the JobTracker
+   * @param token the token to cancel
+   * @throws IOException
+   */
+  public void cancelDelegationToken(Token<DelegationTokenIdentifier> token
+                                    ) throws InvalidToken, IOException, 
+                                             InterruptedException {
+    cluster.cancelDelegationToken(token);
   }
 
   /**
