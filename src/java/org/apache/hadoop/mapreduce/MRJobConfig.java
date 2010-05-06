@@ -264,8 +264,8 @@ public interface MRJobConfig {
 
   public static final String JOB_CANCEL_DELEGATION_TOKEN = "mapreduce.job.complete.cancel.delegation.tokens";
 
-  public static final String JOB_ACL_VIEW_JOB = "mapreduce.job.acl-view-job";
+  static final String JOB_ACL_VIEW_JOB = "mapreduce.job.acl-view-job";
 
-  public static final String JOB_ACL_MODIFY_JOB = "mapreduce.job.acl-modify-job";
+  static final String JOB_ACL_MODIFY_JOB = "mapreduce.job.acl-modify-job";
 
 }

@@ -19,9 +19,6 @@ package org.apache.hadoop.mapreduce;
 
 import org.apache.hadoop.classification.*;
 
-/**
- * Job related ACLs
- */
 @InterfaceAudience.Private
 public enum JobACL {
 
