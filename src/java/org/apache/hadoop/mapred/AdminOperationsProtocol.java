@@ -20,6 +20,8 @@ package org.apache.hadoop.mapred;
 
 import java.io.IOException;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.security.KerberosInfo;
@@ -29,6 +31,8 @@ import org.apache.hadoop.security.KerberosInfo;
  * NOT_TO_BE_USED_BY_USERS_DIRECTLY.
  */
 @KerberosInfo(MRJobConfig.JOB_JOBTRACKER_ID)
+@InterfaceAudience.Private
+@InterfaceStability.Stable
 public interface AdminOperationsProtocol extends VersionedProtocol {
   
   /**

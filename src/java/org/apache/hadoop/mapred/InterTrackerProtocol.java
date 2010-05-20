@@ -20,6 +20,8 @@ package org.apache.hadoop.mapred;
 
 import java.io.IOException;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.security.KerberosInfo;
@@ -29,6 +31,8 @@ import org.apache.hadoop.security.KerberosInfo;
  * The JobTracker is the Server, which implements this protocol.
  */ 
 @KerberosInfo(MRJobConfig.JOB_JOBTRACKER_ID)
+@InterfaceAudience.Private
+@InterfaceStability.Stable
 interface InterTrackerProtocol extends VersionedProtocol {
   /**
    * version 3 introduced to replace 
