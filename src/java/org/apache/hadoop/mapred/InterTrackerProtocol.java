@@ -24,13 +24,17 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
+import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.security.KerberosInfo;
 
 /** 
  * Protocol that a TaskTracker and the central JobTracker use to communicate.
  * The JobTracker is the Server, which implements this protocol.
  */ 
-@KerberosInfo(MRJobConfig.JOB_JOBTRACKER_ID)
+@KerberosInfo(
+	    serverPrincipal = JTConfig.JT_USER_NAME,
+	    clientPrincipal = TTConfig.TT_USER_NAME)
 @InterfaceAudience.Private
 @InterfaceStability.Stable
 interface InterTrackerProtocol extends VersionedProtocol {

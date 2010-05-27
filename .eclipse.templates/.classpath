@@ -26,10 +26,10 @@
 	<classpathentry kind="src" path="src/contrib/vaidya/src/java"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="var" path="ANT_HOME/lib/ant.jar"/>
-	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/hadoop-core-0.22.0-SNAPSHOT.jar"/>
-	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/hadoop-core-test-0.22.0-SNAPSHOT.jar"/>
-	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/hadoop-hdfs-0.22.0-SNAPSHOT.jar"/>
-	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/test/hadoop-hdfs-test-0.22.0-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/hadoop-core-0.21.0-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/hadoop-core-test-0.21.0-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/hadoop-hdfs-0.21.0-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/test/hadoop-hdfs-test-0.21.0-SNAPSHOT.jar"/>
 	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/avro-1.3.0.jar"/>
 	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/commons-cli-1.2.jar"/>
 	<classpathentry kind="lib" path="build/ivy/lib/Hadoop/common/commons-codec-1.4.jar"/>
