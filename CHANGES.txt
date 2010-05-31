@@ -1571,3 +1571,5 @@ Release 0.21.0 - Unreleased
 
     MAPREDUCE-1810. Fix references to 0.22 in 0.21 branch. (tomwhite)
 
+    MAPREDUCE-1372. ConcurrentModificationException in JobInProgress.
+    (Dick King and Amareshwari Sriramadasu via tomwhite)
