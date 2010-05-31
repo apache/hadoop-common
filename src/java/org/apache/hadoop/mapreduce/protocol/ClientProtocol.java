@@ -39,7 +39,6 @@ import org.apache.hadoop.mapreduce.TaskTrackerInfo;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.security.TokenStorage;
-import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.State;
 import org.apache.hadoop.security.KerberosInfo;
 import org.apache.hadoop.security.token.Token;
@@ -50,8 +49,7 @@ import org.apache.hadoop.security.token.TokenInfo;
  * JobClient can use these methods to submit a Job for execution, and learn about
  * the current system status.
  */ 
-@KerberosInfo(
-	    serverPrincipal = JTConfig.JT_USER_NAME)
+@KerberosInfo(MRJobConfig.JOB_JOBTRACKER_ID)
 @TokenInfo(DelegationTokenSelector.class)
 @InterfaceAudience.Private
 @InterfaceStability.Stable
