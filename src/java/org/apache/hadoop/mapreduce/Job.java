@@ -147,8 +147,9 @@ public class Job extends JobContextImpl implements JobContext {
   Job(Cluster cluster, JobStatus status,
              Configuration conf) throws IOException {
     this(cluster, conf);
-    state = JobState.RUNNING;
+    setJobID(status.getJobID());
     this.status = status;
+    state = JobState.RUNNING;
   }
   
   public static Job getInstance(Cluster cluster) throws IOException {
@@ -199,15 +200,6 @@ public class Job extends JobContextImpl implements JobContext {
     ensureState(JobState.RUNNING);
     updateStatus();
     return status;
-  }
-  /**
-   * Get the job identifier.
-   * 
-   * @return the job identifier.
-   */
-  public JobID getID() {
-    ensureState(JobState.RUNNING);
-    return status.getJobID();
   }
 
   /**
@@ -347,7 +339,7 @@ public class Job extends JobContextImpl implements JobContext {
   public TaskReport[] getTaskReports(TaskType type) 
       throws IOException, InterruptedException {
     ensureState(JobState.RUNNING);
-    return cluster.getClient().getTaskReports(getID(), type);
+    return cluster.getClient().getTaskReports(getJobID(), type);
   }
 
   /**
@@ -435,7 +427,7 @@ public class Job extends JobContextImpl implements JobContext {
    */
   public void killJob() throws IOException, InterruptedException {
     ensureState(JobState.RUNNING);
-    cluster.getClient().killJob(getID());
+    cluster.getClient().killJob(getJobID());
   }
 
   /**
@@ -450,7 +442,7 @@ public class Job extends JobContextImpl implements JobContext {
         org.apache.hadoop.mapred.JobPriority.valueOf(priority.name()));
     } else {
       ensureState(JobState.RUNNING);
-      cluster.getClient().setJobPriority(getID(), priority.toString());
+      cluster.getClient().setJobPriority(getJobID(), priority.toString());
     }
   }
 
@@ -465,7 +457,7 @@ public class Job extends JobContextImpl implements JobContext {
   public TaskCompletionEvent[] getTaskCompletionEvents(int startFrom,
       int numEvents) throws IOException, InterruptedException {
     ensureState(JobState.RUNNING);
-    return cluster.getClient().getTaskCompletionEvents(getID(),
+    return cluster.getClient().getTaskCompletionEvents(getJobID(),
       startFrom, numEvents); 
   }
   
@@ -502,7 +494,7 @@ public class Job extends JobContextImpl implements JobContext {
   public Counters getCounters() 
       throws IOException, InterruptedException {
     ensureState(JobState.RUNNING);
-    return cluster.getClient().getJobCounters(getID());
+    return cluster.getClient().getJobCounters(getJobID());
   }
 
   /**
@@ -1010,7 +1002,7 @@ public class Job extends JobContextImpl implements JobContext {
     Job.TaskStatusFilter filter;
     Configuration clientConf = cluster.getConf();
     filter = Job.getTaskOutputFilter(clientConf);
-    JobID jobId = getID();
+    JobID jobId = getJobID();
     LOG.info("Running job: " + jobId);
     int eventCounter = 0;
     boolean profiling = getProfileEnabled();

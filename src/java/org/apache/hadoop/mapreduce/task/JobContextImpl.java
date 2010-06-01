@@ -49,7 +49,7 @@ import org.apache.hadoop.mapreduce.lib.partition.HashPartitioner;
 public class JobContextImpl implements JobContext {
 
   protected final org.apache.hadoop.mapred.JobConf conf;
-  private final JobID jobId;
+  private JobID jobId;
   
   public JobContextImpl(Configuration conf, JobID jobId) {
     this.conf = new org.apache.hadoop.mapred.JobConf(conf);
@@ -70,6 +70,13 @@ public class JobContextImpl implements JobContext {
    */
   public JobID getJobID() {
     return jobId;
+  }
+  
+  /**
+   * Set the JobID.
+   */
+  public void setJobID(JobID jobId) {
+    this.jobId = jobId;
   }
   
   /**
