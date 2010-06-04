@@ -44,7 +44,7 @@
           <a href="ext:single-node-setup">Single Node Setup</a> for first-time users.
         </li>
         <li>
-          <a href="cluster_setup.html">Cluster Setup</a> for large, distributed clusters.
+          <a href="ext:cluster-setup">Cluster Setup</a> for large, distributed clusters.
         </li>
       </ul>
     </section>
@@ -159,7 +159,7 @@
       
       <p>This example works with a 
       pseudo-distributed (<a href="ext:single-node-setup">Single Node Setup</a>) 
-     or fully-distributed (<a href="cluster_setup.html">Cluster Setup</a>) 
+     or fully-distributed (<a href="ext:cluster-setup">Cluster Setup</a>) 
       Hadoop installation.</p>   
       
       <section>
@@ -392,7 +392,7 @@
         provides this functionality is called the <em>distributed cache</em>.
         More details about the command line options surrounding job launching
         and control of the distributed cache are available at 
-        <a href="commands_manual.html"> Hadoop Commands Guide.</a></p>
+        <a href="ext:commands-manual"> Hadoop Commands Guide.</a></p>
         
         <p>Hadoop ships with some example code in a jar precompiled for you;
         one of these is (another) wordcount program. Here's an example
@@ -1214,7 +1214,7 @@
         <p>Note: <code>mapred.{map|reduce}.child.java.opts</code> are used only 
         for configuring the launched child tasks from task tracker. Configuring 
         the memory options for daemons is documented under
-        <a href="cluster_setup.html#Configuring+the+Environment+of+the+Hadoop+Daemons">
+        <a href="ext:cluster-setup/ConfiguringEnvironmentHadoopDaemons">
         Configuring the Environment of the Hadoop Daemons</a> (Cluster Setup).</p>
         
         <p>The memory available to some parts of the framework is also
@@ -1625,6 +1625,60 @@
               : Sets up a notification upon job-completion, thus avoiding polling.
             </li>
           </ul>
+        </section>
+        
+        <section>
+          <title>Job Authorization</title>
+          <p>Job level authorization is enabled on the cluster, if the configuration
+          <code>mapreduce.cluster.job-authorization-enabled</code> is set to
+          true. When enabled, access control checks are done by the JobTracker
+          and the TaskTracker before allowing users to view
+          job details or to modify a job using Map/Reduce APIs,
+          CLI or web user interfaces.</p>
+         
+          <p>A job submitter can specify access control lists for viewing or
+          modifying a job via the configuration properties
+          <code>mapreduce.job.acl-view-job</code> and
+          <code>mapreduce.job.acl-modify-job</code> respectively. By default, 
+          nobody is given access in these properties.</p> 
+          
+          <p>However, irrespective of the ACLs configured, a job's owner,
+          the superuser and the members of an admin configured supergroup
+          (<code>mapreduce.cluster.permissions.supergroup</code>) always
+          have access to view and modify a job.</p>
+          
+          <p> A job view ACL authorizes users against the configured 
+          <code>mapreduce.job.acl-view-job</code> before returning possibly 
+          sensitive information about a job, like: </p>
+          <ul>
+            <li> job level counters </li>
+            <li> task level counters </li>
+            <li> tasks's diagnostic information </li>
+            <li> task logs displayed on the TaskTracker web UI </li>
+            <li> job.xml showed by the JobTracker's web UI </li>
+          </ul>
+          <p>Other information about a job, like its status and its profile, 
+          is accessible to all users, without requiring authorization.</p>
+          
+          <p> A job modification ACL authorizes users against the configured
+          <code>mapreduce.job.acl-modify-job</code> before allowing
+          modifications to jobs, like: </p>
+          <ul>
+            <li> killing a job </li>
+            <li> killing/failing a task of a job </li>
+            <li> setting the priority of a job </li>
+          </ul>
+          <p>These operations are also protected by the queue level ACL,
+          "acl-administer-jobs", configured via mapred-queue-acls.xml. The caller
+          will be authorized against both queue level ACLs and job level ACLs,
+          depending on what is enabled.</p>
+          
+          <p>The format of a job level ACL is the same as the format for a
+          queue level ACL as defined in the
+          <a href ="ext:cluster-setup/ConfiguringHadoopDaemons">
+          Cluster Setup</a> documentation.
+          </p>
+          
         </section>
       </section>
 
@@ -2366,7 +2420,7 @@
       <p>This example needs the HDFS to be up and running, especially for the 
       <code>DistributedCache</code>-related features. Hence it only works with a 
       pseudo-distributed (<a href="ext:single-node-setup">Single Node Setup</a>) 
-     or fully-distributed (<a href="cluster_setup.html#Fully-Distributed+Operation">Cluster Setup</a>) 
+     or fully-distributed (<a href="ext:cluster-setup/FullyDistributedOperation">Cluster Setup</a>) 
       Hadoop installation.</p>     
       
       <section>
