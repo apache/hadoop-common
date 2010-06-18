@@ -50,10 +50,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
  * Subclasses implement {@link org.apache.hadoop.mapred.InputFormat#getRecordReader(InputSplit, JobConf, Reporter)}
  * to construct <code>RecordReader</code>'s for <code>CombineFileSplit</code>'s.
  * @see CombineFileSplit
- * @deprecated Use 
- * {@link org.apache.hadoop.mapreduce.lib.input.CombineFileInputFormat}
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public abstract class CombineFileInputFormat<K, V>

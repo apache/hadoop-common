@@ -50,9 +50,7 @@ import org.apache.hadoop.util.StringUtils;
  * 
  * <p><code>Counters</code> are bunched into {@link Group}s, each comprising of
  * counters from a particular <code>Enum</code> class. 
- * @deprecated Use {@link org.apache.hadoop.mapreduce.Counters} instead.
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class Counters implements Writable, Iterable<Counters.Group> {

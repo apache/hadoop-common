@@ -23,10 +23,7 @@ import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.mapred.JobConf;
 
 /**
- * @deprecated Use 
- * {@link org.apache.hadoop.mapreduce.lib.db.DBConfiguration} instead 
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class DBConfiguration extends 

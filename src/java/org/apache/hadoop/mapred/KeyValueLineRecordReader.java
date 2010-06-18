@@ -32,11 +32,7 @@ import org.apache.hadoop.io.Text;
  * under the attribute name mapreduce.input.keyvaluelinerecordreader.key.value.separator. The default
  * separator is the tab character ('\t').
  * 
- * @deprecated Use 
- * {@link org.apache.hadoop.mapreduce.lib.input.KeyValueLineRecordReader} 
- * instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class KeyValueLineRecordReader implements RecordReader<Text, Text> {

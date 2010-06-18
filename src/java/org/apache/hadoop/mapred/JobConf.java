@@ -105,9 +105,7 @@ import org.apache.log4j.Level;
  * @see ClusterStatus
  * @see Tool
  * @see DistributedCache
- * @deprecated Use {@link Configuration} instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class JobConf extends Configuration {

@@ -31,10 +31,7 @@ import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.io.LongWritable;
 
 /** A {@link Reducer} that sums long values. 
- * @deprecated Use {@link org.apache.hadoop.mapreduce.lib.reduce.LongSumReducer}
- *    instead.
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class LongSumReducer<K> extends MapReduceBase

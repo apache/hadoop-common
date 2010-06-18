@@ -38,11 +38,7 @@ import org.apache.hadoop.util.Progressable;
  * An {@link OutputFormat} that writes keys, values to 
  * {@link SequenceFile}s in binary(raw) format
  * 
- * @deprecated Use 
- * {@link org.apache.hadoop.mapreduce.lib.output.SequenceFileAsBinaryOutputFormat}
- * instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class SequenceFileAsBinaryOutputFormat 

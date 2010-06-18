@@ -37,9 +37,7 @@ import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.hadoop.util.Progressable;
 
 /**
- * @deprecated Use org.apache.hadoop.mapreduce.lib.db.DBOutputFormat instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class DBOutputFormat<K  extends DBWritable, V> 

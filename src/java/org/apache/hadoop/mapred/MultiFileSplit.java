@@ -42,9 +42,7 @@ import org.apache.hadoop.mapred.lib.CombineFileSplit;
  * reading one record per file.
  * @see FileSplit
  * @see MultiFileInputFormat 
- * @deprecated Use {@link org.apache.hadoop.mapred.lib.CombineFileSplit} instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class MultiFileSplit extends CombineFileSplit {

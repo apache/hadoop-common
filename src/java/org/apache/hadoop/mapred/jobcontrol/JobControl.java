@@ -27,10 +27,7 @@ import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.mapreduce.lib.jobcontrol.ControlledJob;
 
 /**
- *@deprecated Use 
- *{@link org.apache.hadoop.mapreduce.lib.jobcontrol.JobControl} instead
  **/
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class JobControl extends 

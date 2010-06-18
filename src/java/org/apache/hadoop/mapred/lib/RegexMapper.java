@@ -34,9 +34,7 @@ import org.apache.hadoop.mapred.Reporter;
 
 
 /** A {@link Mapper} that extracts text matching a regular expression.
- * @deprecated Use {@link org.apache.hadoop.mapreduce.lib.map.RegexMapper}
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class RegexMapper<K> extends MapReduceBase

@@ -114,10 +114,7 @@ import java.util.*;
  *
  * }
  * </pre>
- * @deprecated Use 
- * {@link org.apache.hadoop.mapreduce.lib.output.MultipleOutputs} instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class MultipleOutputs {

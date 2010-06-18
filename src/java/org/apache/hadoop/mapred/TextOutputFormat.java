@@ -35,10 +35,7 @@ import org.apache.hadoop.io.compress.GzipCodec;
 import org.apache.hadoop.util.*;
 
 /** An {@link OutputFormat} that writes plain text files. 
- * @deprecated Use 
- *   {@link org.apache.hadoop.mapreduce.lib.output.TextOutputFormat} instead.
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class TextOutputFormat<K, V> extends FileOutputFormat<K, V> {

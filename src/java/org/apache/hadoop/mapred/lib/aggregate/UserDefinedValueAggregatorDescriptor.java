@@ -27,12 +27,7 @@ import org.apache.hadoop.mapred.JobConf;
  * It servs two functions: One is to create an object of ValueAggregatorDescriptor from the
  * name of a user defined class that may be dynamically loaded. The other is to
  * deligate inviokations of generateKeyValPairs function to the created object.
- * 
- * @deprecated Use 
- * {@link org.apache.hadoop.mapreduce.lib.aggregate.UserDefinedValueAggregatorDescriptor}
- * instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class UserDefinedValueAggregatorDescriptor extends org.apache.hadoop.

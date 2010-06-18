@@ -36,11 +36,7 @@ import org.apache.hadoop.mapred.SequenceFileInputFormat;
 /**
  * InputFormat reading keys, values from SequenceFiles in binary (raw)
  * format.
- * @deprecated Use 
- * {@link org.apache.hadoop.mapreduce.lib.input.SequenceFileAsBinaryInputFormat}
- * instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class SequenceFileAsBinaryInputFormat

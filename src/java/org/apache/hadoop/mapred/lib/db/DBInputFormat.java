@@ -37,10 +37,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapreduce.Job;
 
 /**
- * @deprecated 
- * Use {@link org.apache.hadoop.mapreduce.lib.db.DBInputFormat} instead.
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class DBInputFormat<T  extends DBWritable>

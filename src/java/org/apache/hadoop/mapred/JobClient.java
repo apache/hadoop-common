@@ -131,9 +131,7 @@ import org.apache.hadoop.util.ToolRunner;
  * @see ClusterStatus
  * @see Tool
  * @see DistributedCache
- * @deprecated Use {@link Job} and {@link Cluster} instead
  */
-@Deprecated
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class JobClient extends CLI {
