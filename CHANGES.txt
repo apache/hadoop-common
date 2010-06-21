@@ -55,6 +55,9 @@ Release 0.21.0 - Unreleased
 
   NEW FEATURES
 
+    MAPREDUCE-1774. Large-scale Automated Framework (Sharad Agarwal, Sreekanth
+    Ramakrishnan, Konstantin Boudnik, at all via cos)
+
     MAPREDUCE-706. Support for FIFO pools in the fair scheduler.
     (Matei Zaharia)
 
