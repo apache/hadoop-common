@@ -703,6 +703,9 @@ Release 0.21.0 - Unreleased
 
   BUG FIXES
 
+    MAPREDUCE-1845. FairScheduler.tasksToPreempt() can return negative number.
+    (Scott Chen via matei)
+
     MAPREDUCE-1791. Remote cluster control functionality needs JavaDocs
     improvement (Konstantin Boudnik)
 
