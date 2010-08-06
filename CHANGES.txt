@@ -1499,3 +1499,6 @@ Release 0.21.0 - 2010-07-01
 
     MAPREDUCE-1876. Fixes TaskAttemptStartedEvent to correctly log event type
     for all task types. (Amar Kamat via amareshwari)
+
+    MAPREDUCE-1926. MapReduce distribution is missing build-utils.xml.
+    (tomwhite)
