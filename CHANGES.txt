@@ -1502,3 +1502,7 @@ Release 0.21.0 - 2010-07-01
 
     MAPREDUCE-1926. MapReduce distribution is missing build-utils.xml.
     (tomwhite)
+
+    MAPREDUCE-1920. Enables completed jobstatus store by default. (Tom White
+    via amareshwari)
+

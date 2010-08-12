@@ -40,4 +40,8 @@
   <value>false</value>
   <description></description>
 </property>
+<property>
+  <name>mapreduce.jobtracker.persist.jobstatus.active</name>
+  <value>false</value>
+</property>
 </configuration>
