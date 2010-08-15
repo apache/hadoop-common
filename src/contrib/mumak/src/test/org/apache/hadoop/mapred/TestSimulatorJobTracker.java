@@ -32,6 +32,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapred.TaskStatus.Phase;
 import org.apache.hadoop.mapred.TaskStatus.State;
 import org.apache.hadoop.mapreduce.protocol.ClientProtocol;
+import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.conf.Configuration;
 
 import org.apache.hadoop.mapred.FakeJobs;
@@ -57,6 +58,7 @@ public class TestSimulatorJobTracker {
     jtConf.set("mapred.system.dir", jtConf.get("hadoop.tmp.dir", "/tmp/hadoop-"
         + jtConf.getUser())
         + "/mapred/system");
+    jtConf.setBoolean(JTConfig.JT_PERSIST_JOBSTATUS, false);
     System.out.println("Created JobConf");
     return jtConf;
   }

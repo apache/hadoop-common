@@ -1506,3 +1506,6 @@ Release 0.21.0 - 2010-08-13
     MAPREDUCE-1920. Enables completed jobstatus store by default. (Tom White
     via amareshwari)
 
+    MAPREDUCE-2012. Some contrib tests fail in branch 0.21 and trunk.
+    (Amareshwari Sriramadasu via tomwhite)
+

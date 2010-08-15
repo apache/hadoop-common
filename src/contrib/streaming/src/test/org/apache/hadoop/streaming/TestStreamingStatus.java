@@ -86,6 +86,7 @@ public class TestStreamingStatus {
     FileSystem fs = null;
     JobConf conf = new JobConf();
     conf.setBoolean(JTConfig.JT_RETIREJOBS, false);
+    conf.setBoolean(JTConfig.JT_PERSIST_JOBSTATUS, false);
     try {
       mr = new MiniMRCluster(1, "file:///", 3, null , null, conf);
 
