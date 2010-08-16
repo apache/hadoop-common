@@ -1513,3 +1513,4 @@ Release 0.21.0 - 2010-08-13
     TaskAttemptFinishedEvent to correctly log event type for all task types.
     (Amar Kamat via amareshwari)
 
+    MAPREDUCE-2014. Remove task-controller from 0.21 branch (tomwhite)
