@@ -43,6 +43,7 @@ public class TestSimulatorEndToEnd {
   public void testMain() throws Exception {
     final Configuration conf = new Configuration();
     conf.set(SimulatorJobSubmissionPolicy.JOB_SUBMISSION_POLICY, policy.name());
+    conf.setBoolean(JTConfig.JT_PERSIST_JOBSTATUS, false);
     final FileSystem lfs = FileSystem.getLocal(conf);
     final Path rootInputDir = new Path(
         System.getProperty("src.test.data", "data")).makeQualified(lfs);
@@ -57,7 +58,6 @@ public class TestSimulatorEndToEnd {
     
     MockSimulatorEngine mockMumak = new MockSimulatorEngine(numJobs, nTrackers);
 
-    mumakConf.setBoolean(JTConfig.JT_PERSIST_JOBSTATUS, false);
     String[] args = { traceFile.toString(), topologyFile.toString() };
     int res = ToolRunner.run(conf, mockMumak, args);
     Assert.assertEquals(res, 0);
