@@ -1514,3 +1514,6 @@ Release 0.21.0 - 2010-08-13
     (Amar Kamat via amareshwari)
 
     MAPREDUCE-2014. Remove task-controller from 0.21 branch (tomwhite)
+
+    MAPREDUCE-1856. Extract a subset of tests for smoke (DOA) validation (cos)
+
