@@ -709,6 +709,9 @@ Release 0.21.0 - 2010-08-13
 
   BUG FIXES
 
+    MAPREDUCE-1280. Update Eclipse plugin to the new eclipse.jdt API.
+    (Alex Kozlov via szetszwo)
+
     MAPREDUCE-1845. FairScheduler.tasksToPreempt() can return negative number.
     (Scott Chen via matei)
 
