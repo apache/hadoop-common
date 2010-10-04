@@ -1524,3 +1524,5 @@ Release 0.21.0 - 2010-08-13
 
     MAPREDUCE-1984. herriot TestCluster fails because exclusion is not there
     (Balaji Rajagopalan via cos)
+
+    MAPREDUCE-2090. Clover build doesn't generate per-test coverage. (cos)
