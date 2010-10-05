@@ -1,5 +1,19 @@
 Hadoop MapReduce Change Log
 
+Release 0.21.1 - Unreleased
+
+  BUG FIXES
+
+    MAPREDUCE-1897. trunk build broken on compile-mapred-test (cos)
+
+    MAPREDUCE-1280. Update Eclipse plugin to the new eclipse.jdt API.
+    (Alex Kozlov via szetszwo)
+
+    MAPREDUCE-1984. herriot TestCluster fails because exclusion is not there
+    (Balaji Rajagopalan via cos)
+
+    MAPREDUCE-2090. Clover build doesn't generate per-test coverage. (cos)
+
 Release 0.21.0 - 2010-08-13
 
   INCOMPATIBLE CHANGES
@@ -708,9 +722,6 @@ Release 0.21.0 - 2010-08-13
     (Torsten Curdt via amareshwari)
 
   BUG FIXES
-
-    MAPREDUCE-1280. Update Eclipse plugin to the new eclipse.jdt API.
-    (Alex Kozlov via szetszwo)
 
     MAPREDUCE-1845. FairScheduler.tasksToPreempt() can return negative number.
     (Scott Chen via matei)
@@ -1520,9 +1531,3 @@ Release 0.21.0 - 2010-08-13
 
     MAPREDUCE-1856. Extract a subset of tests for smoke (DOA) validation (cos)
 
-    MAPREDUCE-1897. trunk build broken on compile-mapred-test (cos)
-
-    MAPREDUCE-1984. herriot TestCluster fails because exclusion is not there
-    (Balaji Rajagopalan via cos)
-
-    MAPREDUCE-2090. Clover build doesn't generate per-test coverage. (cos)
