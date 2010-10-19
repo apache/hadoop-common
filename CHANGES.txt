@@ -7,6 +7,10 @@ Release 0.21.1 - Unreleased
     MAPREDUCE-2040. Forrest Documentation for Dynamic Priority Scheduler.
     (Thomas Sandholm via tomwhite)
 
+  IMPROVEMENTS
+
+    MAPREDUCE-2140. Regenerate fair scheduler design doc PDF. (matei)
+
   BUG FIXES
 
     MAPREDUCE-1897. trunk build broken on compile-mapred-test (cos)
