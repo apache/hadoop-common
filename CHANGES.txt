@@ -25,6 +25,9 @@ Release 0.21.1 - Unreleased
 
     MAPREDUCE-2134. ant binary-system is broken in mapreduce project. (cos)
 
+    MAPREDUCE-2032. Fixes TestJobCleanup to cleanup test directory in
+    tearDown. (Dick King via amareshwari)
+
 Release 0.21.0 - 2010-08-13
 
   INCOMPATIBLE CHANGES
