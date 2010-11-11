@@ -19,6 +19,7 @@ package org.apache.hadoop.mapred;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.util.Progressable;
 
 /**
@@ -28,16 +29,16 @@ import org.apache.hadoop.util.Progressable;
 public class TaskAttemptContextImpl
        extends org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl 
        implements TaskAttemptContext {
-  private Progressable progress;
+  private Reporter reporter;
 
   TaskAttemptContextImpl(JobConf conf, TaskAttemptID taskid) {
     this(conf, taskid, Reporter.NULL);
   }
   
   TaskAttemptContextImpl(JobConf conf, TaskAttemptID taskid,
-                         Progressable progress) {
+                         Reporter reporter) {
     super(conf, taskid);
-    this.progress = progress;
+    this.reporter = reporter;
   }
   
   /**
@@ -50,7 +51,7 @@ public class TaskAttemptContextImpl
   }
   
   public Progressable getProgressible() {
-    return progress;
+    return reporter;
   }
   
   public JobConf getJobConf() {
@@ -58,7 +59,31 @@ public class TaskAttemptContextImpl
   }
 
   @Override
-  public void progress() {
-    progress.progress();
+  public Counter getCounter(Enum<?> counterName) {
+    return reporter.getCounter(counterName);
   }
+
+  @Override
+  public Counter getCounter(String groupName, String counterName) {
+    return reporter.getCounter(groupName, counterName);
+  }
+
+  /**
+   * Report progress.
+   */
+  @Override
+  public void progress() {
+    reporter.progress();
+  }
+
+  /**
+   * Set the current status of the task to the given string.
+   */
+  @Override
+  public void setStatus(String status) {
+    setStatusString(status);
+    reporter.setStatus(status);
+  }
+
+
 }

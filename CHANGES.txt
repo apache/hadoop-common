@@ -28,6 +28,9 @@ Release 0.21.1 - Unreleased
     MAPREDUCE-2032. Fixes TestJobCleanup to cleanup test directory in
     tearDown. (Dick King via amareshwari)
 
+    MAPREDUCE-1905. Fixes Context.setStatus() and progress() apis.
+    (amareshwari)
+
 Release 0.21.0 - 2010-08-13
 
   INCOMPATIBLE CHANGES
