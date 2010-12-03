@@ -176,6 +176,8 @@ Release 0.22.0 - Unreleased
 
     MAPREDUCE-1931. Gridmix forrest documentation . (Ranjit Mathew via vinodkv).
 
+    MAPREDUCE-1878. Add MRUnit documentation. (Aaron Kimball via tomwhite)
+
   OPTIMIZATIONS
 
     MAPREDUCE-1354. Enhancements to JobTracker for better performance and
