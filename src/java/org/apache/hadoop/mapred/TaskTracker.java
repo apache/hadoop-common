@@ -20,6 +20,7 @@
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -66,7 +67,9 @@ import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.http.HttpServer;
+import org.apache.hadoop.io.SecureIOUtils;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.ipc.Server;
@@ -1153,7 +1156,13 @@ public class TaskTracker
     String jobOwner = conf.getUser();
     aclConf.set("user.name", jobOwner);
 
-    FileOutputStream out = new FileOutputStream(aclFile);
+    FileOutputStream out;
+    try {
+      out = SecureIOUtils.createForWrite(aclFile, 0600);
+    } catch (SecureIOUtils.AlreadyExistsException aee) {
+      LOG.warn("Job ACL file already exists at " + aclFile, aee);
+      return;
+    }
     try {
       aclConf.writeXml(out);
     } finally {
@@ -3189,6 +3198,21 @@ public class TaskTracker
     }
   }
 
+  /**
+   * Check that the current UGI is the JVM authorized to report
+   * for this particular job.
+   *
+   * @throws IOException for unauthorized access
+   */
+  private void ensureAuthorizedJVM(JobID jobId) throws IOException {
+    String currentJobId = 
+      UserGroupInformation.getCurrentUser().getUserName();
+    if (!currentJobId.equals(jobId.toString())) {
+      throw new IOException ("JVM with " + currentJobId + 
+          " is not authorized for " + jobId);
+    }
+  }
+
     
   // ///////////////////////////////////////////////////////////////
   // TaskUmbilicalProtocol
@@ -3199,6 +3223,7 @@ public class TaskTracker
    */
   public synchronized JvmTask getTask(JvmContext context) 
   throws IOException {
+    ensureAuthorizedJVM(context.jvmId.getJobId());
     JVMId jvmId = context.jvmId;
     
     // save pid of task JVM sent by child
@@ -3237,6 +3262,7 @@ public class TaskTracker
   public synchronized boolean statusUpdate(TaskAttemptID taskid, 
                                               TaskStatus taskStatus) 
   throws IOException {
+    ensureAuthorizedJVM(taskid.getJobID());
     TaskInProgress tip = tasks.get(taskid);
     if (tip != null) {
       tip.reportProgress(taskStatus);
@@ -3253,6 +3279,16 @@ public class TaskTracker
    * diagnostic info
    */
   public synchronized void reportDiagnosticInfo(TaskAttemptID taskid, String info) throws IOException {
+    ensureAuthorizedJVM(taskid.getJobID());
+    internalReportDiagnosticInfo(taskid, info);
+  }
+
+  /**
+   * Same as reportDiagnosticInfo but does not authorize caller. This is used
+   * internally within MapReduce, whereas reportDiagonsticInfo may be called
+   * via RPC.
+   */
+  synchronized void internalReportDiagnosticInfo(TaskAttemptID taskid, String info) throws IOException {
     TaskInProgress tip = tasks.get(taskid);
     if (tip != null) {
       tip.reportDiagnosticInfo(info);
@@ -3263,6 +3299,7 @@ public class TaskTracker
   
   public synchronized void reportNextRecordRange(TaskAttemptID taskid, 
       SortedRanges.Range range) throws IOException {
+    ensureAuthorizedJVM(taskid.getJobID());
     TaskInProgress tip = tasks.get(taskid);
     if (tip != null) {
       tip.reportNextRecordRange(range);
@@ -3274,6 +3311,7 @@ public class TaskTracker
 
   /** Child checking to see if we're alive.  Normally does nothing.*/
   public synchronized boolean ping(TaskAttemptID taskid) throws IOException {
+    ensureAuthorizedJVM(taskid.getJobID());
     return tasks.get(taskid) != null;
   }
 
@@ -3284,6 +3322,7 @@ public class TaskTracker
   public synchronized void commitPending(TaskAttemptID taskid,
                                          TaskStatus taskStatus) 
   throws IOException {
+    ensureAuthorizedJVM(taskid.getJobID());
     LOG.info("Task " + taskid + " is in commit-pending," +"" +
              " task state:" +taskStatus.getRunState());
     statusUpdate(taskid, taskStatus);
@@ -3302,6 +3341,7 @@ public class TaskTracker
    */
   public synchronized void done(TaskAttemptID taskid) 
   throws IOException {
+    ensureAuthorizedJVM(taskid.getJobID());
     TaskInProgress tip = tasks.get(taskid);
     commitResponses.remove(taskid);
     if (tip != null) {
@@ -3317,6 +3357,7 @@ public class TaskTracker
    */  
   public synchronized void shuffleError(TaskAttemptID taskId, String message) 
   throws IOException { 
+    ensureAuthorizedJVM(taskId.getJobID());
     LOG.fatal("Task: " + taskId + " - Killed due to Shuffle Failure: " + message);
     TaskInProgress tip = runningTasks.get(taskId);
     tip.reportDiagnosticInfo("Shuffle Error: " + message);
@@ -3327,6 +3368,16 @@ public class TaskTracker
    * A child task had a local filesystem error. Kill the task.
    */  
   public synchronized void fsError(TaskAttemptID taskId, String message) 
+  throws IOException {
+    ensureAuthorizedJVM(taskId.getJobID());
+    internalFsError(taskId, message);
+  }
+
+  /**
+   * Version of fsError() that does not do authorization checks, called by
+   * the TaskRunner.
+   */
+  synchronized void internalFsError(TaskAttemptID taskId, String message)
   throws IOException {
     LOG.fatal("Task: " + taskId + " - Killed due to FSError: " + message);
     TaskInProgress tip = runningTasks.get(taskId);
@@ -3339,6 +3390,7 @@ public class TaskTracker
    */  
   public synchronized void fatalError(TaskAttemptID taskId, String msg) 
   throws IOException {
+    ensureAuthorizedJVM(taskId.getJobID());
     LOG.fatal("Task: " + taskId + " - exited : " + msg);
     TaskInProgress tip = runningTasks.get(taskId);
     tip.reportDiagnosticInfo("Error: " + msg);
@@ -3673,17 +3725,19 @@ public class TaskTracker
       
       // true iff IOException was caused by attempt to access input
       boolean isInputException = false;
-      FSDataInputStream mapOutputIn = null;
+      FileInputStream mapOutputIn = null;
       byte[] buffer = new byte[MAX_BYTES_TO_READ];
       long totalRead = 0;
 
       String userName = null;
+      String runAsUserName = null;
       synchronized (tracker.runningJobs) {
         RunningJob rjob = tracker.runningJobs.get(JobID.forName(jobId));
         if (rjob == null) {
           throw new IOException("Unknown job " + jobId + "!!");
         }
         userName = rjob.jobConf.getUser();
+        runAsUserName = tracker.getTaskController().getRunAsUser(rjob.jobConf);
       }
       // Index file
       Path indexFileName =
@@ -3702,17 +3756,19 @@ public class TaskTracker
        * for the given reducer is available.
        */
       IndexRecord info = 
-        tracker.indexCache.getIndexInformation(mapId, reduce, indexFileName);
-      
+        tracker.indexCache.getIndexInformation(mapId, reduce, indexFileName,
+            runAsUserName);
+
       try {
         /**
          * Read the data from the single map-output file and
          * send it to the reducer.
          */
         //open the map-output file
-        mapOutputIn = localfs.open(mapOutputFileName);
+        mapOutputIn = SecureIOUtils.openForRead(
+            new File(mapOutputFileName.toUri().getPath()), runAsUserName, null);
         //seek to the correct offset for the reduce
-        mapOutputIn.seek(info.startOffset);
+        IOUtils.skipFully(mapOutputIn, info.startOffset);
         
         // write header for each map output
         ShuffleHeader header = new ShuffleHeader(mapId, info.partLength,
