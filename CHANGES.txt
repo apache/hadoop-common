@@ -422,6 +422,9 @@ Release 0.22.0 - Unreleased
     classes themselves are already deprecated. This removes an Eclipse error.
     (tomwhite via nigel)
 
+    MAPREDUCE-1085. For tasks, "ulimit -v -1" is being run when user doesn't
+    specify a ulimit (todd)
+
 Release 0.21.1 - Unreleased
 
   NEW FEATURES
