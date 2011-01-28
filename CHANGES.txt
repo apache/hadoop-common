@@ -438,6 +438,8 @@ Release 0.22.0 - Unreleased
 
     MAPREDUCE-2253. Servlets should specify content type (todd)
 
+    MAPREDUCE-2283. Add timeout for Raid Tests (Ramkumar Vadali via schen)
+
 Release 0.21.1 - Unreleased
 
   NEW FEATURES
