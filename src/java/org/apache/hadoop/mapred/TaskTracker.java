@@ -589,6 +589,11 @@ public class TaskTracker
     }
   }
     
+  
+  int getHttpPort() {
+    return httpPort;
+  }
+
   /**
    * Do the real constructor work here.  It's in a separate method
    * so we can call it again and "recycle" the object after calling
@@ -596,10 +601,8 @@ public class TaskTracker
    */
   synchronized void initialize() throws IOException, InterruptedException {
 
-    aclsManager = new ACLsManager(fConf, new JobACLsManager(fConf), null);
     LOG.info("Starting tasktracker with owner as " +
-        getMROwner().getShortUserName() + " and supergroup as " +
-        getSuperGroup());
+        aclsManager.getMROwner().getShortUserName());
 
     localFs = FileSystem.getLocal(fConf);
     // use configured nameserver & interface to get local hostname
@@ -737,18 +740,6 @@ public class TaskTracker
     
     oobHeartbeatOnTaskCompletion = 
       fConf.getBoolean(TT_OUTOFBAND_HEARBEAT, false);
-  }
-
-  UserGroupInformation getMROwner() {
-    return aclsManager.getMROwner();
-  }
-
-  String getSuperGroup() {
-    return aclsManager.getSuperGroup();
-  }
-
-  boolean isMRAdmin(UserGroupInformation ugi) {
-    return aclsManager.isMRAdmin(ugi);
   }
 
   /**
@@ -1355,13 +1346,14 @@ public class TaskTracker
     fConf = conf;
     maxMapSlots = conf.getInt(TT_MAP_SLOTS, 2);
     maxReduceSlots = conf.getInt(TT_REDUCE_SLOTS, 2);
+    aclsManager = new ACLsManager(fConf, new JobACLsManager(fConf), null);
     this.jobTrackAddr = JobTracker.getAddress(conf);
     InetSocketAddress infoSocAddr = NetUtils.createSocketAddr(
         conf.get(TT_HTTP_ADDRESS, "0.0.0.0:50060"));
     String httpBindAddress = infoSocAddr.getHostName();
     int httpPort = infoSocAddr.getPort();
     this.server = new HttpServer("task", httpBindAddress, httpPort,
-        httpPort == 0, conf);
+        httpPort == 0, conf, aclsManager.getAdminsAcl());
     workerThreads = conf.getInt(TT_HTTP_THREADS, 40);
     this.shuffleServerMetrics = new ShuffleServerMetrics(conf);
     server.setThreads(1, workerThreads);

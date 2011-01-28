@@ -440,6 +440,9 @@ Release 0.22.0 - Unreleased
 
     MAPREDUCE-2283. Add timeout for Raid Tests (Ramkumar Vadali via schen)
 
+    MAPREDUCE-1754. Replace mapred.persmissions.supergroup with an 
+    acl : mapreduce.cluster.administrators (Amareshwari Sriramadasu via shv)
+
 Release 0.21.1 - Unreleased
 
   NEW FEATURES
