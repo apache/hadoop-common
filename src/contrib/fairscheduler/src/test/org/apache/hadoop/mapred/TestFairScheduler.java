@@ -42,6 +42,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapred.FakeObjectUtilities.FakeJobHistory;
 import org.apache.hadoop.mapred.UtilsForTests.FakeClock;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapred.JobInProgress.KillInterruptedException;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
 import org.apache.hadoop.mapreduce.split.JobSplit;
 import org.apache.hadoop.net.Node;
@@ -63,6 +64,7 @@ public class TestFairScheduler extends TestCase {
     private int mapCounter = 0;
     private int reduceCounter = 0;
     private final String[][] mapInputLocations; // Array of hosts for each map
+    private boolean initialized;
     
     public FakeJobInProgress(JobConf jobConf,
         FakeTaskTrackerManager taskTrackerManager, 
@@ -79,7 +81,7 @@ public class TestFairScheduler extends TestCase {
       this.nonRunningReduces = new LinkedList<TaskInProgress>();   
       this.runningReduces = new LinkedHashSet<TaskInProgress>();
       this.jobHistory = new FakeJobHistory();
-      initTasks();
+      this.initialized = false;
     }
     
     @Override
@@ -130,6 +132,12 @@ public class TestFairScheduler extends TestCase {
         reduces[i] = new FakeTaskInProgress(getJobID(), i,
             getJobConf(), this);
       }
+
+      initialized = true;
+    }
+
+    public boolean isInitialized() {
+      return initialized;
     }
 
     @Override
@@ -412,7 +420,12 @@ public class TestFairScheduler extends TestCase {
     }
 
     public void initJob (JobInProgress job) {
-      // do nothing
+      try {
+        job.initTasks();
+      } catch (KillInterruptedException e) {
+      } catch (IOException e) {
+      }
+      job.status.setRunState(JobStatus.RUNNING);
     }
     
     public void failJob (JobInProgress job) {
@@ -525,18 +538,23 @@ public class TestFairScheduler extends TestCase {
     }
   }
   
+  private JobInProgress submitJobNotInitialized(int state, int maps, int reduces)
+      throws IOException {
+    return submitJob(state, maps, reduces, null, null, false);
+  }
+
   private JobInProgress submitJob(int state, int maps, int reduces)
       throws IOException {
-    return submitJob(state, maps, reduces, null, null);
+    return submitJob(state, maps, reduces, null, null, true);
   }
   
   private JobInProgress submitJob(int state, int maps, int reduces, String pool)
       throws IOException {
-    return submitJob(state, maps, reduces, pool, null);
+    return submitJob(state, maps, reduces, pool, null, true);
   }
   
   private JobInProgress submitJob(int state, int maps, int reduces, String pool,
-      String[][] mapInputLocations) throws IOException {
+      String[][] mapInputLocations, boolean initializeJob) throws IOException {
     JobConf jobConf = new JobConf(conf);
     jobConf.setNumMapTasks(maps);
     jobConf.setNumReduceTasks(reduces);
@@ -544,6 +562,9 @@ public class TestFairScheduler extends TestCase {
       jobConf.set(POOL_PROPERTY, pool);
     JobInProgress job = new FakeJobInProgress(jobConf, taskTrackerManager,
         mapInputLocations, UtilsForTests.getJobTracker());
+    if (initializeJob) {
+      taskTrackerManager.initJob(job);
+    }
     job.getStatus().setRunState(state);
     taskTrackerManager.submitJob(job);
     job.startTime = clock.time;
@@ -641,7 +662,6 @@ public class TestFairScheduler extends TestCase {
   }
 
   public void testNonRunningJobsAreIgnored() throws IOException {
-    submitJobs(1, JobStatus.PREP, 10, 10);
     submitJobs(1, JobStatus.SUCCEEDED, 10, 10);
     submitJobs(1, JobStatus.FAILED, 10, 10);
     submitJobs(1, JobStatus.KILLED, 10, 10);
@@ -1345,18 +1365,24 @@ public class TestFairScheduler extends TestCase {
     
     // Submit jobs, advancing time in-between to make sure that they are
     // all submitted at distinct times.
-    JobInProgress job1 = submitJob(JobStatus.RUNNING, 10, 10);
+    JobInProgress job1 = submitJobNotInitialized(JobStatus.PREP, 10, 10);
     JobInfo info1 = scheduler.infos.get(job1);
     advanceTime(10);
-    JobInProgress job2 = submitJob(JobStatus.RUNNING, 10, 10);
+    JobInProgress job2 = submitJobNotInitialized(JobStatus.PREP, 10, 10);
     JobInfo info2 = scheduler.infos.get(job2);
     advanceTime(10);
-    JobInProgress job3 = submitJob(JobStatus.RUNNING, 10, 10);
+    JobInProgress job3 = submitJobNotInitialized(JobStatus.PREP, 10, 10);
     JobInfo info3 = scheduler.infos.get(job3);
     advanceTime(10);
-    JobInProgress job4 = submitJob(JobStatus.RUNNING, 10, 10);
+    JobInProgress job4 = submitJobNotInitialized(JobStatus.PREP, 10, 10);
     JobInfo info4 = scheduler.infos.get(job4);
-    
+
+    // Only two of the jobs should be initialized.
+    assertTrue(((FakeJobInProgress)job1).isInitialized());
+    assertTrue(((FakeJobInProgress)job2).isInitialized());
+    assertFalse(((FakeJobInProgress)job3).isInitialized());
+    assertFalse(((FakeJobInProgress)job4).isInitialized());
+
     // Check scheduler variables
     assertEquals(2.0,  info1.mapSchedulable.getFairShare());
     assertEquals(2.0,  info1.reduceSchedulable.getFairShare());
@@ -2253,7 +2279,7 @@ public class TestFairScheduler extends TestCase {
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 1, 0, "pool1",
         new String[][] {
           {"rack2.node2"}
-        });
+        }, true);
     JobInfo info1 = scheduler.infos.get(job1);
     
     // Advance time before submitting another job j2, to make j1 be ahead
@@ -2301,7 +2327,7 @@ public class TestFairScheduler extends TestCase {
     JobInProgress job1 = submitJob(JobStatus.RUNNING, 4, 0, "pool1",
         new String[][] {
           {"rack2.node2"}, {"rack2.node2"}, {"rack2.node2"}, {"rack2.node2"}
-        });
+        }, true);
     JobInfo info1 = scheduler.infos.get(job1);
     
     // Advance time before submitting another job j2, to make j1 be ahead
@@ -2384,7 +2410,7 @@ public class TestFairScheduler extends TestCase {
         new String[][] {
           {"rack2.node2"}, {"rack2.node2"}, {"rack2.node2"}, {"rack2.node2"},
           {"rack2.node2"}, {"rack2.node2"}, {"rack2.node2"}, {"rack2.node2"},
-        });
+        }, true);
     JobInfo info1 = scheduler.infos.get(job1);
     advanceTime(100);
     
@@ -2672,6 +2698,7 @@ public class TestFairScheduler extends TestCase {
     jobConf.set(EXPLICIT_POOL_PROPERTY, "poolA");
     JobInProgress job3 = new FakeJobInProgress(jobConf, taskTrackerManager,
         null, UtilsForTests.getJobTracker());
+    job3.initTasks();
     job3.getStatus().setRunState(JobStatus.RUNNING);
     taskTrackerManager.submitJob(job3);
 
@@ -2687,6 +2714,7 @@ public class TestFairScheduler extends TestCase {
     jobConf2.set(POOL_PROPERTY, "poolA");
     JobInProgress job4 = new FakeJobInProgress(jobConf2, taskTrackerManager,
         null, UtilsForTests.getJobTracker());
+    job4.initTasks();
     job4.getStatus().setRunState(JobStatus.RUNNING);
     taskTrackerManager.submitJob(job4);
 
@@ -2708,10 +2736,10 @@ public class TestFairScheduler extends TestCase {
   protected void checkAssignment(String taskTrackerName,
       String... expectedTasks) throws IOException {
     List<Task> tasks = scheduler.assignTasks(tracker(taskTrackerName));
+    assertNotNull(tasks);
     System.out.println("Assigned tasks:");
     for (int i = 0; i < tasks.size(); i++)
       System.out.println("- " + tasks.get(i));
-    assertNotNull(tasks);
     assertEquals(expectedTasks.length, tasks.size());
     for (int i = 0; i < tasks.size(); i++)
       assertEquals("assignment " + i, expectedTasks[i], tasks.get(i).toString());

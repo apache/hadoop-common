@@ -182,6 +182,8 @@ Release 0.22.0 - Unreleased
 
     MAPREDUCE-2260. Remove auto-generated native build files. (rvs via eli)
 
+    MAPREDUCE-1783. Delay task Initialization till a job can be run
+
   OPTIMIZATIONS
 
     MAPREDUCE-1354. Enhancements to JobTracker for better performance and
