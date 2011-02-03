@@ -185,12 +185,16 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-1783. Delay task Initialization till a job can be run
 
   OPTIMIZATIONS
-
+    
     MAPREDUCE-1354. Enhancements to JobTracker for better performance and
     scalability. (Arun C. Murthy & Richard King via acmurthy) 
 
     MAPREDUCE-1829. JobInProgress.findSpeculativeTask should use min() to
     find the candidate instead of sort(). (Scott Chen via vinodkv)
+
+    MAPREDUCE-2026. Make JobTracker.getJobCounters() and
+    JobInProgress.getCounters() aquire locks in a shorter time period.
+    (Joydeep Sen Sarma via schen)
 
   BUG FIXES
 
