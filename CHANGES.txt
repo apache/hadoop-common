@@ -457,6 +457,9 @@ Release 0.22.0 - Unreleased
 
     MAPREDUCE-2281. MR part of HADOOP-6642. (Chris Douglas, Po Cheung via shv)
 
+    MAPREDUCE-2200. TestUmbilicalProtocolWithJobToken is failing without Krb
+    environment: needs to be conditional. (Konstantin Boudnik via todd)
+
 Release 0.21.1 - Unreleased
 
   NEW FEATURES
