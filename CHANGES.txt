@@ -460,6 +460,9 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-2200. TestUmbilicalProtocolWithJobToken is failing without Krb
     environment: needs to be conditional. (Konstantin Boudnik via todd)
 
+    MAPREDUCE-2077. Resolve name clash in the deprecated 
+    o.a.h.util.MemoryCalculatorPlugin (Luke Lu via shv)
+
 Release 0.21.1 - Unreleased
 
   NEW FEATURES
