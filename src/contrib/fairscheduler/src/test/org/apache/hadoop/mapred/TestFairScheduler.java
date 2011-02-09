@@ -46,6 +46,7 @@ import org.apache.hadoop.mapred.JobInProgress.KillInterruptedException;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
 import org.apache.hadoop.mapreduce.split.JobSplit;
 import org.apache.hadoop.net.Node;
+import org.mortbay.log.Log;
 
 public class TestFairScheduler extends TestCase {
   final static String TEST_DIR = new File(System.getProperty("test.build.data",
@@ -136,7 +137,8 @@ public class TestFairScheduler extends TestCase {
       initialized = true;
     }
 
-    public boolean isInitialized() {
+    @Override
+    public boolean inited() {
       return initialized;
     }
 
@@ -1378,10 +1380,10 @@ public class TestFairScheduler extends TestCase {
     JobInfo info4 = scheduler.infos.get(job4);
 
     // Only two of the jobs should be initialized.
-    assertTrue(((FakeJobInProgress)job1).isInitialized());
-    assertTrue(((FakeJobInProgress)job2).isInitialized());
-    assertFalse(((FakeJobInProgress)job3).isInitialized());
-    assertFalse(((FakeJobInProgress)job4).isInitialized());
+    assertTrue(((FakeJobInProgress)job1).inited());
+    assertTrue(((FakeJobInProgress)job2).inited());
+    assertFalse(((FakeJobInProgress)job3).inited());
+    assertFalse(((FakeJobInProgress)job4).inited());
 
     // Check scheduler variables
     assertEquals(2.0,  info1.mapSchedulable.getFairShare());
