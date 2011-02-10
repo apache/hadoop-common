@@ -483,6 +483,8 @@ Release 0.22.0 - Unreleased
     (todd)
 
     MAPREDUCE-2311. Fix TestFairScheduler failure (schen)
+    
+    MAPREDUCE-2315. javadoc is failing in nightly build (todd)
 
 Release 0.21.1 - Unreleased
 
