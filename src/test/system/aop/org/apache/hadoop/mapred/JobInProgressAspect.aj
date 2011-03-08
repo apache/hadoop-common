@@ -64,7 +64,7 @@ privileged aspect JobInProgressAspect {
       Path jobHistoryDirectory = this.jobHistory.getJobHistoryLocation();
       Path historypath =
           JobHistory.getJobHistoryFile(
-              jobHistoryDirectory, this.getJobID(), this.profile.getUser());
+              jobHistoryDirectory, this.getJobID());
       historyLoc = historypath.toString();
     }
     return historyLoc;
