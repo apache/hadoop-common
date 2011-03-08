@@ -68,6 +68,8 @@ import org.apache.hadoop.mapreduce.jobhistory.TaskAttemptUnsuccessfulCompletionE
 import org.apache.hadoop.mapreduce.jobhistory.TaskFailedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskFinishedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskStartedEvent;
+import org.apache.hadoop.mapreduce.lib.chain.ChainMapper;
+import org.apache.hadoop.mapreduce.lib.chain.ChainReducer;
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.mapreduce.security.token.DelegationTokenRenewal;
@@ -691,12 +693,7 @@ public class JobInProgress {
         // ignoring overhead due to UberTask and statics as negligible here:
         && (Math.max(memoryPerMap, memoryPerReduce) <= sysMemSizeForUberSlot
             || sysMemSizeForUberSlot == JobConf.DISABLED_MEMORY_LIMIT)
-        && (conf.get(MRJobConfig.MAP_CLASS_ATTR) == null ||
-            conf.get(MRJobConfig.MAP_CLASS_ATTR).lastIndexOf("ChainMapper")
-            == -1)
-        && (conf.get(MRJobConfig.REDUCE_CLASS_ATTR) == null ||
-            conf.get(MRJobConfig.REDUCE_CLASS_ATTR).lastIndexOf("ChainReducer")
-            == -1);
+        && !isChainJob();
 
     if (isUber()) {
       // save internal details for UI and abort-cleanup
@@ -778,6 +775,34 @@ public class JobInProgress {
                + "(running as a ReduceTask) containing " + uberMapTasks
                + " sub-MapTasks and " + uberReduceTasks + " sub-ReduceTasks.");
     }
+  }
+
+  boolean isChainJob() {
+    boolean isChainJob = false;
+
+    try {
+      String mapClassName = conf.get(MRJobConfig.MAP_CLASS_ATTR);
+      if (mapClassName != null) {
+        Class<?> mapClass = Class.forName(mapClassName);
+        if (ChainMapper.class.isAssignableFrom(mapClass))
+          isChainJob = true;
+      }
+    } catch (ClassNotFoundException cnfe) {
+      // don't care; assume it's not derived from ChainMapper
+    }
+
+    try {
+      String reduceClassName = conf.get(MRJobConfig.REDUCE_CLASS_ATTR);
+      if (reduceClassName != null) {
+        Class<?> reduceClass = Class.forName(reduceClassName);
+        if (ChainReducer.class.isAssignableFrom(reduceClass))
+          isChainJob = true;
+      }
+    } catch (ClassNotFoundException cnfe) {
+      // don't care; assume it's not derived from ChainReducer
+    }
+
+    return isChainJob;
   }
 
   // Returns true if the job is empty (0 maps, 0 reduces and no setup-cleanup)

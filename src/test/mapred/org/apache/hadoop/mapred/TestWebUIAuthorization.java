@@ -211,19 +211,16 @@ public class TestWebUIAuthorization extends ClusterMapReduceTestCase {
         cluster.getJobTrackerRunner().getJobTracker().getJob(jobId);
     TaskReport[] taskReports = null;
 
-    TaskID tipId = null;
-    do { // make sure that the map task is running
+    do { // make sure that the map task (or ubertask) is running
       Thread.sleep(200);
       taskReports = jip.isUber()
           ? client.getReduceTaskReports(jobId)
           : client.getMapTaskReports(jobId);
     } while (taskReports.length == 0);
 
-    for (TaskReport r : taskReports) {
-      tipId = r.getTaskID();
-      break;// because we have only one map (or one reduce if uberized)
-    }
-    return tipId;
+    assertEquals("unexpected number of task reports", 1, taskReports.length);
+
+    return taskReports[0].getTaskID();
   }
 
   /**
