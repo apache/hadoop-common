@@ -115,27 +115,47 @@ public class TestUserResolve {
         RoundRobinUserResolver.buildEmptyUsersErrorMsg(userRsrc);
     validateBadUsersFile(rslv, userRsrc, expectedErrorMsg);
 
-    // Create user resource file with valid content
+    // Create user resource file with valid content(older users list file)
     writeUserList(usersFilePath,
-        "user0,groupA,groupB,groupC\nuser1,groupA,groupC\n"
-        + "user2,groupB\nuser3,groupA,groupB,groupC\n");
+        "user0,groupA,groupB,groupC\nuser1,groupA,groupC");
+    validateValidUsersFile(rslv, userRsrc);
 
-    // Validate RoundRobinUserResolver for the case of
-    // user resource file with valid content.
-    assertTrue(rslv.setTargetUsers(new URI(usersFilePath.toString()), conf));
+    // Create user resource file with valid content
+    writeUserList(usersFilePath, "user0,groupA,groupB\nuser1,");
+    validateValidUsersFile(rslv, userRsrc);
+
+    // Create user resource file with valid content
+    writeUserList(usersFilePath, "user0\nuser1");
+    validateValidUsersFile(rslv, userRsrc);
+  }
+
+  // Validate RoundRobinUserResolver for the case of
+  // user resource file with valid content.
+  private void validateValidUsersFile(UserResolver rslv, URI userRsrc)
+      throws IOException {
+    assertTrue(rslv.setTargetUsers(userRsrc, conf));
     UserGroupInformation ugi1 = UserGroupInformation.createRemoteUser("hfre0");
     assertEquals("user0", rslv.getTargetUgi(ugi1).getUserName());
     assertEquals("user1", 
       rslv.getTargetUgi(UserGroupInformation.createRemoteUser("hfre1"))
           .getUserName());
-    assertEquals("user2", 
+    assertEquals("user0",
       rslv.getTargetUgi(UserGroupInformation.createRemoteUser("hfre2"))
           .getUserName());
     assertEquals("user0", rslv.getTargetUgi(ugi1).getUserName());
-    assertEquals("user3", 
+    assertEquals("user1",
       rslv.getTargetUgi(UserGroupInformation.createRemoteUser("hfre3"))
           .getUserName());
-    assertEquals("user0", rslv.getTargetUgi(ugi1).getUserName());
+    // Verify if same user comes again, its mapped user name should be
+    // correct even though UGI is constructed again.
+    assertEquals("user0", rslv.getTargetUgi(
+        UserGroupInformation.createRemoteUser("hfre0")).getUserName());
+    assertEquals("user0",
+        rslv.getTargetUgi(UserGroupInformation.createRemoteUser("hfre5"))
+            .getUserName());
+    assertEquals("user0",
+        rslv.getTargetUgi(UserGroupInformation.createRemoteUser("hfre0"))
+            .getUserName());
   }
 
   @Test
