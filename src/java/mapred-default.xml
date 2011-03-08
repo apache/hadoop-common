@@ -557,7 +557,7 @@
 
 <property>
   <name>mapreduce.job.ubertask.enable</name>
-  <value>true</value>
+  <value>false</value>
   <description>Whether to enable the small-jobs "ubertask" optimization,
   which runs "sufficiently small" jobs sequentially within a single JVM.
   "Small" is defined by the following maxmaps, maxreduces, and maxbytes
