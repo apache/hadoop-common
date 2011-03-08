@@ -3941,7 +3941,7 @@ public class TaskTracker
     }
 
     reservedPhysicalMemoryOnTT =
-      fConf.getLong(TTConfig.TT_RESERVED_PHYSCIALMEMORY_MB,
+      fConf.getLong(TTConfig.TT_RESERVED_PHYSICALMEMORY_MB,
                     JobConf.DISABLED_MEMORY_LIMIT);
     reservedPhysicalMemoryOnTT =
       reservedPhysicalMemoryOnTT == JobConf.DISABLED_MEMORY_LIMIT ?
