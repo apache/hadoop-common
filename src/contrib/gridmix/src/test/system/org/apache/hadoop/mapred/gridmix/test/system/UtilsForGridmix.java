@@ -28,7 +28,7 @@ import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.mapred.gridmix.Gridmix;
 import org.apache.hadoop.conf.Configuration;
 import java.util.Date;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.net.URI;
@@ -48,6 +48,9 @@ import org.apache.hadoop.test.system.ProxyUserDefinitions.GroupsAndHost;
  */
 public class UtilsForGridmix {
   private static final Log LOG = LogFactory.getLog(UtilsForGridmix.class);
+  private static final Path DEFAULT_TRACES_PATH =
+    new Path(System.getProperty("user.dir") +
+    "/src/test/system/resources/");
 
   /**
    * cleanup the folder or file.
@@ -319,5 +322,140 @@ public class UtilsForGridmix {
         pud.addProxyUser(userName, definitions);
      }
      return pud;
+  }
+
+  /**
+   *  Gives the list of paths for MR traces against different time 
+   *  intervals.It fetches only the paths which followed the below 
+   *  file convention.
+   *    Syntax : &lt;FileName&gt;_&lt;TimeIntervals&gt;.json.gz
+   *  There is a restriction in a  file and user has to  
+   *  follow  the below convention for time interval.
+   *    Syntax: &lt;numeric&gt;[m|h|d] 
+   *    e.g : for 10 minutes trace should specify 10m, 
+   *    same way for 1 hour traces should specify 1h, 
+   *    for 1 day traces should specify 1d.
+   *
+   * @param conf - cluster configuration.
+   * @return - list of MR paths as key/value pair based on time interval.
+   * @throws IOException - if an I/O error occurs.
+   */
+  public static Map<String, String> getMRTraces(Configuration conf) 
+     throws IOException {
+    return getMRTraces(conf, DEFAULT_TRACES_PATH);
+  }
+  
+  /**
+   *  It gives the list of paths for MR traces against different time 
+   *  intervals. It fetches only the paths which followed the below 
+   *  file convention.
+   *    Syntax : &lt;FileNames&gt;_&lt;TimeInterval&gt;.json.gz
+   *  There is a restriction in a file and user has to follow the 
+   *  below convention for time interval. 
+   *    Syntax: &lt;numeric&gt;[m|h|d] 
+   *    e.g : for 10 minutes trace should specify 10m,
+   *    same way for 1 hour traces should specify 1h, 
+   *    for 1 day  traces should specify 1d.
+   *
+   * @param conf - cluster configuration object.
+   * @param tracesPath - MR traces path.
+   * @return - list of MR paths as key/value pair based on time interval.
+   * @throws IOException - If an I/O error occurs.
+   */
+  public static Map<String,String> getMRTraces(Configuration conf, 
+      Path tracesPath) throws IOException {
+     Map <String, String> jobTraces = new HashMap <String, String>();
+     final FileSystem fs = FileSystem.getLocal(conf);
+     final FileStatus fstat[] = fs.listStatus(tracesPath);
+     for (FileStatus fst : fstat) {
+        final String fileName = fst.getPath().getName();
+        if (fileName.endsWith("m.json.gz") || 
+            fileName.endsWith("h.json.gz") || 
+            fileName.endsWith("d.json.gz")) {
+           jobTraces.put(fileName.substring(fileName.indexOf("_") + 1, 
+              fileName.indexOf(".json.gz")), fst.getPath().toString());
+        }
+     }
+     if (jobTraces.size() == 0) {
+        LOG.error("No traces found in " + tracesPath.toString() + " path.");
+        throw new IOException("No traces found in " + 
+            tracesPath.toString() + " path.");
+     }
+     return jobTraces;
+  }
+  
+  /**
+   * It list the all the MR traces path irrespective of time.
+   * @param conf - cluster configuration.
+   * @param tracesPath - MR traces path
+   * @return - MR paths as a list.
+   * @throws IOException - if an I/O error occurs.
+   */
+  public static List<String> listMRTraces(Configuration conf, 
+      Path tracesPath) throws IOException {
+     List<String> jobTraces = new ArrayList<String>();
+     final FileSystem fs = FileSystem.getLocal(conf);
+     final FileStatus fstat[] = fs.listStatus(tracesPath);
+     for (FileStatus fst : fstat) {
+        jobTraces.add(fst.getPath().toString());
+     }
+     if (jobTraces.size() == 0) {
+        LOG.error("No traces found in " + tracesPath.toString() + " path.");
+        throw new IOException("No traces found in " + 
+            tracesPath.toString() + " path.");
+     }
+     return jobTraces;
+  }
+  
+  /**
+   * It list the all the MR traces path irrespective of time.
+   * @param conf - cluster configuration.
+   * @param tracesPath - MR traces path
+   * @return - MR paths as a list.
+   * @throws IOException - if an I/O error occurs.
+   */
+  public static List<String> listMRTraces(Configuration conf) 
+      throws IOException {
+     return listMRTraces(conf, DEFAULT_TRACES_PATH);
+  }
+
+  /**
+   * Gives the list of MR traces for given time interval.
+   * The time interval should be following convention.
+   *   Syntax : &lt;numeric&gt;[m|h|d]
+   *   e.g : 10m or 1h or 2d etc.
+   * @param conf - cluster configuration
+   * @param timeInterval - trace time interval.
+   * @param tracesPath - MR traces Path.
+   * @return - MR paths as a list for a given time interval.
+   * @throws IOException - If an I/O error occurs.
+   */
+  public static List<String> listMRTracesByTime(Configuration conf, 
+      String timeInterval, Path tracesPath) throws IOException {
+     List<String> jobTraces = new ArrayList<String>();
+     final FileSystem fs = FileSystem.getLocal(conf);
+     final FileStatus fstat[] = fs.listStatus(tracesPath);
+     for (FileStatus fst : fstat) {
+        final String fileName = fst.getPath().getName();
+        if (fileName.indexOf(timeInterval) >= 0) {
+           jobTraces.add(fst.getPath().toString());
+        }
+     }
+     return jobTraces;
+  }
+  
+  /**
+   * Gives the list of MR traces for given time interval.
+   * The time interval should be following convention.
+   *   Syntax : &lt;numeric&gt;[m|h|d]
+   *   e.g : 10m or 1h or 2d etc.
+   * @param conf - cluster configuration
+   * @param timeInterval - trace time interval.
+   * @return - MR paths as a list for a given time interval.
+   * @throws IOException - If an I/O error occurs.
+   */
+  public static List<String> listMRTracesByTime(Configuration conf, 
+      String timeInterval) throws IOException {
+     return listMRTracesByTime(conf, timeInterval, DEFAULT_TRACES_PATH);
   }
 }
