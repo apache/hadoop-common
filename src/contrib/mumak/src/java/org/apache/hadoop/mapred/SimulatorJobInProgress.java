@@ -130,8 +130,7 @@ public class SimulatorJobInProgress extends JobInProgress {
     createMapTasks(jobFile, taskSplitMetaInfo);
 
     if (numMapTasks > 0) {
-      nonRunningMapCache = createCache(taskSplitMetaInfo,
-          maxLevel);
+      nonRunningMapCache = createCache(taskSplitMetaInfo, maxLevel);
       if (loggingEnabled) {
         LOG.debug("initTasks:numMaps=" + numMapTasks
             + " Size of nonRunningMapCache=" + nonRunningMapCache.size()

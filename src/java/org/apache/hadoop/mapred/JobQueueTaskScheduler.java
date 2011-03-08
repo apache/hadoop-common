@@ -185,8 +185,8 @@ class JobQueueTaskScheduler extends TaskScheduler {
             // Try all jobs again for the next Map task 
             break;
           }
-          
-          // Try to schedule a node-local or rack-local Map task
+
+          // Try to schedule a non-local Map task
           t = 
             job.obtainNewNonLocalMapTask(taskTrackerStatus, numTaskTrackers,
                                    taskTrackerManager.getNumberOfUniqueHosts());

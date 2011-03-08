@@ -365,10 +365,16 @@
               "<th>Killed</th>" +
               "<th><a href=\"jobfailures.jsp?jobid=" + jobId + 
               "\">Failed/Killed<br>Task Attempts</a></th></tr>\n");
-    printTaskSummary(out, jobId, "map", status.mapProgress(), 
-                     job.getTasks(TaskType.MAP));
-    printTaskSummary(out, jobId, "reduce", status.reduceProgress(),
-                     job.getTasks(TaskType.REDUCE));
+    if (job.getUberMode()) {
+      /* placeholder until true task- and attempt-level uber info available */
+      printTaskSummary(out, jobId, "uber", status.reduceProgress(),
+                       job.getTasks(TaskType.REDUCE));
+    } else {
+      printTaskSummary(out, jobId, "map", status.mapProgress(), 
+                       job.getTasks(TaskType.MAP));
+      printTaskSummary(out, jobId, "reduce", status.reduceProgress(),
+                       job.getTasks(TaskType.REDUCE));
+    }
     out.print("</table>\n");
     
     %>
@@ -421,6 +427,7 @@
     %>
     </table>
 
+<%if (job.getTasks(TaskType.MAP).length > 0) { %>
 <hr>Map Completion Graph - 
 <%
 if("off".equals(request.getParameter("map.graph"))) {
@@ -442,10 +449,14 @@ if("off".equals(session.getAttribute("map.graph"))) { %>
        width="<%=TaskGraphServlet.width + 2 * TaskGraphServlet.xmargin%>" 
        height="<%=TaskGraphServlet.height + 3 * TaskGraphServlet.ymargin%>"
        style="width:100%" type="image/svg+xml" pluginspage="http://www.adobe.com/svg/viewer/install/" />
-<%}%>
+<%} }%>
 
-<%if(job.getTasks(TaskType.REDUCE).length > 0) { %>
+<%if (job.getTasks(TaskType.REDUCE).length > 0) { %>
+<%if (job.getUberMode()) { %>
+<hr>UberTask Completion Graph -
+<%} else { %>
 <hr>Reduce Completion Graph -
+<%}%>
 <%if("off".equals(session.getAttribute("reduce.graph"))) { %>
 <a href="/jobdetails.jsp?jobid=<%=jobId%>&refresh=<%=refresh%>&reduce.graph=on" > open </a>
 <%} else { %> 

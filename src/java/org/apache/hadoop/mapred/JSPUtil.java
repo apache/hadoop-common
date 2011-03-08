@@ -57,6 +57,10 @@ class JSPUtil {
 
   private static final Log LOG = LogFactory.getLog(JSPUtil.class);
 
+  private static final String RED    = "#ffddcc";  // pale red/pink
+  private static final String YELLOW = "#ffffcc";  // pale yellow
+  private static final String GREEN  = "#ddffcc";  // pale green
+
   /**
    * Wraps the {@link JobInProgress} object and contains boolean for
    * 'job view access' allowed or not.
@@ -254,21 +258,32 @@ class JSPUtil {
   /**
    * Method used to generate the Job table for Job pages.
    * 
-   * @param label display heading to be used in the job table.
+   * @param label display heading to be used in the job table. [GRR FIXME: not used for heading! jobtracker.jsp handles separately--would be better to pass in enum]
    * @param jobs vector of jobs to be displayed in table.
    * @param refresh refresh interval to be used in jobdetails page.
    * @param rowId beginning row id to be used in the table.
    * @return
    * @throws IOException
    */
-  public static String generateJobTable(String label, Collection<JobInProgress> jobs
-      , int refresh, int rowId, JobConf conf) throws IOException {
+  public static String generateJobTable(String label,
+      Collection<JobInProgress> jobs, int refresh, int rowId, JobConf conf)
+      throws IOException {
 
-    boolean isModifiable = label.equals("Running") &&
-        privateActionsAllowed(conf);
+    boolean isRunning = label.equals("Running");
+    boolean isModifiable = isRunning && privateActionsAllowed(conf);
     StringBuilder sb = new StringBuilder();
-    
-    sb.append("<table border=\"1\" cellpadding=\"5\" cellspacing=\"0\">\n");
+    String bgColor;
+
+    if (isRunning) {
+      bgColor = YELLOW;
+    } else if (label.equals("Failed")) {
+      bgColor = RED;
+    } else /* if (label.equals("Completed")) */ {
+      bgColor = GREEN;
+    }
+
+    sb.append("<table border=\"1\" cellpadding=\"5\" cellspacing=\"0\" "
+              + "bgcolor=\"" + bgColor + "\">\n");
 
     if (jobs.size() > 0) {
       if (isModifiable) {
@@ -323,7 +338,7 @@ class JSPUtil {
         String name = HtmlQuoting.quoteHtmlChars(profile.getJobName());
         String jobpri = job.getPriority().toString();
         String schedulingInfo =
-          HtmlQuoting.quoteHtmlChars(job.getStatus().getSchedulingInfo());
+          HtmlQuoting.quoteHtmlChars(status.getSchedulingInfo());
 
         if (isModifiable) {
           sb.append("<tr><td><input TYPE=\"checkbox\" " +
@@ -391,7 +406,19 @@ class JSPUtil {
       sb.append("</tr>\n");
       for (int i = 0; i < 100 && iterator.hasNext(); i++) {
         JobStatus status = iterator.next();
-        sb.append("<tr>");
+        String runState = JobStatus.getJobRunState(status.getRunState());
+        String bgColor = null;
+
+        if (runState.equals("SUCCEEDED")) {  // most common state
+          bgColor = GREEN;
+        } else if (runState.equals("FAILED") || runState.equals("KILLED")) {
+          bgColor = RED;
+        } // else leave white (shouldn't exist:  UNKNOWN, RUNNING, PREP)
+        if (bgColor != null) {
+          sb.append("<tr bgcolor=\"" + bgColor + "\">\n");
+        } else {
+          sb.append("<tr>");
+        }
         sb.append(
             "<td id=\"job_" + rowId + "\">" + 
               "<a href=\"jobdetailshistory.jsp?logFile=" + 
@@ -403,7 +430,7 @@ class JSPUtil {
               status.getJobPriority().toString() + "</td>" +
             "<td id=\"user_" + rowId + "\">" + HtmlQuoting.quoteHtmlChars(status.getUsername()) + "</td>" +
             "<td id=\"name_" + rowId + "\">" + HtmlQuoting.quoteHtmlChars(status.getJobName()) + "</td>" +
-            "<td>" + JobStatus.getJobRunState(status.getRunState()) + "</td>" +
+            "<td>" + runState + "</td>" +
             "<td>" + new Date(status.getStartTime()) + "</td>" +
             "<td>" + new Date(status.getFinishTime()) + "</td>" +
             
@@ -503,7 +530,7 @@ class JSPUtil {
           jobHistoryCache.entrySet().iterator();
         String removeJobId = it.next().getKey();
         it.remove();
-        LOG.info("Job History file removed form cache "+removeJobId);
+        LOG.info("Job History file removed from cache "+removeJobId);
       }
     }
 
@@ -529,8 +556,7 @@ class JSPUtil {
       HttpServletResponse response, final JobTracker jobTracker,
       final FileSystem fs, final Path logFile) throws IOException,
       InterruptedException, ServletException {
-    String jobid =
-        JobHistory.getJobIDFromHistoryFilePath(logFile).toString();
+    String jobid = JobHistory.getJobIDFromHistoryFilePath(logFile).toString();
     String user = request.getRemoteUser();
 
     JobInfo jobInfo = JSPUtil.getJobInfo(logFile, fs, jobTracker);

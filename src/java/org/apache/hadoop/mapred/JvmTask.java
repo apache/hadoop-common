@@ -34,27 +34,37 @@ import org.apache.hadoop.io.Writable;
 public class JvmTask implements Writable {
   Task t;
   boolean shouldDie;
+
   public JvmTask(Task t, boolean shouldDie) {
     this.t = t;
     this.shouldDie = shouldDie;
   }
+
   public JvmTask() {}
+
   public Task getTask() {
     return t;
   }
+
   public boolean shouldDie() {
     return shouldDie;
   }
+
   public void write(DataOutput out) throws IOException {
     out.writeBoolean(shouldDie);
     if (t != null) {
       out.writeBoolean(true);
       out.writeBoolean(t.isMapTask());
+      if (!t.isMapTask()) {
+        // which kind of ReduceTask, uber or regular?
+        out.writeBoolean(t.isUberTask());
+      }
       t.write(out);
     } else {
       out.writeBoolean(false);
     }
   }
+
   public void readFields(DataInput in) throws IOException {
     shouldDie = in.readBoolean();
     boolean taskComing = in.readBoolean();
@@ -63,7 +73,12 @@ public class JvmTask implements Writable {
       if (isMap) {
         t = new MapTask();
       } else {
-        t = new ReduceTask();
+        boolean isUber = in.readBoolean();
+        if (isUber) {
+          t = new UberTask();
+        } else {
+          t = new ReduceTask();
+        }
       }
       t.readFields(in);
     }

@@ -41,10 +41,15 @@ public abstract class TaskStatus implements Writable, Cloneable {
   static final Log LOG =
     LogFactory.getLog(TaskStatus.class.getName());
   
-  //enumeration for reporting current phase of a task.
+  // what kind of TaskStatus is it?
   @InterfaceAudience.Private
   @InterfaceStability.Unstable
-  public static enum Phase{STARTING, MAP, SHUFFLE, SORT, REDUCE, CLEANUP}
+  public static enum Type {MAP, REDUCE, UBER}
+
+  // enumeration for reporting current phase of a task.
+  @InterfaceAudience.Private
+  @InterfaceStability.Unstable
+  public static enum Phase {STARTING, MAP, SHUFFLE, SORT, REDUCE, CLEANUP}
 
   // what state is the task in?
   @InterfaceAudience.Private
@@ -105,6 +110,7 @@ public abstract class TaskStatus implements Writable, Cloneable {
   
   public TaskAttemptID getTaskID() { return taskid; }
   public abstract boolean getIsMap();
+  public abstract boolean getIsUber();
   public int getNumSlots() {
     return numSlots;
   }
@@ -495,46 +501,61 @@ public abstract class TaskStatus implements Writable, Cloneable {
   //////////////////////////////////////////////////////////////////////////////
   // Factory-like methods to create/read/write appropriate TaskStatus objects
   //////////////////////////////////////////////////////////////////////////////
-  
-  static TaskStatus createTaskStatus(DataInput in, TaskAttemptID taskId, 
-                                     float progress, int numSlots,
-                                     State runState, String diagnosticInfo,
-                                     String stateString, String taskTracker,
-                                     Phase phase, Counters counters) 
-  throws IOException {
-    boolean isMap = in.readBoolean();
-    return createTaskStatus(isMap, taskId, progress, numSlots, runState, 
-                            diagnosticInfo, stateString, taskTracker, phase, 
-                            counters);
-  }
-  
+
+  // this is the main one used by TT.TIP, JIP, and (apparently) all the
+  // relevant tests (CapacityTestUtils, TestFairScheduler, TestClusterStatus,
+  // TestJobInProgress, TestJobTrackerInstrumentation, FakeObjectUtilities)
+  // [also formerly MapTask and ReduceTask, but no longer]
   static TaskStatus createTaskStatus(boolean isMap, TaskAttemptID taskId, 
                                      float progress, int numSlots,
                                      State runState, String diagnosticInfo,
                                      String stateString, String taskTracker,
                                      Phase phase, Counters counters) { 
     return (isMap) ? new MapTaskStatus(taskId, progress, numSlots, runState, 
-                                       diagnosticInfo, stateString, taskTracker, 
+                                       diagnosticInfo, stateString, taskTracker,
                                        phase, counters) :
                      new ReduceTaskStatus(taskId, progress, numSlots, runState, 
                                           diagnosticInfo, stateString, 
                                           taskTracker, phase, counters);
   }
-  
-  static TaskStatus createTaskStatus(boolean isMap) {
-    return (isMap) ? new MapTaskStatus() : new ReduceTaskStatus();
+
+  // used only in default ctors of Task (also formerly MapTask, ReduceTask) and
+  // readTaskStatus() below
+  static TaskStatus createTaskStatus(Type tsType) {
+    return (tsType == TaskStatus.Type.MAP)
+        ? new MapTaskStatus()
+        : (tsType == TaskStatus.Type.REDUCE)
+            ? new ReduceTaskStatus()
+            : new UberTaskStatus();
   }
 
   static TaskStatus readTaskStatus(DataInput in) throws IOException {
     boolean isMap = in.readBoolean();
-    TaskStatus taskStatus = createTaskStatus(isMap);
+    boolean isUber = in.readBoolean();
+    Type tsType = isMap
+        ? TaskStatus.Type.MAP
+        : isUber
+            ? TaskStatus.Type.UBER
+            : TaskStatus.Type.REDUCE;
+    TaskStatus taskStatus = createTaskStatus(tsType);
     taskStatus.readFields(in);
     return taskStatus;
   }
   
   static void writeTaskStatus(DataOutput out, TaskStatus taskStatus) 
   throws IOException {
+/* LATER
+ *  //GRR FIXME:  longer-term, just store tsType as member var (but then need
+ *  //            to modify or add new ctor:  used in many places)
+ *  Type tsType = taskStatus.getIsUber()
+ *      ? TaskStatus.Type.UBER
+ *      : taskStatus.getIsMap()
+ *          ? TaskStatus.Type.MAP
+ *          : TaskStatus.Type.REDUCE;
+ *  WritableUtils.writeEnum(out, tsType); (or enum.ordinal() [as in MR-901] or ...)
+ */
     out.writeBoolean(taskStatus.getIsMap());
+    out.writeBoolean(taskStatus.getIsUber());
     taskStatus.write(out);
   }
 }

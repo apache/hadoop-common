@@ -54,6 +54,11 @@ class ReduceTaskStatus extends TaskStatus {
   }
 
   @Override
+  public boolean getIsUber() {
+    return false;
+  }
+
+  @Override
   void setFinishTime(long finishTime) {
     if (shuffleFinishTime == 0) {
       this.shuffleFinishTime = finishTime; 

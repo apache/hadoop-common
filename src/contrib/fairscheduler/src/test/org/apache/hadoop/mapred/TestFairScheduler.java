@@ -242,7 +242,7 @@ public class TestFairScheduler extends TestCase {
       this.fakeJob = job;
       this.inputLocations = inputLocations;
       activeTasks = new TreeMap<TaskAttemptID, String>();
-      taskStatus = TaskStatus.createTaskStatus(isMap);
+      taskStatus = TaskStatus.createTaskStatus(TaskStatus.Type.MAP);
       taskStatus.setRunState(TaskStatus.State.UNASSIGNED);
     }
 
@@ -253,7 +253,7 @@ public class TestFairScheduler extends TestCase {
       this.isMap = false;
       this.fakeJob = job;
       activeTasks = new TreeMap<TaskAttemptID, String>();
-      taskStatus = TaskStatus.createTaskStatus(isMap);
+      taskStatus = TaskStatus.createTaskStatus(TaskStatus.Type.REDUCE);
       taskStatus.setRunState(TaskStatus.State.UNASSIGNED);
     }
     

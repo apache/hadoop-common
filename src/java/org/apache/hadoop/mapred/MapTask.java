@@ -60,9 +60,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.map.WrappedMapper;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.mapreduce.split.JobSplit;
-import org.apache.hadoop.mapreduce.split.JobSplit.SplitMetaInfo;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitIndex;
-import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
 import org.apache.hadoop.mapreduce.task.MapContextImpl;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
@@ -91,13 +89,13 @@ class MapTask extends Task {
   private Progress mapPhase;
   private Progress sortPhase;
   
-  {   // set phase for this task
-    setPhase(TaskStatus.Phase.MAP); 
+  {
     getProgress().setStatus("map");
   }
 
   public MapTask() {
     super();
+    this.taskStatus = new MapTaskStatus();
   }
 
   public MapTask(String jobFile, TaskAttemptID taskId, 
@@ -105,11 +103,30 @@ class MapTask extends Task {
                  int numSlotsRequired) {
     super(jobFile, taskId, partition, numSlotsRequired);
     this.splitMetaInfo = splitIndex;
+    this.taskStatus = new MapTaskStatus(getTaskID(), 0.0f, numSlotsRequired,
+                                        TaskStatus.State.UNASSIGNED, "", "", "",
+                                        TaskStatus.Phase.MAP, getCounters());
   }
 
   @Override
   public boolean isMapTask() {
     return true;
+  }
+
+  /**
+   * Is this really a combo-task masquerading as a plain MapTask?  Nope.
+   */
+  @Override
+  public boolean isUberTask() {
+    return false;
+  }
+
+  void createPhase(TaskStatus.Phase phaseType, String status, float weight) {
+    if (phaseType == TaskStatus.Phase.MAP) {
+      mapPhase = getProgress().addPhase(status, weight);
+    } else {
+      sortPhase = getProgress().addPhase(status, weight);
+    }
   }
 
   @Override
@@ -160,12 +177,12 @@ class MapTask extends Task {
   }
 
   /**
-   * This class wraps the user's record reader to update the counters and progress
-   * as records are read.
+   * This class wraps the user's record reader to update the counters and
+   * progress as records are read.
    * @param <K>
    * @param <V>
    */
-  class TrackedRecordReader<K, V> 
+  static class TrackedRecordReader<K, V>
       implements RecordReader<K,V> {
     private RecordReader<K,V> rawIn;
     private Counters.Counter inputByteCounter;
@@ -229,22 +246,25 @@ class MapTask extends Task {
    * This class skips the records based on the failed ranges from previous 
    * attempts.
    */
-  class SkippingRecordReader<K, V> extends TrackedRecordReader<K,V> {
+  static class SkippingRecordReader<K, V> extends TrackedRecordReader<K,V> {
+    private MapTask map;
     private SkipRangeIterator skipIt;
     private SequenceFile.Writer skipWriter;
     private boolean toWriteSkipRecs;
     private TaskUmbilicalProtocol umbilical;
     private Counters.Counter skipRecCounter;
     private long recIndex = -1;
-    
-    SkippingRecordReader(RecordReader<K,V> raw, TaskUmbilicalProtocol umbilical,
-                         TaskReporter reporter) throws IOException{
+
+    SkippingRecordReader(MapTask map, RecordReader<K,V> raw,
+                         TaskUmbilicalProtocol umbilical, TaskReporter reporter)
+    throws IOException {
       super(raw, reporter);
+      this.map = map;
       this.umbilical = umbilical;
       this.skipRecCounter = reporter.getCounter(TaskCounter.MAP_SKIPPED_RECORDS);
-      this.toWriteSkipRecs = toWriteSkipRecs() &&  
-        SkipBadRecords.getSkipOutputPath(conf)!=null;
-      skipIt = getSkipRanges().skipRangeIterator();
+      this.toWriteSkipRecs = map.toWriteSkipRecs() &&  
+        SkipBadRecords.getSkipOutputPath(map.conf)!=null;
+      skipIt = map.getSkipRanges().skipRangeIterator();
     }
     
     public synchronized boolean next(K key, V value)
@@ -268,7 +288,7 @@ class MapTask extends Task {
         skipWriter.close();
       }
       skipRecCounter.increment(skip);
-      reportNextRecordRange(umbilical, recIndex);
+      map.reportNextRecordRange(umbilical, recIndex);
       if (ret) {
         incrCounters();
       }
@@ -284,11 +304,11 @@ class MapTask extends Task {
     @SuppressWarnings("unchecked")
     private void writeSkippedRec(K key, V value) throws IOException{
       if(skipWriter==null) {
-        Path skipDir = SkipBadRecords.getSkipOutputPath(conf);
-        Path skipFile = new Path(skipDir, getTaskID().toString());
+        Path skipDir = SkipBadRecords.getSkipOutputPath(map.conf);
+        Path skipFile = new Path(skipDir, map.getTaskID().toString());
         skipWriter = 
           SequenceFile.createWriter(
-              skipFile.getFileSystem(conf), conf, skipFile,
+              skipFile.getFileSystem(map.conf), map.conf, skipFile,
               (Class<K>) createKey().getClass(),
               (Class<V>) createValue().getClass(), 
               CompressionType.BLOCK, getTaskReporter());
@@ -302,9 +322,9 @@ class MapTask extends Task {
     throws IOException, ClassNotFoundException, InterruptedException {
     this.umbilical = umbilical;
 
-    if (isMapTask()) {
+    if (isMapTask()) {   //GRR Q: why is this conditional here? ALWAYS true (unless someone derives from MapTask and overrides isMapTask() but not run())
       mapPhase = getProgress().addPhase("map", 0.667f);
-      sortPhase  = getProgress().addPhase("sort", 0.333f);
+      sortPhase = getProgress().addPhase("sort", 0.333f);
     }
     TaskReporter reporter = startReporter(umbilical);
  
@@ -326,79 +346,81 @@ class MapTask extends Task {
     }
 
     if (useNewApi) {
-      runNewMapper(job, splitMetaInfo, umbilical, reporter);
+      runNewMapper(this, job, splitMetaInfo, umbilical, reporter);
     } else {
-      runOldMapper(job, splitMetaInfo, umbilical, reporter);
+      runOldMapper(this, job, splitMetaInfo, umbilical, reporter);
     }
     done(umbilical, reporter);
   }
 
- @SuppressWarnings("unchecked")
- private <T> T getSplitDetails(Path file, long offset) 
-  throws IOException {
-   FileSystem fs = file.getFileSystem(conf);
-   FSDataInputStream inFile = fs.open(file);
-   inFile.seek(offset);
-   String className = Text.readString(inFile);
-   Class<T> cls;
-   try {
-     cls = (Class<T>) conf.getClassByName(className);
-   } catch (ClassNotFoundException ce) {
-     IOException wrap = new IOException("Split class " + className + 
-                                         " not found");
-     wrap.initCause(ce);
-     throw wrap;
-   }
-   SerializationFactory factory = new SerializationFactory(conf);
-   Deserializer<T> deserializer = 
-     (Deserializer<T>) factory.getDeserializer(cls);
-   deserializer.open(inFile);
-   T split = deserializer.deserialize(null);
-   long pos = inFile.getPos();
-   getCounters().findCounter(
-       TaskCounter.SPLIT_RAW_BYTES).increment(pos - offset);
-   inFile.close();
-   return split;
- }
-  
   @SuppressWarnings("unchecked")
-  private <INKEY,INVALUE,OUTKEY,OUTVALUE>
-  void runOldMapper(final JobConf job,
+  private <T> T getSplitDetails(Path file, long offset) 
+  throws IOException {
+    FileSystem fs = file.getFileSystem(conf);
+    FSDataInputStream inFile = fs.open(file);
+    inFile.seek(offset);
+    String className = Text.readString(inFile);
+    Class<T> cls;
+    try {
+      cls = (Class<T>) conf.getClassByName(className);
+    } catch (ClassNotFoundException ce) {
+      IOException wrap = new IOException("Split class " + className +
+                                          " not found");
+      wrap.initCause(ce);
+      throw wrap;
+    }
+    SerializationFactory factory = new SerializationFactory(conf);
+    Deserializer<T> deserializer =
+      (Deserializer<T>) factory.getDeserializer(cls);
+    deserializer.open(inFile);
+    T split = deserializer.deserialize(null);
+    long pos = inFile.getPos();
+    getCounters().findCounter(
+        TaskCounter.SPLIT_RAW_BYTES).increment(pos - offset);
+    inFile.close();
+    return split;
+  }
+
+  @SuppressWarnings("unchecked")
+  static <INKEY,INVALUE,OUTKEY,OUTVALUE>
+  void runOldMapper(final MapTask map,
+                    final JobConf job,
                     final TaskSplitIndex splitIndex,
                     final TaskUmbilicalProtocol umbilical,
                     TaskReporter reporter
                     ) throws IOException, InterruptedException,
                              ClassNotFoundException {
-    InputSplit inputSplit = getSplitDetails(new Path(splitIndex.getSplitLocation()),
-           splitIndex.getStartOffset());
+    InputSplit inputSplit =
+        map.getSplitDetails(new Path(splitIndex.getSplitLocation()),
+                            splitIndex.getStartOffset());
 
-    updateJobWithSplit(job, inputSplit);
+    map.updateJobWithSplit(job, inputSplit);
     reporter.setInputSplit(inputSplit);
 
     RecordReader<INKEY,INVALUE> rawIn =                  // open input
       job.getInputFormat().getRecordReader(inputSplit, job, reporter);
-    RecordReader<INKEY,INVALUE> in = isSkipping() ? 
-        new SkippingRecordReader<INKEY,INVALUE>(rawIn, umbilical, reporter) :
+    RecordReader<INKEY,INVALUE> in = map.isSkipping() ? 
+        new SkippingRecordReader<INKEY,INVALUE>(map, rawIn, umbilical, reporter) :
         new TrackedRecordReader<INKEY,INVALUE>(rawIn, reporter);
-    job.setBoolean(JobContext.SKIP_RECORDS, isSkipping());
+    job.setBoolean(JobContext.SKIP_RECORDS, map.isSkipping());
 
 
-    int numReduceTasks = conf.getNumReduceTasks();
+    int numReduceTasks = map.conf.getNumReduceTasks();
     LOG.info("numReduceTasks: " + numReduceTasks);
     MapOutputCollector collector = null;
     if (numReduceTasks > 0) {
-      collector = new MapOutputBuffer(umbilical, job, reporter);
+      collector = new MapOutputBuffer(map, umbilical, job, reporter);
     } else { 
-      collector = new DirectMapOutputCollector(umbilical, job, reporter);
+      collector = new DirectMapOutputCollector(map, umbilical, job, reporter);
     }
     MapRunnable<INKEY,INVALUE,OUTKEY,OUTVALUE> runner =
       ReflectionUtils.newInstance(job.getMapRunnerClass(), job);
 
     try {
-      runner.run(in, new OldOutputCollector(collector, conf), reporter);
-      mapPhase.complete();
-      setPhase(TaskStatus.Phase.SORT);
-      statusUpdate(umbilical);
+      runner.run(in, new OldOutputCollector(collector, map.conf), reporter);
+      map.mapPhase.complete();
+      map.setPhase(TaskStatus.Phase.SORT);
+      map.statusUpdate(umbilical);
       collector.flush();
     } finally {
       //close
@@ -516,7 +538,7 @@ class MapTask extends Task {
     }
   }
 
-  private class NewDirectOutputCollector<K,V>
+  private static class NewDirectOutputCollector<K,V>
   extends org.apache.hadoop.mapreduce.RecordWriter<K,V> {
     private final org.apache.hadoop.mapreduce.RecordWriter out;
 
@@ -525,12 +547,12 @@ class MapTask extends Task {
     private final Counters.Counter mapOutputRecordCounter;
     
     @SuppressWarnings("unchecked")
-    NewDirectOutputCollector(MRJobConfig jobContext,
-        JobConf job, TaskUmbilicalProtocol umbilical, TaskReporter reporter) 
+    NewDirectOutputCollector(MapTask map, MRJobConfig jobContext,
+        JobConf job, TaskUmbilicalProtocol umbilical, TaskReporter reporter)
     throws IOException, ClassNotFoundException, InterruptedException {
       this.reporter = reporter;
-      out = outputFormat.getRecordWriter(taskContext);
-      mapOutputRecordCounter = 
+      out = map.outputFormat.getRecordWriter(map.taskContext);
+      mapOutputRecordCounter =
         reporter.getCounter(TaskCounter.MAP_OUTPUT_RECORDS);
     }
 
@@ -553,19 +575,22 @@ class MapTask extends Task {
     }
   }
   
-  private class NewOutputCollector<K,V>
+  private static class NewOutputCollector<K,V>
     extends org.apache.hadoop.mapreduce.RecordWriter<K,V> {
+    private final MapTask map;
     private final MapOutputCollector<K,V> collector;
     private final org.apache.hadoop.mapreduce.Partitioner<K,V> partitioner;
     private final int partitions;
 
     @SuppressWarnings("unchecked")
-    NewOutputCollector(org.apache.hadoop.mapreduce.JobContext jobContext,
+    NewOutputCollector(MapTask map,
+                       org.apache.hadoop.mapreduce.JobContext jobContext,
                        JobConf job,
                        TaskUmbilicalProtocol umbilical,
                        TaskReporter reporter
                        ) throws IOException, ClassNotFoundException {
-      collector = new MapOutputBuffer<K,V>(umbilical, job, reporter);
+      this.map = map;
+      collector = new MapOutputBuffer<K,V>(map, umbilical, job, reporter);
       partitions = jobContext.getNumReduceTasks();
       if (partitions > 1) {
         partitioner = (org.apache.hadoop.mapreduce.Partitioner<K,V>)
@@ -599,17 +624,19 @@ class MapTask extends Task {
   }
 
   @SuppressWarnings("unchecked")
-  private <INKEY,INVALUE,OUTKEY,OUTVALUE>
-  void runNewMapper(final JobConf job,
+  static <INKEY,INVALUE,OUTKEY,OUTVALUE>
+  void runNewMapper(final MapTask map,
+                    final JobConf job,
                     final TaskSplitIndex splitIndex,
                     final TaskUmbilicalProtocol umbilical,
                     TaskReporter reporter
                     ) throws IOException, ClassNotFoundException,
                              InterruptedException {
+    org.apache.hadoop.mapreduce.TaskAttemptID mapId = map.getTaskID();
+
     // make a task context so we can get the classes
     org.apache.hadoop.mapreduce.TaskAttemptContext taskContext =
-      new org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl(job, 
-                                                                  getTaskID());
+      new org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl(job, mapId);
     // make a mapper
     org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE> mapper =
       (org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE>)
@@ -620,31 +647,30 @@ class MapTask extends Task {
         ReflectionUtils.newInstance(taskContext.getInputFormatClass(), job);
     // rebuild the input split
     org.apache.hadoop.mapreduce.InputSplit split = null;
-    split = getSplitDetails(new Path(splitIndex.getSplitLocation()),
+    split = map.getSplitDetails(new Path(splitIndex.getSplitLocation()),
         splitIndex.getStartOffset());
 
     job.set(TTConfig.TT_MAP_INPUT_SPLITINFO, split.toString());
     org.apache.hadoop.mapreduce.RecordReader<INKEY,INVALUE> input =
       new NewTrackingRecordReader<INKEY,INVALUE>
           (inputFormat.createRecordReader(split, taskContext), reporter);
-    
-    job.setBoolean(JobContext.SKIP_RECORDS, isSkipping());
+
+    job.setBoolean(JobContext.SKIP_RECORDS, map.isSkipping());
     org.apache.hadoop.mapreduce.RecordWriter output = null;
-    
+
     // get an output object
     if (job.getNumReduceTasks() == 0) {
       output = 
-        new NewDirectOutputCollector(taskContext, job, umbilical, reporter);
+        new NewDirectOutputCollector(map, taskContext, job, umbilical, reporter);
     } else {
-      output = new NewOutputCollector(taskContext, job, umbilical, reporter);
+      output =
+        new NewOutputCollector(map, taskContext, job, umbilical, reporter);
     }
 
     org.apache.hadoop.mapreduce.MapContext<INKEY, INVALUE, OUTKEY, OUTVALUE> 
-    mapContext = 
-      new MapContextImpl<INKEY, INVALUE, OUTKEY, OUTVALUE>(job, getTaskID(), 
-          input, output, 
-          committer, 
-          reporter, split);
+        mapContext = 
+          new MapContextImpl<INKEY, INVALUE, OUTKEY, OUTVALUE>(job, mapId,
+              input, output, map.committer, reporter, split);
 
     org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE>.Context 
         mapperContext = 
@@ -653,9 +679,9 @@ class MapTask extends Task {
 
     input.initialize(split, mapperContext);
     mapper.run(mapperContext);
-    mapPhase.complete();
-    setPhase(TaskStatus.Phase.SORT);
-    statusUpdate(umbilical);
+    map.mapPhase.complete();
+    map.setPhase(TaskStatus.Phase.SORT);
+    map.statusUpdate(umbilical);
     input.close();
     output.close(mapperContext);
   }
@@ -671,20 +697,19 @@ class MapTask extends Task {
         
   }
 
-  class DirectMapOutputCollector<K, V>
+  static class DirectMapOutputCollector<K, V>
     implements MapOutputCollector<K, V> {
- 
+
     private RecordWriter<K, V> out = null;
-
     private TaskReporter reporter = null;
-
     private final Counters.Counter mapOutputRecordCounter;
 
     @SuppressWarnings("unchecked")
-    public DirectMapOutputCollector(TaskUmbilicalProtocol umbilical,
+    public DirectMapOutputCollector(MapTask map,
+        TaskUmbilicalProtocol umbilical,
         JobConf job, TaskReporter reporter) throws IOException {
       this.reporter = reporter;
-      String finalName = getOutputName(getPartition());
+      String finalName = getOutputName(map.getPartition());
       FileSystem fs = FileSystem.get(job);
 
       out = job.getOutputFormat().getRecordWriter(fs, job, finalName, reporter);
@@ -711,8 +736,12 @@ class MapTask extends Task {
     
   }
 
-  private class MapOutputBuffer<K extends Object, V extends Object>
+  static class MapOutputBuffer<K extends Object, V extends Object>
       implements MapOutputCollector<K, V>, IndexedSortable {
+    private final MapTask map;
+    private final MapOutputFile mapOutputFile;
+    private final Counters.Counter spilledRecordsCounter;
+
     final int partitions;
     final JobConf job;
     final TaskReporter reporter;
@@ -781,9 +810,14 @@ class MapTask extends Task {
     private static final int INDEX_CACHE_MEMORY_LIMIT = 1024 * 1024;
 
     @SuppressWarnings("unchecked")
-    public MapOutputBuffer(TaskUmbilicalProtocol umbilical, JobConf job,
+    public MapOutputBuffer(MapTask map,
+                           TaskUmbilicalProtocol umbilical, JobConf job,
                            TaskReporter reporter
                            ) throws IOException, ClassNotFoundException {
+      this.map = map;
+      mapOutputFile = map.mapOutputFile;
+      spilledRecordsCounter = map.spilledRecordsCounter;
+
       this.job = job;
       this.reporter = reporter;
       partitions = job.getNumReduceTasks();
@@ -881,6 +915,8 @@ class MapTask extends Task {
             sortSpillException);
       }
     }
+
+    public TaskAttemptID getTaskID() { return map.getTaskID(); }
 
     /**
      * Serialize the key, value to intermediate storage.
@@ -1378,7 +1414,7 @@ class MapTask extends Task {
         if (lspillException instanceof Error) {
           final String logMsg = "Task " + getTaskID() + " failed : " +
             StringUtils.stringifyException(lspillException);
-          reportFatalError(getTaskID(), lspillException, logMsg);
+          map.reportFatalError(lspillException, logMsg);
         }
         throw new IOException("Spill failed", lspillException);
       }
@@ -1695,7 +1731,7 @@ class MapTask extends Task {
         return;
       }
       {
-        sortPhase.addPhases(partitions); // Divide sort phase into sub-phases
+        map.sortPhase.addPhases(partitions); // Divide sort phase into sub-phases
         Merger.considerFinalMergeForProgress();
         
         IndexRecord rec = new IndexRecord();
@@ -1729,7 +1765,7 @@ class MapTask extends Task {
                          segmentList, mergeFactor,
                          new Path(mapId.toString()),
                          job.getOutputKeyComparator(), reporter, sortSegments,
-                         null, spilledRecordsCounter, sortPhase.phase());
+                         null, spilledRecordsCounter, map.sortPhase.phase());
 
           //write merged output to disk
           long segmentStart = finalOut.getPos();
@@ -1746,7 +1782,7 @@ class MapTask extends Task {
           //close
           writer.close();
 
-          sortPhase.startNextPhase();
+          map.sortPhase.startNextPhase();
           
           // record offsets
           rec.startOffset = segmentStart;
