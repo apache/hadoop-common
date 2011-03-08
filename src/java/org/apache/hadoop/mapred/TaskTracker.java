@@ -91,11 +91,13 @@ import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.mapreduce.server.tasktracker.Localizer;
 import org.apache.hadoop.mapreduce.task.reduce.ShuffleHeader;
-import org.apache.hadoop.metrics.MetricsContext;
-import org.apache.hadoop.metrics.MetricsException;
-import org.apache.hadoop.metrics.MetricsRecord;
-import org.apache.hadoop.metrics.MetricsUtil;
-import org.apache.hadoop.metrics.Updater;
+import org.apache.hadoop.metrics2.annotation.Metric;
+import org.apache.hadoop.metrics2.annotation.Metrics;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.MetricsRegistry;
+import org.apache.hadoop.metrics2.lib.MutableCounterInt;
+import org.apache.hadoop.metrics2.lib.MutableCounterLong;
+import static org.apache.hadoop.metrics2.impl.MsInfo.*;
 import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
@@ -322,18 +324,17 @@ public class TaskTracker
    * the specific metrics for shuffle. The TaskTracker is actually a server for
    * the shuffle and hence the name ShuffleServerMetrics.
    */
-  private class ShuffleServerMetrics implements Updater {
-    private MetricsRecord shuffleMetricsRecord = null;
-    private int serverHandlerBusy = 0;
-    private long outputBytes = 0;
-    private int failedOutputs = 0;
-    private int successOutputs = 0;
+  @Metrics(context="mapred")
+  private class ShuffleServerMetrics {
+    final MetricsRegistry registry = new MetricsRegistry("shuffleOutput");
+    private int serverHandlerBusy;
+    @Metric MutableCounterLong shuffleOutputBytes;
+    @Metric MutableCounterInt shuffleFailedOutputs;
+    @Metric MutableCounterInt shuffleSuccessOutputs;
+
     ShuffleServerMetrics(JobConf conf) {
-      MetricsContext context = MetricsUtil.getContext("mapred");
-      shuffleMetricsRecord = 
-                           MetricsUtil.createRecord(context, "shuffleOutput");
-      this.shuffleMetricsRecord.setTag("sessionId", conf.getSessionId());
-      context.registerUpdater(this);
+      registry.tag(SessionId, conf.getSessionId());
+      DefaultMetricsSystem.instance().register(this);
     }
     synchronized void serverHandlerBusy() {
       ++serverHandlerBusy;
@@ -341,41 +342,20 @@ public class TaskTracker
     synchronized void serverHandlerFree() {
       --serverHandlerBusy;
     }
-    synchronized void outputBytes(long bytes) {
-      outputBytes += bytes;
+    void outputBytes(long bytes) {
+      shuffleOutputBytes.incr(bytes);
     }
-    synchronized void failedOutput() {
-      ++failedOutputs;
+    void failedOutput() {
+      shuffleFailedOutputs.incr();
     }
-    synchronized void successOutput() {
-      ++successOutputs;
+    void successOutput() {
+      shuffleSuccessOutputs.incr();
     }
-    public void doUpdates(MetricsContext unused) {
-      synchronized (this) {
-        if (workerThreads != 0) {
-          shuffleMetricsRecord.setMetric("shuffle_handler_busy_percent", 
-              100*((float)serverHandlerBusy/workerThreads));
-        } else {
-          shuffleMetricsRecord.setMetric("shuffle_handler_busy_percent", 0);
-        }
-        shuffleMetricsRecord.incrMetric("shuffle_output_bytes", 
-                                        outputBytes);
-        shuffleMetricsRecord.incrMetric("shuffle_failed_outputs", 
-                                        failedOutputs);
-        shuffleMetricsRecord.incrMetric("shuffle_success_outputs", 
-                                        successOutputs);
-        outputBytes = 0;
-        failedOutputs = 0;
-        successOutputs = 0;
-      }
-      shuffleMetricsRecord.update();
+    @Metric synchronized float getShuffleHandlerBusyPercent() {
+      return workerThreads == 0 ? 0f : 100f * serverHandlerBusy / workerThreads;
     }
   }
-  
 
-  
-  
-    
   private TaskTrackerInstrumentation myInstrumentation = null;
 
   public TaskTrackerInstrumentation getTaskTrackerInstrumentation() {
@@ -1705,8 +1685,8 @@ public class TaskTracker
           }
           try {
             myInstrumentation.completeTask(taskStatus.getTaskID());
-          } catch (MetricsException me) {
-            LOG.warn("Caught: " + StringUtils.stringifyException(me));
+          } catch (Exception e) {
+            LOG.warn("Caught: " + StringUtils.stringifyException(e));
           }
           runningTasks.remove(taskStatus.getTaskID());
         }

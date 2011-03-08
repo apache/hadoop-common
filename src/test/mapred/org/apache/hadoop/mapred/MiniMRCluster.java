@@ -33,6 +33,7 @@ import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.DNSToSwitchMapping;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
@@ -65,6 +66,8 @@ public class MiniMRCluster {
     
   private JobConf job;
   private Clock clock;
+
+  { DefaultMetricsSystem.setMiniClusterMode(true); }
   
   /**
    * An inner class that runs a job tracker.

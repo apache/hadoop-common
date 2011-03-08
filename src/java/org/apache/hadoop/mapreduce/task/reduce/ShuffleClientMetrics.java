@@ -20,41 +20,42 @@ package org.apache.hadoop.mapreduce.task.reduce;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
-import org.apache.hadoop.metrics.MetricsContext;
-import org.apache.hadoop.metrics.MetricsRecord;
-import org.apache.hadoop.metrics.MetricsUtil;
-import org.apache.hadoop.metrics.Updater;
+import org.apache.hadoop.metrics2.annotation.Metric;
+import org.apache.hadoop.metrics2.annotation.Metrics;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.MetricsRegistry;
+import org.apache.hadoop.metrics2.lib.MutableCounterInt;
+import org.apache.hadoop.metrics2.lib.MutableCounterLong;
 
-class ShuffleClientMetrics implements Updater {
+@Metrics(context="mapred")
+class ShuffleClientMetrics {
 
-  private MetricsRecord shuffleMetrics = null;
-  private int numFailedFetches = 0;
-  private int numSuccessFetches = 0;
-  private long numBytes = 0;
+  final MetricsRegistry registry = new MetricsRegistry("shuffleInput");
+
+  @Metric MutableCounterInt failedFetches;
+  @Metric MutableCounterInt successFetches;
+  @Metric MutableCounterLong inputBytes;
+
   private int numThreadsBusy = 0;
   private final int numCopiers;
-  
+
   ShuffleClientMetrics(TaskAttemptID reduceId, JobConf jobConf) {
     this.numCopiers = jobConf.getInt(MRJobConfig.SHUFFLE_PARALLEL_COPIES, 5);
-
-    MetricsContext metricsContext = MetricsUtil.getContext("mapred");
-    this.shuffleMetrics = 
-      MetricsUtil.createRecord(metricsContext, "shuffleInput");
-    this.shuffleMetrics.setTag("user", jobConf.getUser());
-    this.shuffleMetrics.setTag("jobName", jobConf.getJobName());
-    this.shuffleMetrics.setTag("jobId", reduceId.getJobID().toString());
-    this.shuffleMetrics.setTag("taskId", reduceId.toString());
-    this.shuffleMetrics.setTag("sessionId", jobConf.getSessionId());
-    metricsContext.registerUpdater(this);
+    registry.tag("User", "User name", jobConf.getUser())
+            .tag("JobName", "Job name", jobConf.getJobName())
+            .tag("JobId", "Job ID", reduceId.getJobID().toString())
+            .tag("TaskId", "Task ID", reduceId.toString())
+            .tag("SessionId", "Session ID", jobConf.getSessionId());
+    DefaultMetricsSystem.instance().register(this);
   }
-  public synchronized void inputBytes(long numBytes) {
-    this.numBytes += numBytes;
+  public void inputBytes(long numBytes) {
+    inputBytes.incr(numBytes);
   }
   public synchronized void failedFetch() {
-    ++numFailedFetches;
+    failedFetches.incr();
   }
   public synchronized void successFetch() {
-    ++numSuccessFetches;
+    successFetches.incr();
   }
   public synchronized void threadBusy() {
     ++numThreadsBusy;
@@ -62,23 +63,7 @@ class ShuffleClientMetrics implements Updater {
   public synchronized void threadFree() {
     --numThreadsBusy;
   }
-  public void doUpdates(MetricsContext unused) {
-    synchronized (this) {
-      shuffleMetrics.incrMetric("shuffle_input_bytes", numBytes);
-      shuffleMetrics.incrMetric("shuffle_failed_fetches", 
-                                numFailedFetches);
-      shuffleMetrics.incrMetric("shuffle_success_fetches", 
-                                numSuccessFetches);
-      if (numCopiers != 0) {
-        shuffleMetrics.setMetric("shuffle_fetchers_busy_percent",
-            100*((float)numThreadsBusy/numCopiers));
-      } else {
-        shuffleMetrics.setMetric("shuffle_fetchers_busy_percent", 0);
-      }
-      numBytes = 0;
-      numSuccessFetches = 0;
-      numFailedFetches = 0;
-    }
-    shuffleMetrics.update();
+  @Metric float getFetchersBusyPercent() {
+    return numCopiers == 0 ? 0f : 100f * numThreadsBusy / numCopiers;
   }
 }

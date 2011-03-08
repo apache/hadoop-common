@@ -26,6 +26,7 @@ import org.apache.hadoop.mapred.FakeObjectUtilities.FakeJobTracker;
 import org.apache.hadoop.mapred.UtilsForTests.FakeClock;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 
 /**
  * A test to verify JobTracker's resilience to lost task trackers. 
@@ -33,6 +34,8 @@ import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
  */
 @SuppressWarnings("deprecation")
 public class TestLostTracker extends TestCase {
+
+  { DefaultMetricsSystem.setMiniClusterMode(true); }
 
   FakeJobInProgress job;
   static FakeJobTracker jobTracker;

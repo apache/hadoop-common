@@ -17,431 +17,315 @@
  */
 package org.apache.hadoop.mapred;
 
-import org.apache.hadoop.metrics.MetricsContext;
-import org.apache.hadoop.metrics.MetricsRecord;
-import org.apache.hadoop.metrics.MetricsUtil;
-import org.apache.hadoop.metrics.Updater;
-import org.apache.hadoop.metrics.jvm.JvmMetrics;
+import org.apache.hadoop.metrics2.MetricsSystem;
+import org.apache.hadoop.metrics2.annotation.Metric;
+import org.apache.hadoop.metrics2.annotation.Metrics;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.MetricsRegistry;
+import org.apache.hadoop.metrics2.lib.MutableCounterInt;
+import org.apache.hadoop.metrics2.lib.MutableCounterLong;
+import org.apache.hadoop.metrics2.lib.MutableGaugeInt;
+import org.apache.hadoop.metrics2.source.JvmMetrics;
+import static org.apache.hadoop.metrics2.impl.MsInfo.*;
 
-class JobTrackerMetricsInst extends JobTrackerInstrumentation implements Updater {
-  private final MetricsRecord metricsRecord;
+@Metrics(name="JobTrackerMetrics", context="mapred")
+class JobTrackerMetricsInst extends JobTrackerInstrumentation {
 
-  private int numMapTasksLaunched = 0;
-  private int numMapTasksCompleted = 0;
-  private int numMapTasksFailed = 0;
-  private int numReduceTasksLaunched = 0;
-  private int numReduceTasksCompleted = 0;
-  private int numReduceTasksFailed = 0;
-  private int numJobsSubmitted = 0;
-  private int numJobsCompleted = 0;
-  private int numWaitingMaps = 0;
-  private int numWaitingReduces = 0;
-  private int numSpeculativeMaps = 0;
-  private int numSpeculativeReduces = 0;
-  private int numDataLocalMaps = 0;
-  private int numRackLocalMaps = 0;
+  // need the registry for record name (different from metrics name) and tags
+  final MetricsRegistry registry = new MetricsRegistry("jobtracker");
+
+  @Metric MutableCounterInt mapsLaunched;
+  @Metric MutableCounterInt mapsCompleted;
+  @Metric MutableCounterInt mapsFailed;
+  @Metric MutableCounterInt mapsKilled;
+  @Metric MutableCounterInt reducesLaunched;
+  @Metric MutableCounterInt reducesCompleted;
+  @Metric MutableCounterInt reducesFailed;
+  @Metric MutableCounterInt reducesKilled;
+
+  @Metric MutableCounterInt jobsSubmitted;
+  @Metric MutableCounterInt jobsCompleted;
+  @Metric MutableCounterInt jobsFailed;
+  @Metric MutableCounterInt jobsKilled;
+  @Metric MutableGaugeInt jobsPreparing;
+  @Metric MutableGaugeInt jobsRunning;
+
+  @Metric MutableGaugeInt waitingMaps;
+  @Metric MutableGaugeInt waitingReduces;
+  @Metric MutableGaugeInt runningMaps;
+  @Metric MutableGaugeInt runningReduces;
+  @Metric MutableCounterInt speculativeMaps;
+  @Metric MutableCounterInt speculativeReduces;
+  @Metric MutableCounterInt dataLocalMaps;
+  @Metric MutableCounterInt rackLocalMaps;
 
   //Cluster status fields.
-  private volatile int numMapSlots = 0;
-  private volatile int numReduceSlots = 0;
-  private int numBlackListedMapSlots = 0;
-  private int numBlackListedReduceSlots = 0;
+  @Metric MutableGaugeInt mapSlots;
+  @Metric MutableGaugeInt reduceSlots;
+  @Metric MutableGaugeInt blackListedMapSlots;
+  @Metric MutableGaugeInt blackListedReduceSlots;
+  @Metric MutableGaugeInt reservedMapSlots;
+  @Metric MutableGaugeInt reservedReduceSlots;
+  @Metric MutableGaugeInt occupiedMapSlots;
+  @Metric MutableGaugeInt occupiedReduceSlots;
 
-  private int numReservedMapSlots = 0;
-  private int numReservedReduceSlots = 0;
-  private int numOccupiedMapSlots = 0;
-  private int numOccupiedReduceSlots = 0;
-  
-  private int numJobsFailed = 0;
-  private int numJobsKilled = 0;
-  
-  private int numJobsPreparing = 0;
-  private int numJobsRunning = 0;
-  
-  private int numRunningMaps = 0;
-  private int numRunningReduces = 0;
-  
-  private int numMapTasksKilled = 0;
-  private int numReduceTasksKilled = 0;
+  @Metric MutableGaugeInt trackers;
+  @Metric MutableGaugeInt trackersBlackListed;
+  @Metric MutableGaugeInt trackersDecommissioned;
 
-  private int numTrackers = 0;
-  private int numTrackersBlackListed = 0;
-  private int numTrackersDecommissioned = 0;
-
-  // long, because 2^31 could well be only about a month's worth of
-  // heartbeats, with reasonable assumptions and JobTracker improvements.
-  private long numHeartbeats = 0L;
+  @Metric MutableCounterLong heartbeats;
   
   public JobTrackerMetricsInst(JobTracker tracker, JobConf conf) {
     super(tracker, conf);
     String sessionId = conf.getSessionId();
-    // Initiate JVM Metrics
-    JvmMetrics.init("JobTracker", sessionId);
-    // Create a record for map-reduce metrics
-    MetricsContext context = MetricsUtil.getContext("mapred");
-    metricsRecord = MetricsUtil.createRecord(context, "jobtracker");
-    metricsRecord.setTag("sessionId", sessionId);
-    context.registerUpdater(this);
-  }
-    
-  /**
-   * Since this object is a registered updater, this method will be called
-   * periodically, e.g. every 5 seconds.
-   */
-  public void doUpdates(MetricsContext unused) {
-    synchronized (this) {
-      metricsRecord.setMetric("map_slots", numMapSlots);
-      metricsRecord.setMetric("reduce_slots", numReduceSlots);
-      metricsRecord.incrMetric("blacklisted_maps", numBlackListedMapSlots);
-      metricsRecord.incrMetric("blacklisted_reduces",
-          numBlackListedReduceSlots);
-      metricsRecord.incrMetric("maps_launched", numMapTasksLaunched);
-      metricsRecord.incrMetric("maps_completed", numMapTasksCompleted);
-      metricsRecord.incrMetric("maps_failed", numMapTasksFailed);
-      metricsRecord.incrMetric("reduces_launched", numReduceTasksLaunched);
-      metricsRecord.incrMetric("reduces_completed", numReduceTasksCompleted);
-      metricsRecord.incrMetric("reduces_failed", numReduceTasksFailed);
-      metricsRecord.incrMetric("jobs_submitted", numJobsSubmitted);
-      metricsRecord.incrMetric("jobs_completed", numJobsCompleted);
-      metricsRecord.incrMetric("waiting_maps", numWaitingMaps);
-      metricsRecord.incrMetric("waiting_reduces", numWaitingReduces);
-      metricsRecord.incrMetric("speculative_maps", numSpeculativeMaps);
-      metricsRecord.incrMetric("speculative_reduces", numSpeculativeReduces);
-      metricsRecord.incrMetric("datalocal_maps", numDataLocalMaps);
-      metricsRecord.incrMetric("racklocal_maps", numRackLocalMaps);
-      
-      metricsRecord.incrMetric("reserved_map_slots", numReservedMapSlots);
-      metricsRecord.incrMetric("reserved_reduce_slots", numReservedReduceSlots);
-      metricsRecord.incrMetric("occupied_map_slots", numOccupiedMapSlots);
-      metricsRecord.incrMetric("occupied_reduce_slots", numOccupiedReduceSlots);
-      
-      metricsRecord.incrMetric("jobs_failed", numJobsFailed);
-      metricsRecord.incrMetric("jobs_killed", numJobsKilled);
-      
-      metricsRecord.incrMetric("jobs_preparing", numJobsPreparing);
-      metricsRecord.incrMetric("jobs_running", numJobsRunning);
-      
-      metricsRecord.incrMetric("running_maps", numRunningMaps);
-      metricsRecord.incrMetric("running_reduces", numRunningReduces);
-      
-      metricsRecord.incrMetric("maps_killed", numMapTasksKilled);
-      metricsRecord.incrMetric("reduces_killed", numReduceTasksKilled);
-
-      metricsRecord.incrMetric("trackers", numTrackers);
-      metricsRecord.incrMetric("trackers_blacklisted", numTrackersBlackListed);
-      metricsRecord.setMetric("trackers_decommissioned", 
-          numTrackersDecommissioned);
-
-      metricsRecord.incrMetric("heartbeats", numHeartbeats);
-
-      numMapTasksLaunched = 0;
-      numMapTasksCompleted = 0;
-      numMapTasksFailed = 0;
-      numReduceTasksLaunched = 0;
-      numReduceTasksCompleted = 0;
-      numReduceTasksFailed = 0;
-      numJobsSubmitted = 0;
-      numJobsCompleted = 0;
-      numWaitingMaps = 0;
-      numWaitingReduces = 0;
-      numBlackListedMapSlots = 0;
-      numBlackListedReduceSlots = 0;
-      numSpeculativeMaps = 0;
-      numSpeculativeReduces = 0;
-      numDataLocalMaps = 0;
-      numRackLocalMaps = 0;
-      
-      numReservedMapSlots = 0;
-      numReservedReduceSlots = 0;
-      numOccupiedMapSlots = 0;
-      numOccupiedReduceSlots = 0;
-      
-      numJobsFailed = 0;
-      numJobsKilled = 0;
-      
-      numJobsPreparing = 0;
-      numJobsRunning = 0;
-      
-      numRunningMaps = 0;
-      numRunningReduces = 0;
-      
-      numMapTasksKilled = 0;
-      numReduceTasksKilled = 0;
-
-      numTrackers = 0;
-      numTrackersBlackListed = 0;
-
-      numHeartbeats = 0L;
-    }
-    metricsRecord.update();
+    // Ideally we should the registering in an init method.
+    MetricsSystem ms = DefaultMetricsSystem.instance();
+    JvmMetrics.create("JobTracker", sessionId, ms);
+    registry.tag(SessionId, sessionId);
+    ms.register(this);
   }
 
   @Override
   public synchronized void launchMap(TaskAttemptID taskAttemptID) {
-    ++numMapTasksLaunched;
+    mapsLaunched.incr();
     decWaitingMaps(taskAttemptID.getJobID(), 1);
   }
 
   @Override
   public synchronized void launchDataLocalMap(TaskAttemptID taskAttemptID) {
-    ++numDataLocalMaps;
+    dataLocalMaps.incr();
   }
 
   @Override
   public synchronized void launchRackLocalMap(TaskAttemptID taskAttemptID) {
-    ++numRackLocalMaps;
+    rackLocalMaps.incr();
   }
 
   @Override
   public synchronized void completeMap(TaskAttemptID taskAttemptID) {
-    ++numMapTasksCompleted;
+    mapsCompleted.incr();
   }
 
   @Override
   public synchronized void failedMap(TaskAttemptID taskAttemptID) {
-    ++numMapTasksFailed;
+    mapsFailed.incr();
     addWaitingMaps(taskAttemptID.getJobID(), 1);
   }
 
   @Override
   public synchronized void speculateMap(TaskAttemptID taskAttemptID) {
-    ++numSpeculativeMaps;
+    speculativeMaps.incr();
   }
 
   @Override
   public synchronized void launchReduce(TaskAttemptID taskAttemptID) {
-    ++numReduceTasksLaunched;
+    reducesLaunched.incr();
     decWaitingReduces(taskAttemptID.getJobID(), 1);
   }
 
   @Override
   public synchronized void completeReduce(TaskAttemptID taskAttemptID) {
-    ++numReduceTasksCompleted;
+    reducesCompleted.incr();
   }
 
   @Override
   public synchronized void failedReduce(TaskAttemptID taskAttemptID) {
-    ++numReduceTasksFailed;
+    reducesFailed.incr();
     addWaitingReduces(taskAttemptID.getJobID(), 1);
   }
 
   @Override
   public synchronized void speculateReduce(TaskAttemptID taskAttemptID) {
-    ++numSpeculativeReduces;
+    speculativeReduces.incr();
   }
 
   @Override
   public synchronized void submitJob(JobConf conf, JobID id) {
-    ++numJobsSubmitted;
+    jobsSubmitted.incr();
   }
 
   @Override
   public synchronized void completeJob(JobConf conf, JobID id) {
-    ++numJobsCompleted;
+    jobsCompleted.incr();
   }
 
   @Override
   public synchronized void addWaitingMaps(JobID id, int task) {
-    numWaitingMaps  += task;
+    waitingMaps.incr(task);
   }
   
   @Override
   public synchronized void decWaitingMaps(JobID id, int task) {
-    numWaitingMaps -= task;
+    waitingMaps.decr(task);
   }
   
   @Override
   public synchronized void addWaitingReduces(JobID id, int task) {
-    numWaitingReduces += task;
+    waitingReduces.incr(task);
   }
   
   @Override
   public synchronized void decWaitingReduces(JobID id, int task){
-    numWaitingReduces -= task;
+    waitingReduces.decr(task);
   }
 
   @Override
   public synchronized void setMapSlots(int slots) {
-    numMapSlots = slots;
+    mapSlots.set(slots);
   }
 
   @Override
   public synchronized void setReduceSlots(int slots) {
-    numReduceSlots = slots;
+    reduceSlots.set(slots);
   }
 
   @Override
-  public synchronized void addBlackListedMapSlots(int slots){
-    numBlackListedMapSlots += slots;
+  public synchronized void addBlackListedMapSlots(int slots) {
+    blackListedMapSlots.incr(slots);
   }
 
   @Override
-  public synchronized void decBlackListedMapSlots(int slots){
-    numBlackListedMapSlots -= slots;
+  public synchronized void decBlackListedMapSlots(int slots) {
+    blackListedMapSlots.decr(slots);
   }
 
   @Override
-  public synchronized void addBlackListedReduceSlots(int slots){
-    numBlackListedReduceSlots += slots;
+  public synchronized void addBlackListedReduceSlots(int slots) {
+    blackListedReduceSlots.incr(slots);
   }
 
   @Override
-  public synchronized void decBlackListedReduceSlots(int slots){
-    numBlackListedReduceSlots -= slots;
+  public synchronized void decBlackListedReduceSlots(int slots) {
+    blackListedReduceSlots.decr(slots);
   }
 
   @Override
-  public synchronized void addReservedMapSlots(int slots)
-  { 
-    numReservedMapSlots += slots;
+  public synchronized void addReservedMapSlots(int slots) {
+    reservedMapSlots.incr(slots);
   }
 
   @Override
-  public synchronized void decReservedMapSlots(int slots)
-  {
-    numReservedMapSlots -= slots;
+  public synchronized void decReservedMapSlots(int slots) {
+    reservedMapSlots.decr(slots);
   }
 
   @Override
-  public synchronized void addReservedReduceSlots(int slots)
-  {
-    numReservedReduceSlots += slots;
+  public synchronized void addReservedReduceSlots(int slots) {
+    reservedReduceSlots.incr(slots);
   }
 
   @Override
-  public synchronized void decReservedReduceSlots(int slots)
-  {
-    numReservedReduceSlots -= slots;
+  public synchronized void decReservedReduceSlots(int slots) {
+    reservedReduceSlots.decr(slots);
   }
 
   @Override
-  public synchronized void addOccupiedMapSlots(int slots)
-  {
-    numOccupiedMapSlots += slots;
+  public synchronized void addOccupiedMapSlots(int slots) {
+    occupiedMapSlots.incr(slots);
   }
 
   @Override
-  public synchronized void decOccupiedMapSlots(int slots)
-  {
-    numOccupiedMapSlots -= slots;
+  public synchronized void decOccupiedMapSlots(int slots) {
+    occupiedMapSlots.decr(slots);
   }
 
   @Override
-  public synchronized void addOccupiedReduceSlots(int slots)
-  {
-    numOccupiedReduceSlots += slots;
+  public synchronized void addOccupiedReduceSlots(int slots) {
+    occupiedReduceSlots.incr(slots);
   }
 
   @Override
-  public synchronized void decOccupiedReduceSlots(int slots)
-  {
-    numOccupiedReduceSlots -= slots;
+  public synchronized void decOccupiedReduceSlots(int slots) {
+    occupiedReduceSlots.decr(slots);
   }
 
   @Override
-  public synchronized void failedJob(JobConf conf, JobID id) 
-  {
-    numJobsFailed++;
+  public synchronized void failedJob(JobConf conf, JobID id) {
+    jobsFailed.incr();
   }
 
   @Override
-  public synchronized void killedJob(JobConf conf, JobID id) 
-  {
-    numJobsKilled++;
+  public synchronized void killedJob(JobConf conf, JobID id) {
+    jobsKilled.incr();
   }
 
   @Override
-  public synchronized void addPrepJob(JobConf conf, JobID id) 
-  {
-    numJobsPreparing++;
+  public synchronized void addPrepJob(JobConf conf, JobID id) {
+    jobsPreparing.incr();
   }
 
   @Override
-  public synchronized void decPrepJob(JobConf conf, JobID id) 
-  {
-    numJobsPreparing--;
+  public synchronized void decPrepJob(JobConf conf, JobID id) {
+    jobsPreparing.decr();
   }
 
   @Override
-  public synchronized void addRunningJob(JobConf conf, JobID id) 
-  {
-    numJobsRunning++;
+  public synchronized void addRunningJob(JobConf conf, JobID id) {
+    jobsRunning.incr();
   }
 
   @Override
-  public synchronized void decRunningJob(JobConf conf, JobID id) 
-  {
-    numJobsRunning--;
+  public synchronized void decRunningJob(JobConf conf, JobID id) {
+    jobsRunning.decr();
   }
 
   @Override
-  public synchronized void addRunningMaps(int task)
-  {
-    numRunningMaps += task;
+  public synchronized void addRunningMaps(int task) {
+    runningMaps.incr(task);
   }
 
   @Override
-  public synchronized void decRunningMaps(int task) 
-  {
-    numRunningMaps -= task;
+  public synchronized void decRunningMaps(int task) {
+    runningMaps.decr(task);
   }
 
   @Override
-  public synchronized void addRunningReduces(int task)
-  {
-    numRunningReduces += task;
+  public synchronized void addRunningReduces(int task) {
+    runningReduces.incr(task);
   }
 
   @Override
-  public synchronized void decRunningReduces(int task)
-  {
-    numRunningReduces -= task;
+  public synchronized void decRunningReduces(int task) {
+    runningReduces.decr(task);
   }
 
   @Override
-  public synchronized void killedMap(TaskAttemptID taskAttemptID)
-  {
-    numMapTasksKilled++;
+  public synchronized void killedMap(TaskAttemptID taskAttemptID) {
+    mapsKilled.incr();
   }
 
   @Override
-  public synchronized void killedReduce(TaskAttemptID taskAttemptID)
-  {
-    numReduceTasksKilled++;
+  public synchronized void killedReduce(TaskAttemptID taskAttemptID) {
+    reducesKilled.incr();
   }
 
   @Override
-  public synchronized void addTrackers(int trackers)
-  {
-    numTrackers += trackers;
+  public synchronized void addTrackers(int trackers) {
+    this.trackers.incr(trackers);
   }
 
   @Override
-  public synchronized void decTrackers(int trackers)
-  {
-    numTrackers -= trackers;
+  public synchronized void decTrackers(int trackers) {
+    this.trackers.decr(trackers);
   }
 
   @Override
-  public synchronized void addBlackListedTrackers(int trackers)
-  {
-    numTrackersBlackListed += trackers;
+  public synchronized void addBlackListedTrackers(int trackers) {
+    trackersBlackListed.incr(trackers);
   }
 
   @Override
-  public synchronized void decBlackListedTrackers(int trackers)
-  {
-    numTrackersBlackListed -= trackers;
+  public synchronized void decBlackListedTrackers(int trackers) {
+    trackersBlackListed.decr(trackers);
   }
 
   @Override
-  public synchronized void setDecommissionedTrackers(int trackers)
-  {
-    numTrackersDecommissioned = trackers;
+  public synchronized void setDecommissionedTrackers(int trackers) {
+    trackersDecommissioned.set(trackers);
   }  
 
   @Override
   public synchronized void heartbeat() {
-    ++numHeartbeats;
+    heartbeats.incr();
   }
 }

@@ -57,6 +57,7 @@ import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.State;
 import org.apache.hadoop.mapreduce.split.SplitMetaInfoReader;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.security.token.Token;
@@ -84,6 +85,8 @@ public class LocalJobRunner implements ClientProtocol {
   private static final String jobDir =  "localRunner/";
 
   private static final Counters EMPTY_COUNTERS = new Counters();
+
+  { DefaultMetricsSystem.setMiniClusterMode(true); }
 
   public long getProtocolVersion(String protocol, long clientVersion) {
     return ClientProtocol.versionID;

@@ -26,16 +26,17 @@ import java.util.Map;
 
 import junit.framework.TestCase;
 
-import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.mapred.JobStatusChangeEvent.EventType;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
 import org.apache.hadoop.mapreduce.split.JobSplit;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 
 public class TestJobQueueTaskScheduler extends TestCase {
   
   private static int jobCounter;
   private static int taskCounter;
+
+  { DefaultMetricsSystem.setMiniClusterMode(true); }
   
   static void resetCounters() {
     jobCounter = 0;

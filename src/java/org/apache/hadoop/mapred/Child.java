@@ -31,16 +31,14 @@ import org.apache.hadoop.fs.FSError;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RPC;
-import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
-import org.apache.hadoop.metrics.MetricsContext;
-import org.apache.hadoop.metrics.MetricsUtil;
-import org.apache.hadoop.metrics.jvm.JvmMetrics;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.source.JvmMetrics;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.util.StringUtils;
@@ -74,7 +72,10 @@ class Child {
     int jvmIdInt = Integer.parseInt(args[4]);
     JVMId jvmId = new JVMId(firstTaskid.getJobID(),
         firstTaskid.getTaskType() == TaskType.MAP,jvmIdInt);
-    
+
+    DefaultMetricsSystem.initialize(
+        StringUtils.camelize(firstTaskid.getTaskType().name()) +"Task");
+
     //load token cache storage
     String jobTokenFile = 
       System.getenv().get(UserGroupInformation.HADOOP_TOKEN_FILE_LOCATION);
@@ -204,7 +205,7 @@ class Child {
         task.setConf(job);
 
         // Initiate Java VM metrics
-        JvmMetrics.init(task.getPhase().toString(), job.getSessionId());
+        JvmMetrics.initSingleton(jvmId.toString(), job.getSessionId());
         LOG.debug("Creating remote user to execute task: " + job.get("user.name"));
         childUGI = UserGroupInformation.createRemoteUser(job.get("user.name"));
         // Add tokens to new user so that it may execute its task correctly.
@@ -276,8 +277,7 @@ class Child {
       }
     } finally {
       RPC.stopProxy(umbilical);
-      MetricsContext metricsContext = MetricsUtil.getContext("mapred");
-      metricsContext.close();
+      DefaultMetricsSystem.shutdown();
       // Shutting down log4j of the child-vm... 
       // This assumes that on return from Task.run() 
       // there is no more logging done.
