@@ -41,6 +41,11 @@ public class TestJvmReuse {
    * A mapper class in which all attempts log taskid. Zeroth attempt of task
    * with id=taskWithCleanup, fails with System.exit to force a cleanup attempt
    * for the task in a new jvm.
+   *
+   * Note that this approach is fundamentally incompatible with uberization
+   * since sub-MapTasks have "fake"/virtual task attempt IDs that are _always_
+   * "zeroth" attempt.  (And sub-MapTasks have no visibility of UberTask's
+   * attempt ID.)
    */
   public static class MapperClass extends MapReduceBase implements
       Mapper<LongWritable, Text, Text, IntWritable> {
@@ -93,6 +98,8 @@ public class TestJvmReuse {
     FileOutputFormat.setOutputPath(conf, outDir);
     // enable jvm reuse
     conf.setNumTasksToExecutePerJvm(-1);
+    // disable uberization (see uber comment in MapperClass above)
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     // return the RunningJob handle.
     return new JobClient(conf).submitJob(conf);
   }
@@ -118,7 +125,8 @@ public class TestJvmReuse {
 
   // validates logs of all attempts of the job.
   private void validateJob(RunningJob job, MiniMRCluster mr) throws IOException {
-    assertEquals(JobStatus.SUCCEEDED, job.getJobState());
+    assertEquals("JobStatus not SUCCEEDED", JobStatus.SUCCEEDED,
+        job.getJobState());
     long uses = job.getCounters().findCounter("jvm", "use").getValue();
     assertTrue("maps = " + numMappers + ", jvms = " + uses, numMappers < uses);
 

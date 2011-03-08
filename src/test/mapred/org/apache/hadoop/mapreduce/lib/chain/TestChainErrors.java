@@ -139,7 +139,7 @@ public class TestChainErrors extends HadoopTestCase {
    * 
    * @throws Exception
    */
-  public void testChainMapNoOuptut() throws Exception {
+  public void testChainMapNoOutput() throws Exception {
     Configuration conf = createJobConf();
     String expectedOutput = "";
 
@@ -163,7 +163,7 @@ public class TestChainErrors extends HadoopTestCase {
    * 
    * @throws Exception
    */
-  public void testChainReduceNoOuptut() throws Exception {
+  public void testChainReduceNoOutput() throws Exception {
     Configuration conf = createJobConf();
     String expectedOutput = "";
 

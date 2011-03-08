@@ -201,23 +201,27 @@ public class TestWebUIAuthorization extends ClusterMapReduceTestCase {
     return job;
   }
 
-  // Waits till the map task gets started and gets its tipId from map reports
-  // and returns the tipId
+  // Waits until the map or uber task gets started; gets its tipId from task
+  // reports; and returns the tipId.
   private TaskID getTIPId(MiniMRCluster cluster,
       org.apache.hadoop.mapreduce.JobID jobid) throws Exception {
     JobClient client = new JobClient(cluster.createJobConf());
     JobID jobId = JobID.downgrade(jobid);
-    TaskReport[] mapReports = null;
+    JobInProgress jip =
+        cluster.getJobTrackerRunner().getJobTracker().getJob(jobId);
+    TaskReport[] taskReports = null;
 
     TaskID tipId = null;
     do { // make sure that the map task is running
       Thread.sleep(200);
-      mapReports = client.getMapTaskReports(jobId);
-    } while (mapReports.length == 0);
+      taskReports = jip.isUber()
+          ? client.getReduceTaskReports(jobId)
+          : client.getMapTaskReports(jobId);
+    } while (taskReports.length == 0);
 
-    for (TaskReport r : mapReports) {
+    for (TaskReport r : taskReports) {
       tipId = r.getTaskID();
-      break;// because we have only one map
+      break;// because we have only one map (or one reduce if uberized)
     }
     return tipId;
   }

@@ -54,7 +54,7 @@ class TaskMemoryManagerThread extends Thread {
   private final List<TaskAttemptID> tasksToBeRemoved;
 
   private static final String MEMORY_USAGE_STRING =
-    "Memory usage of ProcessTree %s for task-id %s : Virutal %d bytes, " +
+    "Memory usage of ProcessTree %s for task-id %s : Virtual %d bytes, " +
       "limit : %d bytes; Physical %d bytes, limit %d bytes";
   
   public TaskMemoryManagerThread(TaskTracker taskTracker) {
@@ -299,7 +299,7 @@ class TaskMemoryManagerThread extends Thread {
       if (doCheckVirtualMemory() &&
           memoryStillInUsage > maxMemoryAllowedForAllTasks) {
         LOG.warn("The total memory in usage " + memoryStillInUsage
-            + " is still overflowing TTs limits "
+            + " is still overflowing TT's limits "
             + maxMemoryAllowedForAllTasks
             + ". Trying to kill a few tasks with the least progress.");
         killTasksWithLeastProgress(memoryStillInUsage);
@@ -308,7 +308,7 @@ class TaskMemoryManagerThread extends Thread {
       if (doCheckPhysicalMemory() &&
           rssMemoryStillInUsage > maxRssMemoryAllowedForAllTasks) {
         LOG.warn("The total physical memory in usage " + rssMemoryStillInUsage
-            + " is still overflowing TTs limits "
+            + " is still overflowing TT's limits "
             + maxRssMemoryAllowedForAllTasks
             + ". Trying to kill a few tasks with the highest memory.");
         killTasksWithMaxRssMemory(rssMemoryStillInUsage);
@@ -440,8 +440,8 @@ class TaskMemoryManagerThread extends Thread {
         killTask(tid, msg);
       }
     } else {
-      LOG.info("The total memory usage is overflowing TTs limits. "
-          + "But found no alive task to kill for freeing memory.");
+      LOG.info("The total memory usage is overflowing TT's limits, "
+          + "but found no live task to kill to free memory.");
     }
   }
 
@@ -457,8 +457,8 @@ class TaskMemoryManagerThread extends Thread {
   }
 
   /**
-   * Starting from the tasks use the highest amount of RSS memory,
-   * kill the tasks until the RSS memory meets the requirement
+   * Starting from the tasks that use the highest amount of RSS memory,
+   * kill the tasks until the RSS memory meets the requirement.
    * @param rssMemoryInUsage
    */
   private void killTasksWithMaxRssMemory(long rssMemoryInUsage) {
@@ -500,8 +500,8 @@ class TaskMemoryManagerThread extends Thread {
         killTask(tid, msg);
       }
     } else {
-      LOG.info("The total physical memory usage is overflowing TTs limits. "
-          + "But found no alive task to kill for freeing memory.");
+      LOG.info("The total physical memory usage is overflowing TT's limits, "
+          + "but found no live task to kill to free memory.");
     }
   }
 

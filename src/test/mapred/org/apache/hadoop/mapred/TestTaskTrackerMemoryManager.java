@@ -183,7 +183,7 @@ public class TestTaskTrackerMemoryManager {
     fConf.setLong(MRConfig.MAPMEMORY_MB, 2 * 1024L);
     fConf.setLong(MRConfig.REDUCEMEMORY_MB, 2 * 1024L);
     // Reserve only 1 mb of the memory on TaskTrackers
-    fConf.setLong(TTConfig.TT_RESERVED_PHYSCIALMEMORY_MB, 1L);
+    fConf.setLong(TTConfig.TT_RESERVED_PHYSICALMEMORY_MB, 1L);
     startCluster(new JobConf());
 
     JobConf conf = new JobConf(miniMRCluster.createJobConf());
@@ -240,7 +240,7 @@ public class TestTaskTrackerMemoryManager {
     // very small value, so that no task escapes to successful completion.
     fConf.setInt(TTConfig.TT_MEMORY_MANAGER_MONITORING_INTERVAL, 100);
     // Reserve only 1 mb of the memory on TaskTrackers
-    fConf.setLong(TTConfig.TT_RESERVED_PHYSCIALMEMORY_MB, 1L);
+    fConf.setLong(TTConfig.TT_RESERVED_PHYSICALMEMORY_MB, 1L);
     startCluster(fConf);
     runJobExceedingMemoryLimit(true);
   }
@@ -547,10 +547,11 @@ public class TestTaskTrackerMemoryManager {
             new LinuxResourceCalculatorPlugin();
     long totalPhysicalMemory = memoryCalculatorPlugin.getPhysicalMemorySize();
     long reservedPhysicalMemory = totalPhysicalMemory / (1024 * 1024) + 1;
-    fConf.setLong(TTConfig.TT_RESERVED_PHYSCIALMEMORY_MB,
+    fConf.setLong(TTConfig.TT_RESERVED_PHYSICALMEMORY_MB,
                   reservedPhysicalMemory);
     long maxRssMemoryAllowedForAllTasks = totalPhysicalMemory -
                                           reservedPhysicalMemory * 1024 * 1024L;
+    // must match string near line 500 of TaskMemoryManagerThread.java:
     Pattern physicalMemoryOverLimitPattern = Pattern.compile(
         "Killing one of the memory-consuming tasks - .*"
           + ", as the cumulative RSS memory usage of all the tasks on "
@@ -571,13 +572,20 @@ public class TestTaskTrackerMemoryManager {
     // Start the job
     Job job = sleepJob.createJob(1, 1, 100000, 1, 100000, 1);
     job.submit();
+    JobInProgress jip = miniMRCluster.getJobTrackerRunner().getJobTracker()
+        .getJob(JobID.downgrade(job.getJobID()));
     boolean TTOverFlowMsgPresent = false;
     while (true) {
       List<TaskReport> allTaskReports = new ArrayList<TaskReport>();
-      allTaskReports.addAll(Arrays.asList(jClient
-          .getSetupTaskReports(JobID.downgrade(job.getJobID()))));
-      allTaskReports.addAll(Arrays.asList(jClient
-          .getMapTaskReports(JobID.downgrade(job.getJobID()))));
+      if (jip.isUber()) {
+        allTaskReports.addAll(Arrays.asList(
+            jClient.getReduceTaskReports(JobID.downgrade(job.getJobID()))));
+      } else {
+        allTaskReports.addAll(Arrays.asList(
+            jClient.getSetupTaskReports(JobID.downgrade(job.getJobID()))));
+        allTaskReports.addAll(Arrays.asList(
+            jClient.getMapTaskReports(JobID.downgrade(job.getJobID()))));
+      }
       for (TaskReport tr : allTaskReports) {
         String[] diag = tr.getDiagnostics();
         for (String str : diag) {

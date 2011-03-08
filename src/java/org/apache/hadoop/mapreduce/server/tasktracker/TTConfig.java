@@ -90,9 +90,10 @@ public interface TTConfig extends MRConfig {
     "mapreduce.tasktracker.cache.local.numberdirectories";
   public static final String TT_OUTOFBAND_HEARBEAT =
     "mapreduce.tasktracker.outofband.heartbeat";
-  public static final String TT_RESERVED_PHYSCIALMEMORY_MB =
+  public static final String TT_RESERVED_PHYSICALMEMORY_MB =
     "mapreduce.tasktracker.reserved.physicalmemory.mb";
-  public static final String TT_USER_NAME = "mapreduce.tasktracker.kerberos.principal";
+  public static final String TT_USER_NAME =
+    "mapreduce.tasktracker.kerberos.principal";
   public static final String TT_KEYTAB_FILE = 
     "mapreduce.tasktracker.keytab.file";
   public static final String TT_GROUP = 

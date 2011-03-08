@@ -117,6 +117,10 @@ public class TestTaskFail extends TestCase {
     FileInputFormat.setInputPaths(conf, inDir);
     FileOutputFormat.setOutputPath(conf, outDir);
     conf.setSpeculativeExecution(false);
+    // mapper class explicitly depends on being able to see "real" taskids, but
+    // uberized map (sub-)taskids never change => subtask (and ubertask, and
+    // job) always fails due to being attempt "_0"
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     String TEST_ROOT_DIR = new Path(System.getProperty("test.build.data",
                                     "/tmp")).toString().replace(' ', '+');
     conf.set("test.build.data", TEST_ROOT_DIR);
@@ -164,8 +168,8 @@ public class TestTaskFail extends TestCase {
 
   private void validateJob(RunningJob job, JobTracker jt) 
   throws IOException {
-    assertEquals(JobStatus.SUCCEEDED, job.getJobState());
-	    
+    assertEquals("job not successful", JobStatus.SUCCEEDED, job.getJobState());
+
     JobID jobId = job.getID();
     // construct the task id of first map task
     // this should not be cleanup attempt since the first attempt 

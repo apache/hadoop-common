@@ -96,6 +96,9 @@ public class TestTaskPerformanceSplitTranscription {
     
     try {
       JobConf jConf = mrCluster.createJobConf();
+      // disable uberization (MR-1220) until JobHistory supports uber-specific
+      // events with complete split info (for Rumen network topology)
+      jConf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
       // construct a job with 1 map and 1 reduce task.
       Job job = MapReduceTestUtil.createJob(jConf, inDir, outDir, 1, 1);
       // disable setup/cleanup
