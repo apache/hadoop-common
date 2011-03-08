@@ -186,8 +186,12 @@ public class TestMapReduceLazyOutput extends TestCase {
                    numMappers, fileList.length);
 
     } finally {
-      if (dfs != null) { dfs.shutdown(); }
-      if (mr != null) { mr.shutdown(); }
+      if (dfs != null) {
+        dfs.shutdown();
+      }
+      if (mr != null) {
+        mr.shutdown();
+      }
     }
   }
 
