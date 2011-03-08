@@ -133,7 +133,8 @@ public class TestJobQueueInformation extends TestCase {
       assertEquals(expectedQueueInfo, queueInfo.getSchedulingInfo());
       numberOfJobs += jobStatusList.length;
       for (JobStatus status : jobStatusList) {
-        assertEquals(JOB_SCHEDULING_INFO, status.getSchedulingInfo());
+        assertEquals("Custom JobStatus scheduling info not found.",
+                     JOB_SCHEDULING_INFO, status.getSchedulingInfo());
       }
     }
     assertEquals(1, numberOfJobs);

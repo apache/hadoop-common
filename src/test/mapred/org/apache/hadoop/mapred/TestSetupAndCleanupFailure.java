@@ -115,7 +115,7 @@ public class TestSetupAndCleanupFailure extends TestCase {
     RunningJob job = UtilsForTests.runJob(jobConf, inDir, outDir);
     // wait for the job to finish.
     job.waitForCompletion();
-    assertEquals(JobStatus.FAILED, job.getJobState());
+    assertEquals("job didn't fail!", JobStatus.FAILED, job.getJobState());
   }
   
   // launch job with CommitterWithLongSetupAndCleanup as committer
