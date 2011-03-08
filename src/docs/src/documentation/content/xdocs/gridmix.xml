@@ -89,15 +89,12 @@ org.apache.hadoop.mapred.gridmix.Gridmix \
       100 * 2<sup>30</sup> bytes as input data.
       <code>&lt;iopath&gt;/input</code> is the destination directory for
       generated input data and/or the directory from which input data will be
-      read. HDFS-based Distributed Cache files are generated under the directory
-      <code>&lt;iopath&gt;/distributedCache</code>.
-      Private Distributed Cache files are created under the directory
-      <code>&lt;iopath&gt;/distributedCache/private</code> and public
-      Distributed Cache files are created under the directoty
-      <code>&lt;iopath&gt;/distributedCache/public</code>. If some of the needed
-      Distributed Cache files are already existing in the above directories,
-      then only the remaining non-existing Distributed Cache files are generated
-      when <code>-generate</code> option is specified.</p>
+      read. HDFS-based Distributed Cache files are generated under the
+      distributed cache directory <code>&lt;iopath&gt;/distributedCache</code>.
+      If some of the needed Distributed Cache files are already existing in the
+      distributed cache directory, then only the remaining non-existing
+      Distributed Cache files are generated when <code>-generate</code> option
+      is specified.</p>
       <p>The <code>-users</code> option is used to point to a users-list
       file (see <a href="#usersqueues">Emulating Users and Queues</a>).</p>
       <p>The <code>&lt;trace&gt;</code> parameter is a path to a job trace
@@ -534,8 +531,9 @@ hadoop jar &lt;gridmix-jar&gt; org.apache.hadoop.mapred.gridmix.Gridmix \
     <ul>
     <li>input trace comes from the standard input-stream instead of file, or</li>
     <li><code>&lt;iopath&gt;</code> specified is on local file-system, or</li>
-    <li>any of the ascendant directories of <code>&lt;iopath&gt;</code> till
-    root doesn't have execute permission for others.</li>
+    <li>any of the ascendant directories of the distributed cache directory
+    i.e. <code>&lt;iopath&gt;/distributedCache</code> (including the distributed
+    cache directory) doesn't have execute permission for others.</li>
     </ul>
   </section>
 
