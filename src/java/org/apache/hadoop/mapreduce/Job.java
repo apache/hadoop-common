@@ -574,7 +574,9 @@ public class Job extends JobContextImpl implements JobContext {
    */
   public Counters getCounters() 
       throws IOException, InterruptedException {
+System.out.println("GRR DEBUG:  Job getCounters(): about to call ensureState()");
     ensureState(JobState.RUNNING);
+System.out.println("GRR DEBUG:  Job getCounters(): back from ensureState(); about to call cluster.getClient().getJobCounters()");
     return cluster.getClient().getJobCounters(getJobID());
   }
 
@@ -1134,9 +1136,11 @@ public class Job extends JobContextImpl implements JobContext {
     }
     LOG.info("Job complete: " + jobId);
     Counters counters = getCounters();
+System.out.println("GRR DEBUG:  Job monitorAndPrintJob(): back from getCounters()");
     if (counters != null) {
       LOG.info(counters.toString());
     }
+System.out.println("GRR DEBUG:  Job monitorAndPrintJob(): returning " + isSuccessful() + " (status.getState() = " + status.getState() + ")");
     return isSuccessful();
   }
 

@@ -1014,6 +1014,7 @@ abstract public class Task implements Writable, Configurable {
         try {
           while (!umbilical.canCommit(taskIdForUmbilical)) {
             try {
+System.out.println("GRR DEBUG:  Task commit(): TT canCommit() returned false; sleeping 1 sec");
               // FIXME 1:  shouldn't this count down retries, too, in case JT glitched and no longer knows about us?  (else infinite loop)
               Thread.sleep(1000);  // FIXME 2:  shouldn't hardcoded 1-second sleep instead correspond to heartbeat interval for task?
             } catch(InterruptedException ie) {
@@ -1021,8 +1022,10 @@ abstract public class Task implements Writable, Configurable {
             }
             reporter.setProgressFlag();
           }
+System.out.println("GRR DEBUG:  Task commit(): TT canCommit() returned true");
           break;
         } catch (IOException ie) {
+System.out.println("GRR DEBUG:  Task commit(): TT canCommit() threw exception");
           LOG.warn("Failure asking whether task can commit: " +
               StringUtils.stringifyException(ie));
           if (--retries == 0) {
@@ -1034,6 +1037,7 @@ abstract public class Task implements Writable, Configurable {
       }
     }
 
+System.out.println("GRR DEBUG:  Task commit(): about to call commitTask()");
     // task can Commit now  
     try {
       LOG.info("Task " + taskId + " is allowed to commit now");
