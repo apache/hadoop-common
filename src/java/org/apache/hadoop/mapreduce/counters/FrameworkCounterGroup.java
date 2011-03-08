@@ -182,8 +182,11 @@ public abstract class FrameworkCounterGroup<T extends Enum<T>,
 
   @Override
   public int size() {
-    // It's used for reserve space anyway.
-    return counters.length;
+    int n = 0;
+    for (int i = 0; i < counters.length; ++i) {
+      if (counters[i] != null) ++n;
+    }
+    return n;
   }
 
   @Override
@@ -204,7 +207,7 @@ public abstract class FrameworkCounterGroup<T extends Enum<T>,
   @Override
   @SuppressWarnings("unchecked")
   public void write(DataOutput out) throws IOException {
-    WritableUtils.writeVInt(out, numSetCounters());
+    WritableUtils.writeVInt(out, size());
     for (int i = 0; i < counters.length; ++i) {
       Counter counter = (C) counters[i];
       if (counter != null) {
@@ -212,14 +215,6 @@ public abstract class FrameworkCounterGroup<T extends Enum<T>,
         WritableUtils.writeVLong(out, counter.getValue());
       }
     }
-  }
-
-  private int numSetCounters() {
-    int n = 0;
-    for (int i = 0; i < counters.length; ++i) {
-      if (counters[i] != null) ++n;
-    }
-    return n;
   }
 
   @Override
@@ -258,7 +253,7 @@ public abstract class FrameworkCounterGroup<T extends Enum<T>,
   }
 
   @Override
-  public synchronized boolean equals(Object genericRight) {
+  public boolean equals(Object genericRight) {
     if (genericRight instanceof CounterGroupBase<?>) {
       @SuppressWarnings("unchecked")
       CounterGroupBase<C> right = (CounterGroupBase<C>) genericRight;

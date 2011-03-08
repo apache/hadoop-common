@@ -221,8 +221,11 @@ public abstract class FileSystemCounterGroup<C extends Counter>
 
   @Override
   public int size() {
-    // It's used for reserve space anyway.
-    return map.size() * FileSystemCounter.values().length;
+    int n = 0;
+    for (Object[] counters : map.values()) {
+      n += numSetCounters(counters);
+    }
+    return n;
   }
 
   @Override
