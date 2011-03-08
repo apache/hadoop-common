@@ -932,9 +932,9 @@ public class JobHistory {
         dateString = String.format
           ("%04d/%02d/%02d/%02d",
            timestamp.get(Calendar.YEAR),
-           timestamp.get(DEBUG_MODE ? Calendar.HOUR : Calendar.MONTH) + 1,
+           timestamp.get(DEBUG_MODE ? Calendar.HOUR_OF_DAY : Calendar.MONTH) + 1,
            timestamp.get(DEBUG_MODE ? Calendar.MINUTE : Calendar.DAY_OF_MONTH),
-           timestamp.get(DEBUG_MODE ? Calendar.SECOND : Calendar.HOUR));
+           timestamp.get(DEBUG_MODE ? Calendar.SECOND : Calendar.HOUR_OF_DAY));
 
         dateString = dateString.intern();
 
@@ -1478,11 +1478,11 @@ public class JobHistory {
       --seg2int;
     }
 
-    result.set(DEBUG_MODE ? Calendar.HOUR : Calendar.MONTH,
+    result.set(DEBUG_MODE ? Calendar.HOUR_OF_DAY : Calendar.MONTH,
                seg2int);
     result.set(DEBUG_MODE ? Calendar.MINUTE : Calendar.DAY_OF_MONTH,
                Integer.parseInt(seg3));
-    result.set(DEBUG_MODE ? Calendar.SECOND : Calendar.HOUR,
+    result.set(DEBUG_MODE ? Calendar.SECOND : Calendar.HOUR_OF_DAY,
                Integer.parseInt(seg4));
 
     return result.getTimeInMillis();
