@@ -4109,4 +4109,8 @@ public class TaskTracker
     ACLsManager getACLsManager() {
       return aclsManager;
     }
+
+    synchronized TaskInProgress getRunningTask(TaskAttemptID tid) {
+      return runningTasks.get(tid);
+    }
 }
