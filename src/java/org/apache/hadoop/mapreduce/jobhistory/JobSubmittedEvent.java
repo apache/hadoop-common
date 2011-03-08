@@ -52,19 +52,19 @@ public class JobSubmittedEvent implements HistoryEvent {
   public JobSubmittedEvent(JobID id, String jobName, String userName,
       long submitTime, String jobConfPath,
       Map<JobACL, AccessControlList> jobACLs, String jobQueueName) {
-    datum.jobid = new Utf8(id.toString());
-    datum.jobName = new Utf8(jobName);
-    datum.userName = new Utf8(userName);
+    datum.jobid = id.toString();
+    datum.jobName = jobName;
+    datum.userName = userName;
     datum.submitTime = submitTime;
-    datum.jobConfPath = new Utf8(jobConfPath);
-    Map<Utf8, Utf8> jobAcls = new HashMap<Utf8, Utf8>();
+    datum.jobConfPath = jobConfPath;
+    Map<CharSequence, CharSequence> jobAcls = new HashMap<CharSequence, CharSequence>();
     for (Entry<JobACL, AccessControlList> entry : jobACLs.entrySet()) {
       jobAcls.put(new Utf8(entry.getKey().getAclName()), new Utf8(
           entry.getValue().getAclString()));
     }
     datum.acls = jobAcls;
     if (jobQueueName != null) {
-      datum.jobQueueName = new Utf8(jobQueueName);
+      datum.jobQueueName = jobQueueName;
     }
   }
 

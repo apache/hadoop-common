@@ -65,20 +65,10 @@
                rev="${hadoop-common.version}" conf="system->default"/>
    <dependency org="org.apache.hadoop" name="hadoop-hdfs-instrumented"
                rev="${hadoop-common.version}" conf="system->default"/>
-   <dependency org="commons-logging" name="commons-logging" 
-               rev="${commons-logging.version}" conf="common->master"/>
-   <dependency org="log4j" name="log4j" rev="${log4j.version}" 
-               conf="common->master"/>
-
-   <dependency org="org.slf4j" name="slf4j-api" rev="${slf4j-api.version}" 
-               conf="common->master"/>
-   <dependency org="org.slf4j" name="slf4j-log4j12" 
-               rev="${slf4j-log4j12.version}" conf="common->master"/>
    <dependency org="org.apache.hadoop" name="hadoop-common-test" 
                rev="${hadoop-common.version}" conf="test->default"/>
    <dependency org="org.apache.hadoop" name="hadoop-hdfs-test" 
                rev="${hadoop-hdfs.version}" conf="test->default"/>
-
    <dependency org="checkstyle" name="checkstyle" rev="${checkstyle.version}"
                conf="checkstyle->default"/>
 
@@ -86,23 +76,10 @@
                conf="jdiff->default"/>
    <dependency org="xerces" name="xerces" rev="${xerces.version}"
                conf="jdiff->default"/>
-
    <dependency org="org.apache.rat" name="apache-rat-tasks" 
                rev="${rats-lib.version}" conf="releaseaudit->default"/>
-   <dependency org="commons-lang" name="commons-lang" 
-               rev="${commons-lang.version}" conf="releaseaudit->default"/>
-   <dependency org="commons-collections" name="commons-collections" 
-               rev="${commons-collections.version}" 
-               conf="releaseaudit->default"/>
-
    <dependency org="org.apache.lucene" name="lucene-core" 
                rev="${lucene-core.version}" conf="javadoc->default"/>
-   <dependency org="org.apache.hadoop" name="avro" rev="${avro.version}" 
-               conf="common->default">
-      <exclude module="ant"/>
-      <exclude module="jetty"/>
-      <exclude module="slf4j-simple"/>
-    </dependency>
    <!-- dependency addition for the fault injection -->
    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
                conf="common->default"/>

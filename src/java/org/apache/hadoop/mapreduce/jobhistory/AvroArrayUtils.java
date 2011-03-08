@@ -46,7 +46,7 @@ public class AvroArrayUtils {
     return result;
   }
 
-  public static int[] fromAvro(GenericArray<Integer> avro) {
+  public static int[] fromAvro(java.util.List<Integer> avro) {
     int[] result = new int[(int)avro.size()];
 
     int i = 0;
