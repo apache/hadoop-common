@@ -71,7 +71,7 @@ public abstract class TaskStatus implements Writable, Cloneable {
     
   private volatile Phase phase = Phase.STARTING; 
   private Counters counters;
-  private boolean includeCounters;
+  private boolean includeAllCounters;
   private SortedRanges.Range nextRecordRange = new SortedRanges.Range();
   
   // max task-status string size
@@ -105,7 +105,7 @@ public abstract class TaskStatus implements Writable, Cloneable {
     this.taskTracker = taskTracker;
     this.phase = phase;
     this.counters = counters;
-    this.includeCounters = true;
+    this.includeAllCounters = true;
   }
   
   public TaskAttemptID getTaskID() { return taskid; }
@@ -317,12 +317,13 @@ public abstract class TaskStatus implements Writable, Cloneable {
       this.runState == TaskStatus.State.KILLED_UNCLEAN));
   }
   
-  public boolean getIncludeCounters() {
-    return includeCounters; 
+  public boolean getIncludeAllCounters() {
+    return includeAllCounters;
   }
   
-  public void setIncludeCounters(boolean send) {
-    includeCounters = send;
+  public void setIncludeAllCounters(boolean send) {
+    includeAllCounters = send;
+    counters.setWriteAllCounters(send);
   }
   
   /**
@@ -471,11 +472,9 @@ public abstract class TaskStatus implements Writable, Cloneable {
     WritableUtils.writeEnum(out, phase);
     out.writeLong(startTime);
     out.writeLong(finishTime);
-    out.writeBoolean(includeCounters);
+    out.writeBoolean(includeAllCounters);
     out.writeLong(outputSize);
-    if (includeCounters) {
-      counters.write(out);
-    }
+    counters.write(out);
     nextRecordRange.write(out);
   }
 
@@ -490,11 +489,9 @@ public abstract class TaskStatus implements Writable, Cloneable {
     this.startTime = in.readLong(); 
     this.finishTime = in.readLong(); 
     counters = new Counters();
-    this.includeCounters = in.readBoolean();
+    this.includeAllCounters = in.readBoolean();
     this.outputSize = in.readLong();
-    if (includeCounters) {
-      counters.readFields(in);
-    }
+    counters.readFields(in);
     nextRecordRange.readFields(in);
   }
   

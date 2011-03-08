@@ -111,8 +111,10 @@ public interface ClientProtocol extends VersionedProtocol {
    * Version 34: Modified submitJob to use Credentials instead of TokenStorage.
    * Version 35: Added the method getQueueAdmins(queueName) as part of
    *             MAPREDUCE-1664.
+   * Version 36: More efficient serialization format for framework counters
+   *             (MAPREDUCE-901)
    */
-  public static final long versionID = 35L;
+  public static final long versionID = 36L;
 
   /**
    * Allocate a name for the job.

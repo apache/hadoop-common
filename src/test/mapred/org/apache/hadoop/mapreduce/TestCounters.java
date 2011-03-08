@@ -17,7 +17,6 @@
  */
 package org.apache.hadoop.mapreduce;
 
-import java.io.IOException;
 import java.util.Random;
 
 import org.junit.Test;
@@ -39,7 +38,8 @@ public class TestCounters {
     for (int i = 0; i < NUMBER_TESTS; i++) {
       long initValue = rand.nextInt();
       long expectedValue = initValue;
-      Counter counter = new Counter("foo", "bar", expectedValue);
+      Counter counter = new Counters().findCounter("test", "foo");
+      counter.setValue(initValue);
       assertEquals("Counter value is not initialized correctly",
           expectedValue, counter.getValue());
       for (int j = 0; j < NUMBER_INC; j++) {

@@ -52,6 +52,7 @@ import org.apache.hadoop.mapreduce.JobCounter;
 import org.apache.hadoop.mapreduce.JobSubmissionFiles;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapreduce.counters.LimitExceededException;
 import org.apache.hadoop.mapreduce.jobhistory.JobFinishedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
 import org.apache.hadoop.mapreduce.jobhistory.JobInfoChangeEvent;
@@ -1364,8 +1365,12 @@ public class JobInProgress {
    */
   private Counters incrementTaskCounters(Counters counters,
                                          TaskInProgress[] tips) {
-    for (TaskInProgress tip : tips) {
-      counters.incrAllCounters(tip.getCounters());
+    try {
+      for (TaskInProgress tip : tips) {
+        counters.incrAllCounters(tip.getCounters());
+      }
+    } catch (LimitExceededException e) {
+      // too many user counters/groups, leaving existing counters intact.
     }
     return counters;
   }
@@ -2822,6 +2827,9 @@ public class JobInProgress {
       retireMap(tip);
       if ((finishedMapTasks + failedMapTIPs) == (numMapTasks)) {
         this.status.setMapProgress(1.0f);
+        if (canLaunchJobCleanupTask()) {
+          checkCountersLimitsOrFail();
+        }
       }
     } else {
       runningReduceTasks -= 1;
@@ -2834,6 +2842,9 @@ public class JobInProgress {
       retireReduce(tip);
       if ((finishedReduceTasks + failedReduceTIPs) == (numReduceTasks)) {
         this.status.setReduceProgress(1.0f);
+        if (canLaunchJobCleanupTask()) {
+          checkCountersLimitsOrFail();
+        }
       }
     }
     decrementSpeculativeCount(wasSpeculating, tip);
@@ -2842,6 +2853,19 @@ public class JobInProgress {
       jobComplete();
     }
     return true;
+  }
+
+  /*
+   * add up the counters and fail the job if it exceeds the limits.
+   * Make sure we do not recalculate the counters after we fail the job.
+   * Currently this is taken care by terminateJob() since it does not
+   * calculate the counters.
+   */
+  private void checkCountersLimitsOrFail() {
+    Counters counters = getCounters();
+    if (counters.limits().violation() != null) {
+      jobtracker.failJob(this);
+    }
   }
   
   private void updateTaskTrackerStats(TaskInProgress tip, TaskTrackerStatus ttStatus, 

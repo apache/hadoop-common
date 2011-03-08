@@ -1150,4 +1150,11 @@
 
 <!--  end of node health script variables -->
 
+<property>
+ <name>mapreduce.job.counters.limit</name>
+  <value>120</value>
+  <description>Limit on the number of user counters allowed per job.
+  </description>
+</property>
+
 </configuration>
