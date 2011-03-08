@@ -769,8 +769,8 @@ class TaskInProgress {
       if (!isCleanupAttempt(taskid)) {
         taskStatuses.put(taskid, status);
         //we don't want to include setup tasks in the task execution stats
-        if (!isJobSetupTask() && ((isMapTask() && job.hasSpeculativeMaps()) || 
-                                  (!isMapTask() && job.hasSpeculativeReduces()))) {
+        if (!isJobSetupTask() && ((isMapTask() && job.canSpeculateMaps()) ||
+                                 (!isMapTask() && job.canSpeculateReduces()))) {
           long now = JobTracker.getClock().getTime();
           double oldProgRate = getOldProgressRate();
           double currProgRate = getCurrentProgressRate(now);

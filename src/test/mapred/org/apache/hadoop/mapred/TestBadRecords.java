@@ -115,25 +115,25 @@ public class TestBadRecords extends ClusterMapReduceTestCase {
     
     // validate counters (1st assert arg is _expected_ value!)
     Counters counters = runningJob.getCounters();
-    assertEquals(mapperBadRecords.size(),
+    assertEquals("wrong MAP_SKIPPED_RECORDS value", mapperBadRecords.size(),
         counters.findCounter(TaskCounter.MAP_SKIPPED_RECORDS).getCounter());
     
     int mapRecs = input.size() - mapperBadRecords.size();
-    assertEquals(mapRecs,
+    assertEquals("wrong MAP_INPUT_RECORDS value", mapRecs,
         counters.findCounter(TaskCounter.MAP_INPUT_RECORDS).getCounter());
-    assertEquals(mapRecs,
+    assertEquals("wrong MAP_OUTPUT_RECORDS value", mapRecs,
         counters.findCounter(TaskCounter.MAP_OUTPUT_RECORDS).getCounter());
     
     int redRecs = mapRecs - redBadRecords.size();
-    assertEquals(redBadRecords.size(),
+    assertEquals("wrong REDUCE_SKIPPED_RECORDS value", redBadRecords.size(),
         counters.findCounter(TaskCounter.REDUCE_SKIPPED_RECORDS).getCounter());
-    assertEquals(redBadRecords.size(),
+    assertEquals("wrong REDUCE_SKIPPED_GROUPS value", redBadRecords.size(),
         counters.findCounter(TaskCounter.REDUCE_SKIPPED_GROUPS).getCounter());
-    assertEquals(redRecs,
+    assertEquals("wrong REDUCE_INPUT_GROUPS value", redRecs,
         counters.findCounter(TaskCounter.REDUCE_INPUT_GROUPS).getCounter());
-    assertEquals(redRecs,
+    assertEquals("wrong REDUCE_INPUT_RECORDS value", redRecs,
         counters.findCounter(TaskCounter.REDUCE_INPUT_RECORDS).getCounter());
-    assertEquals(redRecs,
+    assertEquals("wrong REDUCE_OUTPUT_RECORDS value", redRecs,
         counters.findCounter(TaskCounter.REDUCE_OUTPUT_RECORDS).getCounter());
     
     //validate skipped records

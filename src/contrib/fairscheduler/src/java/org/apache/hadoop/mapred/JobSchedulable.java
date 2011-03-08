@@ -60,7 +60,7 @@ public class JobSchedulable extends Schedulable {
       TaskInProgress[] tips = (taskType == TaskType.MAP ? 
           job.getTasks(TaskType.MAP) : job.getTasks(TaskType.REDUCE));
       boolean speculationEnabled = (taskType == TaskType.MAP ?
-          job.hasSpeculativeMaps() : job.hasSpeculativeReduces());
+          job.canSpeculateMaps() : job.canSpeculateReduces());
       long time = scheduler.getClock().getTime();
       for (TaskInProgress tip: tips) {
         if (!tip.isComplete()) {

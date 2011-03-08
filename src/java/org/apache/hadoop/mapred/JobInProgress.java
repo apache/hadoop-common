@@ -242,8 +242,8 @@ public class JobInProgress {
   FileSystem fs;
   String user;
   JobID jobId;
-  volatile private boolean hasSpeculativeMaps;
-  volatile private boolean hasSpeculativeReduces;
+  volatile private boolean canSpeculateMaps;
+  volatile private boolean canSpeculateReduces;
   long inputLength = 0;
   
   Counters jobCounters = new Counters();
@@ -344,8 +344,8 @@ public class JobInProgress {
     this.maxTaskFailuresPerTracker = conf.getMaxTaskFailuresPerTracker();
 
     
-    hasSpeculativeMaps = conf.getMapSpeculativeExecution();
-    hasSpeculativeReduces = conf.getReduceSpeculativeExecution();
+    canSpeculateMaps = conf.getMapSpeculativeExecution();
+    canSpeculateReduces = conf.getReduceSpeculativeExecution();
     this.nonLocalMaps = new LinkedList<TaskInProgress>();
     this.nonLocalRunningMaps = new LinkedHashSet<TaskInProgress>();
     this.runningMapCache = new IdentityHashMap<Node, Set<TaskInProgress>>();
@@ -465,8 +465,8 @@ public class JobInProgress {
 
       this.maxTaskFailuresPerTracker = conf.getMaxTaskFailuresPerTracker();
 
-      hasSpeculativeMaps = conf.getMapSpeculativeExecution();
-      hasSpeculativeReduces = conf.getReduceSpeculativeExecution();
+      canSpeculateMaps = conf.getMapSpeculativeExecution();
+      canSpeculateReduces = conf.getReduceSpeculativeExecution();
       this.maxLevel = jobtracker.getNumTaskCacheLevels();
       this.anyCacheLevel = this.maxLevel + 1;
       this.nonLocalMaps = new LinkedList<TaskInProgress>();
@@ -524,7 +524,7 @@ public class JobInProgress {
     for (int i = 0; i < splits.length; i++) {
       // originally UberTask was a flavor of MapTask (=> maps[0]), but the
       // current design makes it a flavor of ReduceTask instead (=> reduces[0])
-      TaskInProgress map = uberMode? reduces[0] : maps[i];
+      TaskInProgress map = isUber()? reduces[0] : maps[i];
       String[] splitLocations = splits[i].getLocations();
       if (splitLocations.length == 0) {
         nonLocalMaps.add(map);
@@ -688,14 +688,14 @@ public class JobInProgress {
         && (Math.max(memoryPerMap, memoryPerReduce) <= sysMemSizeForUberSlot
             || sysMemSizeForUberSlot == JobConf.DISABLED_MEMORY_LIMIT);
 
-    if (uberMode) {
+    if (isUber()) {
       // save internal details for UI and abort-cleanup
       uberMapTasks = numMapTasks;
       uberReduceTasks = numReduceTasks;
       uberSetupCleanupNeeded = jobSetupCleanupNeeded;
 
       // disable speculation:  makes no sense to speculate an entire job
-      hasSpeculativeMaps = hasSpeculativeReduces = false;
+      canSpeculateMaps = canSpeculateReduces = false;
 
       // This method modifies numMapTasks (-> 0) and numReduceTasks (-> 1)
       // [and actually creates a TIP, not a true Task; latter is created in
@@ -708,14 +708,14 @@ public class JobInProgress {
     jobtracker.getInstrumentation().addWaitingMaps(getJobID(), numMapTasks);
     jobtracker.getInstrumentation().addWaitingReduces(getJobID(), numReduceTasks);
 
-    if (!uberMode) {
+    if (!isUber()) {
       createMapTasks(jobFile.toString(), taskSplitMetaInfo);
     } else {
       // must create this array even if zero elements:
       maps = new TaskInProgress[numMapTasks];
     }
 
-    if (numMapTasks > 0 || (uberMode && uberMapTasks > 0)) {
+    if (numMapTasks > 0 || (isUber() && uberMapTasks > 0)) {
       // this is needed even if all tasks are shielded by uber event horizon
       nonRunningMapCache = createCache(taskSplitMetaInfo, maxLevel);
     }
@@ -723,7 +723,7 @@ public class JobInProgress {
     // set the launch time
     launchTime = JobTracker.getClock().getTime();
 
-    if (!uberMode) {
+    if (!isUber()) {
       createReduceTasks(jobFile.toString());
     }
 
@@ -755,12 +755,12 @@ public class JobInProgress {
     // possible FIXME:  if profile.getJobID() and jobId are same thing, pick one
     JobInitedEvent jie = new JobInitedEvent(
         profile.getJobID(), launchTime, numMapTasks, numReduceTasks,
-        uberMode, uberMapTasks, uberReduceTasks,
+        isUber(), uberMapTasks, uberReduceTasks,
         JobStatus.getJobRunState(JobStatus.PREP));
     jobHistory.logEvent(jie, jobId);
 
     // Log the number of map and reduce tasks
-    if (!uberMode) {
+    if (!isUber()) {
       LOG.info("Job " + jobId + " initialized successfully with " + numMapTasks
                + " map tasks and " + numReduceTasks + " reduce tasks.");
     } else {
@@ -887,7 +887,7 @@ public class JobInProgress {
                        numReduceTasks, jobtracker, conf, this, 1);
     cleanup[1].setJobCleanupTask();
 
-    if (uberMode) {
+    if (isUber()) {
       // ubertasks handle setup internally (as well as cleanup in the normal
       // case), so henceforth we pretend that setup and cleanup aren't needed
       // --unless/until job fails or is killed, in which case a separate
@@ -1327,7 +1327,7 @@ public class JobInProgress {
         this.status.setReduceProgress((float) (this.status.reduceProgress() + 
                                            (progressDelta / reduces.length)));
       }
-      if (uberMode &&
+      if (isUber() &&
           (schedulingInfo == null || schedulingInfo.toString().equals(""))) {
         setSchedulingInfo("");  // force method call so uber info will be added
       }
@@ -1589,8 +1589,8 @@ public class JobInProgress {
                                              int numUniqueHosts,
                                              boolean isMapSlot
                                             ) throws IOException {
-    // uberMode condition should be redundant, but make sure anyway:
-    if (!tasksInited.get() || !jobSetupCleanupNeeded || uberMode) {
+    // isUber() condition should be redundant, but make sure anyway:
+    if (!tasksInited.get() || !jobSetupCleanupNeeded || isUber()) {
       return null;
     }
 
@@ -2179,12 +2179,12 @@ public class JobInProgress {
     return null;
   }
   
-  public boolean hasSpeculativeMaps() {
-    return hasSpeculativeMaps;
+  public boolean canSpeculateMaps() {
+    return canSpeculateMaps;
   }
 
-  public boolean hasSpeculativeReduces() {
-    return hasSpeculativeReduces;
+  public boolean canSpeculateReduces() {
+    return canSpeculateReduces;
   }
 
   /**
@@ -2409,7 +2409,7 @@ public class JobInProgress {
     // II) Running TIP :
     // 
  
-    if (hasSpeculativeMaps) {
+    if (canSpeculateMaps) {
       tip = getSpeculativeMap(taskTrackerName, taskTrackerHost);
       if (tip != null) {
         return tip.getIdWithinJob();
@@ -2497,7 +2497,7 @@ public class JobInProgress {
     }
 
     // 2. check for a reduce tip to be speculated
-    if (hasSpeculativeReduces) {
+    if (canSpeculateReduces) {
       tip = getSpeculativeReduce(taskTrackerName, taskTrackerHost);
       if (tip != null) {
         return tip.getIdWithinJob();
@@ -2832,7 +2832,7 @@ public class JobInProgress {
       runningMapTasks -= 1;
       finishedMapTasks += 1;
       metrics.completeMap(taskid);
-      if (!tip.isJobSetupTask() && hasSpeculativeMaps) {
+      if (!tip.isJobSetupTask() && canSpeculateMaps) {
         updateTaskTrackerStats(tip,ttStatus,trackerMapStats,mapTaskStats);
       }
       // remove the completed map from the resp running caches
@@ -2847,7 +2847,7 @@ public class JobInProgress {
       runningReduceTasks -= 1;
       finishedReduceTasks += 1;
       metrics.completeReduce(taskid);
-      if (!tip.isJobSetupTask() && hasSpeculativeReduces) {
+      if (!tip.isJobSetupTask() && canSpeculateReduces) {
         updateTaskTrackerStats(tip,ttStatus,trackerReduceStats,reduceTaskStats);
       }
       // remove the completed reduces from the running reducers set
@@ -3056,7 +3056,7 @@ public class JobInProgress {
       return;
     }
 
-    if (uberMode) {
+    if (isUber()) {
       // restore setup/cleanup status so separate cleanup task will be launched
       // (see obtainJobCleanupTask())
       jobSetupCleanupNeeded = uberSetupCleanupNeeded;
@@ -3598,7 +3598,7 @@ public class JobInProgress {
   
   public synchronized void setSchedulingInfo(Object schedulingInfo) {
     // UberTasking is a kind of scheduling decision, so we append it here
-    if (uberMode) {
+    if (isUber()) {
       StringBuilder sb = new StringBuilder(256);
       if (schedulingInfo != null && !schedulingInfo.toString().equals("")) {
         sb.append(schedulingInfo).append(" ");

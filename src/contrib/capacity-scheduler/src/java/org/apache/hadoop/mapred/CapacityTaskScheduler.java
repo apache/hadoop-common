@@ -630,7 +630,7 @@ class CapacityTaskScheduler extends TaskScheduler {
     boolean hasSpeculativeTask(JobInProgress job, TaskTrackerStatus tts) {
       //Check if job supports speculative map execution first then
       //check if job has speculative maps.
-      return (job.hasSpeculativeMaps() &&
+      return (job.canSpeculateMaps() &&
               hasSpeculativeTask(job.getTasks(TaskType.MAP), tts));
     }
 
@@ -674,9 +674,9 @@ class CapacityTaskScheduler extends TaskScheduler {
 
     @Override
     boolean hasSpeculativeTask(JobInProgress job, TaskTrackerStatus tts) {
-      //check if the job supports reduce speculative execution first then
+      //check if the job supports speculative reduce execution first then
       //check if the job has speculative tasks.
-      return (job.hasSpeculativeReduces() &&
+      return (job.canSpeculateReduces() &&
               hasSpeculativeTask(job.getTasks(TaskType.REDUCE), tts));
     }
 
