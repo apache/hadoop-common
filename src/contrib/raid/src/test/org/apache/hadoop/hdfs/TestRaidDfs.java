@@ -50,7 +50,7 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
-import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.DistributedRaidFileSystem;
 import org.apache.hadoop.raid.RaidNode;
@@ -421,7 +421,7 @@ public class TestRaidDfs extends TestCase {
   //
   // Delete/Corrupt specified block of file
   //
-  public static void corruptBlock(Path file, Block blockNum,
+  public static void corruptBlock(Path file, ExtendedBlock blockNum,
                     int numDataNodes, boolean delete) throws IOException {
     long id = blockNum.getBlockId();
 
@@ -461,7 +461,7 @@ public class TestRaidDfs extends TestCase {
               (numCorrupted + numDeleted) > 0);
   }
 
-  public static void corruptBlock(Path file, Block blockNum,
+  public static void corruptBlock(Path file, ExtendedBlock blockNum,
                     int numDataNodes, long offset) throws IOException {
     long id = blockNum.getBlockId();
 
