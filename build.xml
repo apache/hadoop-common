@@ -1379,8 +1379,7 @@
      </artifact:install>
   </target>
 
-  <target name="mvn-install" depends="mvn-taskdef,examples,tools,jar-test,set-version,
-    -mvn-system-install">
+  <target name="mvn-install" depends="mvn-taskdef,examples,tools,jar-test,set-version">
      <artifact:pom file="${hadoop-mapred.pom}" id="hadoop.mapred"/>
      <artifact:pom file="${hadoop-mapred-test.pom}" id="hadoop.mapred.test"/>
      <artifact:pom file="${hadoop-mapred-examples.pom}" id="hadoop.mapred.examples"/>
@@ -1402,6 +1401,9 @@
 	<attach file="${hadoop-mapred-tools-sources.jar}" classifier="sources" />
      </artifact:install>
   </target>
+
+  <target name="mvn-si-install" depends="mvn-install,-mvn-system-install"
+          description="Install system integration test jars as well"/>
 
   <target name="mvn-deploy" depends="mvn-taskdef, examples, tools, jar-test, set-version,
     -mvn-system-deploy">
