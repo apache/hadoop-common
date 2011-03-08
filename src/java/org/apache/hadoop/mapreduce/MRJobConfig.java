@@ -271,4 +271,19 @@ public interface MRJobConfig {
     "mapreduce.job.submithostname";
   public static final String JOB_SUBMITHOSTADDR =
     "mapreduce.job.submithostaddress";
+
+  public static final String JOB_UBERTASK_ENABLE =
+    "mapreduce.job.ubertask.enable";
+  public static final String JOB_UBERTASK_MAXMAPS =
+    "mapreduce.job.ubertask.maxmaps";
+  public static final String JOB_UBERTASK_MAXREDUCES =
+    "mapreduce.job.ubertask.maxreduces";
+  public static final String JOB_UBERTASK_MAXBYTES =
+    "mapreduce.job.ubertask.maxbytes";
+  public static final String UBERTASK_JAVA_OPTS =
+    "mapreduce.ubertask.child.java.opts";  // or mapreduce.uber.java.opts?
+  public static final String UBERTASK_ULIMIT =
+    "mapreduce.ubertask.child.ulimit";     // or mapreduce.uber.ulimit?
+  public static final String UBERTASK_ENV =
+    "mapreduce.ubertask.child.env";        // or mapreduce.uber.env?
 }

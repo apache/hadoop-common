@@ -44,11 +44,15 @@ public class JobInitedEvent implements HistoryEvent {
    * @param jobStatus
    */
   public JobInitedEvent(JobID id, long launchTime, int totalMaps,
-                        int totalReduces, String jobStatus) {
+                        int totalReduces, boolean isUber, int numUberSubMaps,
+                        int numUberSubReduces, String jobStatus) {
     datum.jobid = new Utf8(id.toString());
     datum.launchTime = launchTime;
     datum.totalMaps = totalMaps;
     datum.totalReduces = totalReduces;
+    datum.isUber = isUber;
+    datum.numUberSubMaps = numUberSubMaps;
+    datum.numUberSubReduces = numUberSubReduces;
     datum.jobStatus = new Utf8(jobStatus);
   }
 
@@ -61,10 +65,16 @@ public class JobInitedEvent implements HistoryEvent {
   public JobID getJobId() { return JobID.forName(datum.jobid.toString()); }
   /** Get the launch time */
   public long getLaunchTime() { return datum.launchTime; }
-  /** Get the total number of maps */
+  /** Get the total number of "real" maps */
   public int getTotalMaps() { return datum.totalMaps; }
-  /** Get the total number of reduces */
+  /** Get the total number of "real" reduces */
   public int getTotalReduces() { return datum.totalReduces; }
+  /** Was the job small enough to be converted to an UberTask? */
+  public boolean getIsUber() { return datum.isUber; }
+  /** Get the number of sub-MapTasks within the UberTask */
+  public int getNumUberSubMaps() { return datum.numUberSubMaps; }
+  /** Get the number of sub-ReduceTasks within the UberTask */
+  public int getNumUberSubReduces() { return datum.numUberSubReduces; }
   /** Get the status */
   public String getStatus() { return datum.jobStatus.toString(); }
  /** Get the event type */

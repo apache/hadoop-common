@@ -526,6 +526,8 @@ public class HistoryViewer {
      int totalReduces = 0; 
      int totalCleanups = 0;
      int totalSetups = 0;
+    int numUberSubMaps = 0;
+    int numUberSubReduces = 0;
      int numFailedMaps = 0; 
      int numKilledMaps = 0;
      int numFailedReduces = 0; 
@@ -544,15 +546,20 @@ public class HistoryViewer {
      long cleanupFinished = 0;
      long setupStarted = 0;
      long setupFinished = 0;
-     
+    boolean isUber = false;
+
      /** Get total maps */
      public int getTotalMaps() { return totalMaps; } 
      /** Get total reduces */
      public int getTotalReduces() { return totalReduces; } 
-     /** Get number of clean up tasks */ 
+     /** Get number of cleanup tasks */ 
      public int getTotalCleanups() { return totalCleanups; }
-     /** Get number of set up tasks */
+     /** Get number of setup tasks */
      public int getTotalSetups() { return totalSetups; }
+    /** Get number of map subtasks within UberTask */
+    public int getNumUberSubMaps() { return numUberSubMaps; }
+    /** Get number of reduce subtasks within UberTask */
+    public int getNumUberSubReduces() { return numUberSubReduces; }
      /** Get number of failed maps */
      public int getNumFailedMaps() { return numFailedMaps; }
      /** Get number of killed maps */
@@ -567,11 +574,11 @@ public class HistoryViewer {
      public int getNumFailedCleanups() { return numFailedCleanups; }
      /** Get number of killed cleanup tasks */
      public int getNumKilledCleanups() { return numKilledCleanups; }
-     /** Get number of finished set up tasks */
+     /** Get number of finished setup tasks */
      public int getNumFinishedSetups() { return numFinishedSetups; }
-     /** Get number of failed set up tasks */
+     /** Get number of failed setup tasks */
      public int getNumFailedSetups() { return numFailedSetups; }
-     /** Get number of killed set up tasks */
+     /** Get number of killed setup tasks */
      public int getNumKilledSetups() { return numKilledSetups; }
      /** Get number of maps that were started */
      public long getMapStarted() { return mapStarted; } 
@@ -589,8 +596,10 @@ public class HistoryViewer {
      public long getSetupStarted() { return setupStarted; }
      /** Get number of setup tasks that finished */
      public long getSetupFinished() { return setupFinished; }
+    /** Get job's UberTask/non-UberTask status */
+    public boolean isUber() { return isUber; }
 
-     /** Create summary information for the parsed job */
+    /** Create summary information for the parsed job */
     public SummarizedJob(JobInfo job) {
       tasks = job.getAllTasks();
 

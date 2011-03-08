@@ -42,6 +42,11 @@ class MapTaskStatus extends TaskStatus {
     return true;
   }
 
+  @Override
+  public boolean getIsUber() {
+    return false;
+  }
+
   /**
    * Sets finishTime. 
    * @param finishTime finish time of task.

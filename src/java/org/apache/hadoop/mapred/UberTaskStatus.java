@@ -26,24 +26,28 @@ import java.util.List;
 
 
 
-class ReduceTaskStatus extends TaskStatus {
+class UberTaskStatus extends TaskStatus {
 
-  private long shuffleFinishTime; 
-  private long sortFinishTime; 
+  private long mapFinishTime;
+  // map version of sortFinishTime is ~ irrelevant
+
+  private long shuffleFinishTime;
+  private long sortFinishTime;
   private List<TaskAttemptID> failedFetchTasks = new ArrayList<TaskAttemptID>(1);
-  
-  public ReduceTaskStatus() {}
 
-  public ReduceTaskStatus(TaskAttemptID taskid, float progress, int numSlots,
-                          State runState, String diagnosticInfo, String stateString, 
-                          String taskTracker, Phase phase, Counters counters) {
-    super(taskid, progress, numSlots, runState, diagnosticInfo, stateString, 
+  public UberTaskStatus() {}
+
+  public UberTaskStatus(TaskAttemptID taskid, float progress, int numSlots,
+                        State runState, String diagnosticInfo,
+                        String stateString, String taskTracker, Phase phase,
+                        Counters counters) {
+    super(taskid, progress, numSlots, runState, diagnosticInfo, stateString,
           taskTracker, phase, counters);
   }
 
   @Override
   public Object clone() {
-    ReduceTaskStatus myClone = (ReduceTaskStatus)super.clone();
+    UberTaskStatus myClone = (UberTaskStatus)super.clone();
     myClone.failedFetchTasks = new ArrayList<TaskAttemptID>(failedFetchTasks);
     return myClone;
   }
@@ -55,18 +59,31 @@ class ReduceTaskStatus extends TaskStatus {
 
   @Override
   public boolean getIsUber() {
-    return false;
+    return true;
   }
 
   @Override
   void setFinishTime(long finishTime) {
+    if (mapFinishTime == 0) {
+      this.mapFinishTime = finishTime;
+    }
     if (shuffleFinishTime == 0) {
-      this.shuffleFinishTime = finishTime; 
+      this.shuffleFinishTime = finishTime;
     }
     if (sortFinishTime == 0){
       this.sortFinishTime = finishTime;
     }
     super.setFinishTime(finishTime);
+  }
+
+  @Override
+  public long getMapFinishTime() {
+    return mapFinishTime;
+  }
+
+  @Override
+  void setMapFinishTime(long mapFinishTime) {
+    this.mapFinishTime = mapFinishTime;
   }
 
   @Override
@@ -76,6 +93,9 @@ class ReduceTaskStatus extends TaskStatus {
 
   @Override
   void setShuffleFinishTime(long shuffleFinishTime) {
+    if (mapFinishTime == 0) {
+      this.mapFinishTime = shuffleFinishTime;
+    }
     this.shuffleFinishTime = shuffleFinishTime;
   }
 
@@ -86,51 +106,49 @@ class ReduceTaskStatus extends TaskStatus {
 
   @Override
   void setSortFinishTime(long sortFinishTime) {
-    this.sortFinishTime = sortFinishTime;
-    if (0 == this.shuffleFinishTime){
+    if (mapFinishTime == 0) {
+      this.mapFinishTime = sortFinishTime;
+    }
+    if (shuffleFinishTime == 0) {
       this.shuffleFinishTime = sortFinishTime;
     }
-  }
-
-  @Override
-  public long getMapFinishTime() {
-    throw new UnsupportedOperationException(
-        "getMapFinishTime() not supported for ReduceTask");
-  }
-
-  @Override
-  void setMapFinishTime(long shuffleFinishTime) {
-    throw new UnsupportedOperationException(
-        "setMapFinishTime() not supported for ReduceTask");
+    this.sortFinishTime = sortFinishTime;
   }
 
   @Override
   public List<TaskAttemptID> getFetchFailedMaps() {
     return failedFetchTasks;
   }
-  
+
   @Override
   public void addFetchFailedMap(TaskAttemptID mapTaskId) {
     failedFetchTasks.add(mapTaskId);
   }
-  
+
   @Override
   synchronized void statusUpdate(TaskStatus status) {
     super.statusUpdate(status);
-    
-    if (status.getShuffleFinishTime() != 0) {
-      this.shuffleFinishTime = status.getShuffleFinishTime();
-    }
-    
-    if (status.getSortFinishTime() != 0) {
-      sortFinishTime = status.getSortFinishTime();
-    }
-    
-    List<TaskAttemptID> newFetchFailedMaps = status.getFetchFailedMaps();
-    if (failedFetchTasks == null) {
-      failedFetchTasks = newFetchFailedMaps;
-    } else if (newFetchFailedMaps != null){
-      failedFetchTasks.addAll(newFetchFailedMaps);
+
+    if (status.getIsMap()) {  // status came from a sub-MapTask
+      if (status.getMapFinishTime() != 0) {
+        this.mapFinishTime = status.getMapFinishTime();
+      }
+
+    } else {                  // status came from a sub-ReduceTask
+      if (status.getShuffleFinishTime() != 0) {
+        this.shuffleFinishTime = status.getShuffleFinishTime();
+      }
+
+      if (status.getSortFinishTime() != 0) {
+        sortFinishTime = status.getSortFinishTime();
+      }
+
+      List<TaskAttemptID> newFetchFailedMaps = status.getFetchFailedMaps();
+      if (failedFetchTasks == null) {
+        failedFetchTasks = newFetchFailedMaps;
+      } else if (newFetchFailedMaps != null){
+        failedFetchTasks.addAll(newFetchFailedMaps);
+      }
     }
   }
 
@@ -143,20 +161,22 @@ class ReduceTaskStatus extends TaskStatus {
   @Override
   public void readFields(DataInput in) throws IOException {
     super.readFields(in);
-    shuffleFinishTime = in.readLong(); 
+    mapFinishTime = in.readLong();
+    shuffleFinishTime = in.readLong();
     sortFinishTime = in.readLong();
-    int noFailedFetchTasks = in.readInt();
-    failedFetchTasks = new ArrayList<TaskAttemptID>(noFailedFetchTasks);
-    for (int i=0; i < noFailedFetchTasks; ++i) {
-      TaskAttemptID id = new TaskAttemptID();
-      id.readFields(in);
-      failedFetchTasks.add(id);
+    int numFailedFetchTasks = in.readInt();
+    failedFetchTasks = new ArrayList<TaskAttemptID>(numFailedFetchTasks);
+    for (int i=0; i < numFailedFetchTasks; ++i) {
+      TaskAttemptID taskId = new TaskAttemptID();
+      taskId.readFields(in);
+      failedFetchTasks.add(taskId);
     }
   }
 
   @Override
   public void write(DataOutput out) throws IOException {
     super.write(out);
+    out.writeLong(mapFinishTime);
     out.writeLong(shuffleFinishTime);
     out.writeLong(sortFinishTime);
     out.writeInt(failedFetchTasks.size());
@@ -164,5 +184,5 @@ class ReduceTaskStatus extends TaskStatus {
       taskId.write(out);
     }
   }
-  
+
 }

@@ -302,6 +302,9 @@ public class JobHistoryParser {
     info.launchTime = event.getLaunchTime();
     info.totalMaps = event.getTotalMaps();
     info.totalReduces = event.getTotalReduces();
+    info.isUber = event.getIsUber();
+    info.numUberSubMaps = event.getNumUberSubMaps();
+    info.numUberSubReduces = event.getNumUberSubReduces();
   }
 
   private void handleJobInfoChangeEvent(JobInfoChangeEvent event) {
@@ -334,6 +337,9 @@ public class JobHistoryParser {
     long launchTime;
     int totalMaps;
     int totalReduces;
+    boolean isUber;
+    int numUberSubMaps;
+    int numUberSubReduces;
     int failedMaps;
     int failedReduces;
     int finishedMaps;
@@ -352,8 +358,9 @@ public class JobHistoryParser {
      */
     public JobInfo() {
       submitTime = launchTime = finishTime = -1;
-      totalMaps = totalReduces = failedMaps = failedReduces = 0;
-      finishedMaps = finishedReduces = 0;
+      isUber = false;
+      totalMaps = totalReduces = numUberSubMaps = numUberSubReduces = 0;
+      failedMaps = failedReduces = finishedMaps = finishedReduces = 0;
       username = jobname = jobConfPath = jobQueueName = "";
       tasksMap = new HashMap<TaskID, TaskInfo>();
       jobACLs = new HashMap<JobACL, AccessControlList>();
@@ -370,6 +377,7 @@ public class JobHistoryParser {
       System.out.println("PRIORITY: " + priority);
       System.out.println("TOTAL_MAPS: " + totalMaps);
       System.out.println("TOTAL_REDUCES: " + totalReduces);
+      //GRR FIXME:  add UBER_SUBMAPS and UBER_SUBREDUCES? (or only if isUber == true? coordinate with TaskInfo printAll() changes)
       System.out.println("MAP_COUNTERS:" + mapCounters.toString());
       System.out.println("REDUCE_COUNTERS:" + reduceCounters.toString());
       System.out.println("TOTAL_COUNTERS: " + totalCounters.toString());
@@ -395,18 +403,24 @@ public class JobHistoryParser {
     public String getJobConfPath() { return jobConfPath; }
     /** Get the job launch time */
     public long getLaunchTime() { return launchTime; }
-    /** Get the total number of maps */
-    public long getTotalMaps() { return totalMaps; }
-    /** Get the total number of reduces */
-    public long getTotalReduces() { return totalReduces; }
+    /** Get the total number of "real" maps */
+    public int getTotalMaps() { return totalMaps; }
+    /** Get the total number of "real" reduces */
+    public int getTotalReduces() { return totalReduces; }
+    /** Was the job small enough to be converted to an UberTask? */
+    public boolean getIsUber() { return isUber; }
+    /** Get the number of sub-MapTasks within the UberTask */
+    public int getNumUberSubMaps() { return numUberSubMaps; }
+    /** Get the number of sub-ReduceTasks within the UberTask */
+    public int getNumUberSubReduces() { return numUberSubReduces; }
     /** Get the total number of failed maps */
-    public long getFailedMaps() { return failedMaps; }
+    public int getFailedMaps() { return failedMaps; }
     /** Get the number of failed reduces */
-    public long getFailedReduces() { return failedReduces; }
+    public int getFailedReduces() { return failedReduces; }
     /** Get the number of finished maps */
-    public long getFinishedMaps() { return finishedMaps; }
+    public int getFinishedMaps() { return finishedMaps; }
     /** Get the number of finished reduces */
-    public long getFinishedReduces() { return finishedReduces; }
+    public int getFinishedReduces() { return finishedReduces; }
     /** Get the job status */
     public String getJobStatus() { return jobStatus; }
     public String getErrorInfo() { return errorInfo; }

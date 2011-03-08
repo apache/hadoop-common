@@ -136,7 +136,11 @@ public class JobInProgress {
   // speculative tasks separately 
   int speculativeMapTasks = 0;
   int speculativeReduceTasks = 0;
-  
+
+  // uber internals tracked here to avoid need for new TIP get-accessors
+  private int uberMapTasks = 0;
+  private int uberReduceTasks = 0;
+
   int mapFailuresPercent = 0;
   int reduceFailuresPercent = 0;
   int failedMapTIPs = 0;
@@ -145,7 +149,8 @@ public class JobInProgress {
   private volatile boolean launchedSetup = false;
   private volatile boolean jobKilled = false;
   private volatile boolean jobFailed = false;
-  private final boolean jobSetupCleanupNeeded;
+  private /* final */ boolean jobSetupCleanupNeeded;
+  private boolean uberMode = false;
 
   JobPriority priority = JobPriority.NORMAL;
   protected JobTracker jobtracker;
@@ -471,11 +476,6 @@ public class JobInProgress {
       this.submitHostName = conf.getJobSubmitHostName();
       this.submitHostAddress = conf.getJobSubmitHostAddress();
 
-      this.nonLocalMaps = new LinkedList<TaskInProgress>();
-      this.nonLocalRunningMaps = new LinkedHashSet<TaskInProgress>();
-      this.runningMapCache = new IdentityHashMap<Node, Set<TaskInProgress>>();
-      this.nonRunningReduces = new LinkedList<TaskInProgress>();
-      this.runningReduces = new LinkedHashSet<TaskInProgress>();
       this.slowTaskThreshold = Math.max(0.0f, conf.getFloat(
           MRJobConfig.SPECULATIVE_SLOWTASK_THRESHOLD, 1.0f));
       this.speculativeCap = conf.getFloat(MRJobConfig.SPECULATIVECAP, 0.1f);
@@ -503,36 +503,49 @@ public class JobInProgress {
       }
     }
   }
-  
-  Map<Node, List<TaskInProgress>> createCache(
-                         TaskSplitMetaInfo[] splits, int maxLevel) {
+
+  /**
+   * Build a data structure that inverts the usual TIP -&gt; host lookup:
+   * i.e., given a host (TaskTracker), now can find all of this job's TIPs
+   * that have one or more splits on that host.
+   */
+  Map<Node, List<TaskInProgress>> createCache(TaskSplitMetaInfo[] splits,
+                                              int maxCacheLevel) {
     Map<Node, List<TaskInProgress>> cache = 
-      new IdentityHashMap<Node, List<TaskInProgress>>(maxLevel);
+      new IdentityHashMap<Node, List<TaskInProgress>>(maxCacheLevel);
+//GRR PERF FIXME:  wtf??  claiming hash size is maxCacheLevel == 2(!)
+//   potentially:  size == num splits * num split locations * numlevels (if every split location is on a separate host)...hmmm, possible for same split location to show up in more than 1 level?
     
+//GRR Q:  what are "splits" in this context?  if text file, does every 10,000 lines (or whatever) in same block constitute a split?
     for (int i = 0; i < splits.length; i++) {
+      // originally UberTask was a flavor of MapTask (=> maps[0]), but the
+      // current design makes it a flavor of ReduceTask instead (=> reduces[0])
+      TaskInProgress map = uberMode? reduces[0] : maps[i];
       String[] splitLocations = splits[i].getLocations();
       if (splitLocations.length == 0) {
-        nonLocalMaps.add(maps[i]);
+//GRR Q:  don't understand this:  if given MapTask's split has no locations => non-local?  why not fail immediately if no data?  or treat as local since doesn't matter where? (or do we want to avoid contention for node that might have local data for some other map?)
+        nonLocalMaps.add(map);
         continue;
       }
 
-      for(String host: splitLocations) {
+      for (String host: splitLocations) {
         Node node = jobtracker.resolveAndAddToTopology(host);
-        LOG.info("tip:" + maps[i].getTIPId() + " has split on node:" + node);
-        for (int j = 0; j < maxLevel; j++) {
+        // node looks like "/default-rack/localhost"
+        LOG.info("tip:" + map.getTIPId() + " has split on node:" + node);
+        for (int j = 0; j < maxCacheLevel; j++) {
           List<TaskInProgress> hostMaps = cache.get(node);
           if (hostMaps == null) {
             hostMaps = new ArrayList<TaskInProgress>();
             cache.put(node, hostMaps);
-            hostMaps.add(maps[i]);
+            hostMaps.add(map);
           }
-          //check whether the hostMaps already contains an entry for a TIP
-          //This will be true for nodes that are racks and multiple nodes in
-          //the rack contain the input for a tip. Note that if it already
-          //exists in the hostMaps, it must be the last element there since
-          //we process one TIP at a time sequentially in the split-size order
-          if (hostMaps.get(hostMaps.size() - 1) != maps[i]) {
-            hostMaps.add(maps[i]);
+          // Check whether the hostMaps already contains an entry for a TIP.
+          // This will be true for nodes that are racks and multiple nodes in
+          // the rack contain the input for a tip. Note that if it already
+          // exists in the hostMaps, it must be the last element there since
+          // we process one TIP at a time sequentially in the split-size order
+          if (hostMaps.get(hostMaps.size() - 1) != map) {
+            hostMaps.add(map);
           }
           node = node.getParent();
         }
@@ -555,6 +568,13 @@ public class JobInProgress {
    */
   public String getUser() {
     return user;
+  }
+
+  /**
+   * Was the job small enough to uberize?
+   */
+  public boolean getUberMode() {
+    return uberMode;
   }
 
   boolean getMapSpeculativeExecution() {
@@ -646,21 +666,65 @@ public class JobInProgress {
 
     checkTaskLimits();
 
+    for (int i = 0; i < numMapTasks; ++i) {
+      inputLength += taskSplitMetaInfo[i].getInputDataLength();
+    }
+
+    JobConf sysConf = jobtracker.getConf();
+    int sysMaxMaps = sysConf.getInt(MRJobConfig.JOB_UBERTASK_MAXMAPS, 9);
+    int sysMaxReduces = // code doesn't support > 1 reduce, so force limit:
+        Math.min(1, sysConf.getInt(MRJobConfig.JOB_UBERTASK_MAXREDUCES, 1));
+    long sysMaxBytes = sysConf.getLong(MRJobConfig.JOB_UBERTASK_MAXBYTES,
+        sysConf.getLong("dfs.block.size", 64*1024*1024));
+
+    // user has overall veto power over uberization, or user can set more
+    // stringent limits than the system specifies, but user may not exceed
+    // system limits (for now, anyway)
+    uberMode = conf.getBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, true)
+        && numMapTasks > 0  // temporary restriction until can test reduce-only
+        && numMapTasks <= Math.min(sysMaxMaps,
+            conf.getInt(MRJobConfig.JOB_UBERTASK_MAXMAPS, sysMaxMaps))
+        && numReduceTasks <= Math.min(sysMaxReduces,
+            conf.getInt(MRJobConfig.JOB_UBERTASK_MAXREDUCES, sysMaxReduces))
+        && inputLength <= Math.min(sysMaxBytes,
+            conf.getLong(MRJobConfig.JOB_UBERTASK_MAXBYTES, sysMaxBytes));
+
+    if (uberMode) {
+      // save internal details for UI
+      uberMapTasks = numMapTasks;
+      uberReduceTasks = numReduceTasks;
+      //GRR FIXME:  check jobSetupCleanupNeeded and set "uberSetupTasks" and
+      //            "uberCleanupTasks" for UI, too?
+
+      // this method modifies numMapTasks (-> 0), numReduceTasks (-> 1), and
+      // jobSetupCleanupNeeded (-> false)  [and actually creates a TIP, not a
+      // true Task; latter is created in TaskInProgress's addRunningTask()
+      // method]
+      createUberTask(jobFile.toString(), taskSplitMetaInfo);
+    }
+
     jobtracker.getInstrumentation().addWaitingMaps(getJobID(), numMapTasks);
     jobtracker.getInstrumentation().addWaitingReduces(getJobID(), numReduceTasks);
 
-    createMapTasks(jobFile.toString(), taskSplitMetaInfo);
-    
-    if (numMapTasks > 0) { 
-      nonRunningMapCache = createCache(taskSplitMetaInfo,
-          maxLevel);
+    if (!uberMode) {
+      createMapTasks(jobFile.toString(), taskSplitMetaInfo);
+    } else {
+      // must create this array even if zero elements:
+      maps = new TaskInProgress[numMapTasks];
     }
-        
-    // set the launch time
-    this.launchTime = JobTracker.getClock().getTime();
 
-    createReduceTasks(jobFile.toString());
-    
+    if (numMapTasks > 0 || (uberMode && uberMapTasks > 0)) {
+      // this is needed even if all tasks are shielded by uber event horizon
+      nonRunningMapCache = createCache(taskSplitMetaInfo, maxLevel);
+    }
+
+    // set the launch time
+    launchTime = JobTracker.getClock().getTime();
+
+    if (!uberMode) {
+      createReduceTasks(jobFile.toString());
+    }
+
     // Calculate the minimum number of maps to be complete before 
     // we should start scheduling reduces
     completedMapsForReduceSlowstart = 
@@ -668,9 +732,16 @@ public class JobInProgress {
           (conf.getFloat(MRJobConfig.COMPLETED_MAPS_FOR_REDUCE_SLOWSTART, 
                          DEFAULT_COMPLETED_MAPS_PERCENT_FOR_REDUCE_SLOWSTART) * 
            numMapTasks));
-    
-    initSetupCleanupTasks(jobFile.toString());
-    
+
+    // Creates setup[] and cleanup[] arrays of TIPs, with TaskID indices above
+    // regular map and reduce values.  In uber mode, UberTask itself handles
+    // setup and cleanup duties, and jobSetupCleanupNeeded is forced false.
+    // But we skip initSetupCleanupTasks() call in that case anyway to avoid
+    // a potentially misleading log msg.
+    if (!uberMode) {
+      initSetupCleanupTasks(jobFile.toString());
+    }
+
     synchronized(jobInitKillStatus){
       jobInitKillStatus.initDone = true;
       if(jobInitKillStatus.killed) {
@@ -678,18 +749,25 @@ public class JobInProgress {
         throw new KillInterruptedException("Job " + jobId + " killed in init");
       }
     }
-    
+
     tasksInited.set(true);
+
+//GRR Q:  what's difference between profile.getJobID() and jobId ?
     JobInitedEvent jie = new JobInitedEvent(
-        profile.getJobID(),  this.launchTime,
-        numMapTasks, numReduceTasks,
+        profile.getJobID(), launchTime, numMapTasks, numReduceTasks,
+        uberMode, uberMapTasks, uberReduceTasks,
         JobStatus.getJobRunState(JobStatus.PREP));
-    
     jobHistory.logEvent(jie, jobId);
-   
+
     // Log the number of map and reduce tasks
-    LOG.info("Job " + jobId + " initialized successfully with " + numMapTasks 
-             + " map tasks and " + numReduceTasks + " reduce tasks.");
+    if (!uberMode) {
+      LOG.info("Job " + jobId + " initialized successfully with " + numMapTasks
+               + " map tasks and " + numReduceTasks + " reduce tasks.");
+    } else {
+      LOG.info("Job " + jobId + " initialized successfully with 1 UberTask "
+               + "(running as a ReduceTask) containing " + uberMapTasks
+               + " sub-MapTasks and " + uberReduceTasks + " sub-ReduceTasks.");
+    }
   }
 
   // Returns true if the job is empty (0 maps, 0 reduces and no setup-cleanup)
@@ -750,10 +828,9 @@ public class JobInProgress {
   }
 
   synchronized void createMapTasks(String jobFile, 
-		  TaskSplitMetaInfo[] splits) {
+		                   TaskSplitMetaInfo[] splits) {
     maps = new TaskInProgress[numMapTasks];
-    for(int i=0; i < numMapTasks; ++i) {
-      inputLength += splits[i].getInputDataLength();
+    for (int i=0; i < numMapTasks; ++i) {
       maps[i] = new TaskInProgress(jobId, jobFile, 
                                    splits[i], 
                                    jobtracker, conf, this, 
@@ -761,7 +838,6 @@ public class JobInProgress {
     }
     LOG.info("Input size for job " + jobId + " = " + inputLength
         + ". Number of splits = " + splits.length);
-
   }
 
   synchronized void createReduceTasks(String jobFile) {
@@ -775,38 +851,52 @@ public class JobInProgress {
     }
   }
 
-  
+  synchronized void createUberTask(String jobFile, TaskSplitMetaInfo[] splits) {
+    reduces = new TaskInProgress[1];
+    reduces[0] = new TaskInProgress(jobId, jobFile, splits, numMapTasks,
+                                    numReduceTasks, 0, jobtracker, conf,
+                                    this, numSlotsPerReduce,
+                                    jobSetupCleanupNeeded);
+    nonRunningReduces.add(reduces[0]);  // note:  no map analogue
+//GRR FIXME?  any conditions under which numSlotsPerReduce would not be correct thing to use for an UberTask (running in a reduce slot)?
+    numMapTasks = 0;
+    numReduceTasks = 1;
+    jobSetupCleanupNeeded = false;
+    LOG.info("Input size for job " + jobId + " = " + inputLength
+        + ". Number of splits = " + splits.length + ". UberTasking!");
+  }
+
   synchronized void initSetupCleanupTasks(String jobFile) {
     if (!jobSetupCleanupNeeded) {
       LOG.info("Setup/Cleanup not needed for job " + jobId);
       // nothing to initialize
       return;
     }
-    // create cleanup two cleanup tips, one map and one reduce.
+    // Create two cleanup tips, one map and one reduce.  Only one will be used.
     cleanup = new TaskInProgress[2];
 
-    // cleanup map tip. This map doesn't use any splits. Just assign an empty
-    // split.
+    // Create cleanup map tip. This map doesn't use any splits; just assign an
+    // empty split.
     TaskSplitMetaInfo emptySplit = JobSplit.EMPTY_TASK_SPLIT;
     cleanup[0] = new TaskInProgress(jobId, jobFile, emptySplit, 
             jobtracker, conf, this, numMapTasks, 1);
     cleanup[0].setJobCleanupTask();
 
-    // cleanup reduce tip.
+    // Create cleanup reduce tip.
     cleanup[1] = new TaskInProgress(jobId, jobFile, numMapTasks,
                        numReduceTasks, jobtracker, conf, this, 1);
     cleanup[1].setJobCleanupTask();
 
-    // create two setup tips, one map and one reduce.
+    // Create two setup tips, one map and one reduce.  Only one will be used.
     setup = new TaskInProgress[2];
 
-    // setup map tip. This map doesn't use any split. Just assign an empty
-    // split.
+    // Create setup map tip. This map doesn't use any splits; just assign an
+    // empty split.
     setup[0] = new TaskInProgress(jobId, jobFile, emptySplit, 
             jobtracker, conf, this, numMapTasks + 1, 1);
     setup[0].setJobSetupTask();
 
-    // setup reduce tip.
+    // Create setup reduce tip.
     setup[1] = new TaskInProgress(jobId, jobFile, numMapTasks,
                        numReduceTasks + 1, jobtracker, conf, this, 1);
     setup[1].setJobSetupTask();
@@ -961,7 +1051,7 @@ public class JobInProgress {
       break;
       default:
       {
-          tasks = new TaskInProgress[0];
+        tasks = new TaskInProgress[0];
       }
       break;
     }
@@ -978,7 +1068,7 @@ public class JobInProgress {
   }
   
   /**
-   * Return the runningMapCache
+   * Return the runningMapCache.  Used only by unit test(s).
    * @return
    */
   Map<Node, Set<TaskInProgress>> getRunningMapCache()
@@ -1123,7 +1213,7 @@ public class JobInProgress {
         taskEvent = new TaskCompletionEvent(
                                             taskCompletionEventTracker, 
                                             taskid,
-                                            tip.idWithinJob(),
+                                            tip.getIdWithinJob(),
                                             status.getIsMap() &&
                                             !tip.isJobCleanupTask() &&
                                             !tip.isJobSetupTask(),
@@ -1179,7 +1269,7 @@ public class JobInProgress {
         }
         taskEvent = new TaskCompletionEvent(taskCompletionEventTracker, 
                                             taskid,
-                                            tip.idWithinJob(),
+                                            tip.getIdWithinJob(),
                                             status.getIsMap() &&
                                             !tip.isJobCleanupTask() &&
                                             !tip.isJobSetupTask(),
@@ -1228,6 +1318,10 @@ public class JobInProgress {
         this.status.setReduceProgress((float) (this.status.reduceProgress() + 
                                            (progressDelta / reduces.length)));
       }
+      if (uberMode &&
+          (schedulingInfo == null || schedulingInfo.toString().equals(""))) {
+        setSchedulingInfo("");  // force method call so uber info will be added
+      }
     }
   }
 
@@ -1241,14 +1335,14 @@ public class JobInProgress {
   }
   
   /**
-   *  Returns map phase counters by summing over all map tasks in progress.
+   * Returns map-phase counters by summing over all map tasks in progress.
    */
   public synchronized Counters getMapCounters() {
     return incrementTaskCounters(new Counters(), maps);
   }
     
   /**
-   *  Returns map phase counters by summing over all map tasks in progress.
+   * Returns reduce-phase counters by summing over all reduce tasks in progress.
    */
   public synchronized Counters getReduceCounters() {
     return incrementTaskCounters(new Counters(), reduces);
@@ -1664,7 +1758,7 @@ public class JobInProgress {
     // when exactly to increment the locality counters. The only solution is to 
     // increment the counters for all the tasks irrespective of 
     //    - whether the tip is running or not
-    //    - whether its a speculative task or not
+    //    - whether it's a speculative task or not
     //
     // So to simplify, increment the data locality counter whenever there is 
     // data locality.
@@ -1706,7 +1800,7 @@ public class JobInProgress {
     
   public static String convertTrackerNameToHostName(String trackerName) {
     // Ugly!
-    // Convert the trackerName to it's host name
+    // Convert the trackerName to its host name
     int indexOfColon = trackerName.indexOf(":");
     String trackerHostName = (indexOfColon == -1) ? 
       trackerName : 
@@ -1836,9 +1930,10 @@ public class JobInProgress {
   }
     
   /**
-   * Get the black listed trackers for the job
+   * Get the blacklisted trackers for the (single) job.  Note that
+   * JobTracker's blacklist and graylist apply to all jobs.
    * 
-   * @return List of blacklisted tracker names
+   * @return list of blacklisted tracker names for this job
    */
   List<String> getBlackListedTrackers() {
     List<String> blackListedTrackers = new ArrayList<String>();
@@ -1851,19 +1946,19 @@ public class JobInProgress {
   }
   
   /**
-   * Get the no. of 'flaky' tasktrackers for a given job.
+   * Get the number of 'flaky' tasktrackers for a given job.
    * 
-   * @return the no. of 'flaky' tasktrackers for a given job.
+   * @return the number of 'flaky' tasktrackers for a given job.
    */
   int getNoOfBlackListedTrackers() {
     return flakyTaskTrackers;
   }
     
   /**
-   * Get the information on tasktrackers and no. of errors which occurred
+   * Get the information on tasktrackers and number of errors which occurred
    * on them for a given job. 
    * 
-   * @return the map of tasktrackers and no. of errors which occurred
+   * @return the map of tasktrackers and number of errors which occurred
    *         on them for a given job. 
    */
   synchronized Map<String, Integer> getTaskTrackerErrors() {
@@ -1945,7 +2040,7 @@ public class JobInProgress {
       return;
     }
 
-    for(String host: splitLocations) {
+    for (String host: splitLocations) {
       Node node = jobtracker.getNode(host);
 
       for (int j = 0; j < maxLevel; ++j) {
@@ -1983,10 +2078,11 @@ public class JobInProgress {
     if (nonRunningMapCache == null) {
       LOG.warn("Non-running cache for maps missing!! "
                + "Job details are missing.");
+//GRR Q:  why not throwing exception or otherwise killing self and/or job?  seems like logic error...or is this expected sometimes?
       return;
     }
 
-    // 1. Its added everywhere since other nodes (having this split local)
+    // 1. It's added everywhere since other nodes (having this split local)
     //    might have removed this tip from their local cache
     // 2. Give high priority to failed tip - fail early
 
@@ -1998,7 +2094,7 @@ public class JobInProgress {
       return;
     }
 
-    for(String host: splitLocations) {
+    for (String host: splitLocations) {
       Node node = jobtracker.getNode(host);
       
       for (int j = 0; j < maxLevel; ++j) {
@@ -2041,29 +2137,29 @@ public class JobInProgress {
     while (iter.hasNext()) {
       TaskInProgress tip = iter.next();
 
-      // Select a tip if
+      // Select a tip if all of the following are true:
       //   1. runnable   : still needs to be run and is not completed
-      //   2. ~running   : no other node is running it
-      //   3. earlier attempt failed : has not failed on this host
-      //                               and has failed on all the other hosts
-      // A TIP is removed from the list if 
-      // (1) this tip is scheduled
-      // (2) if the passed list is a level 0 (host) cache
-      // (3) when the TIP is non-schedulable (running, killed, complete)
+      //   2. !running   : no other node is running it
+      //   3. previous   : no earlier attempt has failed on this host, OR
+      //                   earlier attempts have failed on EVERY host
+      // A TIP is removed from the list if any of the following are true:
+      // (1) the tip is scheduled
+      // (2) the passed list is a level 0 (host) cache (removeFailedTip true)
+      // (3) the tip is non-schedulable (running, killed, complete)
       if (tip.isRunnable() && !tip.isRunning()) {
-        // check if the tip has failed on this host
+        // check if the tip has failed on this host or if it has failed on
+        // all the nodes
         if (!tip.hasFailedOnMachine(ttStatus.getHost()) || 
              tip.getNumberOfFailedMachines() >= numUniqueHosts) {
-          // check if the tip has failed on all the nodes
           iter.remove();
           return tip;
         } else if (removeFailedTip) { 
           // the case where we want to remove a failed tip from the host cache
-          // point#3 in the TIP removal logic above
+          // point#2 in the TIP-removal logic above
           iter.remove();
         }
       } else {
-        // see point#3 in the comment above for TIP removal logic
+        // see point#3 in the comment above for TIP-removal logic
         iter.remove();
       }
     }
@@ -2148,8 +2244,8 @@ public class JobInProgress {
    * @param maxCacheLevel The maximum topology level until which to schedule
    *                      maps. 
    *                      A value of {@link #anyCacheLevel} implies any 
-   *                      available task (node-local, rack-local, off-switch and 
-   *                      speculative tasks).
+   *                      available task (node-local, rack-local, off-switch
+   *                      and speculative tasks).
    *                      A value of {@link #NON_LOCAL_CACHE_LEVEL} implies only
    *                      off-switch/speculative tasks should be scheduled.
    * @return the index in tasks of the selected task (or -1 for no task)
@@ -2194,16 +2290,17 @@ public class JobInProgress {
     // For scheduling a map task, we have two caches and a list (optional)
     //  I)   one for non-running task
     //  II)  one for running task (this is for handling speculation)
-    //  III) a list of TIPs that have empty locations (e.g., dummy splits),
+    //  III) a list of TIPs that have empty locations (e.g., dummy splits);
     //       the list is empty if all TIPs have associated locations
 
-    // First a look up is done on the non-running cache and on a miss, a look 
-    // up is done on the running cache. The order for lookup within the cache:
+    // First a lookup is done on the non-running cache, and on a miss, a lookup
+    // is done on the running cache. The order for lookup within the cache:
     //   1. from local node to root [bottom up]
     //   2. breadth wise for all the parent nodes at max level
 
     // We fall to linear scan of the list (III above) if we have misses in the 
     // above caches
+//GRR FIXME?  within _this_ function?  not seeing it in the code...
 
     Node node = jobtracker.getNode(tts.getHost());
     
@@ -2212,27 +2309,28 @@ public class JobInProgress {
     // 
 
     // 1. check from local node to the root [bottom up cache lookup]
-    //    i.e if the cache is available and the host has been resolved
+    //    i.e., if the cache is available and the host has been resolved
     //    (node!=null)
     if (node != null) {
       Node key = node;
       int level = 0;
-      // maxCacheLevel might be greater than this.maxLevel if findNewMapTask is
-      // called to schedule any task (local, rack-local, off-switch or speculative)
-      // tasks or it might be NON_LOCAL_CACHE_LEVEL (i.e. -1) if findNewMapTask is
-      //  (i.e. -1) if findNewMapTask is to only schedule off-switch/speculative
-      // tasks
+      // maxCacheLevel might be greater than this.maxLevel if findNewMapTask
+      // is called to schedule any task (local, rack-local, off-switch or
+      // speculative), or it might be NON_LOCAL_CACHE_LEVEL (i.e., -1) if
+      // findNewMapTask is to schedule only off-switch/speculative tasks
       int maxLevelToSchedule = Math.min(maxCacheLevel, maxLevel);
-      for (level = 0;level < maxLevelToSchedule; ++level) {
-        List <TaskInProgress> cacheForLevel = nonRunningMapCache.get(key);
+      for (level = 0; level < maxLevelToSchedule; ++level) {
+        List <TaskInProgress> cacheForLevel /* a.k.a. hostMap */ = nonRunningMapCache.get(key);
         if (cacheForLevel != null) {
-          tip = findTaskFromList(cacheForLevel, tts, 
-              numUniqueHosts,level == 0);
+          // this may remove a TIP from cacheForLevel (but not necessarily tip):
+          tip = findTaskFromList(cacheForLevel, tts,
+                                 numUniqueHosts, level == 0);
           if (tip != null) {
             // Add to running cache
             scheduleMap(tip);
 
-            // remove the cache if its empty
+            // remove the cache if it's empty
+//GRR FIXME:  findTaskFromList() may return null even though it removed a tip => might be empty anyway?  (seems like this if-block should move up)
             if (cacheForLevel.size() == 0) {
               nonRunningMapCache.remove(key);
             }
@@ -2247,6 +2345,8 @@ public class JobInProgress {
       if (level == maxCacheLevel) {
         return -1;
       }
+//GRR FIXME:  seems like check should be against maxLevelToSchedule:  if user specifies local (maxLevel == 0 or 1) but TT specifies any (maxCacheLevel == maxLevel+1), then maxLevelToSchedule == maxLevel, level == maxLevel == maxLevelToSchedule, and level != maxCacheLevel   => fall through to non-local
+//            [can this happen, or must TT value match user's setting?  presumably can, else would (should) use same variable for both...]
     }
 
     //2. Search breadth-wise across parents at max level for non-running 
@@ -2306,7 +2406,7 @@ public class JobInProgress {
         return tip.getIdWithinJob();
       }
     }
-   return -1;
+    return -1;
   }
 
   private synchronized TaskInProgress getSpeculativeMap(String taskTrackerName, 
@@ -2823,7 +2923,7 @@ public class JobInProgress {
   }
 
   /**
-   * The job is done since all it's component tasks are either
+   * The job is done since all its component tasks are either
    * successful or have failed.
    */
   private void jobComplete() {
@@ -2998,7 +3098,7 @@ public class JobInProgress {
   }
 
   /**
-   * Kill the job and all its component tasks. This method should be called from 
+   * Kill the job and all its component tasks. This method should be called from
    * jobtracker and should return fast as it locks the jobtracker.
    */
   public void kill() {
@@ -3020,7 +3120,7 @@ public class JobInProgress {
    * Fails the job and all its component tasks. This should be called only from
    * {@link JobInProgress} or {@link JobTracker}. Look at 
    * {@link JobTracker#failJob(JobInProgress)} for more details.
-   * Note that the job doesnt expect itself to be failed before its inited. 
+   * Note that the job doesn't expect itself to be failed before it's inited. 
    * Only when the init is done (successfully or otherwise), the job can be 
    * failed. 
    */
@@ -3348,10 +3448,10 @@ public class JobInProgress {
        this.runningReduces = null;
 
      }
-     // remove jobs delegation tokens
-     if(conf.getBoolean(MRJobConfig.JOB_CANCEL_DELEGATION_TOKEN, true)) {
+     // remove job's delegation tokens
+     if (conf.getBoolean(MRJobConfig.JOB_CANCEL_DELEGATION_TOKEN, true)) {
        DelegationTokenRenewal.removeDelegationTokenRenewalForJob(jobId);
-     } // else don't remove it.May be used by spawned tasks
+     } // else don't remove it. May be used by spawned tasks
    }
 
   /**
@@ -3463,8 +3563,19 @@ public class JobInProgress {
   }
   
   public synchronized void setSchedulingInfo(Object schedulingInfo) {
-    this.schedulingInfo = schedulingInfo;
-    this.status.setSchedulingInfo(schedulingInfo.toString());
+    // UberTasking is a kind of scheduling decision, so we append it here
+    if (uberMode) {
+      StringBuilder sb = new StringBuilder(256);
+      if (schedulingInfo != null && !schedulingInfo.toString().equals("")) {
+        sb.append(schedulingInfo).append(" ");
+      }
+      sb.append("UberTask with ").append(uberMapTasks).append(" map and ")
+        .append(uberReduceTasks).append(" reduce subtasks.");
+      this.schedulingInfo = sb.toString();  // or could just use sb itself...
+    } else {
+      this.schedulingInfo = schedulingInfo;
+    }
+    this.status.setSchedulingInfo(this.schedulingInfo.toString());
   }
   
   /**
@@ -3693,7 +3804,7 @@ public class JobInProgress {
     
     // write TokenStorage out
     tokenStorage.writeTokenStorageFile(keysFile, jobtracker.getConf());
-    LOG.info("jobToken generated and stored with users keys in "
+    LOG.info("jobToken generated and stored with user's keys in "
         + keysFile.toUri().getPath());
   }
 
