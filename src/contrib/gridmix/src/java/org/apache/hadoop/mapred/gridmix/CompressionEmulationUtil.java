@@ -27,6 +27,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
@@ -39,6 +40,7 @@ import org.apache.hadoop.io.compress.CompressionInputStream;
 import org.apache.hadoop.io.compress.Decompressor;
 import org.apache.hadoop.io.compress.GzipCodec;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Utils;
 import org.apache.hadoop.mapred.gridmix.GenerateData.GenDataFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.MRJobConfig;
@@ -46,6 +48,7 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.StringUtils;
 
 /**
  * This is a utility class for all the compression related modules.
@@ -78,13 +81,11 @@ class CompressionEmulationUtil {
     protected void setup(Context context)
         throws IOException, InterruptedException {
       Configuration conf = context.getConfiguration();
-      int size = 
-        conf.getInt(RandomTextDataGenerator.GRIDMIX_DATAGEN_RANDOMTEXT_LISTSIZE,
-                    100);
+      int listSize = 
+        RandomTextDataGenerator.getRandomTextDataGeneratorListSize(conf);
       int wordSize = 
-        conf.getInt(RandomTextDataGenerator.GRIDMIX_DATAGEN_RANDOMTEXT_WORDSIZE,
-                    10);
-      rtg = new RandomTextDataGenerator(size, null, wordSize);
+        RandomTextDataGenerator.getRandomTextDataGeneratorWordSize(conf);
+      rtg = new RandomTextDataGenerator(listSize, wordSize);
     }
     
     /**
@@ -112,7 +113,7 @@ class CompressionEmulationUtil {
    */
   static void configure(final Job job) throws IOException, InterruptedException,
                                               ClassNotFoundException {
-    LOG.info("Gridmix is configured to use compressed data.");
+    LOG.info("Gridmix is configured to generate compressed input data.");
     // set the random text mapper
     job.setMapperClass(RandomTextDataMapper.class);
     job.setNumReduceTasks(0);
@@ -128,6 +129,60 @@ class CompressionEmulationUtil {
     } catch (IOException e) {
       LOG.error("Error while adding input path ", e);
     }
+  }
+  
+  /** Publishes compression related data statistics. Following statistics are
+   * published
+   * <ul>
+   *   <li>Total compressed input data size</li>
+   *   <li>Number of compressed input data files</li>
+   *   <li>Compression Ratio</li>
+   *   <li>Text data dictionary size</li>
+   *   <li>Random text word size</li>
+   * </ul>
+   */
+  static void publishCompressedDataStatistics(Path inputDir, Configuration conf,
+                                              long uncompressedDataSize) 
+  throws IOException {
+    LOG.info("Generation of compressed data successful.");
+    FileSystem fs = inputDir.getFileSystem(conf);
+    CompressionCodecFactory compressionCodecs = 
+      new CompressionCodecFactory(conf);
+
+    // iterate over compressed files and sum up the compressed file sizes
+    long compressedDataSize = 0;
+    int numCompressedFiles = 0;
+    // obtain input data file statuses
+    FileStatus[] outFileStatuses = 
+      fs.listStatus(inputDir, new Utils.OutputFileUtils.OutputFilesFilter());
+    for (FileStatus status : outFileStatuses) {
+      // check if the input file is compressed
+      if (compressionCodecs != null) {
+        CompressionCodec codec = compressionCodecs.getCodec(status.getPath());
+        if (codec != null) {
+          ++numCompressedFiles;
+          compressedDataSize += status.getLen();
+        }
+      }
+    }
+
+    // publish the input data size
+    LOG.info("Total size of compressed input data (bytes) : " 
+             + StringUtils.humanReadableInt(compressedDataSize));
+    LOG.info("Total number of compressed input data files : " 
+             + numCompressedFiles);
+
+    // compute the compression ratio
+    double ratio = ((double)compressedDataSize) / uncompressedDataSize;
+
+    // publish the compression ratio
+    LOG.info("Input Data Compression Ratio : " + ratio);
+
+    // publish the random text data generator configuration parameters
+    LOG.info("Compressed data generator list size : " 
+        + RandomTextDataGenerator.getRandomTextDataGeneratorListSize(conf));
+    LOG.info("Compressed data generator word size : " 
+        + RandomTextDataGenerator.getRandomTextDataGeneratorWordSize(conf));
   }
   
   /**
@@ -179,13 +234,15 @@ class CompressionEmulationUtil {
       CompressionCodecFactory compressionCodecs = 
         new CompressionCodecFactory(conf);
       CompressionCodec codec = compressionCodecs.getCodec(file);
-      Decompressor decompressor = CodecPool.getDecompressor(codec);
       if (codec != null) {
-        CompressionInputStream in = 
-          codec.createInputStream(fs.open(file), decompressor);
-        //TODO Seek doesnt work with compressed input stream. 
-        //     Use SplittableCompressionCodec?
-        return (InputStream)in;
+        Decompressor decompressor = CodecPool.getDecompressor(codec);
+        if (decompressor != null) {
+          CompressionInputStream in = 
+            codec.createInputStream(fs.open(file), decompressor);
+          //TODO Seek doesnt work with compressed input stream. 
+          //     Use SplittableCompressionCodec?
+          return (InputStream)in;
+        }
       }
     }
     FSDataInputStream in = fs.open(file);

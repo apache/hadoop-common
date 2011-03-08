@@ -30,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
@@ -41,6 +42,7 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Utils;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
@@ -52,6 +54,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.util.StringUtils;
 
 // TODO can replace with form of GridmixJob
 class GenerateData extends GridmixJob {
@@ -94,6 +97,40 @@ class GenerateData extends GridmixJob {
     FileOutputFormat.setOutputPath(job, outdir);
   }
 
+  /**
+   * Publish the data statistics.
+   */
+  void publishDataStatistics(Path inputDir, long genBytes) throws IOException {
+    if (CompressionEmulationUtil
+        .isCompressionEmulationEnabled(job.getConfiguration())) {
+      CompressionEmulationUtil.publishCompressedDataStatistics(inputDir, 
+                                 job.getConfiguration(), genBytes);
+    } else {
+      publishPlainDataStatistics(job.getConfiguration(), inputDir);
+    }
+  }
+  
+  static void publishPlainDataStatistics(Configuration conf, Path inputDir) 
+  throws IOException {
+    LOG.info("Input data generation successful.");
+    FileSystem fs = inputDir.getFileSystem(conf);
+
+    // obtain input data file statuses
+    FileStatus[] outFileStatuses = 
+      fs.listStatus(inputDir, new Utils.OutputFileUtils.OutputFilesFilter());
+    long dataSize = 0;
+
+    for (FileStatus status : outFileStatuses) {
+      // check if the input file is compressed
+      dataSize += status.getLen();
+    }
+
+    // publish the plain data statistics
+    LOG.info("Total size of input data : " 
+             + StringUtils.humanReadableInt(dataSize));
+    LOG.info("Total number of input data files : " + outFileStatuses.length);
+  }
+  
   @Override
   public Job call() throws IOException, InterruptedException,
                            ClassNotFoundException {

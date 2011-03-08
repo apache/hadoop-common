@@ -22,22 +22,38 @@ import java.util.List;
 import java.util.Random;
 
 import org.apache.commons.lang.RandomStringUtils;
+import org.apache.hadoop.conf.Configuration;
 
 /**
  * A random text generator. The words are simply sequences of alphabets.
  */
 class RandomTextDataGenerator {
   /**
-   * Random words list size.
+   * Configuration key for random text data generator's list size.
    */
   static final String GRIDMIX_DATAGEN_RANDOMTEXT_LISTSIZE = 
     "gridmix.datagenerator.randomtext.listsize";
   
   /**
-   * Random words size.
+   * Configuration key for random text data generator's word size.
    */
   static final String GRIDMIX_DATAGEN_RANDOMTEXT_WORDSIZE = 
     "gridmix.datagenerator.randomtext.wordsize";
+  
+  /**
+   * Default random text data generator's list size.
+   */
+  static final int DEFAULT_LIST_SIZE = 100;
+  
+  /**
+   * Default random text data generator's word size.
+   */
+  static final int DEFAULT_WORD_SIZE = 10;
+  
+  /**
+   * Default random text data generator's seed.
+   */
+  static final long DEFAULT_SEED = 0L;
   
   /**
    * A list of random words
@@ -46,24 +62,44 @@ class RandomTextDataGenerator {
   private Random random;
   
   /**
+   * Constructor for {@link RandomTextDataGenerator} with default seed.
+   * @param size the total number of words to consider.
+   * @param wordSize Size of each word
+   */
+  RandomTextDataGenerator(int size, int wordSize) {
+    this(size, DEFAULT_SEED , wordSize);
+  }
+  
+  /**
    * Constructor for {@link RandomTextDataGenerator}.
    * @param size the total number of words to consider.
    * @param seed Random number generator seed for repeatability
    * @param wordSize Size of each word
    */
   RandomTextDataGenerator(int size, Long seed, int wordSize) {
-    if (seed == null) {
-      random = new Random();
-    } else {
-      random = new Random(seed);
-    }
+    random = new Random(seed);
     words = new String[size];
+    
     //TODO change the default with the actual stats
     //TODO do u need varied sized words?
     for (int i = 0; i < size; ++i) {
       words[i] = 
         RandomStringUtils.random(wordSize, 0, 0, true, false, null, random);
     }
+  }
+  
+  /**
+   * Get the configured random text data generator list size.
+   */
+  static int getRandomTextDataGeneratorListSize(Configuration conf) {
+    return conf.getInt(GRIDMIX_DATAGEN_RANDOMTEXT_LISTSIZE, DEFAULT_LIST_SIZE);
+  }
+  
+  /**
+   * Get the configured random text data generator word size.
+   */
+  static int getRandomTextDataGeneratorWordSize(Configuration conf) {
+    return conf.getInt(GRIDMIX_DATAGEN_RANDOMTEXT_WORDSIZE, DEFAULT_WORD_SIZE);
   }
   
   /**

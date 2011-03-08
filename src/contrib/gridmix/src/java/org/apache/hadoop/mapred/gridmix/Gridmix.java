@@ -111,7 +111,7 @@ public class Gridmix extends Configured implements Tool {
       throws IOException, InterruptedException {
     Path inputDir = new Path(ioPath, "input");
     final Configuration conf = getConf();
-    final GridmixJob genData = new GenerateData(conf, inputDir, genbytes);
+    final GenerateData genData = new GenerateData(conf, inputDir, genbytes);
     LOG.info("Generating " + StringUtils.humanReadableInt(genbytes) +
         " of test data...");
     launchGridmixJob(genData);
@@ -124,6 +124,9 @@ public class Gridmix extends Configured implements Tool {
       LOG.error("Couldnt change the file permissions " , e);
       throw new IOException(e);
     }
+    
+    // publish the data statistics
+    genData.publishDataStatistics(inputDir, genbytes);
   }
 
   /**
