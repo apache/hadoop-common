@@ -78,8 +78,6 @@
                conf="jdiff->default"/>
    <dependency org="org.apache.rat" name="apache-rat-tasks" 
                rev="${rats-lib.version}" conf="releaseaudit->default"/>
-   <dependency org="org.apache.lucene" name="lucene-core" 
-               rev="${lucene-core.version}" conf="javadoc->default"/>
    <!-- dependency addition for the fault injection -->
    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
                conf="common->default"/>
