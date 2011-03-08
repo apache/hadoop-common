@@ -63,7 +63,7 @@ class ShuffleClientMetrics {
   public synchronized void threadFree() {
     --numThreadsBusy;
   }
-  @Metric float getFetchersBusyPercent() {
+  @Metric synchronized float getFetchersBusyPercent() {
     return numCopiers == 0 ? 0f : 100f * numThreadsBusy / numCopiers;
   }
 }
