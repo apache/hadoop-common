@@ -42,7 +42,7 @@
 
 #define TT_LOCAL_TASK_DIR_PATTERN    "%s/taskTracker/%s/jobcache/%s/%s"
 
-#define TT_SYS_DIR_KEY "mapred.local.dir"
+#define TT_SYS_DIR_KEY "mapreduce.cluster.local.dir"
 
 #define TT_LOG_DIR_KEY "hadoop.log.dir"
 
