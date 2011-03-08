@@ -114,11 +114,12 @@ public abstract class AbstractCounters<C extends Counter,
    */
   @InterfaceAudience.Private
   public synchronized G addGroup(G group) {
-    if (isFrameworkGroup(group)) {
-      fgroups.put(group.getName(), group);
+    String name = group.getName();
+    if (isFrameworkGroup(name)) {
+      fgroups.put(name, group);
     } else {
-      groupFactory.limits().checkGroups(groups.size() + 1);
-      groups.put(group.getName(), group);
+      limits.checkGroups(groups.size() + 1);
+      groups.put(name, group);
     }
     return group;
   }

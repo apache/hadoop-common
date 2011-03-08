@@ -50,6 +50,7 @@ public abstract class CounterGroupFactory<C extends Counter,
   private static final Map<String, Integer> s2i = Maps.newHashMap();
   private static final List<String> i2s = Lists.newArrayList();
   private static final int VERSION = 1;
+  private static final String FS_GROUP_NAME = FileSystemCounter.class.getName();
 
   private final Map<String, FrameworkGroupFactory<G>> fmap = Maps.newHashMap();
   {
@@ -104,7 +105,7 @@ public abstract class CounterGroupFactory<C extends Counter,
   public G newGroup(String name, String displayName, Limits limits) {
     FrameworkGroupFactory<G> gf = fmap.get(name);
     if (gf != null) return gf.newGroup(name);
-    if (name.equals(FileSystemCounter.class.getName())) {
+    if (name.equals(FS_GROUP_NAME)) {
       return newFileSystemGroup();
     }
     return newGenericGroup(name, displayName, limits);
@@ -145,21 +146,14 @@ public abstract class CounterGroupFactory<C extends Counter,
   }
 
   /**
-   * Check whether a group name is a name of a framework group
+   * Check whether a group name is a name of a framework group (including
+   * the filesystem group).
+   *
    * @param name  to check
    * @return true for framework group names
    */
   public static synchronized boolean isFrameworkGroup(String name) {
-    return s2i.get(name) != null;
-  }
-
-  /**
-   * Check whether a group object is name of a framework group
-   * @param group object to check
-   * @return true for framework groups
-   */
-  public static boolean isFrameworkGroup(CounterGroupBase<?> group) {
-    return isFrameworkGroup(group.getName());
+    return s2i.get(name) != null || name.equals(FS_GROUP_NAME);
   }
 
   private static void throwBadFrameGroupIdException(int id) {

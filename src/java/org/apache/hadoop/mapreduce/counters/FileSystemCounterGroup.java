@@ -57,6 +57,9 @@ public abstract class FileSystemCounterGroup<C extends Counter>
   private final Map<String, Object[]> map = Maps.newTreeMap();
   private String displayName;
 
+  private static final Joiner NAME_JOINER = Joiner.on('_');
+  private static final Joiner DISP_JOINER = Joiner.on(": ");
+
   @InterfaceAudience.Private
   public class FSCounter extends AbstractCounter {
     final String scheme;
@@ -70,12 +73,12 @@ public abstract class FileSystemCounterGroup<C extends Counter>
 
     @Override
     public String getName() {
-      return Joiner.on('_').join(scheme, key.name());
+      return NAME_JOINER.join(scheme, key.name());
     }
 
     @Override
     public String getDisplayName() {
-      return Joiner.on(": ").join(scheme, localizeCounterName(key.name()));
+      return DISP_JOINER.join(scheme, localizeCounterName(key.name()));
     }
 
     protected String localizeCounterName(String counterName) {
@@ -155,7 +158,7 @@ public abstract class FileSystemCounterGroup<C extends Counter>
     if (schemeEnd < 0) {
       throw new IllegalArgumentException("bad fs counter name");
     }
-    return new String[]{counterName.substring(0, schemeEnd - 1),
+    return new String[]{counterName.substring(0, schemeEnd),
                         counterName.substring(schemeEnd + 1)};
   }
 
