@@ -289,7 +289,7 @@ public class DebugJobProducer implements JobStoryProducer {
 
     @Override
     public org.apache.hadoop.mapred.JobConf getJobConf() {
-      throw new UnsupportedOperationException();
+      return new JobConf(conf);
     }
 
     @Override
