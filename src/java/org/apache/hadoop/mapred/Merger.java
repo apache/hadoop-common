@@ -44,7 +44,7 @@ import org.apache.hadoop.util.Progress;
 import org.apache.hadoop.util.Progressable;
 
 /**
- * Merger is an utility class used by the Map and Reduce tasks for merging
+ * Merger is a utility class used by the Map and Reduce tasks for merging
  * both their memory and disk segments
  */
 @InterfaceAudience.Private
@@ -150,7 +150,7 @@ public class Merger {
   }
 
   public static <K extends Object, V extends Object>
-    RawKeyValueIterator merge(Configuration conf, FileSystem fs,
+  RawKeyValueIterator merge(Configuration conf, FileSystem fs,
                             Class<K> keyClass, Class<V> valueClass,
                             List<Segment<K, V>> segments,
                             int mergeFactor, int inMemSegments, Path tmpDir,
@@ -180,14 +180,14 @@ public class Merger {
                           Counters.Counter readsCounter,
                           Counters.Counter writesCounter,
                           Progress mergePhase)
-    throws IOException {
-  return new MergeQueue<K, V>(conf, fs, segments, comparator, reporter,
-                         sortSegments, codec).merge(keyClass, valueClass,
-                                             mergeFactor, inMemSegments,
-                                             tmpDir,
-                                             readsCounter, writesCounter,
-                                             mergePhase);
-}
+      throws IOException {
+    return new MergeQueue<K, V>(conf, fs, segments, comparator, reporter,
+                           sortSegments, codec).merge(keyClass, valueClass,
+                                               mergeFactor, inMemSegments,
+                                               tmpDir,
+                                               readsCounter, writesCounter,
+                                               mergePhase);
+  }
 
   public static <K extends Object, V extends Object>
   void writeFile(RawKeyValueIterator records, Writer<K, V> writer, 
@@ -230,7 +230,7 @@ public class Merger {
     public Segment(Configuration conf, FileSystem fs, Path file,
                    CompressionCodec codec, boolean preserve,
                    Counters.Counter mergedMapOutputsCounter)
-  throws IOException {
+    throws IOException {
       this(conf, fs, file, 0, fs.getFileStatus(file).getLen(), codec, preserve, 
            mergedMapOutputsCounter);
     }
@@ -416,7 +416,9 @@ public class Merger {
       this.reporter = reporter;
       
       for (Path file : inputs) {
-        LOG.debug("MergeQ: adding: " + file);
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("MergeQ: adding: " + file);
+        }
         segments.add(new Segment<K, V>(conf, fs, file, codec, !deleteInputs, 
                                        (file.toString().endsWith(
                                            Task.MERGED_OUTPUT_PREFIX) ? 

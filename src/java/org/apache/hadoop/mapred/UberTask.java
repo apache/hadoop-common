@@ -375,7 +375,7 @@ class UberTask extends Task {
     final FileSystem rfs = FileSystem.getLocal(job).getRaw();
     RawKeyValueIterator rIter =
         Merger.merge(job, rfs, job.getMapOutputKeyClass(),
-                     job.getMapOutputValueClass(), null,   // no codec
+                     job.getMapOutputValueClass(), reduce.initCodec(localConf),
                      ReduceTask.getMapFiles(reduce, rfs, true),
                      !conf.getKeepFailedTaskFiles(),
                      job.getInt(JobContext.IO_SORT_FACTOR, 100),

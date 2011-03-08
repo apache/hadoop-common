@@ -134,7 +134,7 @@ public class ReduceTask extends Task {
                                            getCounters());
   }
 
-  private CompressionCodec initCodec() {
+  static CompressionCodec initCodec(JobConf conf) {
     // check if map-outputs are to be compressed
     if (conf.getCompressMapOutput()) {
       Class<? extends CompressionCodec> codecClass =
@@ -390,7 +390,7 @@ public class ReduceTask extends Task {
     }
     
     // Initialize the codec
-    codec = initCodec();
+    codec = initCodec(conf);
     RawKeyValueIterator rIter = null;
     boolean isLocal = "local".equals(job.get(JTConfig.JT_IPC_ADDRESS, "local"));
     if (!isLocal) {
