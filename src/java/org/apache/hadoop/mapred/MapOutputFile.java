@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.MRConfig;
@@ -38,7 +39,7 @@ import org.apache.hadoop.mapreduce.MRConfig;
  */
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
-public class MapOutputFile {
+public class MapOutputFile implements Configurable {
 
   private JobConf conf;
 
@@ -78,6 +79,13 @@ public class MapOutputFile {
   }
 
   /**
+   * Create a local map output file name on the same volume.
+   */
+  public Path getOutputFileForWriteInVolume(Path existing) {
+    return new Path(existing.getParent(), MAP_OUTPUT_FILENAME_STRING);
+  }
+
+  /**
    * Return the path to a local map output index file created earlier
    * 
    * @return path
@@ -101,6 +109,14 @@ public class MapOutputFile {
     return lDirAlloc.getLocalPathForWrite(TaskTracker.OUTPUT + Path.SEPARATOR
         + MAP_OUTPUT_FILENAME_STRING + MAP_OUTPUT_INDEX_SUFFIX_STRING,
         size, conf);
+  }
+
+  /**
+   * Create a local map output index file name on the same volume.
+   */
+  public Path getOutputIndexFileForWriteInVolume(Path existing) {
+    return new Path(existing.getParent(),
+        MAP_OUTPUT_FILENAME_STRING + MAP_OUTPUT_INDEX_SUFFIX_STRING);
   }
 
   /**
@@ -193,12 +209,18 @@ public class MapOutputFile {
     conf.deleteLocalFiles(TaskTracker.OUTPUT);
   }
 
+  @Override
   public void setConf(Configuration conf) {
     if (conf instanceof JobConf) {
       this.conf = (JobConf) conf;
     } else {
       this.conf = new JobConf(conf);
     }
+  }
+
+  @Override
+  public Configuration getConf() {
+    return conf;
   }
   
 }
