@@ -247,7 +247,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    * Return the JT's job history handle.
    * @return the jobhistory handle
    */
-  JobHistory getJobHistory() { return jobHistory; }
+  public JobHistory getJobHistory() { return jobHistory; }
   /**
    * Start the JobTracker with given configuration.
    * 
@@ -1617,6 +1617,9 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
       }
     });
     infoServer.setAttribute("fileSys", historyFS);
+    infoServer.setAttribute("jobHistoryHistory", jobHistory);
+    infoServer.setAttribute("jobHistoryGlobber", JobHistory.globString());
+    infoServer.setAttribute("jobHistoryLeafGlobber", JobHistory.leafGlobString());
 
     this.dnsToSwitchMapping = ReflectionUtils.newInstance(
         conf.getClass("topology.node.switch.mapping.impl", ScriptBasedMapping.class,
@@ -4622,6 +4625,9 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     }
 
     infoServer.setAttribute("fileSys", historyFS);
+    infoServer.setAttribute("jobHistoryHistory", jobHistory);
+    infoServer.setAttribute("jobHistoryGlobber", JobHistory.globString());
+    infoServer.setAttribute("jobHistoryLeafGlobber", JobHistory.leafGlobString());
     infoServer.addServlet("reducegraph", "/taskgraph", TaskGraphServlet.class);
     infoServer.start();
     this.infoPort = this.infoServer.getPort();

@@ -109,7 +109,7 @@ public class TestJobHistoryParsing  extends TestCase {
     assertFalse("Writing an event after closing event writer is not handled",
         caughtException);
 
-    String historyFileName = jobId.toString() + "_" + username;
+    String historyFileName = jobId.toString();
     Path historyFilePath = new Path (historyDir.toString(),
       historyFileName);
 

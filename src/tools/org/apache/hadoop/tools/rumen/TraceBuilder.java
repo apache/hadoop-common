@@ -172,13 +172,11 @@ public class TraceBuilder extends Configured implements Tool {
    *         [especially for .crc files] we return null.
    */
   static String extractJobID(String fileName) {
+    String pre21JobID
+      = applyParser(fileName, 
+                    Pre21JobHistoryConstants.JOBHISTORY_FILENAME_REGEX);
     String jobId = applyParser(fileName, JobHistory.JOBHISTORY_FILENAME_REGEX);
-    if (jobId == null) {
-      // check if its a pre21 jobhistory file
-      jobId = applyParser(fileName, 
-                          Pre21JobHistoryConstants.JOBHISTORY_FILENAME_REGEX);
-    }
-    return jobId;
+    return jobId == null ? pre21JobID : jobId;
   }
 
   static boolean isJobConfXml(String fileName, InputStream input) {

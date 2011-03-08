@@ -295,11 +295,11 @@ public class TestSeveral extends TestCase {
       public Void run() throws IOException {
         verifyOutput(outDir.getFileSystem(conf), outDir);
 
+        JobTracker jt = mrCluster.getJobTrackerRunner().getJobTracker();
 
         //TestJobHistory
-        TestJobHistory.validateJobHistoryFileFormat(
-            mrCluster.getJobTrackerRunner().getJobTracker().getJobHistory(),
-            jobId, conf, "SUCCEEDED", false);
+        TestJobHistory.validateJobHistoryFileFormat
+          (jt, jt.getJobHistory(), jobId, conf, "SUCCEEDED", false);
 
         TestJobHistory.validateJobHistoryFileContent(mrCluster, job, conf);
 

@@ -31,6 +31,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.JobTracker;
 import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobID;
@@ -42,6 +43,8 @@ import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.TestNoJobSetupCleanup.MyOutputFormat;
 import org.apache.hadoop.mapreduce.jobhistory.HistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistory.JobHistoryJobRecord;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistory.JobHistoryRecordRetriever;
 import org.apache.hadoop.mapreduce.jobhistory.TaskAttemptFinishedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskAttemptUnsuccessfulCompletionEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskStartedEvent;
@@ -266,7 +269,7 @@ public class TestRumenJobTraces {
             .makeQualified(lfs.getUri(), lfs.getWorkingDirectory());
     
     // Check if jobhistory filename are detected properly
-    Path jhFilename = JobHistory.getJobHistoryFile(rootInputDir, jid, user);
+    Path jhFilename = JobHistory.getJobHistoryFile(rootInputDir, jid);
     JobID extractedJID = 
       JobID.forName(TraceBuilder.extractJobID(jhFilename.getName()));
     assertEquals("TraceBuilder failed to parse the current JH filename", 
@@ -366,6 +369,9 @@ public class TestRumenJobTraces {
     conf.setInt(TTConfig.TT_REDUCE_SLOTS, 1);
     MiniMRCluster mrCluster = new MiniMRCluster(1, "file:///", 1, null, null, 
                                                 new JobConf(conf));
+    JobTracker tracker = mrCluster.getJobTrackerRunner().getJobTracker();
+    JobHistory history = tracker.getJobHistory();
+    
     
     // run a job
     Path inDir = new Path(tempDir, "input");
@@ -395,16 +401,20 @@ public class TestRumenJobTraces {
       Path jhPath = 
         new Path(mrCluster.getJobTrackerRunner().getJobTracker()
                           .getJobHistoryDir());
-      Path inputPath = JobHistory.getJobHistoryFile(jhPath, id, user);
+      Path inputPath = null;
       // wait for 10 secs for the jobhistory file to move into the done folder
       for (int i = 0; i < 100; ++i) {
-        if (lfs.exists(inputPath)) {
+        JobHistoryRecordRetriever retriever 
+          = history.getMatchingJobs(null, "", null, id.toString());
+        if (retriever.hasNext()) {
+          inputPath = retriever.next().getPath();
           break;
         }
-        TimeUnit.MILLISECONDS.wait(100);
+        TimeUnit.MILLISECONDS.sleep(100);
       }
     
-      assertTrue("Missing job history file", lfs.exists(inputPath));
+      assertTrue("Missing job history file",
+                 inputPath != null && lfs.exists(inputPath));
 
       ris = getRewindableInputStream(inputPath, conf);
 
