@@ -145,6 +145,7 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
 
     // Run another job with a (valid) hprof agentlib param; verify
     // that the HTTP fetch (of task reports) works here.
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     Job job2 = MapReduceTestUtil.createJob(conf,
         getInputDir(), getOutputDir(), 1, 1, input);
     job2.setJobName("enable-profile-fetch");
