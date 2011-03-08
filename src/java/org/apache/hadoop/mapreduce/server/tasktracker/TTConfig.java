@@ -70,6 +70,8 @@ public interface TTConfig extends MRConfig {
     "mapreduce.tasktracker.instrumentation";
   public static final String TT_MAP_SLOTS = 
     "mapreduce.tasktracker.map.tasks.maximum";
+  public static final String TT_MAP_INPUT_SPLITINFO =
+    "mapreduce.tasktracker.map.input.splitinfo";
   /**
    * @deprecated Use {@link #TT_RESOURCE_CALCULATOR_PLUGIN} instead
    */

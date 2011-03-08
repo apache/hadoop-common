@@ -58,6 +58,7 @@ import org.apache.hadoop.mapred.Merger.Segment;
 import org.apache.hadoop.mapred.SortedRanges.SkipRangeIterator;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.map.WrappedMapper;
+import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.mapreduce.split.JobSplit;
 import org.apache.hadoop.mapreduce.split.JobSplit.SplitMetaInfo;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitIndex;
@@ -417,6 +418,7 @@ class MapTask extends Task {
       job.set(JobContext.MAP_INPUT_FILE, fileSplit.getPath().toString());
       job.setLong(JobContext.MAP_INPUT_START, fileSplit.getStart());
       job.setLong(JobContext.MAP_INPUT_PATH, fileSplit.getLength());
+      job.set(TTConfig.TT_MAP_INPUT_SPLITINFO, fileSplit.toString());
     }
   }
 
@@ -621,6 +623,7 @@ class MapTask extends Task {
     split = getSplitDetails(new Path(splitIndex.getSplitLocation()),
         splitIndex.getStartOffset());
 
+    job.set(TTConfig.TT_MAP_INPUT_SPLITINFO, split.toString());
     org.apache.hadoop.mapreduce.RecordReader<INKEY,INVALUE> input =
       new NewTrackingRecordReader<INKEY,INVALUE>
           (inputFormat.createRecordReader(split, taskContext), reporter);
@@ -818,6 +821,7 @@ class MapTask extends Task {
         LOG.info("soft limit at " + softLimit);
         LOG.info("bufstart = " + bufstart + "; bufvoid = " + bufvoid);
         LOG.info("kvstart = " + kvstart + "; length = " + maxRec);
+        LOG.info("split details: " + job.get(TTConfig.TT_MAP_INPUT_SPLITINFO));
       }
 
       // k/v serialization
