@@ -673,9 +673,13 @@ public class JobInProgress {
         sysConf.getLong("dfs.block.size", 64*1024*1024));
     long sysMemSizeForUberSlot = JobTracker.getMemSizeForReduceSlot();
 
-    // user has overall veto power over uberization, or user can set more
+    // User has overall veto power over uberization, or user can set more
     // stringent limits than the system specifies, but user may not exceed
-    // system limits (for now, anyway)
+    // system limits (for now, anyway).  Note that ChainMapper/Reducer are
+    // fundamentally incompatible with UberTask; they employ a blocking
+    // queue between the maps/reduces and thus require parallel execution,
+    // while UberTask loops over maps (and optional reduce) and thus requires
+    // sequential execution.
     uberMode = conf.getBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, true)
         && numMapTasks > 0  // temporary restriction until can test reduce-only
         && numMapTasks <= Math.min(sysMaxMaps,
@@ -686,7 +690,13 @@ public class JobInProgress {
             conf.getLong(MRJobConfig.JOB_UBERTASK_MAXBYTES, sysMaxBytes))
         // ignoring overhead due to UberTask and statics as negligible here:
         && (Math.max(memoryPerMap, memoryPerReduce) <= sysMemSizeForUberSlot
-            || sysMemSizeForUberSlot == JobConf.DISABLED_MEMORY_LIMIT);
+            || sysMemSizeForUberSlot == JobConf.DISABLED_MEMORY_LIMIT)
+        && (conf.get(MRJobConfig.MAP_CLASS_ATTR) == null ||
+            conf.get(MRJobConfig.MAP_CLASS_ATTR).lastIndexOf("ChainMapper")
+            == -1)
+        && (conf.get(MRJobConfig.REDUCE_CLASS_ATTR) == null ||
+            conf.get(MRJobConfig.REDUCE_CLASS_ATTR).lastIndexOf("ChainReducer")
+            == -1);
 
     if (isUber()) {
       // save internal details for UI and abort-cleanup

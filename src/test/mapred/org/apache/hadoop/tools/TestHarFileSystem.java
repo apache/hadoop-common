@@ -124,15 +124,15 @@ public class TestHarFileSystem extends TestCase {
     byte[] b = new byte[4];
     int readBytes = fin.read(b);
     fin.close();
-    assertTrue("strings are equal ", (b[0] == "a".getBytes()[0]));
+    assertTrue("harFilea strings are unequal.", (b[0] == "a".getBytes()[0]));
     fin = harFs.open(harFileb);
     fin.read(b);
     fin.close();
-    assertTrue("strings are equal ", (b[0] == "b".getBytes()[0]));
+    assertTrue("harFileb strings are unequal.", (b[0] == "b".getBytes()[0]));
     fin = harFs.open(harFilec);
     fin.read(b);
     fin.close();
-    assertTrue("strings are equal ", (b[0] == "c".getBytes()[0]));
+    assertTrue("harFilec strings are unequal.", (b[0] == "c".getBytes()[0]));
   }
 
   private void checkProperties(Path harPath, Configuration conf) throws IOException {
@@ -165,7 +165,8 @@ public class TestHarFileSystem extends TestCase {
   private void checkBlockSize(FileSystem fs, Path finalPath, long blockSize) throws IOException {
     FileStatus[] statuses = fs.globStatus(new Path(finalPath, "part-*"));
     for (FileStatus status: statuses) {
-      assertTrue(status.getBlockSize() == blockSize);
+      assertEquals("unexpected blocksize for part-* file", blockSize,
+          status.getBlockSize());
     }
   }
   
@@ -184,19 +185,20 @@ public class TestHarFileSystem extends TestCase {
       args[4] = "test";
       args[5] = archivePath.toString();
       int ret = ToolRunner.run(har, args);
-      assertTrue("failed test", ret == 0);
+      assertEquals("ToolRunner.run('-archiveName') failed.", 0, ret);
       Path finalPath = new Path(archivePath, "foo1.har");
       Path fsPath = new Path(inputPath.toUri().getPath());
       Path filePath = new Path(finalPath, "test");
       // make it a har path
       Path harPath = new Path("har://" + filePath.toUri().getPath());
-      assertTrue(fs.exists(new Path(finalPath, "_index")));
-      assertTrue(fs.exists(new Path(finalPath, "_masterindex")));
-      /*check for existence of only 1 part file, since part file size == 2GB */
-      assertTrue(fs.exists(new Path(finalPath, "part-0")));
-      assertTrue(!fs.exists(new Path(finalPath, "part-1")));
-      assertTrue(!fs.exists(new Path(finalPath, "part-2")));
-      assertTrue(!fs.exists(new Path(finalPath, "_logs")));
+      assertTrue("_index missing!", fs.exists(new Path(finalPath, "_index")));
+      assertTrue("_masterindex missing!",
+                 fs.exists(new Path(finalPath, "_masterindex")));
+      // check for existence of only 1 part file, since part file size == 2GB
+      assertTrue("part-0 missing!", fs.exists(new Path(finalPath, "part-0")));
+      assertTrue("part-1 exists!", !fs.exists(new Path(finalPath, "part-1")));
+      assertTrue("part-2 exists!", !fs.exists(new Path(finalPath, "part-2")));
+      assertTrue("_logs exists!", !fs.exists(new Path(finalPath, "_logs")));
       FileStatus[] statuses = fs.listStatus(finalPath);
       args = new String[2];
       args[0] = "-ls";
@@ -204,7 +206,7 @@ public class TestHarFileSystem extends TestCase {
       FsShell shell = new FsShell(conf);
       ret = ToolRunner.run(shell, args);
       // fileb and filec
-      assertTrue(ret == 0);
+      assertEquals("ToolRunner.run('-ls') failed.", 0, ret);
       checkBytes(harPath, conf);
       checkProperties(harPath, conf);
       /* check block size for path files */
@@ -223,7 +225,7 @@ public class TestHarFileSystem extends TestCase {
       args[6] = "test";
       args[7] = archivePath.toString();
       int ret = ToolRunner.run(har, args);
-      assertTrue("failed test", ret == 0);
+      assertEquals("ToolRunner.run('-archiveName') failed.", 0, ret);
       Path finalPath = new Path(archivePath, "foo.har");
       Path fsPath = new Path(inputPath.toUri().getPath());
       Path filePath = new Path(finalPath, "test");
@@ -243,7 +245,7 @@ public class TestHarFileSystem extends TestCase {
       FsShell shell = new FsShell(conf);
       ret = ToolRunner.run(shell, args);
       // fileb and filec
-      assertTrue(ret == 0);
+      assertEquals("ToolRunner.run('-ls') failed.", 0, ret);
       checkBytes(harPath, conf);
       checkProperties(harPath, conf);
       checkBlockSize(fs, finalPath, 512);
@@ -256,13 +258,13 @@ public class TestHarFileSystem extends TestCase {
     HadoopArchives har = new HadoopArchives(conf);
     String[] args = new String[4];
  
-    //check for destination not specfied
+    //check for destination not specified
     args[0] = "-archiveName";
     args[1] = "foo.har";
     args[2] = "-p";
     args[3] = "/";
     int ret = ToolRunner.run(har, args);
-    assertTrue(ret != 0);
+    assertFalse("bogus ToolRunner.run('-archiveName') didn't fail??", 0 == ret);
     args = new String[6];
     //check for wrong archiveName
     args[0] = "-archiveName";
@@ -272,12 +274,12 @@ public class TestHarFileSystem extends TestCase {
     args[4] = inputrelPath.toString();
     args[5] = archivePath.toString();
     ret = ToolRunner.run(har, args);
-    assertTrue(ret != 0);
-    //  se if dest is a file 
+    assertFalse("bogus ToolRunner.run('-archiveName') didn't fail??", 0 == ret);
+    // see if dest is a file 
     args[1] = "foo.har";
     args[5] = filec.toString();
     ret = ToolRunner.run(har, args);
-    assertTrue(ret != 0);
+    assertFalse("bogus ToolRunner.run('-archiveName') didn't fail??", 0 == ret);
     //this is a valid run
     args[0] = "-archiveName";
     args[1] = "foo.har";
@@ -286,12 +288,12 @@ public class TestHarFileSystem extends TestCase {
     args[4] = inputrelPath.toString();
     args[5] = archivePath.toString();
     ret = ToolRunner.run(har, args);
-    //checl for the existenece of the archive
-    assertTrue(ret == 0);
+    // check for the existence of the archive
+    assertEquals("ToolRunner.run('-archiveName') failed.", 0, ret);
     ///try running it again. it should not 
     // override the directory
     ret = ToolRunner.run(har, args);
-    assertTrue(ret != 0);
+    assertTrue("ToolRunner.run('-archiveName') rerun did NOT fail.", ret != 0);
     Path finalPath = new Path(archivePath, "foo.har");
     Path fsPath = new Path(inputPath.toUri().getPath());
     String relative = fsPath.toString().substring(1);
@@ -313,9 +315,8 @@ public class TestHarFileSystem extends TestCase {
     args[1] = harPath.toString();
     ret = ToolRunner.run(shell, args);
     // ls should work.
-    assertTrue((ret == 0));
-    //now check for contents of filea
-    // fileb and filec
+    assertEquals("ToolRunner.run('-ls') failed.", 0, ret);
+    // now check for contents of filea, fileb, and filec
     Path harFilea = new Path(harPath, "a");
     Path harFileb = new Path(harPath, "b");
     Path harFilec = new Path(harPath, "c c");
@@ -325,17 +326,17 @@ public class TestHarFileSystem extends TestCase {
     int readBytes = fin.read(b);
     assertTrue("Empty read.", readBytes > 0);
     fin.close();
-    assertTrue("strings are equal ", (b[0] == "a".getBytes()[0]));
+    assertTrue("harFilea strings are unequal.", (b[0] == "a".getBytes()[0]));
     fin = harFs.open(harFileb);
     readBytes = fin.read(b);
     assertTrue("Empty read.", readBytes > 0);
     fin.close();
-    assertTrue("strings are equal ", (b[0] == "b".getBytes()[0]));
+    assertTrue("harFileb strings are unequal.", (b[0] == "b".getBytes()[0]));
     fin = harFs.open(harFilec);
     readBytes = fin.read(b);
     assertTrue("Empty read.", readBytes > 0);
     fin.close();
-    assertTrue("strings are equal ", (b[0] == "c".getBytes()[0]));
+    assertTrue("harFilec strings are unequal.", (b[0] == "c".getBytes()[0]));
     // ok all files match 
     // run a map reduce job
     FileSystem fsHar = harPath.getFileSystem(conf);
@@ -360,11 +361,12 @@ public class TestHarFileSystem extends TestCase {
     FSDataInputStream reduceIn = fs.open(reduceFile);
     b = new byte[6];
     readBytes = reduceIn.read(b);
-    assertTrue("Should read 6 bytes instead of "+readBytes+".", readBytes == 6);
+    assertEquals("Should read 6 bytes instead of "+readBytes+".", 6, readBytes);
     //assuming all the 6 bytes were read.
     Text readTxt = new Text(b);
-    assertTrue("a\nb\nc\n".equals(readTxt.toString()));
-    assertTrue("number of bytes left should be -1", reduceIn.read(b) == -1);
+    assertTrue("string read from reduceIn doesn't match expected value.",
+      "a\nb\nc\n".equals(readTxt.toString()));
+    assertEquals("number of bytes left should be -1.", -1, reduceIn.read(b));
     reduceIn.close();
   }
 }

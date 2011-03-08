@@ -476,7 +476,7 @@ abstract public class Task implements Writable, Configurable {
   public abstract boolean isMapTask();
 
   /**
-   * Is this really a combo-task masquerading as a plain MapTask?
+   * Is this really a combo-task masquerading as a plain ReduceTask?
    */
   public abstract boolean isUberTask();
 
@@ -498,7 +498,13 @@ abstract public class Task implements Writable, Configurable {
                                                    ClassNotFoundException,
                                                    InterruptedException {
     jobContext = new JobContextImpl(job, id, reporter);
-    taskContext = new TaskAttemptContextImpl(job, taskId, reporter);
+    // taskIdForUmbilical is required here since it ultimately determines the
+    // name of the pre-commit HDFS working directory (_temporary/_attempt_xxx),
+    // and anything put in an "_m_" directory will fail to get saved (i.e.,
+    // moved up two levels) in UberTask mode.  This mostly (only?) affects
+    // users of HadoopArchives (har) and IndexUpdateOutputFormat (via the
+    // getWorkOutputPath() method in FileOutputFormat).
+    taskContext = new TaskAttemptContextImpl(job, taskIdForUmbilical, reporter);
     if (getState() == TaskStatus.State.UNASSIGNED) {
       setState(TaskStatus.State.RUNNING);
     }
@@ -512,6 +518,7 @@ abstract public class Task implements Writable, Configurable {
     } else {
       committer = conf.getOutputCommitter();
     }
+    // this will typically be on HDFS, not the node's local filesystem:
     Path outputPath = FileOutputFormat.getOutputPath(conf);
     if (outputPath != null) {
       if ((committer instanceof FileOutputCommitter)) {

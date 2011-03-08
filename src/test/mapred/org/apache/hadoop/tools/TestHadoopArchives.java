@@ -157,7 +157,8 @@ public class TestHadoopArchives extends TestCase {
     System.setErr(out);
     final String results;
     try {
-      assertEquals(0, shell.run(new String[]{"-lsr", dir}));
+      assertEquals("non-zero exit status", 0,
+                   shell.run(new String[]{"-lsr", dir}));
       results = bytes.toString();
     } finally {
       IOUtils.closeStream(out);

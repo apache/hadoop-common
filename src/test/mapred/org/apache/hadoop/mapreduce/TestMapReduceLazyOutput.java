@@ -88,6 +88,9 @@ public class TestMapReduceLazyOutput extends TestCase {
   private static void runTestLazyOutput(Configuration conf, Path output,
       int numReducers, boolean createLazily) 
   throws Exception {
+    // ubertask has just one output file (part-r-00000) != number of maptasks
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
+
     Job job = Job.getInstance(conf, "Test-Lazy-Output");
 
     FileInputFormat.setInputPaths(job, INPUT);

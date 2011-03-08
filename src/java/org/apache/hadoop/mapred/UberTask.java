@@ -213,6 +213,17 @@ class UberTask extends Task {
     return mapIds;
   }
 
+  /**
+   * Within the _local_ filesystem (not HDFS), all activity takes place within
+   * a single directory (e.g., "/tmp/hadoop-[username]/mapred/local/0_0/
+   * taskTracker/[username]/jobcache/job_xxx/attempt_xxx_r_xxx/output/"), and
+   * all sub-MapTasks create the same filename ("file.out").  Rename that to
+   * something unique (e.g., "map_0.out") to avoid collisions.
+   *
+   * Longer-term, we'll modify TaskTracker or whatever to use TaskAttemptID-
+   * based filenames instead of "file.out".  (All of this is entirely internal,
+   * so there are no particular compatibility issues.)
+   */
   private void renameMapOutputForReduce(TaskAttemptID mapId,
                                         MapOutputFile subMapOutputFile)
   throws IOException {
@@ -312,8 +323,10 @@ class UberTask extends Task {
         reporter.progress();
       }
 
-      // every map will produce file.out (in the same dir), so rename as we go
-      // (longer-term, will use TaskAttemptIDs as part of name => avoid rename)
+      // Every map will produce "file.out" in the same (local, not HDFS!) dir,
+      // so rename to "map_#.out" as we go.  (Longer-term, will use
+      // TaskAttemptIDs as part of name => avoid rename.)  Note that this has
+      // nothing to do with the _temporary/attempt_xxx _HDFS_ subdir above!
       if (numReduceTasks > 0) {
         renameMapOutputForReduce(mapIds[j], map.getMapOutputFile());
       }

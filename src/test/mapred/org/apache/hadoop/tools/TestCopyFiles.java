@@ -46,6 +46,7 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.JobContext;
 import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.tools.DistCp;
@@ -751,6 +752,8 @@ public class TestCopyFiles extends TestCase {
       }
       Configuration job = mr.createJobConf();
       job.setLong("distcp.bytes.per.map", totsize / 3);
+      // if uberized, get only 1 log file, not 4 or 5 as in assert below
+      job.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
       ToolRunner.run(new DistCp(job),
           new String[] {"-m", "100",
                         "-log",
