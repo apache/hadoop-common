@@ -33,6 +33,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableUtils;
 import org.apache.hadoop.mapred.Task.TaskReporter;
 import org.apache.hadoop.mapred.TaskTracker.TaskInProgress;
+import org.apache.hadoop.mapreduce.JobCounter;
 import org.apache.hadoop.mapreduce.MRJobConfig;  // JobContext.SKIP_RECORDS
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitIndex;
 import org.apache.hadoop.mapreduce.TaskType;  // MAP, JOB_SETUP, TASK_CLEANUP...
@@ -413,7 +414,12 @@ class UberTask extends Task {
    *                 completed
    */
   private void updateCounters(Task subtask) {
-    getCounters().incrAllCounters(subtask.getCounters());
+    Counters counters = getCounters();
+    if (counters != null) {
+      counters.incrCounter(subtask.isMapTask()?
+          JobCounter.NUM_UBER_SUBMAPS : JobCounter.NUM_UBER_SUBREDUCES, 1);
+      counters.incrAllCounters(subtask.getCounters());
+    }
   }
 
   @Override

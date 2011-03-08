@@ -1776,7 +1776,8 @@ public class JobInProgress {
     } else {
       ++runningReduceTasks;
       name = TaskType.REDUCE;
-      counter = JobCounter.TOTAL_LAUNCHED_REDUCES;
+      counter = tip.isUberTask()? JobCounter.TOTAL_LAUNCHED_UBERTASKS
+                                : JobCounter.TOTAL_LAUNCHED_REDUCES;
       if (tip.isSpeculating()) {
         speculativeReduceTasks++;
         metrics.speculateReduce(id);
@@ -3408,6 +3409,8 @@ public class JobInProgress {
       if (!tip.isJobCleanupTask() && !tip.isJobSetupTask()) {
         if (tip.isMapTask()) {
           jobCounters.incrCounter(JobCounter.NUM_FAILED_MAPS, 1);
+        } else if (tip.isUberTask()) {
+          jobCounters.incrCounter(JobCounter.NUM_FAILED_UBERTASKS, 1);
         } else {
           jobCounters.incrCounter(JobCounter.NUM_FAILED_REDUCES, 1);
         }
