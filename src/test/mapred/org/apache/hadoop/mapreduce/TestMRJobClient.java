@@ -64,8 +64,10 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
     }
   }
 
+/* GRR TEMP HACK
   @Test
   public void testJobClient() throws Exception {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testJobClient(): starting");
     Configuration conf = createJobConf();
     Job job = runJob(conf);
     String jobId = job.getJobID().toString();
@@ -77,6 +79,7 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
   @Test
   public void testGetCounter(String jobId,
       Configuration conf) throws Exception {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testGetCounter(): starting");
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     int exitCode = runTool(conf, createJobClient(),
         new String[] { "-counter", jobId,
@@ -89,6 +92,7 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
   @Test
   public void testJobList(String jobId,
       Configuration conf) throws Exception {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testJobList(): starting");
     verifyJobPriority(jobId, "HIGH", conf, createJobClient());
   }
 
@@ -116,22 +120,26 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
   @Test
   public void testChangingJobPriority(String jobId, Configuration conf)
       throws Exception {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testChangingJobPriority(): starting");
     int exitCode = runTool(conf, createJobClient(),
         new String[] { "-set-priority", jobId, "VERY_LOW" },
         new ByteArrayOutputStream());
     assertEquals("Exit code", 0, exitCode);
     verifyJobPriority(jobId, "VERY_LOW", conf, createJobClient());
   }
+END GRR TEMP HACK */
 
   @Test
   public void testMissingProfileOutput() throws Exception {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): starting");
     Configuration conf = createJobConf();
     final String input = "hello1\n";
 
     // Set a job to be profiled with an empty agentlib parameter.
-    // This will fail to create profile.out files for tasks.
-    // This will succeed by skipping the HTTP fetch of the
-    // profiler output.
+    // This will fail to create profile.out files for tasks (because
+    // child JVM will refuse to launch).
+    // This subtest will nevertheless succeed by skipping the HTTP
+    // fetch of the profiler output.
     Job job = MapReduceTestUtil.createJob(conf,
         getInputDir(), getOutputDir(), 1, 1, input);
     job.setJobName("disable-profile-fetch");
@@ -141,9 +149,11 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
     job.setMaxReduceAttempts(1);
     job.setJobSetupCleanupNeeded(false);
     job.waitForCompletion(true);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): done with job 1; BAILING (TEMP HACK)"); if (job != null) return;
 
-    // Run another job with an hprof agentlib param; verify
-    // that the HTTP fetch works here.
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): done with job 1; about to start job 2");
+    // Run another job with a (valid) hprof agentlib param; verify
+    // that the HTTP fetch (of task reports) works here.
     Job job2 = MapReduceTestUtil.createJob(conf,
         getInputDir(), getOutputDir(), 1, 1, input);
     job2.setJobName("enable-profile-fetch");
@@ -158,6 +168,7 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
     job2.setJobSetupCleanupNeeded(false);
     job2.waitForCompletion(true);
 
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): done with job 2; getting final task reports, etc.");
     // Find the first map task, verify that we got its profile output file.
     TaskReport [] reports = job2.getTaskReports(TaskType.MAP);
     assertTrue("No task reports found!", reports.length > 0);

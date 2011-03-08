@@ -2480,12 +2480,14 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     // Check for tasks to be killed
     List<TaskTrackerAction> killTasksList = getTasksToKill(trackerName);
     if (killTasksList != null) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker heartbeat(): found non-empty killTasksList");
       actions.addAll(killTasksList);
     }
      
     // Check for jobs to be killed/cleanedup
     List<TaskTrackerAction> killJobsList = getJobsForCleanup(trackerName);
     if (killJobsList != null) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker heartbeat(): found non-empty killJobsList");
       actions.addAll(killJobsList);
     }
 
@@ -2558,6 +2560,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    */
   boolean updateTaskTrackerStatus(String trackerName,
                                           TaskTrackerStatus status) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskTrackerStatus(): starting");
     TaskTracker tt = getTaskTracker(trackerName);
     TaskTrackerStatus oldStatus = (tt == null) ? null : tt.getStatus();
     if (oldStatus != null) {
@@ -2616,7 +2619,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
       taskTracker.setStatus(status);
       taskTrackers.put(trackerName, taskTracker);
       
-      if (LOG.isDebugEnabled()) {
+      if (true/* GRR DEBUG LOG.isDebugEnabled()*/) {
         int runningMaps = 0, runningReduces = 0;
         int commitPendingMaps = 0, commitPendingReduces = 0;
         int unassignedMaps = 0, unassignedReduces = 0;
@@ -2640,7 +2643,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
             else { ++miscReduces; } 
           }
         }
-        LOG.debug(trackerName + ": Status -" +
+        LOG.info/* GRR DEBUG .debug */(trackerName + ": Status -" +
                   " running(m) = " + runningMaps + 
                   " unassigned(m) = " + unassignedMaps + 
                   " commit_pending(m) = " + commitPendingMaps +
@@ -3952,9 +3955,11 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    */
   void updateTaskStatuses(TaskTrackerStatus status) {
     String trackerName = status.getTrackerName();
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): starting (TT = " + trackerName + ")");
     for (TaskStatus report : status.getTaskReports()) {
       report.setTaskTracker(trackerName);
       TaskAttemptID taskId = report.getTaskID();
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): processing TaskStatus for task ID " + taskId + " with phase (from TT) = " + report.getPhase());
       
       // expire it
       expireLaunchingTasks.removeTask(taskId);
@@ -3968,12 +3973,14 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
             jobs = new HashSet<JobID>();
             trackerToJobsToCleanup.put(trackerName, jobs);
           }
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): adding job ID " + taskId.getJobID() + " to job-cleanup list");
           jobs.add(taskId.getJobID());
         }
         continue;
       }
       
       if (!job.inited()) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): job " + job + " not initialized; killing attempt");
         // if job is not yet initialized ... kill the attempt
         synchronized (trackerToTasksToCleanup) {
           Set<TaskAttemptID> tasks = trackerToTasksToCleanup.get(trackerName);
@@ -3981,6 +3988,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
             tasks = new HashSet<TaskAttemptID>();
             trackerToTasksToCleanup.put(trackerName, tasks);
           }
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): adding task ID " + taskId + " to task-cleanup list");
           tasks.add(taskId);
         }
         continue;
@@ -3995,11 +4003,13 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
         // or TaskInProgress can modify this object and
         // the changes should not get reflected in TaskTrackerStatus.
         // An old TaskTrackerStatus is used later in countMapTasks, etc.
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): found TIP; calling updateTaskStatus() on " + taskId);
         job.updateTaskStatus(tip, (TaskStatus)report.clone());
         JobStatus newStatus = (JobStatus)job.getStatus().clone();
         
         // Update the listeners if an incomplete job completes
         if (prevStatus.getRunState() != newStatus.getRunState()) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): creating JobStatusChangeEvent");
           JobStatusChangeEvent event = 
             new JobStatusChangeEvent(job, EventType.RUN_STATE_CHANGED, 
                                      prevStatus, newStatus);
@@ -4017,6 +4027,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
           TaskInProgress failedFetchMap = taskidToTIPMap.get(mapTaskId);
           
           if (failedFetchMap != null) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobTracker updateTaskStatuses(): doing 'failed fetch' stuff");
             // Gather information about the map which has to be failed, if need be
             String failedFetchTrackerName = getAssignedTracker(mapTaskId);
             if (failedFetchTrackerName == null) {

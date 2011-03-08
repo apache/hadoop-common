@@ -59,6 +59,7 @@ class UberTask extends Task {
   public UberTask() {
     super();
     this.taskStatus = new UberTaskStatus();
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask plain ctor finished");
   }
 
   public UberTask(String jobFile, TaskAttemptID taskId, int partition,
@@ -74,9 +75,10 @@ class UberTask extends Task {
                                          "", "", "", TaskStatus.Phase.MAP,
                                          getCounters());
     if (LOG.isDebugEnabled()) {
-      LOG.debug("UberTask " + taskId + " constructed with " + numMapTasks
+      LOG.debug("UberTask " + getTaskID() + " constructed with " + numMapTasks
                 + " sub-maps and " + numReduceTasks + " sub-reduces");
     }
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask normal ctor finished (" + getTaskID() + " constructed with " + numMapTasks + " sub-maps and " + numReduceTasks + " sub-reduces)");
   }
 
   @Override
@@ -105,6 +107,8 @@ class UberTask extends Task {
   public void run(JobConf job, TaskUmbilicalProtocol umbilical)
   throws IOException, ClassNotFoundException, InterruptedException {
     this.umbilical = umbilical;
+
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask run(): starting");
 
     // set up two-level Progress/phase tree:  getProgress() is root ("uber"),
     // and subtasks' "root node" Progress is second level (will override
@@ -187,16 +191,20 @@ class UberTask extends Task {
     // clean up the job (switch phase to "cleanup" and delete staging dir, but
     // do NOT delete temp dir yet)
     if (jobSetupCleanupNeeded) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask run(): about to call runCommitAbortJob() (=> switch phase to 'cleanup' and delete staging dir but NOT temp dir)");
       runCommitAbortJob(reporter);
     }
 
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask run(): about to call done() (=> commitTask() or abortTask())");
     // this is where commitTask() (or abortTask()) is called
     done(umbilical, reporter);
 
     // now finish cleaning up the job (delete temp dir:  results are committed)
     if (jobSetupCleanupNeeded) {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask run(): about to call commitJob() (=> delete temp dir)");
       commitJob();
     }
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask run(): totally done");
   }
 
   private TaskAttemptID[] createMapIds() {
@@ -431,6 +439,7 @@ class UberTask extends Task {
         splits[j] = splitIndex;
       }
     }
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  UberTask readFields() finished (" + getTaskID() + " restored with " + numMapTasks + " sub-maps and " + numReduceTasks + " sub-reduces; phase = " + getPhase() + ")");
   }
 
   /**

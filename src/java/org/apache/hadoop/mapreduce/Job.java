@@ -1118,7 +1118,11 @@ System.out.println("GRR DEBUG:  Job getCounters(): back from ensureState(); abou
     IntegerRanges reduceRanges = getProfileTaskRange(false);
     int progMonitorPollIntervalMillis = 
       Job.getProgressPollInterval(clientConf);
+//GRR DEBUG ONLY!
+long numIters_GRR_DEBUG = 0;
     while (!isComplete()) {
+++numIters_GRR_DEBUG;
+if (numIters_GRR_DEBUG < 10 || (numIters_GRR_DEBUG % 10) == 0) { System.out.println("GRR DEBUG:  Job monitorAndPrintJob(): while-loop iteration #" + numIters_GRR_DEBUG); }
       Thread.sleep(progMonitorPollIntervalMillis);
       String report = 
         (" map " + StringUtils.formatPercent(mapProgress(), 0)+
@@ -1133,6 +1137,7 @@ System.out.println("GRR DEBUG:  Job getCounters(): back from ensureState(); abou
         getTaskCompletionEvents(eventCounter, 10); 
       eventCounter += events.length;
       printTaskEvents(events, filter, profiling, mapRanges, reduceRanges);
+if (numIters_GRR_DEBUG > 40) { throw new InterruptedException(); } // then check TEST*.txt file and/or build/test/logs/.../* for additional logged clues
     }
     LOG.info("Job complete: " + jobId);
     Counters counters = getCounters();

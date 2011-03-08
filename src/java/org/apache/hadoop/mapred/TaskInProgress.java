@@ -718,7 +718,7 @@ class TaskInProgress {
         TaskStatus.State oldState = oldStatus.getRunState();
         TaskStatus.State newState = status.getRunState();
           
-        // We should never recieve a duplicate success/failure/killed
+        // We should never receive a duplicate success/failure/killed
         // status update for the same taskid! This is a safety check, 
         // and is addressed better at the TaskTracker to ensure this.
         // @see {@link TaskTracker.transmitHeartbeat()}
@@ -728,7 +728,7 @@ class TaskInProgress {
              newState != TaskStatus.State.KILLED_UNCLEAN && 
              newState != TaskStatus.State.UNASSIGNED) && 
             (oldState == newState)) {
-          LOG.warn("Recieved duplicate status update of '" + newState + 
+          LOG.warn("Received duplicate status update of '" + newState + 
                    "' for '" + taskid + "' of TIP '" + getTIPId() + "'" +
                    "oldTT=" + oldStatus.getTaskTracker() + 
                    " while newTT=" + status.getTaskTracker());
@@ -781,6 +781,7 @@ class TaskInProgress {
           setProgressRate(currProgRate);
         }
       } else {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskInProgress updateStatus(): calling TaskStatus statusUpdate() for " + taskid + " with phase " + status.getPhase());
         taskStatuses.get(taskid).statusUpdate(status.getRunState(),
                                               status.getProgress(), status.getStateString(), status.getPhase(),
                                               status.getFinishTime());

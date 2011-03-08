@@ -95,7 +95,9 @@ public abstract class TaskStatus implements Writable, Cloneable {
   public TaskStatus(TaskAttemptID taskid, float progress, int numSlots,
                     State runState, String diagnosticInfo,
                     String stateString, String taskTracker,
-                    Phase phase, Counters counters) {
+                    Phase phase, Counters counters)
+//throws IOException
+ {
     this.taskid = taskid;
     this.progress = progress;
     this.numSlots = numSlots;
@@ -103,9 +105,11 @@ public abstract class TaskStatus implements Writable, Cloneable {
     setDiagnosticInfo(diagnosticInfo);
     setStateString(stateString);
     this.taskTracker = taskTracker;
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskStatus ctor: creating with runState = " + runState + " and phase = " + phase);
     this.phase = phase;
     this.counters = counters;
     this.includeAllCounters = true;
+//if (runState == TaskStatus.State.FAILED_UNCLEAN && phase == TaskStatus.Phase.MAP) { throw new IOException("GRR DEBUG:  TaskStatus ctor:  WHO'S THE LAMER THAT CALLED US???"); }
   }
   
   public TaskAttemptID getTaskID() { return taskid; }
@@ -307,6 +311,7 @@ public abstract class TaskStatus implements Writable, Cloneable {
       }else if (phase == TaskStatus.Phase.REDUCE){
         setSortFinishTime(System.currentTimeMillis());
       }
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskStatus setPhase(): changing phase from " + getPhase() + " to " + phase);
       this.phase = phase;
     }
   }
@@ -408,6 +413,7 @@ public abstract class TaskStatus implements Writable, Cloneable {
       this.setFinishTime(status.getFinishTime()); 
     }
     
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskStatus statusUpdate() #2: changing phase from " + getPhase() + " to " + status.getPhase());
     this.phase = status.getPhase();
     this.counters = status.getCounters();
     this.outputSize = status.outputSize;
@@ -433,6 +439,7 @@ public abstract class TaskStatus implements Writable, Cloneable {
     setRunState(runState);
     setProgress(progress);
     setStateString(state);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskStatus statusUpdate() #3: changing phase from " + getPhase() + " to " + phase);
     setPhase(phase);
     if (finishTime > 0) {
       setFinishTime(finishTime); 
