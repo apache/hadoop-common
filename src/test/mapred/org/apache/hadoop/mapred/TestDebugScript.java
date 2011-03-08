@@ -151,8 +151,8 @@ public class TestDebugScript {
     File output = TaskLog.getRealTaskLogFileLocation(taskId, false,
         TaskLog.LogName.DEBUGOUT);
     // Check the presence of the output file if the script is to be run.
-    assertTrue("Output file does not exists. DebugScript has not been run",
-          output.exists());
+    assertTrue("Output file does not exist. DebugScript has not been run.",
+          output != null && output.exists());
     // slurp the output from file, which is one line
     BufferedReader reader = new BufferedReader(new FileReader(output));
     String out = reader.readLine();
@@ -183,6 +183,7 @@ public class TestDebugScript {
       throws IOException {
     conf.setMapDebugScript(SCRIPT_FILE);
     conf.setMaxMapAttempts(0);
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     conf.set("mapred.committer.job.setup.cleanup.needed", "false");
     RunningJob rJob = UtilsForTests.runJobFail(conf, inputPath, outputDir);
     return rJob.getID();

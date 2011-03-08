@@ -98,8 +98,10 @@ public class TestJobCleanup extends TestCase {
       System.err.println("---- HERE ----");
       JobConf conf = context.getJobConf();
       Path outputPath = FileOutputFormat.getOutputPath(conf);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup CommitterWithCustomDeprecatedCleanup (FileOutputCommitter) cleanupJob(): creating " + outputPath + "/" + CUSTOM_CLEANUP_FILE_NAME);
       FileSystem fs = outputPath.getFileSystem(conf);
       fs.create(new Path(outputPath, CUSTOM_CLEANUP_FILE_NAME)).close();
+//try { Thread.sleep(20000);  /* GRR DEBUG ONLY! (arg = milliseconds) */ } catch (InterruptedException ie) { }
     }
   }
   
@@ -116,11 +118,14 @@ public class TestJobCleanup extends TestCase {
       String fileName = (state == JobStatus.FAILED) 
                         ? TestJobCleanup.ABORT_FAILED_FILE_NAME 
                         : TestJobCleanup.ABORT_KILLED_FILE_NAME;
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup CommitterWithCustomAbort (FileOutputCommitter) abortJob(): creating " + outputPath + "/" + fileName);
       fs.create(new Path(outputPath, fileName)).close();
+//try { Thread.sleep(20000);  /* GRR DEBUG ONLY! (arg = milliseconds) */ } catch (InterruptedException ie) { }
     }
   }
   
   private Path getNewOutputDir() {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup getNewOutputDir(): creating " + TEST_ROOT_DIR + "/output-" + outDirs);
     return new Path(TEST_ROOT_DIR, "output-" + outDirs++);
   }
   
@@ -150,14 +155,17 @@ public class TestJobCleanup extends TestCase {
     JobClient jobClient = new JobClient(jc);
     RunningJob job = jobClient.submitJob(jc);
     JobID id = job.getID();
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testSuccessfulJob(): JobID = " + id);
     job.waitForCompletion();
     
     Path testFile = new Path(outDir, filename);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testSuccessfulJob(): checking for existence of done file: " + testFile);
     assertTrue("Done file missing for job " + id, fileSys.exists(testFile));
     
     // check if the files from the missing set exists
     for (String ex : exclude) {
       Path file = new Path(outDir, ex);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testSuccessfulJob(): checking for nonexistence of 'missing' file: " + file);
       assertFalse("File " + file + " should not be present for successful job " 
                   + id, fileSys.exists(file));
     }
@@ -178,10 +186,12 @@ public class TestJobCleanup extends TestCase {
     JobClient jobClient = new JobClient(jc);
     RunningJob job = jobClient.submitJob(jc);
     JobID id = job.getID();
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testFailedJob(): JobID = " + id);
     job.waitForCompletion();
     
     if (fileName != null) {
       Path testFile = new Path(outDir, fileName);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testFailedJob(): checking for existence of done file: " + testFile);
       assertTrue("File " + testFile + " missing for failed job " + id, 
                  fileSys.exists(testFile));
     }
@@ -189,6 +199,7 @@ public class TestJobCleanup extends TestCase {
     // check if the files from the missing set exists
     for (String ex : exclude) {
       Path file = new Path(outDir, ex);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testFailedJob(): checking for nonexistence of 'missing' file: " + file);
       assertFalse("File " + file + " should not be present for failed job "
                   + id, fileSys.exists(file));
     }
@@ -208,12 +219,14 @@ public class TestJobCleanup extends TestCase {
     JobClient jobClient = new JobClient(jc);
     RunningJob job = jobClient.submitJob(jc);
     JobID id = job.getID();
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testKilledJob(): JobID = " + id);
     JobInProgress jip = 
       mr.getJobTrackerRunner().getJobTracker().getJob(job.getID());
     
     // wait for the map to be launched
     while (true) {
-      if (jip.runningMaps() == 1) {
+      if (jip.runningMaps() == 1
+          || (jip.isUber() && jip.runningReduces() == 1)) {
         break;
       }
       UtilsForTests.waitFor(100);
@@ -225,6 +238,7 @@ public class TestJobCleanup extends TestCase {
     
     if (fileName != null) {
       Path testFile = new Path(outDir, fileName);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testKilledJob(): checking for existence of done file: " + testFile);
       assertTrue("File " + testFile + " missing for job " + id, 
                  fileSys.exists(testFile));
     }
@@ -232,6 +246,7 @@ public class TestJobCleanup extends TestCase {
     // check if the files from the missing set exists
     for (String ex : exclude) {
       Path file = new Path(outDir, ex);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testKilledJob(): checking for nonexistence of 'missing' file: " + file);
       assertFalse("File " + file + " should not be present for killed job "
                   + id, fileSys.exists(file));
     }
@@ -266,17 +281,20 @@ public class TestJobCleanup extends TestCase {
    */
   public void testCustomAbort() throws IOException {
     // check with a successful job
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testCustomAbort(): calling testSuccessfulJob(" + FileOutputCommitter.SUCCEEDED_FILE_NAME + ", CommitterWithCustomAbort.class, ...)");
     testSuccessfulJob(FileOutputCommitter.SUCCEEDED_FILE_NAME, 
                       CommitterWithCustomAbort.class,
                       new String[] {ABORT_FAILED_FILE_NAME, 
                                     ABORT_KILLED_FILE_NAME});
     
     // check with a failed job
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testCustomAbort(): calling testFailedJob(" + ABORT_FAILED_FILE_NAME + ", CommitterWithCustomAbort.class, ...)");
     testFailedJob(ABORT_FAILED_FILE_NAME, CommitterWithCustomAbort.class, 
                   new String[] {FileOutputCommitter.SUCCEEDED_FILE_NAME,
                                 ABORT_KILLED_FILE_NAME});
     
     // check with a killed job
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testCustomAbort(): calling testKilledJob(" + ABORT_KILLED_FILE_NAME + ", CommitterWithCustomAbort.class, ...)");
     testKilledJob(ABORT_KILLED_FILE_NAME, CommitterWithCustomAbort.class, 
                   new String[] {FileOutputCommitter.SUCCEEDED_FILE_NAME,
                                 ABORT_FAILED_FILE_NAME});
@@ -289,16 +307,19 @@ public class TestJobCleanup extends TestCase {
    */
   public void testCustomCleanup() throws IOException {
     // check with a successful job
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testCustomCleanup(): calling testSuccessfulJob(" + CUSTOM_CLEANUP_FILE_NAME + ", CommitterWithCustomDeprecatedCleanup.class, ...)");
     testSuccessfulJob(CUSTOM_CLEANUP_FILE_NAME, 
                       CommitterWithCustomDeprecatedCleanup.class,
                       new String[] {});
     
     // check with a failed job
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testCustomCleanup(): calling testFailedJob(" + CUSTOM_CLEANUP_FILE_NAME + ", CommitterWithCustomDeprecatedCleanup.class, ...)");
     testFailedJob(CUSTOM_CLEANUP_FILE_NAME, 
                   CommitterWithCustomDeprecatedCleanup.class, 
                   new String[] {FileOutputCommitter.SUCCEEDED_FILE_NAME});
     
     // check with a killed job
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestJobCleanup testCustomCleanup(): calling testKilledJob(" + TestJobCleanup.CUSTOM_CLEANUP_FILE_NAME + ", CommitterWithCustomDeprecatedCleanup.class, ...)");
     testKilledJob(TestJobCleanup.CUSTOM_CLEANUP_FILE_NAME, 
                   CommitterWithCustomDeprecatedCleanup.class, 
                   new String[] {FileOutputCommitter.SUCCEEDED_FILE_NAME});

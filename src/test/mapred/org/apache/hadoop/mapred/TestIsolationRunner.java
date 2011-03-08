@@ -131,6 +131,7 @@ public class TestIsolationRunner extends TestCase {
       conf.setKeepTaskFilesPattern(".*");
       conf.set(SIDE_EFFECT_DIR_PROPERTY, TEST_ROOT_DIR +
           "/isolationrunnerjob/sideeffect");
+      conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
       // Delete previous runs' data.
       deleteSideEffectFiles(conf);
       JobID jobId = runJobNormally(conf);

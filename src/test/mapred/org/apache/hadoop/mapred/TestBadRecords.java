@@ -73,6 +73,7 @@ public class TestBadRecords extends ClusterMapReduceTestCase {
     conf.setNumMapTasks(1);
     conf.setNumReduceTasks(1);
     conf.setInt(JobContext.TASK_TIMEOUT, 30*1000);
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     SkipBadRecords.setMapperMaxSkipRecords(conf, Long.MAX_VALUE);
     SkipBadRecords.setReducerMaxSkipGroups(conf, Long.MAX_VALUE);
     
@@ -112,28 +113,28 @@ public class TestBadRecords extends ClusterMapReduceTestCase {
     LOG.info(runningJob.getCounters().toString());
     assertTrue(runningJob.isSuccessful());
     
-    //validate counters
+    // validate counters (1st assert arg is _expected_ value!)
     Counters counters = runningJob.getCounters();
-    assertEquals(counters.findCounter(TaskCounter.MAP_SKIPPED_RECORDS).
-        getCounter(),mapperBadRecords.size());
+    assertEquals(mapperBadRecords.size(),
+        counters.findCounter(TaskCounter.MAP_SKIPPED_RECORDS).getCounter());
     
     int mapRecs = input.size() - mapperBadRecords.size();
-    assertEquals(counters.findCounter(TaskCounter.MAP_INPUT_RECORDS).
-        getCounter(),mapRecs);
-    assertEquals(counters.findCounter(TaskCounter.MAP_OUTPUT_RECORDS).
-        getCounter(),mapRecs);
+    assertEquals(mapRecs,
+        counters.findCounter(TaskCounter.MAP_INPUT_RECORDS).getCounter());
+    assertEquals(mapRecs,
+        counters.findCounter(TaskCounter.MAP_OUTPUT_RECORDS).getCounter());
     
     int redRecs = mapRecs - redBadRecords.size();
-    assertEquals(counters.findCounter(TaskCounter.REDUCE_SKIPPED_RECORDS).
-        getCounter(),redBadRecords.size());
-    assertEquals(counters.findCounter(TaskCounter.REDUCE_SKIPPED_GROUPS).
-        getCounter(),redBadRecords.size());
-    assertEquals(counters.findCounter(TaskCounter.REDUCE_INPUT_GROUPS).
-        getCounter(),redRecs);
-    assertEquals(counters.findCounter(TaskCounter.REDUCE_INPUT_RECORDS).
-        getCounter(),redRecs);
-    assertEquals(counters.findCounter(TaskCounter.REDUCE_OUTPUT_RECORDS).
-        getCounter(),redRecs);
+    assertEquals(redBadRecords.size(),
+        counters.findCounter(TaskCounter.REDUCE_SKIPPED_RECORDS).getCounter());
+    assertEquals(redBadRecords.size(),
+        counters.findCounter(TaskCounter.REDUCE_SKIPPED_GROUPS).getCounter());
+    assertEquals(redRecs,
+        counters.findCounter(TaskCounter.REDUCE_INPUT_GROUPS).getCounter());
+    assertEquals(redRecs,
+        counters.findCounter(TaskCounter.REDUCE_INPUT_RECORDS).getCounter());
+    assertEquals(redRecs,
+        counters.findCounter(TaskCounter.REDUCE_OUTPUT_RECORDS).getCounter());
     
     //validate skipped records
     Path skipDir = SkipBadRecords.getSkipOutputPath(conf);

@@ -365,7 +365,7 @@
               "<th>Killed</th>" +
               "<th><a href=\"jobfailures.jsp?jobid=" + jobId + 
               "\">Failed/Killed<br>Task Attempts</a></th></tr>\n");
-    if (job.getUberMode()) {
+    if (job.isUber()) {
       /* placeholder until true task- and attempt-level uber info available */
       printTaskSummary(out, jobId, "uber", status.reduceProgress(),
                        job.getTasks(TaskType.REDUCE));
@@ -452,7 +452,7 @@ if("off".equals(session.getAttribute("map.graph"))) { %>
 <%} }%>
 
 <%if (job.getTasks(TaskType.REDUCE).length > 0) { %>
-<%if (job.getUberMode()) { %>
+<%if (job.isUber()) { %>
 <hr>UberTask Completion Graph -
 <%} else { %>
 <hr>Reduce Completion Graph -

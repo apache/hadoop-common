@@ -141,6 +141,8 @@ public class JobInProgress {
   // uber internals tracked here to avoid need for new TIP get-accessors
   private int uberMapTasks = 0;
   private int uberReduceTasks = 0;
+  private boolean uberSetupCleanupNeeded = false;
+  private boolean uberMode = false;
 
   int mapFailuresPercent = 0;
   int reduceFailuresPercent = 0;
@@ -151,7 +153,6 @@ public class JobInProgress {
   private volatile boolean jobKilled = false;
   private volatile boolean jobFailed = false;
   private /* final */ boolean jobSetupCleanupNeeded;
-  private boolean uberMode = false;
 
   JobPriority priority = JobPriority.NORMAL;
   protected JobTracker jobtracker;
@@ -575,18 +576,10 @@ public class JobInProgress {
   /**
    * Was the job small enough to uberize?
    */
-  public boolean getUberMode() {
+  public boolean isUber() {
     return uberMode;
   }
 
-  boolean getMapSpeculativeExecution() {
-    return hasSpeculativeMaps;
-  }
-  
-  boolean getReduceSpeculativeExecution() {
-    return hasSpeculativeReduces;
-  }
-  
   long getMemoryForMapTask() {
     return memoryPerMap;
   }
@@ -696,14 +689,19 @@ public class JobInProgress {
             || sysMemSizeForUberSlot == JobConf.DISABLED_MEMORY_LIMIT);
 
     if (uberMode) {
-      // save internal details for UI
+      // save internal details for UI and abort-cleanup
       uberMapTasks = numMapTasks;
       uberReduceTasks = numReduceTasks;
+      uberSetupCleanupNeeded = jobSetupCleanupNeeded;
 
-      // this method modifies numMapTasks (-> 0), numReduceTasks (-> 1), and
-      // jobSetupCleanupNeeded (-> false)  [and actually creates a TIP, not a
-      // true Task; latter is created in TaskInProgress's addRunningTask()
-      // method]
+      // disable speculation:  makes no sense to speculate an entire job
+      hasSpeculativeMaps = hasSpeculativeReduces = false;
+
+      // This method modifies numMapTasks (-> 0) and numReduceTasks (-> 1)
+      // [and actually creates a TIP, not a true Task; latter is created in
+      // TaskInProgress's addRunningTask() method after JT/scheduler logic
+      // triggers a LaunchTaskAction].  jobSetupCleanupNeeded is left alone
+      // until initSetupCleanupTasks() below.
       createUberTask(jobFile.toString(), taskSplitMetaInfo);
     }
 
@@ -739,12 +737,10 @@ public class JobInProgress {
 
     // Creates setup[] and cleanup[] arrays of TIPs, with TaskID indices above
     // regular map and reduce values.  In uber mode, UberTask itself handles
-    // setup and cleanup duties, and jobSetupCleanupNeeded is forced false.
-    // But we skip initSetupCleanupTasks() call in that case anyway to avoid
-    // a potentially misleading log msg.
-    if (!uberMode) {
-      initSetupCleanupTasks(jobFile.toString());
-    }
+    // setup and cleanup duties, and jobSetupCleanupNeeded is forced false,
+    // but only after creating cleanup TIPs (in case job fails or is killed =>
+    // still want abortTask() cleanup [possibly custom] to happen).
+    initSetupCleanupTasks(jobFile.toString());
 
     synchronized(jobInitKillStatus){
       jobInitKillStatus.initDone = true;
@@ -780,6 +776,7 @@ public class JobInProgress {
     return maps.length == 0 && reduces.length == 0 && !jobSetupCleanupNeeded;
   }
   
+//GRR FIXME?  who calls this, and what should it return for ubertasks?
   synchronized boolean isSetupCleanupRequired() {
    return jobSetupCleanupNeeded;
   }
@@ -864,7 +861,6 @@ public class JobInProgress {
     nonRunningReduces.add(reduces[0]);  // note:  no map analogue
     numMapTasks = 0;
     numReduceTasks = 1;
-    jobSetupCleanupNeeded = false;
     LOG.info("Input size for job " + jobId + " = " + inputLength
         + ". Number of splits = " + splits.length + ". UberTasking!");
   }
@@ -889,6 +885,16 @@ public class JobInProgress {
     cleanup[1] = new TaskInProgress(jobId, jobFile, numMapTasks,
                        numReduceTasks, jobtracker, conf, this, 1);
     cleanup[1].setJobCleanupTask();
+
+    if (uberMode) {
+      // ubertasks handle setup internally (as well as cleanup in the normal
+      // case), so henceforth we pretend that setup and cleanup aren't needed
+      // --unless/until job fails or is killed, in which case a separate
+      // cleanup task will be triggered
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress initSetupCleanupTasks(): forcing jobSetupCleanupNeeded to false");
+      jobSetupCleanupNeeded = false;
+      return;
+    }
 
     // Create two setup tips, one map and one reduce.  Only one will be used.
     setup = new TaskInProgress[2];
@@ -1492,16 +1498,19 @@ public class JobInProgress {
                                              int numUniqueHosts,
                                              boolean isMapSlot
                                             ) throws IOException {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): starting");
     if(!tasksInited.get() || !jobSetupCleanupNeeded) {
       return null;
     }
     
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): about to enter locked section");
     synchronized(this) {
       if (!canLaunchJobCleanupTask()) {
         return null;
       }
       
       String taskTracker = tts.getTrackerName();
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): taskTracker = " + taskTracker);
       // Update the last-known clusterSize
       this.clusterSize = clusterSize;
       if (!shouldRunOnTaskTracker(taskTracker)) {
@@ -1516,12 +1525,14 @@ public class JobInProgress {
       }
       TaskInProgress tip = findTaskFromList(cleanupTaskList,
                              tts, numUniqueHosts, false);
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): found cleanup TIP " + tip);
       if (tip == null) {
         return null;
       }
       
       // Now launch the cleanupTask
       Task result = tip.getTaskToRun(tts.getTrackerName());
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): launching cleanup Task " + result);
       if (result != null) {
         addRunningTaskToTIP(tip, result.getTaskID(), tts, true);
         if (jobFailed) {
@@ -1583,10 +1594,13 @@ public class JobInProgress {
                                              int numUniqueHosts,
                                              boolean isMapSlot
                                             ) throws IOException {
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobSetupTask(): starting");
     if(!tasksInited.get() || !jobSetupCleanupNeeded) {
       return null;
     }
+//GRR FIXME:  need special protection here (since no setup TIPs for ubermode)?  may need to split jobSetupCleanupNeeded into setup and cleanup halves...
     
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobSetupTask(): about to enter locked section");
     synchronized(this) {
       if (!canLaunchSetupTask()) {
         return null;
@@ -1612,6 +1626,7 @@ public class JobInProgress {
       
       // Now launch the setupTask
       Task result = tip.getTaskToRun(tts.getTrackerName());
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobSetupTask(): launching setup Task " + result);
       if (result != null) {
         addRunningTaskToTIP(tip, result.getTaskID(), tts, true);
       }
@@ -2239,7 +2254,7 @@ public class JobInProgress {
       }
     }
 
-  return slowestTIP;
+    return slowestTIP;
   }
 
   /**
@@ -3043,10 +3058,17 @@ public class JobInProgress {
    * @param jobTerminationState job termination state
    */
   private synchronized void terminate(int jobTerminationState) {
-    if(!tasksInited.get()) {
-    	//init could not be done, we just terminate directly.
+    if (!tasksInited.get()) {
+      // init could not be done, we just terminate directly.
       terminateJob(jobTerminationState);
       return;
+    }
+
+    if (uberMode) {
+      // restore setup/cleanup status so separate cleanup task will be launched
+      // (see obtainJobCleanupTask())
+System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress terminate(): restoring jobSetupCleanupNeeded to " + jobSetupCleanupNeeded);
+      jobSetupCleanupNeeded = uberSetupCleanupNeeded;
     }
 
     if ((status.getRunState() == JobStatus.RUNNING) ||
