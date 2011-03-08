@@ -28,6 +28,7 @@ import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.io.WritableComparator;
 import org.apache.hadoop.io.WritableUtils;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 class GridmixRecord implements WritableComparable<GridmixRecord> {
 
@@ -39,6 +40,7 @@ class GridmixRecord implements WritableComparable<GridmixRecord> {
   private final DataOutputBuffer dob =
     new DataOutputBuffer(Long.SIZE / Byte.SIZE);
   private byte[] literal = dob.getData();
+  private boolean compressible = false;
 
   GridmixRecord() {
     this(1, 0L);
@@ -57,6 +59,10 @@ class GridmixRecord implements WritableComparable<GridmixRecord> {
     setSizeInternal(size);
   }
 
+  void setCompressibility(boolean compressible) {
+    this.compressible = compressible;
+  }
+  
   private void setSizeInternal(int size) {
     this.size = Math.max(1, size);
     try {
@@ -79,6 +85,37 @@ class GridmixRecord implements WritableComparable<GridmixRecord> {
     return (x ^= (x << 17));
   }
 
+  /**
+   * Generate random text data that can be compressed. If the record is marked
+   * compressible (via {@link FileOutputFormat#COMPRESS}), only then the 
+   * random data will be text data else 
+   * {@link GridmixRecord#writeRandom(DataOutput, int)} will be invoked.
+   */
+  private void writeRandomText(DataOutput out, final int size) 
+  throws IOException {
+    long tmp = seed;
+    out.writeLong(tmp);
+    int i = size - (Long.SIZE / Byte.SIZE);
+    RandomTextDataGenerator rtg = 
+      new RandomTextDataGenerator(100, seed, 10);
+    String randomWord = rtg.getRandomWord();
+    long randomWordSize = randomWord.getBytes().length;
+    while (i >= randomWordSize) {
+      WritableUtils.writeString(out, randomWord);
+      i -= randomWordSize;
+      
+      // get the next random word
+      randomWord = rtg.getRandomWord();
+      // determine the random word size
+      randomWordSize = randomWord.getBytes().length;
+    }
+    
+    // pad the remaining bytes
+    if (i > 0) {
+      out.write(randomWord.getBytes(), 0, i);
+    }
+  }
+  
   public void writeRandom(DataOutput out, final int size) throws IOException {
     long tmp = seed;
     out.writeLong(tmp);
@@ -120,7 +157,11 @@ class GridmixRecord implements WritableComparable<GridmixRecord> {
     WritableUtils.writeVInt(out, size);
     final int payload = size - WritableUtils.getVIntSize(size);
     if (payload > Long.SIZE / Byte.SIZE) {
-      writeRandom(out, payload);
+      if (compressible) {
+        writeRandomText(out, payload);
+      } else {
+        writeRandom(out, payload);
+      }
     } else if (payload > 0) {
       out.write(literal, 0, payload);
     }

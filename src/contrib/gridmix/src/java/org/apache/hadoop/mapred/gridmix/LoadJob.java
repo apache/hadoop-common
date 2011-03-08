@@ -26,6 +26,7 @@ import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -83,6 +84,11 @@ class LoadJob extends GridmixJob {
     return job;
   }
 
+  @Override
+  protected boolean canEmulateCompression() {
+    return true;
+  }
+  
   public static class LoadMapper
   extends Mapper<NullWritable, GridmixRecord, GridmixKey, GridmixRecord> {
 
@@ -136,6 +142,12 @@ class LoadJob extends GridmixJob {
         : splitRecords;
       ratio = totalRecords / (1.0 * inputRecords);
       acc = 0.0;
+
+      // enable gridmix map output record for compression
+      if (CompressionEmulationUtil.isCompressionEmulationEnabled(conf)
+          && conf.getBoolean(MRJobConfig.MAP_OUTPUT_COMPRESS, false)) {
+        val.setCompressibility(true);
+      }
     }
 
     @Override
@@ -203,6 +215,13 @@ class LoadJob extends GridmixJob {
         new AvgRecordFactory(outBytes, outRecords, context.getConfiguration());
       ratio = outRecords / (1.0 * inRecords);
       acc = 0.0;
+      
+      // enable gridmix reduce output record for compression
+      Configuration conf = context.getConfiguration();
+      if (CompressionEmulationUtil.isCompressionEmulationEnabled(conf)
+          && FileOutputFormat.getCompressOutput(context)) {
+        val.setCompressibility(true);
+      }
     }
     @Override
     protected void reduce(GridmixKey key, Iterable<GridmixRecord> values,

@@ -101,6 +101,18 @@ class GenerateData extends GridmixJob {
     ugi.doAs( new PrivilegedExceptionAction <Job>() {
        public Job run() throws IOException, ClassNotFoundException,
                                InterruptedException {
+         // check if compression emulation is enabled
+         if (CompressionEmulationUtil
+             .isCompressionEmulationEnabled(job.getConfiguration())) {
+           CompressionEmulationUtil.configure(job);
+         } else {
+           configureRandomBytesDataGenerator();
+         }
+         job.submit();
+         return job;
+       }
+       
+       private void configureRandomBytesDataGenerator() {
         job.setMapperClass(GenDataMapper.class);
         job.setNumReduceTasks(0);
         job.setMapOutputKeyClass(NullWritable.class);
@@ -113,11 +125,14 @@ class GenerateData extends GridmixJob {
         } catch (IOException e) {
           LOG.error("Error while adding input path ", e);
         }
-        job.submit();
-        return job;
       }
     });
     return job;
+  }
+  
+  @Override
+  protected boolean canEmulateCompression() {
+    return false;
   }
 
   public static class GenDataMapper
