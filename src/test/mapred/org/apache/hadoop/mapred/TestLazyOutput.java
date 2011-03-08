@@ -108,6 +108,9 @@ public class TestLazyOutput extends TestCase {
     job.setMapperClass(TestMapper.class);        
     job.setReducerClass(TestReducer.class);
 
+    // ubertask has just one output file (part-r-00000) != number of maptasks
+    job.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
+
     JobClient client = new JobClient(job);
     job.setNumReduceTasks(numReducers);
     if (createLazily) {
@@ -161,7 +164,8 @@ public class TestLazyOutput extends TestCase {
       for(int i=0; i < fileList.length; ++i) {
         System.out.println("Test1 File list[" + i + "]" + ": "+ fileList[i]);
       }
-      assertTrue(fileList.length == (numReducers - 1));
+      assertEquals("Test1: wrong number of files.",
+                   numReducers - 1, fileList.length);
 
       // Test 2. 0 Reducers, maps directly write to the output files
       Path output2 = new Path("/testlazy/output2");
@@ -174,7 +178,8 @@ public class TestLazyOutput extends TestCase {
         System.out.println("Test2 File list[" + i + "]" + ": "+ fileList[i]);
       }
 
-      assertTrue(fileList.length == numMappers - 1);
+      assertEquals("Test2: wrong number of files.",
+                   numMappers - 1, fileList.length);
 
       // Test 3. 0 Reducers, but flag is turned off
       Path output3 = new Path("/testlazy/output3");
@@ -187,12 +192,12 @@ public class TestLazyOutput extends TestCase {
         System.out.println("Test3 File list[" + i + "]" + ": "+ fileList[i]);
       }
 
-      assertTrue(fileList.length == numMappers);
+      assertEquals("Test3: wrong number of files.",
+                   numMappers, fileList.length);
 
     } finally {
       if (dfs != null) { dfs.shutdown(); }
-      if (mr != null) { mr.shutdown();
-      }
+      if (mr != null) { mr.shutdown(); }
     }
   }
 }

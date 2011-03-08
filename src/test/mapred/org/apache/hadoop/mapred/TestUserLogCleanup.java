@@ -244,22 +244,23 @@ public class TestUserLogCleanup {
     taskLogCleanupThread = new UserLogCleaner(conf, taskController);
     myClock = new FakeClock(); // clock is reset.
     taskLogCleanupThread.setClock(myClock);
+    // [FIXME: race condition in here?  sometimes works, sometimes fails...]
     taskLogCleanupThread.clearOldUserLogs(conf);
     tt.setTaskLogCleanupThread(taskLogCleanupThread);
-    assertFalse(foo.exists());
-    assertFalse(bar.exists());
-    assertTrue(jobUserlog1.exists());
-    assertTrue(jobUserlog2.exists());
-    assertTrue(jobUserlog3.exists());
-    assertTrue(jobUserlog4.exists());
+    assertFalse("userlog subdir 'foo' exists.", foo.exists());
+    assertFalse("userlog file 'bar' exists.", bar.exists());
+    assertTrue("userlog for job 1 missing.", jobUserlog1.exists());
+    assertTrue("userlog for job 2 missing.", jobUserlog2.exists());
+    assertTrue("userlog for job 3 missing.", jobUserlog3.exists());
+    assertTrue("userlog for job 4 missing.", jobUserlog4.exists());
 
     myClock.advance(ONE_HOUR);
     // time is now 1.
     taskLogCleanupThread.processCompletedJobs();
-    assertTrue(jobUserlog1.exists());
-    assertTrue(jobUserlog2.exists());
-    assertTrue(jobUserlog3.exists());
-    assertTrue(jobUserlog4.exists());
+    assertTrue("userlog for job 1 missing.", jobUserlog1.exists());
+    assertTrue("userlog for job 2 missing.", jobUserlog2.exists());
+    assertTrue("userlog for job 3 missing.", jobUserlog3.exists());
+    assertTrue("userlog for job 4 missing.", jobUserlog4.exists());
     
     // mimic localizeJob followed KillJobAction for jobid3
     // add the job for deletion with retainhours = 3. 
