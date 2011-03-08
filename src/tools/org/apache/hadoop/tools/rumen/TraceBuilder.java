@@ -154,40 +154,6 @@ public class TraceBuilder extends Configured implements Tool {
     }
   }
 
-  private static String applyParser(String fileName, Pattern pattern) {
-    Matcher matcher = pattern.matcher(fileName);
-
-    if (!matcher.matches()) {
-      return null;
-    }
-
-    return matcher.group(1);
-  }
-
-  /**
-   * @param fileName
-   * @return the jobID String, parsed out of the file name. We return a valid
-   *         String for either a history log file or a config file. Otherwise,
-   *         [especially for .crc files] we return null.
-   */
-  static String extractJobID(String fileName) {
-    String pre21JobID
-      = applyParser(fileName, 
-                    Pre21JobHistoryConstants.JOBHISTORY_FILENAME_REGEX);
-    String jobId = applyParser(fileName, JobHistory.JOBHISTORY_FILENAME_REGEX);
-    return jobId == null ? pre21JobID : jobId;
-  }
-
-  static boolean isJobConfXml(String fileName, InputStream input) {
-    String jobId = applyParser(fileName, JobHistory.CONF_FILENAME_REGEX);
-    if (jobId == null) {
-      // check if its a pre21 jobhistory conf file
-      jobId = applyParser(fileName, 
-                          Pre21JobHistoryConstants.CONF_FILENAME_REGEX);
-    }
-    return jobId != null;
-  }
-
   @SuppressWarnings("unchecked")
   @Override
   public int run(String[] args) throws Exception {
@@ -221,7 +187,7 @@ public class TraceBuilder extends Configured implements Tool {
             JobHistoryParser parser = null;
 
             try {
-              String jobID = extractJobID(filePair.first());
+              String jobID = JobHistoryUtils.extractJobID(filePair.first());
               if (jobID == null) {
                 LOG.warn("File skipped: Invalid file name: "
                     + filePair.first());
@@ -235,7 +201,7 @@ public class TraceBuilder extends Configured implements Tool {
                 jobBuilder = new JobBuilder(jobID);
               }
 
-              if (isJobConfXml(filePair.first(), ris)) {
+              if (JobHistoryUtils.isJobConfXml(filePair.first())) {
                 processJobConf(JobConfigurationParser.parse(ris.rewind()), jobBuilder);
               } else {
                 parser = JobHistoryParserFactory.getParser(ris);
