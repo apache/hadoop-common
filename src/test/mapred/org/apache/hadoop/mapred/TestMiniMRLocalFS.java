@@ -62,14 +62,16 @@ public class TestMiniMRLocalFS extends TestCase {
     MiniMRCluster mr = null;
     try {
       mr = new MiniMRCluster(2, "file:///", 3);
-      // make cleanup inline sothat validation of existence of these directories
-      // can be done
+      // make cleanup inline so that validation of existence of these
+      // directories can be done
       mr.setInlineCleanupThreads();
 
       TestMiniMRWithDFS.runPI(mr, mr.createJobConf());
 
-      // run the wordcount example with caching
+      // run the wordcount example with caching but no uberization (want to
+      // verify counts of subtasks)
       JobConf job = mr.createJobConf();
+      job.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
       TestResult ret = MRCaching.launchMRCache(TEST_ROOT_DIR + "/wc/input",
                                             TEST_ROOT_DIR + "/wc/output", 
                                             TEST_ROOT_DIR + "/cachedir",

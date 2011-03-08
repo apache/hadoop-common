@@ -35,6 +35,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobTracker;
 import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.MapReduceTestUtil;
@@ -237,7 +238,7 @@ public class TestRumenJobTraces {
 
       // Validate the events seen by history parser from
       // history file v20-single-input-log.gz
-      validateSeenHistoryEvents(seenEvents, goldLines);
+      validateSeenHistoryEvents(seenEvents, goldLinesV20Parser);
     } finally {
       if (parser != null) {
         parser.close();
@@ -397,12 +398,27 @@ public class TestRumenJobTraces {
     assertTrue("Missing input file " + inputPath2, 
                options.inputs.contains(inputPath2));
   }
-  
+
   /**
    * Test if {@link CurrentJHParser} can read events from current JH files.
    */
   @Test
   public void testCurrentJHParser() throws Exception {
+    // test both non-uberized and uberized versions
+    runCurrentJHParser(false);
+    runCurrentJHParser(true);
+  }
+
+  private void runCurrentJHParser(boolean isUber) throws Exception {
+    // The list of history events expected when parsing the job's
+    // history log file
+    final String[] goldLinesCurrentParserNonUber = new String[] {
+      JSE, JPCE, JIE, JSCE, TSE, ASE, MFE, TFE, TSE, ASE, RFE, TFE, JFE
+    };
+    final String[] goldLinesCurrentParserUber = new String[] {
+      JSE, JPCE, JIE, JSCE,                     TSE, ASE, RFE, TFE, JFE
+    };
+
     final Configuration conf = new Configuration();
     final FileSystem lfs = FileSystem.getLocal(conf);
 
@@ -421,9 +437,8 @@ public class TestRumenJobTraces {
                                                 new JobConf(conf));
     JobTracker tracker = mrCluster.getJobTrackerRunner().getJobTracker();
     JobHistory history = tracker.getJobHistory();
-    
-    
-    // run a job
+
+    // run the job
     Path inDir = new Path(tempDir, "input");
     Path outDir = new Path(tempDir, "output");
     JobHistoryParser parser = null;
@@ -432,6 +447,7 @@ public class TestRumenJobTraces {
     
     try {
       JobConf jConf = mrCluster.createJobConf();
+      jConf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, isUber);
       // construct a job with 1 map and 1 reduce task.
       Job job = MapReduceTestUtil.createJob(jConf, inDir, outDir, 1, 1);
       // disable setup/cleanup
@@ -475,25 +491,20 @@ public class TestRumenJobTraces {
 
       // Check against the gold standard
       System.out.println("testCurrentJHParser validating using gold std ");
-      // The list of history events expected when parsing the above job's
-      // history log file
-      String[] goldLinesExpected = new String[] {
-          JSE, JPCE, JIE, JSCE, TSE, ASE, MFE, TFE, TSE, ASE, RFE, TFE, JFE
-      };
-
-      validateSeenHistoryEvents(seenEvents, goldLinesExpected);
+      validateSeenHistoryEvents(seenEvents,
+          isUber? goldLinesCurrentParserUber : goldLinesCurrentParserNonUber);
     } finally {
       // stop the MR cluster
       mrCluster.shutdown();
       
       if (ris != null) {
-          ris.close();
+        ris.close();
       }
       if (parser != null) {
         parser.close();
       }
       
-      // cleanup the filesystem
+      // clean up the filesystem
       lfs.delete(tempDir, true);
     }
   }
@@ -826,7 +837,7 @@ public class TestRumenJobTraces {
 
   // The expected job history events(in order) when parsing
   // the job history file v20-single-input-log.gz
-  final static String[] goldLines = new String[] {
+  final static String[] goldLinesV20Parser = new String[] {
       JSE, JPCE, JSCE, JIE, JICE, TSE, ASE, AFE, MFE, TUE, TFE, JSCE, TSE,
       TSE, TSE, TSE, TSE, TSE, TSE, TSE, TSE, TSE, TSE, TSE, TSE, TSE, TSE,
       TSE, TSE, TSE, TSE, TSE, ASE, AFE, MFE, TUE, TFE, ASE, AFE, MFE, TUE,

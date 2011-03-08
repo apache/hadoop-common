@@ -41,7 +41,14 @@ import org.apache.hadoop.util.StringUtils;
 import junit.framework.TestCase;
 
 public class TestServiceLevelAuthorization extends TestCase {
+
   public void testServiceLevelAuthorization() throws Exception {
+    // run both non-uberized and uberized
+    runServiceLevelAuthorization(false);
+    runServiceLevelAuthorization(true);
+  }
+
+  private void runServiceLevelAuthorization(boolean uberize) throws Exception {
     MiniDFSCluster dfs = null;
     MiniMRCluster mr = null;
     FileSystem fileSys = null;
@@ -58,7 +65,8 @@ public class TestServiceLevelAuthorization extends TestCase {
       // Start the mini clusters
       dfs = new MiniDFSCluster(conf, slaves, true, null);
 
-      // Ensure that the protocols authorized on the name node are only the HDFS protocols.
+      // Ensure that the protocols authorized on the name node are only the HDFS
+      // protocols.
       Set<Class<?>> protocolsWithAcls = NameNodeAdapter.getRpcServer(dfs.getNameNode())
           .getServiceAuthorizationManager().getProtocolsWithAcls();
       Service[] hdfsServices = new HDFSPolicyProvider().getServices();
@@ -86,20 +94,20 @@ public class TestServiceLevelAuthorization extends TestCase {
       if (hdfsServices.length != protocolsWithAcls.size())
         fail("there should be an entry for every HDFS service in the protocols with ACLs map");
 
-      // make cleanup inline sothat validation of existence of these directories
-      // can be done
+      // make cleanup inline so that validation of existence of these
+      // directories can be done
       mr.setInlineCleanupThreads();
       
       // Run examples
-      TestMiniMRWithDFS.runPI(mr, mr.createJobConf(mrConf));
-      TestMiniMRWithDFS.runWordCount(mr, mr.createJobConf(mrConf));
+      TestMiniMRWithDFS.runPI(mr, mr.createJobConf(mrConf), uberize);
+      TestMiniMRWithDFS.runWordCount(mr, mr.createJobConf(mrConf), uberize);
     } finally {
       if (dfs != null) { dfs.shutdown(); }
       if (mr != null) { mr.shutdown();
       }
     }
   }
-  
+
   private static final String DUMMY_ACL = "nouser nogroup";
   private static final String UNKNOWN_USER = "dev,null";
   

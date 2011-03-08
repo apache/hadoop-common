@@ -108,10 +108,10 @@ public class TestMiniMRWithDFS extends TestCase {
    * <br/>
    * <br/>
    * 
-   * For e.g., if we want to check the existence of *only* the directories for
-   * user1's tasks job1-attempt1, job1-attempt2, job2-attempt1, we pass user1 as
-   * user, {job1, job1, job2, job3} as jobIds and {attempt1, attempt2, attempt1,
-   * attempt3} as taskDirs.
+   * For example, if we want to check the existence of *only* the directories
+   * for user1's tasks job1-attempt1, job1-attempt2, job2-attempt1, we pass
+   * user1 as user, {job1, job1, job2, job3} as jobIds and {attempt1, attempt2,
+   * attempt1, attempt3} as taskDirs.
    * 
    * @param mr the map-reduce cluster
    * @param user the name of the job-owner
@@ -205,9 +205,15 @@ public class TestMiniMRWithDFS extends TestCase {
     }
   }
 
-  public static void runPI(MiniMRCluster mr, JobConf jobconf) 
-      throws IOException, InterruptedException, ClassNotFoundException {
-    LOG.info("runPI");
+  public static void runPI(MiniMRCluster mr, JobConf jobconf)
+  throws IOException, InterruptedException, ClassNotFoundException {
+    runPI(mr, jobconf, false);
+  }
+
+  public static void runPI(MiniMRCluster mr, JobConf jobconf, boolean uberize)
+  throws IOException, InterruptedException, ClassNotFoundException {
+    LOG.info("runPI (" + (uberize? "" : "non-") + "uberized)");
+    jobconf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, uberize);
     double estimate = org.apache.hadoop.examples.QuasiMonteCarlo.estimatePi(
         NUM_MAPS, NUM_SAMPLES, jobconf).doubleValue();
     double error = Math.abs(Math.PI - estimate);
@@ -216,14 +222,24 @@ public class TestMiniMRWithDFS extends TestCase {
     checkTaskDirectories(mr, userName, new String[] {}, new String[] {});
   }
 
-  public static void runWordCount(MiniMRCluster mr, JobConf jobConf) 
+  public static void runWordCount(MiniMRCluster mr, JobConf jobConf)
   throws IOException {
-    LOG.info("runWordCount");
-    // Run a word count example
-    // Keeping tasks that match this pattern
-    String pattern = 
-      TaskAttemptID.getTaskAttemptIDsPattern(null, null, TaskType.MAP, 1, null);
+    runWordCount(mr, jobConf, false);
+  }
+
+  public static void runWordCount(MiniMRCluster mr, JobConf jobConf,
+                                  boolean uberize)
+  throws IOException {
+    LOG.info("runWordCount (" + (uberize? "" : "non-") + "uberized)");
+    // Run a word-count example
+    // Keep task files/dirs that match one of these patterns:
+    String pattern = uberize
+        ? TaskAttemptID.getTaskAttemptIDsPattern(null, null, TaskType.REDUCE,
+            0, null)
+        : TaskAttemptID.getTaskAttemptIDsPattern(null, null, TaskType.MAP,
+            1, null);
     jobConf.setKeepTaskFilesPattern(pattern);
+    jobConf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, uberize);
     TestResult result;
     final Path inDir = new Path("./wc/input");
     final Path outDir = new Path("./wc/output");
@@ -232,14 +248,17 @@ public class TestMiniMRWithDFS extends TestCase {
     assertEquals("The\t1\nbrown\t1\nfox\t2\nhas\t1\nmany\t1\n" +
                  "quick\t1\nred\t1\nsilly\t1\nsox\t1\n", result.output);
     JobID jobid = result.job.getID();
-    TaskAttemptID taskid = new TaskAttemptID(
-        new TaskID(jobid, TaskType.MAP, 1),0);
+    // taskid must match configured keep-pattern above:
+    TaskAttemptID taskid = uberize
+        ? new TaskAttemptID(new TaskID(jobid, TaskType.REDUCE, 0), 0)
+        : new TaskAttemptID(new TaskID(jobid, TaskType.MAP,    1), 0);
     String userName = UserGroupInformation.getLoginUser().getUserName();
-    
+
     checkTaskDirectories(mr, userName, new String[] { jobid.toString() },
         new String[] { taskid.toString() });
     // test with maps=0
     jobConf = mr.createJobConf();
+    jobConf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, uberize);
     input = "owen is oom";
     result = launchWordCount(jobConf, inDir, outDir, input, 0, 1);
     assertEquals("is\t1\noom\t1\nowen\t1\n", result.output);
@@ -254,8 +273,8 @@ public class TestMiniMRWithDFS extends TestCase {
     // add the correction factor of 234 as the input split is also streamed
     assertEquals(input.length() + rawSplitBytesRead, hdfsRead);
 
-    // Run a job with input and output going to localfs even though the 
-    // default fs is hdfs.
+    // Run a 1-map/1-reduce job with input and output going to localfs even
+    // though the default fs is hdfs.
     {
       FileSystem localfs = FileSystem.getLocal(jobConf);
       String TEST_ROOT_DIR =
@@ -274,7 +293,7 @@ public class TestMiniMRWithDFS extends TestCase {
     }
   }
 
-  public void testWithDFS() 
+  public void testWithDFSNonUber()
       throws IOException, InterruptedException, ClassNotFoundException {
     MiniDFSCluster dfs = null;
     MiniMRCluster mr = null;
@@ -286,19 +305,50 @@ public class TestMiniMRWithDFS extends TestCase {
       dfs = new MiniDFSCluster(conf, 4, true, null);
       fileSys = dfs.getFileSystem();
       mr = new MiniMRCluster(taskTrackers, fileSys.getUri().toString(), 1);
-      // make cleanup inline sothat validation of existence of these directories
-      // can be done
+      // make cleanup inline so that validation of existence of these
+      // directories can be done
       mr.setInlineCleanupThreads();
 
-      runPI(mr, mr.createJobConf());
-      runWordCount(mr, mr.createJobConf());
+      runPI(mr, mr.createJobConf(), false);
+      // regardless of order, if try to run two wordcounts here, second one
+      // gets hosed by leftover job dirs from first (i.e., triggers "Unexpected
+      // file job_xxx_0002 found" assertion in verifyContents())
+      runWordCount(mr, mr.createJobConf(), false);
     } finally {
       if (dfs != null) { dfs.shutdown(); }
       if (mr != null) { mr.shutdown();
       }
     }
   }
-  
+
+  public void testWithDFSUber()
+      throws IOException, InterruptedException, ClassNotFoundException {
+    MiniDFSCluster dfs = null;
+    MiniMRCluster mr = null;
+    FileSystem fileSys = null;
+    try {
+      final int taskTrackers = 4;
+
+      Configuration conf = new Configuration();
+      dfs = new MiniDFSCluster(conf, 4, true, null);
+      fileSys = dfs.getFileSystem();
+      mr = new MiniMRCluster(taskTrackers, fileSys.getUri().toString(), 1);
+      // make cleanup inline so that validation of existence of these
+      // directories can be done
+      mr.setInlineCleanupThreads();
+
+      runPI(mr, mr.createJobConf(), true);
+      // regardless of order, if try to run two wordcounts here, second one
+      // gets hosed by leftover job dirs from first (i.e., triggers "Unexpected
+      // file job_xxx_0002 found" assertion in verifyContents())
+      runWordCount(mr, mr.createJobConf(), true);
+    } finally {
+      if (dfs != null) { dfs.shutdown(); }
+      if (mr != null) { mr.shutdown();
+      }
+    }
+  }
+
   public void testWithDFSWithDefaultPort() throws IOException {
     MiniDFSCluster dfs = null;
     MiniMRCluster mr = null;

@@ -108,11 +108,13 @@ public class TestKillSubProcesses extends TestCase {
 
     conf.setJobName("testfailjobsubprocesses");
     conf.setMapperClass(FailingMapperWithChildren.class);
-    
-    // We don't want to run the failing map task 4 times. So we run it once and
-    // check if all the subprocesses are killed properly.
+
+    // We don't want to run the failing map task 4 times [and the test doesn't
+    // work correctly in that case anyway]. So we run it once and check if all
+    // the subprocesses are killed properly.
     conf.setMaxMapAttempts(1);
-    
+    conf.setMaxReduceAttempts(1);  // for uberized jobs
+
     RunningJob job = runJobAndSetProcessHandle(jt, conf);
     signalTask(signalFile.toString(), conf);
     validateKillingSubprocesses(job, conf);
@@ -156,18 +158,23 @@ public class TestKillSubProcesses extends TestCase {
 
     pid = null;
     jobClient = new JobClient(conf);
-    
-    // get the taskAttemptID of the map task and use it to get the pid
-    // of map task
-    TaskReport[] mapReports = jobClient.getMapTaskReports(job.getID());
-
     JobInProgress jip = jt.getJob(job.getID());
-    for(TaskReport tr : mapReports) {
+    boolean isUber = jip.isUber();
+
+    // get the taskAttemptID of the map task (or ubertask) and use it to get
+    // the task's pid
+    TaskReport[] taskReports = isUber
+        ? jobClient.getReduceTaskReports(job.getID())
+        : jobClient.getMapTaskReports(job.getID());
+
+    String taskName = isUber? "ubertask" : "map task";
+
+    for (TaskReport tr : taskReports) {
       TaskInProgress tip = jip.getTaskInProgress(tr.getTaskID());
 
       // for this tip, get active tasks of all attempts
-      while(tip.getActiveTasks().size() == 0) {
-        //wait till the activeTasks Tree is built
+      while (tip.getActiveTasks().size() == 0) {
+        // wait until the activeTasks Tree is built
         try {
           Thread.sleep(500);
         } catch (InterruptedException ie) {
@@ -179,7 +186,7 @@ public class TestKillSubProcesses extends TestCase {
       for (Iterator<TaskAttemptID> it = 
         tip.getActiveTasks().keySet().iterator(); it.hasNext();) {
         TaskAttemptID id = it.next();
-        LOG.info("taskAttemptID of map task is " + id);
+        LOG.info("taskAttemptID of " + taskName + " is " + id);
         
         while(pid == null) {
           pid = mr.getTaskTrackerRunner(0).getTaskTracker().getPid(id);
@@ -189,10 +196,11 @@ public class TestKillSubProcesses extends TestCase {
             } catch(InterruptedException e) {}
           }
         }
-        LOG.info("pid of map task is " + pid);
-        //Checking if the map task is alive
-        assertTrue("Map is no more alive", isAlive(pid));
-        LOG.info("The map task is alive before Job completion, as expected.");
+        LOG.info("pid of " + taskName + " is " + pid);
+        //Checking if the task is alive
+        assertTrue(taskName + " is no longer alive", isAlive(pid));
+        LOG.info("The " + taskName +
+                 " is alive before Job completion, as expected.");
       }
     }
 
@@ -220,8 +228,8 @@ public class TestKillSubProcesses extends TestCase {
         childPid = TestProcfsBasedProcessTree.getPidFromPidFile(
                                scriptDirName + "/childPidFile" + i);
         LOG.info("pid of the descendant process at level " + i +
-                 "in the subtree of processes(with the map task as the root)" +
-                 " is " + childPid);
+                 "in the subtree of processes(with the " + taskName +
+                 " as the root) is " + childPid);
         assertTrue("Unexpected: The subprocess at level " + i +
                    " in the subtree is not alive before Job completion",
                    isAlive(childPid));
@@ -299,6 +307,10 @@ public class TestKillSubProcesses extends TestCase {
              " -Dtest.build.data=" + BASE_TEST_ROOT_DIR);
     conf.set(JobConf.MAPRED_REDUCE_TASK_JAVA_OPTS, 
              conf.get(JobConf.MAPRED_REDUCE_TASK_JAVA_OPTS, 
+                      conf.get(JobConf.MAPRED_TASK_JAVA_OPTS)) +
+             " -Dtest.build.data=" + BASE_TEST_ROOT_DIR);
+    conf.set(JobConf.MAPRED_UBER_TASK_JAVA_OPTS,
+             conf.get(JobConf.MAPRED_UBER_TASK_JAVA_OPTS,
                       conf.get(JobConf.MAPRED_TASK_JAVA_OPTS)) +
              " -Dtest.build.data=" + BASE_TEST_ROOT_DIR);
 
@@ -397,12 +409,12 @@ public class TestKillSubProcesses extends TestCase {
       // Set executable permissions on the script.
       new File(scriptPath.toUri().getPath()).setExecutable(true);
 
-      LOG.info("Calling script from map task : " + shellScript);
-      Runtime.getRuntime()
-          .exec(shellScript + " " + numLevelsOfSubProcesses);
-    
-      String childPid = TestProcfsBasedProcessTree.getPidFromPidFile(scriptDirName
-          + "/childPidFile" + 0);
+      LOG.info("Calling script from map task with " + numLevelsOfSubProcesses
+               + " levels of subprocesses: " + shellScript);
+      Runtime.getRuntime().exec(shellScript + " " + numLevelsOfSubProcesses);
+
+      String childPid = TestProcfsBasedProcessTree.getPidFromPidFile(
+          scriptDirName + "/childPidFile" + 0);
       while (childPid == null) {
         LOG.warn(scriptDirName + "/childPidFile" + 0 + " is null; Sleeping...");
         try {
@@ -413,6 +425,12 @@ public class TestKillSubProcesses extends TestCase {
         }
         childPid = TestProcfsBasedProcessTree.getPidFromPidFile(scriptDirName
             + "/childPidFile" + 0);
+      }
+      if (childPid != null) {
+        LOG.info("Successfully found childPid (" + childPid + ") in " +
+                 scriptDirName + "/childPidFile" + 0);
+      } else {
+        LOG.warn("Script failed: " + scriptDirName + "/childPidFile" + 0);
       }
     }
   }
@@ -428,7 +446,7 @@ public class TestKillSubProcesses extends TestCase {
         fs = FileSystem.getLocal(conf);
         runChildren(conf);
       } catch (Exception e) {
-        LOG.warn("Exception in configure: " +
+        LOG.warn("Exception in MapperWithChildren.configure: " +
                  StringUtils.stringifyException(e));
       }
     }
@@ -469,13 +487,13 @@ public class TestKillSubProcesses extends TestCase {
           Thread.sleep(1000);
         }
       } catch (InterruptedException e) {
-        LOG.warn("Exception in KillMapperWithChild.map:" + e);
+        LOG.warn("Exception in KillMapperWithChild.map: " + e);
       }
     }
   }
   
   /**
-   * Mapper that fails when recieves a signal. Signal is existence of a file.
+   * Mapper that fails when it receives a signal. Signal is existence of a file.
    */
   static class FailingMapperWithChildren extends MapperWithChildren {
     public void configure(JobConf conf) {
@@ -493,7 +511,7 @@ public class TestKillSubProcesses extends TestCase {
           }
         } catch (InterruptedException ie) {
           System.out.println("Interrupted while the map was waiting for "
-              + " the signal.");
+              + "the signal.");
           break;
         }
       }

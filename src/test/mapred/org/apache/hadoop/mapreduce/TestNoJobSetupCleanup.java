@@ -49,10 +49,14 @@ public class TestNoJobSetupCleanup extends HadoopTestCase {
     job.setOutputFormatClass(MyOutputFormat.class);
     job.waitForCompletion(true);
     assertTrue(job.isSuccessful());
-    assertTrue(job.getTaskReports(TaskType.JOB_SETUP).length == 0);
-    assertTrue(job.getTaskReports(TaskType.JOB_CLEANUP).length == 0);
-    assertTrue(job.getTaskReports(TaskType.MAP).length == numMaps);
-    assertTrue(job.getTaskReports(TaskType.REDUCE).length == numReds);
+    assertEquals("wrong number of setup tasks", 0,
+                 job.getTaskReports(TaskType.JOB_SETUP).length);
+    assertEquals("wrong number of cleanup tasks", 0,
+                 job.getTaskReports(TaskType.JOB_CLEANUP).length);
+    assertEquals("wrong number of map tasks", numMaps,
+                 job.getTaskReports(TaskType.MAP).length);
+    assertEquals("wrong number of reduce tasks", numReds,
+                 job.getTaskReports(TaskType.REDUCE).length);
     FileSystem fs = FileSystem.get(conf);
     assertTrue("Job output directory doesn't exit!", fs.exists(outDir));
     FileStatus[] list = fs.listStatus(outDir, new OutputFilter());
@@ -65,17 +69,20 @@ public class TestNoJobSetupCleanup extends HadoopTestCase {
   public void testNoJobSetupCleanup() throws Exception {
     try {
       Configuration conf = createJobConf();
+
+      // explicitly checking for counts of subtasks, so can't uberize:
+      conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
  
       // run a job without job-setup and cleanup
       submitAndValidateJob(conf, 1, 1);
 
-      // run a map only job.
+      // run a map-only job
       submitAndValidateJob(conf, 1, 0);
 
       // run empty job without job setup and cleanup 
       submitAndValidateJob(conf, 0, 0);
 
-      // run empty job without job setup and cleanup, with non-zero reduces 
+      // run a reduce-only job without job setup and cleanup
       submitAndValidateJob(conf, 0, 1);
     } finally {
       tearDown();

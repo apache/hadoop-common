@@ -218,6 +218,7 @@ public class TestJobRetire extends TestCase {
       Path inDir = new Path(testDir, "in-1");
       Path outDir = new Path(testDir, "out-1");
       JobConf jConf = mr.createJobConf();
+      jConf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
       FileInputFormat.setInputPaths(jConf, new Path[] {inDir});
       FileOutputFormat.setOutputPath(jConf, outDir);
       SleepJob sleepJob = new SleepJob();
@@ -232,7 +233,7 @@ public class TestJobRetire extends TestCase {
       for (int i = 0; i < 100 && (jip.finishedMaps() < 1); i++) {
         UtilsForTests.waitFor(1000);
       }
-      assertEquals(jip.finishedMaps(), 1);
+      assertEquals("wrong number of finished maps", jip.finishedMaps(), 1);
       
       // start a tracker that will wait
       LOG.info("Adding a waiting tracker");

@@ -154,14 +154,12 @@ public class TestMultipleLevelCaching extends TestCase {
     }
     RunningJob job = launchJob(jobConf, in, out, numMaps, jobName);
     Counters counters = job.getCounters();
-    assertEquals("Number of local maps",
-            counters.getCounter(JobCounter.OTHER_LOCAL_MAPS), otherLocalMaps);
-    assertEquals("Number of Data-local maps",
-            counters.getCounter(JobCounter.DATA_LOCAL_MAPS),
-                                dataLocalMaps);
-    assertEquals("Number of Rack-local maps",
-            counters.getCounter(JobCounter.RACK_LOCAL_MAPS),
-                                rackLocalMaps);
+    assertEquals("Number of local maps", otherLocalMaps,
+        counters.getCounter(JobCounter.OTHER_LOCAL_MAPS));
+    assertEquals("Number of data-local maps", dataLocalMaps,
+        counters.getCounter(JobCounter.DATA_LOCAL_MAPS));
+    assertEquals("Number of rack-local maps", rackLocalMaps,
+        counters.getCounter(JobCounter.RACK_LOCAL_MAPS));
     mr.waitUntilIdle();
     mr.shutdown();
   }
@@ -180,6 +178,8 @@ public class TestMultipleLevelCaching extends TestCase {
     jobConf.setNumMapTasks(numMaps);
     jobConf.setNumReduceTasks(0);
     jobConf.setJar("build/test/mapred/testjar/testjob.jar");
+    // can't check sub-maptask details if uberized:
+    jobConf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     return JobClient.runJob(jobConf);
   }
 }

@@ -208,10 +208,13 @@ public class TestJobHistory extends TestCase {
         if (type.equals(TaskType.REDUCE) && 
             status.equals(TaskStatus.State.SUCCEEDED.toString())) {
           long shuffleFinishTime = attempt.getShuffleFinishTime();
-          assertTrue(startTime < shuffleFinishTime);
+          assertTrue("invalid shuffle finish time",
+                     startTime < shuffleFinishTime);
           
           long sortFinishTime = attempt.getSortFinishTime();
-          assertTrue(shuffleFinishTime < sortFinishTime);
+          assertTrue(
+              "invalid sort finish time or shuffle didn't finish before sort",
+              shuffleFinishTime < sortFinishTime);
         }
         else if (type.equals(TaskType.MAP) && 
             status.equals(TaskStatus.State.SUCCEEDED.toString())) {
@@ -665,6 +668,10 @@ public class TestJobHistory extends TestCase {
       // run the TCs
       conf = mr.createJobConf();
 
+      // sort-vs-shuffle-time check in validateTaskAttemptLevelKeyValuesFormat()
+      // is invalid for uberized jobs, so disable:
+      conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
+
       FileSystem fs = FileSystem.get(conf);
       // clean up
       fs.delete(new Path("succeed"), true);
@@ -756,6 +763,10 @@ public class TestJobHistory extends TestCase {
 
       // run the TCs
       conf = mr.createJobConf();
+
+      // sort-vs-shuffle-time check in validateTaskAttemptLevelKeyValuesFormat()
+      // is invalid for uberized jobs, so disable:
+      conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
 
       FileSystem fs = FileSystem.get(conf);
       // clean up

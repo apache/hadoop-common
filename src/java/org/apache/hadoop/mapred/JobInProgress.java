@@ -1265,6 +1265,7 @@ public class JobInProgress {
         }
         
         // Tell the job to fail the relevant task
+        // [this is the private failedTask()]
         failedTask(tip, taskid, status, taskTracker,
                    wasRunning, wasComplete, wasAttemptRunning);
 
@@ -3332,7 +3333,7 @@ public class JobInProgress {
     // We do it once per TIP and that too for the task that fails the TIP
     if (!wasFailed && tip.isFailed()) {
       //
-      // Allow upto 'mapFailuresPercent' of map tasks to fail or
+      // Allow up to 'mapFailuresPercent' of map tasks to fail or
       // 'reduceFailuresPercent' of reduce tasks to fail
       //
       boolean killJob = tip.isJobCleanupTask() || tip.isJobSetupTask() ? true :
@@ -3576,7 +3577,8 @@ public class JobInProgress {
       LOG.info("Too many fetch-failures for output of task: " + mapTaskId 
                + " ... killing it");
       
-      failedTask(tip, mapTaskId, "Too many fetch-failures",                            
+      // [this is the public failedTask()]
+      failedTask(tip, mapTaskId, "Too many fetch-failures",
                  (tip.isMapTask() ? TaskStatus.Phase.MAP : 
                                     TaskStatus.Phase.REDUCE), 
                  TaskStatus.State.FAILED, trackerName);

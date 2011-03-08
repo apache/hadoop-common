@@ -419,9 +419,9 @@ public class TestNodeRefresh extends TestCase {
                  2, jt.getClusterStatus(false).getTaskTrackers());
     // validate blacklisted count
     assertEquals("Blacklisted tracker count mismatch", 
-                0, jt.getClusterStatus(false).getBlacklistedTrackers());
+                 0, jt.getClusterStatus(false).getBlacklistedTrackers());
 
-    // run a failing job to blacklist the tracker
+    // run a failing job to (heuristically) blacklist the tracker
     JobConf jConf = mr.createJobConf();
     jConf.set(MRJobConfig.MAX_TASK_FAILURES_PER_TRACKER, "1");
     jConf.setJobName("test-job-fail-once");
@@ -429,7 +429,9 @@ public class TestNodeRefresh extends TestCase {
     jConf.setReducerClass(IdentityReducer.class);
     jConf.setNumMapTasks(1);
     jConf.setNumReduceTasks(0);
-    
+    // disable uber-mode since don't want failing task to kill the whole job
+    jConf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
+
     RunningJob job = 
       UtilsForTests.runJob(jConf, new Path("in"), new Path("out"));
     job.waitForCompletion();
@@ -440,7 +442,7 @@ public class TestNodeRefresh extends TestCase {
                  1, jt.getClusterStatus(false).getTaskTrackers());
     // validate blacklisted count
     assertEquals("Blacklisted tracker count mismatch", 
-                1, jt.getClusterStatus(false).getBlacklistedTrackers());
+                 1, jt.getClusterStatus(false).getBlacklistedTrackers());
     
     // find the tracker to decommission
     String hostToDecommission = 
