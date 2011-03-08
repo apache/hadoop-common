@@ -37,16 +37,16 @@ public class GridmixJobSubmission {
    * @throws Exception
    */
   public void submitJobs(String [] runtimeArgs,
-     String [] otherArgs) throws Exception {
+     String [] otherArgs, int mode) throws Exception {
     int prvJobCount = jtClient.getClient().getAllJobs().length;
     int exitCode = -1;
     if (otherArgs == null) {
       exitCode = UtilsForGridmix.runGridmixJob(gridmixDir,
-          conf, GridMixRunMode.DATA_GENERATION_AND_RUN_GRIDMIX,
+          conf, mode,
           runtimeArgs);
     } else {
       exitCode = UtilsForGridmix.runGridmixJob(gridmixDir,
-          conf, GridMixRunMode.DATA_GENERATION_AND_RUN_GRIDMIX,
+          conf, mode,
           runtimeArgs, otherArgs);
     }
     Assert.assertEquals("Gridmix jobs have failed.", 0 , exitCode);

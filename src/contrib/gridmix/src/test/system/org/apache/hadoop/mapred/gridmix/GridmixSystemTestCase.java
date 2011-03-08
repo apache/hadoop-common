@@ -26,6 +26,7 @@ import org.apache.hadoop.mapreduce.test.system.JTProtocol;
 import org.apache.hadoop.mapreduce.test.system.JTClient;
 import org.apache.hadoop.mapred.gridmix.test.system.GridmixJobSubmission;
 import org.apache.hadoop.mapred.gridmix.test.system.GridmixJobVerification;
+import org.apache.hadoop.mapred.gridmix.test.system.GridMixRunMode;
 import org.apache.hadoop.mapred.gridmix.test.system.UtilsForGridmix;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.mapreduce.JobID;
@@ -89,15 +90,27 @@ public class GridmixSystemTestCase {
   }
   
   public static void runGridmixAndVerify(String[] runtimeValues, 
-      String [] otherValues, String tracePath) throws Exception {
-    gridmixJS = new GridmixJobSubmission(rtClient.getDaemonConf(), 
-        jtClient, gridmixDir);
-    gridmixJS.submitJobs(runtimeValues, otherValues);
-    jobids = UtilsForGridmix.listGridmixJobIDs(jtClient.getClient(), 
-        gridmixJS.getGridmixJobCount());
+     String [] otherValues, String tracePath) throws Exception {
+     runGridmixAndVerify(runtimeValues, otherValues, tracePath , 
+         GridMixRunMode.DATA_GENERATION_AND_RUN_GRIDMIX);
+  }
+  
+  public static void runGridmixAndVerify(String [] runtimeValues, 
+      String [] otherValues, String tracePath, int mode) throws Exception {
+    jobids = runGridmix(runtimeValues, otherValues, mode);
     gridmixJV = new GridmixJobVerification(
         new Path(tracePath), gridmixJS.getJobConf(), jtClient);
     gridmixJV.verifyGridmixJobsWithJobStories(jobids);  
+  }
+  
+  public static List<JobID> runGridmix(String[] runtimeValues, 
+     String[] otherValues, int mode) throws Exception {
+    gridmixJS = new GridmixJobSubmission(rtClient.getDaemonConf(),
+       jtClient, gridmixDir);
+    gridmixJS.submitJobs(runtimeValues, otherValues, mode);
+    jobids = UtilsForGridmix.listGridmixJobIDs(jtClient.getClient(), 
+       gridmixJS.getGridmixJobCount());
+    return jobids;
   }
   
   

@@ -27,8 +27,8 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.mapred.gridmix.Gridmix;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.mapred.JobStatus;
 import org.apache.hadoop.mapreduce.JobID;
 import java.util.Date;
 import java.util.HashMap;
@@ -260,11 +260,13 @@ public class UtilsForGridmix {
  public static List<JobID> listGridmixJobIDs(JobClient client,
      int execJobCount) throws IOException {
    List<JobID> jobids = new ArrayList<JobID>();
+   JobStatus [] jobStatus = client.getAllJobs();
+   int numJobs = jobStatus.length;
    for (int index = 1; index <= execJobCount; index++) {
-     JobID jobid = client.getAllJobs()[client.getAllJobs().
-        length - index].getJobID();
-     RunningJob runJob = client.getJob(jobid.toString());
-     if (!runJob.getJobName().equals("GRIDMIX_GENERATE_INPUT_DATA")) {
+     JobStatus js = jobStatus[numJobs - index];
+     JobID jobid = js.getJobID();
+     String jobName = js.getJobName();
+     if (!jobName.equals("GRIDMIX_GENERATE_INPUT_DATA")) {
        jobids.add(jobid);
      }
    }
