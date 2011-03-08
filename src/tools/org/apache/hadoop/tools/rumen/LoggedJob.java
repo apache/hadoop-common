@@ -22,6 +22,8 @@ package org.apache.hadoop.tools.rumen;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -92,6 +94,8 @@ public class LoggedJob implements DeepCompare {
   double[] mapperTriesToSucceed;
   double failedMapperFraction; // !!!!!
 
+  private Properties jobProperties = new Properties();
+  
   LoggedJob() {
 
   }
@@ -102,6 +106,20 @@ public class LoggedJob implements DeepCompare {
     setJobID(jobID);
   }
 
+  /**
+   * Set the configuration properties of the job.
+   */
+  void setJobProperties(Properties conf) {
+    this.jobProperties = conf;
+  }
+  
+  /**
+   * Get the configuration properties of the job.
+   */
+  public Properties getJobProperties() {
+    return jobProperties;
+  }
+  
   void adjustTimes(long adjustment) {
     submitTime += adjustment;
     launchTime += adjustment;
@@ -211,10 +229,12 @@ public class LoggedJob implements DeepCompare {
     this.finishTime = finishTime;
   }
 
+  @Deprecated
   public int getHeapMegabytes() {
     return heapMegabytes;
   }
 
+  @Deprecated
   void setHeapMegabytes(int heapMegabytes) {
     this.heapMegabytes = heapMegabytes;
   }
@@ -341,6 +361,7 @@ public class LoggedJob implements DeepCompare {
     this.relativeTime = relativeTime;
   }
 
+  @Deprecated
   public String getQueue() {
     return queue;
   }
@@ -357,34 +378,42 @@ public class LoggedJob implements DeepCompare {
     this.jobName = jobName;
   }
 
+  @Deprecated
   public int getClusterMapMB() {
     return clusterMapMB;
   }
 
+  @Deprecated
   void setClusterMapMB(int clusterMapMB) {
     this.clusterMapMB = clusterMapMB;
   }
 
+  @Deprecated
   public int getClusterReduceMB() {
     return clusterReduceMB;
   }
 
+  @Deprecated
   void setClusterReduceMB(int clusterReduceMB) {
     this.clusterReduceMB = clusterReduceMB;
   }
 
+  @Deprecated
   public int getJobMapMB() {
     return jobMapMB;
   }
 
+  @Deprecated
   void setJobMapMB(int jobMapMB) {
     this.jobMapMB = jobMapMB;
   }
 
+  @Deprecated
   public int getJobReduceMB() {
     return jobReduceMB;
   }
 
+  @Deprecated
   void setJobReduceMB(int jobReduceMB) {
     this.jobReduceMB = jobReduceMB;
   }
@@ -537,6 +566,35 @@ public class LoggedJob implements DeepCompare {
     }
   }
 
+  private void compareJobProperties(Properties prop1, Properties prop2,
+                                    TreePath loc, String eltname) 
+  throws DeepInequalityException {
+    if (prop1 == null && prop2 == null) {
+      return;
+    }
+
+    if (prop1 == null || prop2 == null) {
+      throw new DeepInequalityException(eltname + " miscompared [null]", 
+                                        new TreePath(loc, eltname));
+    }
+
+    if (prop1.size() != prop2.size()) {
+      throw new DeepInequalityException(eltname + " miscompared [size]", 
+                                        new TreePath(loc, eltname));
+    }
+    
+    for (Map.Entry<Object, Object> entry : prop1.entrySet()) {
+      Object v1 = entry.getValue();
+      Object v2 = prop2.get(entry.getKey());
+      if (v1 == null || v2 == null || !v1.equals(v2)) {
+        throw new DeepInequalityException(
+          eltname + " miscompared for value of key : " 
+            + entry.getKey().toString(), 
+          new TreePath(loc, eltname));
+      }
+    }
+  }
+  
   public void deepCompare(DeepCompare comparand, TreePath loc)
       throws DeepInequalityException {
     if (!(comparand instanceof LoggedJob)) {
@@ -600,5 +658,9 @@ public class LoggedJob implements DeepCompare {
     compare1(clusterReduceMB, other.clusterReduceMB, loc, "clusterReduceMB");
     compare1(jobMapMB, other.jobMapMB, loc, "jobMapMB");
     compare1(jobReduceMB, other.jobReduceMB, loc, "jobReduceMB");
+
+    // compare the job configuration parameters
+    compareJobProperties(jobProperties, other.getJobProperties(), loc, 
+                         "JobProperties");
   }
 }
