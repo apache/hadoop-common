@@ -130,6 +130,7 @@ public class TestMapReduceLocal extends TestCase {
     localFs.delete(new Path(TEST_ROOT_DIR + "/out"), true);    
     writeFile("in/part1", "this is a test\nof word count test\ntest\n");
     writeFile("in/part2", "more test");
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     Job job = Job.getInstance(conf, "word count");     
     job.setJarByClass(WordCount.class);
     job.setMapperClass(TokenizerMapper.class);
@@ -138,7 +139,6 @@ public class TestMapReduceLocal extends TestCase {
     job.setOutputKeyClass(Text.class);
     job.setOutputValueClass(IntWritable.class);
     job.setInputFormatClass(TrackingTextInputFormat.class);
-    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     FileInputFormat.addInputPath(job, new Path(TEST_ROOT_DIR + "/in"));
     FileOutputFormat.setOutputPath(job, new Path(TEST_ROOT_DIR + "/out"));
     assertTrue(job.waitForCompletion(false));
