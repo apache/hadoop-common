@@ -29,6 +29,8 @@ function print_usage(){
   echo "  pipes                run a Pipes job"
   echo "  job                  manipulate MapReduce jobs"
   echo "  queue                get information regarding JobQueues"
+  echo "  classpath            prints the class path needed for running"
+  echo "                       mapreduce subcommands"
   echo ""
   echo "Most commands print help when invoked w/o parameters."
 }
@@ -60,6 +62,8 @@ elif [ "$COMMAND" = "pipes" ] ; then
 elif [ "$COMMAND" = "sampler" ] ; then
   CLASS=org.apache.hadoop.mapred.lib.InputSampler
   HADOOP_OPTS="$HADOOP_OPTS $HADOOP_CLIENT_OPTS"
+elif [ "$COMMAND" = "classpath" ] ; then
+  echo -n 
 else
   echo $COMMAND - invalid command
   print_usage
@@ -96,5 +100,11 @@ done
 if $cygwin; then
   CLASSPATH=`cygpath -p -w "$CLASSPATH"`
 fi
+
+if [ "$COMMAND" = "classpath" ] ; then
+  echo $CLASSPATH
+  exit
+fi
+
 export CLASSPATH
 exec "$JAVA" $JAVA_HEAP_MAX $HADOOP_OPTS $CLASS "$@"
