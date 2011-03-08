@@ -265,9 +265,9 @@ public abstract class FileOutputFormat<K, V> implements OutputFormat<K, V> {
    * different tasks for the job, the names for different tasks will not collide
    * with each other.</p>
    *
-   * <p>The given name is postfixed with the task type, 'm' for maps, 'r' for
-   * reduces and the task partition number. For example, give a name 'test'
-   * running on the first map o the job the generated name will be
+   * <p>The given name is postfixed with the task type ('m' for maps, 'r' for
+   * reduces) and the task partition number. For example, given a name 'test'
+   * running on the first map of the job, the generated name will be
    * 'test-m-00000'.</p>
    *
    * @param conf the configuration for the job.
@@ -278,10 +278,10 @@ public abstract class FileOutputFormat<K, V> implements OutputFormat<K, V> {
     int partition = conf.getInt(JobContext.TASK_PARTITION, -1);
     if (partition == -1) {
       throw new IllegalArgumentException(
-        "This method can only be called from within a Job");
+        "This method can be called only from within a Job");
     }
 
-    String taskType = (conf.getBoolean(JobContext.TASK_ISMAP, true)) ? "m" : "r";
+    String taskType = conf.getBoolean(JobContext.TASK_ISMAP, true) ? "m" : "r";
 
     NumberFormat numberFormat = NumberFormat.getInstance();
     numberFormat.setMinimumIntegerDigits(5);
@@ -296,9 +296,9 @@ public abstract class FileOutputFormat<K, V> implements OutputFormat<K, V> {
    *
    * <p>The path can be used to create custom files from within the map and
    * reduce tasks. The path name will be unique for each task. The path parent
-   * will be the job output directory.</p>ls
+   * will be the job output directory.</p>
    *
-   * <p>This method uses the {@link #getUniqueName} method to make the file name
+   * <p>This method uses the {@link #getUniqueName} method to make the filename
    * unique for the task.</p>
    *
    * @param conf the configuration for the job.

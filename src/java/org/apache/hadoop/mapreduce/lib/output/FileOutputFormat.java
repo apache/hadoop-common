@@ -180,25 +180,26 @@ public static final String OUTDIR = "mapreduce.output.fileoutputformat.outputdir
    * unique names per task-attempt (e.g. using the attemptid, say 
    * <tt>attempt_200709221812_0001_m_000000_0</tt>), not just per TIP.</p> 
    * 
-   * <p>To get around this the Map-Reduce framework helps the application-writer 
+   * <p>To get around this the Map-Reduce framework helps the application-writer
    * out by maintaining a special 
    * <tt>${mapreduce.output.fileoutputformat.outputdir}/_temporary/_${taskid}</tt> 
    * sub-directory for each task-attempt on HDFS where the output of the 
    * task-attempt goes. On successful completion of the task-attempt the files 
-   * in the <tt>${mapreduce.output.fileoutputformat.outputdir}/_temporary/_${taskid}</tt> (only) 
-   * are <i>promoted</i> to <tt>${mapreduce.output.fileoutputformat.outputdir}</tt>. Of course, the 
+   * in the <tt>${mapreduce.output.fileoutputformat.outputdir}/_temporary/_${taskid}</tt>
+   * (only) are <i>promoted</i> to
+   * <tt>${mapreduce.output.fileoutputformat.outputdir}</tt>. Of course, the 
    * framework discards the sub-directory of unsuccessful task-attempts. This 
    * is completely transparent to the application.</p>
    * 
    * <p>The application-writer can take advantage of this by creating any 
    * side-files required in a work directory during execution 
-   * of his task i.e. via 
+   * of his task, i.e., via 
    * {@link #getWorkOutputPath(TaskInputOutputContext)}, and
    * the framework will move them out similarly - thus she doesn't have to pick 
    * unique paths per task-attempt.</p>
    * 
    * <p>The entire discussion holds true for maps of jobs with 
-   * reducer=NONE (i.e. 0 reduces) since output of the map, in that case, 
+   * reducer=NONE (i.e., 0 reduces) since output of the map, in that case, 
    * goes directly to HDFS.</p> 
    * 
    * @return the {@link Path} to the task's temporary output directory 
@@ -223,10 +224,14 @@ public static final String OUTDIR = "mapreduce.output.fileoutputformat.outputdir
    * <p>This method uses the {@link #getUniqueFile} method to make the file name
    * unique for the task.</p>
    *
+   * <p>See also {@link #getDefaultWorkFile}.</p>
+   *
    * @param context the context for the task.
    * @param name the name for the file.
    * @param extension the extension for the file
    * @return a unique path accross all tasks of the job.
+   * @return a full path, unique across all tasks of the job; e.g.,
+   *         ${output}/_temporary/_${taskid}/${name}-[mrsct]-${partition}${ext}
    */
   public 
   static Path getPathForWorkFile(TaskInputOutputContext<?,?,?,?> context, 
@@ -238,11 +243,12 @@ public static final String OUTDIR = "mapreduce.output.fileoutputformat.outputdir
   }
 
   /**
-   * Generate a unique filename, based on the task id, name, and extension
+   * Generate a unique filename, based on the base name, task id (both task
+   * type and partition), and optional extension.
    * @param context the task that is calling this
    * @param name the base filename
    * @param extension the filename extension
-   * @return a string like $name-[mrsct]-$id$extension
+   * @return a string like ${name}-[mrsct]-${partition}${extension}
    */
   public synchronized static String getUniqueFile(TaskAttemptContext context,
                                                   String name,
@@ -261,10 +267,13 @@ public static final String OUTDIR = "mapreduce.output.fileoutputformat.outputdir
   }
 
   /**
-   * Get the default path and filename for the output format.
+   * Get the default working path and filename for the output format.
+   *
+   * <p>See also {@link #getPathForWorkFile}.</p>
+   *
    * @param context the task context
    * @param extension an extension to add to the filename
-   * @return a full path $output/_temporary/$taskid/part-[mr]-$id
+   * @return a full path ${output}/_temporary/_${taskid}/part-[mr]-${part}${ext}
    * @throws IOException
    */
   public Path getDefaultWorkFile(TaskAttemptContext context,

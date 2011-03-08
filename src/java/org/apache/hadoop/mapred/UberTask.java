@@ -273,7 +273,7 @@ class UberTask extends Task {
       JobConf localConf = new JobConf(job);
       map.localizeConfiguration(localConf);
       map.setConf(localConf);
-      // for reporting purposes (to TT), use our (uber) task ID, not subtask's:
+      // for reporting purposes (to TT), use uber's task ID, not subtask's:
       map.setTaskIdForUmbilical(getTaskID());
 
       // override MapTask's "root" Progress node with our second-level one...
@@ -303,31 +303,24 @@ class UberTask extends Task {
       // no one calls phase() on parent Progress (or get()?) in interim.
       map.getProgress().complete();
 
-      if (numReduceTasks == 0) {
-        // For map-only jobs, we need to save (commit) each map's output, which
-        // usually entails asking the TT for permission (in case of speculation)
-        // and then moving it up two subdirectory levels in HDFS (i.e., out of
-        // _temporary/attempt_xxx).  However, the TT gives permission only if
-        // the JT sent a commitAction for the task, which it hasn't yet done
-        // for UberTask and which it will never do for uber-subtasks of which
-        // it knows nothing.  Therefore we just do the two-subdir thing (and
-        // make sure elsewhere that speculation is never on for UberTasks).
-        // Use UberTask's reporter so we set the progressFlag to which the
-        // communication thread is paying attention; it has no knowledge of
-        // subReporter.
-        map.commit(umbilical, reporter);
-      } else {
-        // For map+reduce or reduce-only jobs, we merely need to signal the
-        // communication thread to pass any progress on up to the TT.  This
-        // and the renameMapOutputForReduce() optimization below are the sole
-        // bits of the commit() method that we actually want/need.
-        reporter.progress();
-      }
+      // Even for M+R jobs, we need to save (commit) each map's output (since
+      // user may create save-worthy side-files in the work/tempdir), which
+      // usually entails asking the TT for permission (because of speculation)
+      // and then moving it up one subdirectory level in HDFS (i.e., out of
+      // _temporary/_attempt_xxx).  However, the TT gives permission only if
+      // the JT sent a commitAction for the task, which it hasn't yet done
+      // for UberTask and which it will never do for uber-subtasks of which
+      // it knows nothing.  Therefore we just do the two-subdir thing and
+      // make sure elsewhere that speculation is never on for UberTasks.
+      // Use UberTask's reporter so we set the progressFlag to which the
+      // communication thread is paying attention; it has no knowledge of
+      // subReporter.
+      map.commit(umbilical, reporter);  // includes "reporter.progress()"
 
       // Every map will produce "file.out" in the same (local, not HDFS!) dir,
       // so rename to "map_#.out" as we go.  (Longer-term, will use
       // TaskAttemptIDs as part of name => avoid rename.)  Note that this has
-      // nothing to do with the _temporary/attempt_xxx _HDFS_ subdir above!
+      // nothing to do with the _temporary/_attempt_xxx _HDFS_ subdir above!
       if (numReduceTasks > 0) {
         renameMapOutputForReduce(mapIds[j], map.getMapOutputFile());
       }
@@ -372,7 +365,6 @@ class UberTask extends Task {
 
     // note that this is implicitly the "isLocal" branch of ReduceTask run():
     // we don't have a shuffle phase
-    // (=> should skip adding Phase in first place and use 50/50 split? FIXME)
     final FileSystem rfs = FileSystem.getLocal(job).getRaw();
     RawKeyValueIterator rIter =
         Merger.merge(job, rfs, job.getMapOutputKeyClass(),
@@ -405,6 +397,10 @@ class UberTask extends Task {
     reduce.getProgress().complete();
 
     // signal the communication thread to pass any progress on up to the TT
+    // [There's no explicit reduce.commit() because we're reusing ubertask's
+    // ID and temp dir => ubertask's commit() will take care of us.  But if
+    // we ever support more than one reduce, we'll have to do explicit sub-
+    // commit() as with maps above.]
     reporter.progress();
   }
 

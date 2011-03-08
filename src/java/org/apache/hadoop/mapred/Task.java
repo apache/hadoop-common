@@ -498,13 +498,12 @@ abstract public class Task implements Writable, Configurable {
                                                    ClassNotFoundException,
                                                    InterruptedException {
     jobContext = new JobContextImpl(job, id, reporter);
-    // taskIdForUmbilical is required here since it ultimately determines the
-    // name of the pre-commit HDFS working directory (_temporary/_attempt_xxx),
-    // and anything put in an "_m_" directory will fail to get saved (i.e.,
-    // moved up two levels) in UberTask mode.  This mostly (only?) affects
-    // users of HadoopArchives (har) and IndexUpdateOutputFormat (via the
-    // getWorkOutputPath() method in FileOutputFormat).
-    taskContext = new TaskAttemptContextImpl(job, taskIdForUmbilical, reporter);
+    // taskId (rather than taskIdForUmbilical) is required here to avoid
+    // collisions in uber-subtasks' outputs; it ultimately determines both the
+    // name of the pre-commit HDFS working directory (_temporary/_attempt_xxx)
+    // and the (main) filename in that directory (part-[rm]-nnnnn).  UberTask
+    // will handle any tempdir/commit-related details.
+    taskContext = new TaskAttemptContextImpl(job, taskId, reporter);
     if (getState() == TaskStatus.State.UNASSIGNED) {
       setState(TaskStatus.State.RUNNING);
     }
@@ -1065,19 +1064,19 @@ abstract public class Task implements Writable, Configurable {
     commit(umbilical, reporter);
   }
 
-  // this is protected (rather than private) solely for UberTask map-only case
+  // this is protected (rather than private) solely for UberTask
   protected void commit(TaskUmbilicalProtocol umbilical,
                         TaskReporter reporter) throws IOException {
     try {
       LOG.info("Task " + taskId + " is allowed to commit now");
       committer.commitTask(taskContext);
       return;
-    } catch (IOException iee) {
+    } catch (IOException ioe) {
       LOG.warn("Failure committing: " + 
-        StringUtils.stringifyException(iee));
+        StringUtils.stringifyException(ioe));
       // if it couldn't commit successfully then delete the output
       discardOutput(taskContext);
-      throw iee;
+      throw ioe;
     }
   }
 
