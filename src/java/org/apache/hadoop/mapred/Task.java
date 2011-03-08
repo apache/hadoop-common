@@ -885,7 +885,7 @@ abstract public class Task implements Writable, Configurable {
         }
       }
       // wait for commit approval (via JT commitAction for this task) and commit
-      commit(umbilical, reporter, true);
+      commitAfterApproval(umbilical, reporter);
     }
     taskDone.set(true);
     reporter.stopCommunicationThread();
@@ -1004,41 +1004,43 @@ abstract public class Task implements Writable, Configurable {
     }
   }
 
-  // this is protected (rather than private) solely for UberTask map-only case
-  protected void commit(TaskUmbilicalProtocol umbilical,
-                        TaskReporter reporter,
-                        boolean queryTTBeforeCommit) throws IOException {
+  private void commitAfterApproval(TaskUmbilicalProtocol umbilical,
+                                   TaskReporter reporter) throws IOException {
     int retries = MAX_RETRIES;
-    if (queryTTBeforeCommit) {
-      while (true) {
-        try {
-          while (!umbilical.canCommit(taskIdForUmbilical)) {
-            try {
-System.out.println("GRR DEBUG:  Task commit(): TT canCommit() returned false; sleeping 1 sec");
-              // FIXME 1:  shouldn't this count down retries, too, in case JT glitched and no longer knows about us?  (else infinite loop)
-              Thread.sleep(1000);  // FIXME 2:  shouldn't hardcoded 1-second sleep instead correspond to heartbeat interval for task?
-            } catch(InterruptedException ie) {
-              //ignore
-            }
-            reporter.setProgressFlag();
+    while (true) {
+      try {
+        while (!umbilical.canCommit(taskIdForUmbilical)) {
+          try {
+System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() returned false; sleeping 1 sec");
+            // FIXME 1:  shouldn't this count down retries, too, in case JT glitched and no longer knows about us?  (else infinite loop)
+            Thread.sleep(1000);  // FIXME 2:  shouldn't hardcoded 1-second sleep instead correspond to heartbeat interval for task?
+          } catch(InterruptedException ie) {
+            //ignore
           }
-System.out.println("GRR DEBUG:  Task commit(): TT canCommit() returned true");
-          break;
-        } catch (IOException ie) {
-System.out.println("GRR DEBUG:  Task commit(): TT canCommit() threw exception");
-          LOG.warn("Failure asking whether task can commit: " +
-              StringUtils.stringifyException(ie));
-          if (--retries == 0) {
-            //if it couldn't query successfully then delete the output
-            discardOutput(taskContext);
-            System.exit(68);
-          }
+          reporter.setProgressFlag();
+        }
+System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() returned true");
+        break;
+      } catch (IOException ie) {
+System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() threw exception");
+        LOG.warn("Failure asking whether task can commit: " +
+            StringUtils.stringifyException(ie));
+        if (--retries == 0) {
+          // if it couldn't query successfully then delete the output
+          discardOutput(taskContext);
+          System.exit(68);
         }
       }
     }
 
-System.out.println("GRR DEBUG:  Task commit(): about to call commitTask()");
     // task can Commit now  
+    commit(umbilical, reporter);
+  }
+
+  // this is protected (rather than private) solely for UberTask map-only case
+  protected void commit(TaskUmbilicalProtocol umbilical,
+                        TaskReporter reporter) throws IOException {
+System.out.println("GRR DEBUG:  Task commit(): about to call commitTask()");
     try {
       LOG.info("Task " + taskId + " is allowed to commit now");
       committer.commitTask(taskContext);
@@ -1046,7 +1048,7 @@ System.out.println("GRR DEBUG:  Task commit(): about to call commitTask()");
     } catch (IOException iee) {
       LOG.warn("Failure committing: " + 
         StringUtils.stringifyException(iee));
-      //if it couldn't commit a successfully then delete the output
+      // if it couldn't commit successfully then delete the output
       discardOutput(taskContext);
       throw iee;
     }

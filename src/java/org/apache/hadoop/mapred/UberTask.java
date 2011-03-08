@@ -293,12 +293,17 @@ class UberTask extends Task {
 
       if (numReduceTasks == 0) {
         // For map-only jobs, we need to save (commit) each map's output, which
-        // mainly entails asking the TT for permission (in case of speculation)
-        // and then moving it up two subdirectory levels in HDFS (i.e., out
-        // of _temporary/attempt_xxx).  Use UberTask's reporter so we set the
-        // progressFlag to which the communication thread is paying attention.
-        // (It knows nothing about subReporter.)
-        map.commit(umbilical, reporter, false);
+        // usually entails asking the TT for permission (in case of speculation)
+        // and then moving it up two subdirectory levels in HDFS (i.e., out of
+        // _temporary/attempt_xxx).  However, the TT gives permission only if
+        // the JT sent a commitAction for the task, which it hasn't yet done
+        // for UberTask and which it will never do for uber-subtasks of which
+        // it knows nothing.  Therefore we just do the two-subdir thing (and
+        // make sure elsewhere that speculation is never on for UberTasks).
+        // Use UberTask's reporter so we set the progressFlag to which the
+        // communication thread is paying attention; it has no knowledge of
+        // subReporter.
+        map.commit(umbilical, reporter);
       } else {
         // For map+reduce or reduce-only jobs, we merely need to signal the
         // communication thread to pass any progress on up to the TT.  This
