@@ -24,6 +24,8 @@ import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
@@ -35,10 +37,12 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobTracker;
 import org.apache.hadoop.mapred.LocalJobRunner;
+import org.apache.hadoop.mapreduce.ClientFactory.DefaultClientFactory;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
 import org.apache.hadoop.mapreduce.protocol.ClientProtocol;
 import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.mapreduce.server.jobtracker.State;
+import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
 import org.apache.hadoop.mapreduce.util.ConfigUtil;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.AccessControlException;
@@ -52,6 +56,7 @@ import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
 public class Cluster {
+  private static final Log LOG = LogFactory.getLog(Cluster.class);
   private ClientProtocol client;
   private UserGroupInformation ugi;
   private Configuration conf;
@@ -67,34 +72,17 @@ public class Cluster {
   public Cluster(Configuration conf) throws IOException {
     this.conf = conf;
     this.ugi = UserGroupInformation.getCurrentUser();
-    client = createClient(conf);
+    client = ClientFactory.create(conf);
   }
 
   public Cluster(InetSocketAddress jobTrackAddr, Configuration conf) 
       throws IOException {
     this.conf = conf;
     this.ugi = UserGroupInformation.getCurrentUser();
-    client = createRPCProxy(jobTrackAddr, conf);
+    client = (new DefaultClientFactory()).createJTClient(jobTrackAddr, 
+        conf); 
   }
 
-  private ClientProtocol createRPCProxy(InetSocketAddress addr,
-      Configuration conf) throws IOException {
-    return (ClientProtocol) RPC.getProxy(ClientProtocol.class,
-      ClientProtocol.versionID, addr, ugi, conf,
-      NetUtils.getSocketFactory(conf, ClientProtocol.class));
-  }
-
-  private ClientProtocol createClient(Configuration conf) throws IOException {
-    ClientProtocol client;
-    String tracker = conf.get("mapreduce.jobtracker.address", "local");
-    if ("local".equals(tracker)) {
-      conf.setInt("mapreduce.job.maps", 1);
-      client = new LocalJobRunner(conf);
-    } else {
-      client = createRPCProxy(JobTracker.getAddress(conf), conf);
-    }
-    return client;
-  }
   
   ClientProtocol getClient() {
     return client;
