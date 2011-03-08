@@ -187,19 +187,19 @@ public static final String OUTDIR = "mapreduce.output.fileoutputformat.outputdir
    * task-attempt goes. On successful completion of the task-attempt the files 
    * in the <tt>${mapreduce.output.fileoutputformat.outputdir}/_temporary/_${taskid}</tt>
    * (only) are <i>promoted</i> to
-   * <tt>${mapreduce.output.fileoutputformat.outputdir}</tt>. Of course, the 
+   * <tt>${mapreduce.output.fileoutputformat.outputdir}</tt>. Of course, the
    * framework discards the sub-directory of unsuccessful task-attempts. This 
    * is completely transparent to the application.</p>
    * 
    * <p>The application-writer can take advantage of this by creating any 
    * side-files required in a work directory during execution 
-   * of his task, i.e., via 
+   * of his task, i.e., via
    * {@link #getWorkOutputPath(TaskInputOutputContext)}, and
    * the framework will move them out similarly - thus she doesn't have to pick 
    * unique paths per task-attempt.</p>
    * 
    * <p>The entire discussion holds true for maps of jobs with 
-   * reducer=NONE (i.e., 0 reduces) since output of the map, in that case, 
+   * reducer=NONE (i.e., 0 reduces) since output of the map, in that case,
    * goes directly to HDFS.</p> 
    * 
    * @return the {@link Path} to the task's temporary output directory 
