@@ -884,8 +884,8 @@ abstract public class Task implements Writable, Configurable {
           }
         }
       }
-      //wait for commit approval and commit
-      commit(umbilical, reporter, committer);
+      // wait for commit approval (via JT commitAction for this task) and commit
+      commit(umbilical, reporter, true);
     }
     taskDone.set(true);
     reporter.stopCommunicationThread();
@@ -1004,33 +1004,36 @@ abstract public class Task implements Writable, Configurable {
     }
   }
 
-  private void commit(TaskUmbilicalProtocol umbilical,
-                      TaskReporter reporter,
-                      org.apache.hadoop.mapreduce.OutputCommitter committer
-                      ) throws IOException {
+  // this is protected (rather than private) solely for UberTask map-only case
+  protected void commit(TaskUmbilicalProtocol umbilical,
+                        TaskReporter reporter,
+                        boolean queryTTBeforeCommit) throws IOException {
     int retries = MAX_RETRIES;
-    while (true) {
-      try {
-        while (!umbilical.canCommit(taskIdForUmbilical)) {
-          try {
-            Thread.sleep(1000);
-          } catch(InterruptedException ie) {
-            //ignore
+    if (queryTTBeforeCommit) {
+      while (true) {
+        try {
+          while (!umbilical.canCommit(taskIdForUmbilical)) {
+            try {
+              // FIXME 1:  shouldn't this count down retries, too, in case JT glitched and no longer knows about us?  (else infinite loop)
+              Thread.sleep(1000);  // FIXME 2:  shouldn't hardcoded 1-second sleep instead correspond to heartbeat interval for task?
+            } catch(InterruptedException ie) {
+              //ignore
+            }
+            reporter.setProgressFlag();
           }
-          reporter.setProgressFlag();
-        }
-        break;
-      } catch (IOException ie) {
-        LOG.warn("Failure asking whether task can commit: " + 
-            StringUtils.stringifyException(ie));
-        if (--retries == 0) {
-          //if it couldn't query successfully then delete the output
-          discardOutput(taskContext);
-          System.exit(68);
+          break;
+        } catch (IOException ie) {
+          LOG.warn("Failure asking whether task can commit: " +
+              StringUtils.stringifyException(ie));
+          if (--retries == 0) {
+            //if it couldn't query successfully then delete the output
+            discardOutput(taskContext);
+            System.exit(68);
+          }
         }
       }
     }
-    
+
     // task can Commit now  
     try {
       LOG.info("Task " + taskId + " is allowed to commit now");

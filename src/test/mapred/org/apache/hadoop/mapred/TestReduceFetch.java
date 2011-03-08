@@ -40,11 +40,12 @@ public class TestReduceFetch extends TestReduceFetchFromPartialMem {
     job.set(JobContext.SHUFFLE_INPUT_BUFFER_PERCENT, "0.05");
     job.setInt(JobContext.IO_SORT_FACTOR, 2);
     job.setInt(JobContext.REDUCE_MERGE_INMEM_THRESHOLD, 4);
+    job.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     Counters c = runJob(job);
     final long spill = c.findCounter(TaskCounter.SPILLED_RECORDS).getCounter();
     final long out = c.findCounter(TaskCounter.MAP_OUTPUT_RECORDS).getCounter();
-    assertTrue("Expected all records spilled during reduce (" + spill + ")",
-        spill >= 2 * out); // all records spill at map, reduce
+    assertTrue("Expected all records spilled during reduce (" + spill + " >= 2*"
+        + out + ")", spill >= 2 * out); // all records spill at map, reduce
     assertTrue("Expected intermediate merges (" + spill + ")",
         spill >= 2 * out + (out / MAP_TASKS)); // some records hit twice
   }
@@ -60,6 +61,7 @@ public class TestReduceFetch extends TestReduceFetchFromPartialMem {
     job.set(JobContext.SHUFFLE_INPUT_BUFFER_PERCENT, "1.0");
     job.setLong(JobContext.REDUCE_MEMORY_TOTAL_BYTES, 128 << 20);
     job.setNumMapTasks(MAP_TASKS);
+    job.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     Counters c = runJob(job);
     final long spill = c.findCounter(TaskCounter.SPILLED_RECORDS).getCounter();
     final long out = c.findCounter(TaskCounter.MAP_OUTPUT_RECORDS).getCounter();

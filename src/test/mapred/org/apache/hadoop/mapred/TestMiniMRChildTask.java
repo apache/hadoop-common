@@ -424,26 +424,34 @@ public class TestMiniMRChildTask extends TestCase {
     //  - append to a new var (NEW_PATH)
     String mapTaskEnvKey = JobConf.MAPRED_MAP_TASK_ENV;
     String reduceTaskEnvKey = JobConf.MAPRED_MAP_TASK_ENV;
+    String uberTaskEnvKey = JobConf.MAPRED_UBER_TASK_ENV;
     String mapTaskJavaOptsKey = JobConf.MAPRED_MAP_TASK_JAVA_OPTS;
     String reduceTaskJavaOptsKey = JobConf.MAPRED_REDUCE_TASK_JAVA_OPTS;
+    String uberTaskJavaOptsKey = JobConf.MAPRED_UBER_TASK_JAVA_OPTS;
     String mapTaskJavaOpts = MAP_OPTS_VAL;
     String reduceTaskJavaOpts = REDUCE_OPTS_VAL;
+    String uberTaskJavaOpts = REDUCE_OPTS_VAL; // larger of MAP and REDUCE VALs
     conf.setBoolean(OLD_CONFIGS, oldConfigs);
     if (oldConfigs) {
       mapTaskEnvKey = reduceTaskEnvKey = JobConf.MAPRED_TASK_ENV;
       mapTaskJavaOptsKey = reduceTaskJavaOptsKey = JobConf.MAPRED_TASK_JAVA_OPTS;
       mapTaskJavaOpts = reduceTaskJavaOpts = TASK_OPTS_VAL;
     }
-    conf.set(mapTaskEnvKey, 
+    conf.set(mapTaskEnvKey,
              "MY_PATH=/tmp,HOME=/tmp,LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/tmp," +
              "PATH=$PATH:/tmp,NEW_PATH=$NEW_PATH:/tmp");
-    conf.set(reduceTaskEnvKey, 
+    conf.set(reduceTaskEnvKey,
+             "MY_PATH=/tmp,HOME=/tmp,LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/tmp," +
+             "PATH=$PATH:/tmp,NEW_PATH=$NEW_PATH:/tmp");
+    conf.set(uberTaskEnvKey,
              "MY_PATH=/tmp,HOME=/tmp,LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/tmp," +
              "PATH=$PATH:/tmp,NEW_PATH=$NEW_PATH:/tmp");
     conf.set("path", System.getenv("PATH"));
     conf.set(mapTaskJavaOptsKey, mapTaskJavaOpts);
     conf.set(reduceTaskJavaOptsKey, reduceTaskJavaOpts);
+    conf.set(uberTaskJavaOptsKey, uberTaskJavaOpts);
     RunningJob job = JobClient.runJob(conf);
+    // this is always true since runJob() throws if !job.isSuccessful() :
     assertTrue("The environment checker job failed.", job.isSuccessful());
   }
   

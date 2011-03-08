@@ -291,11 +291,21 @@ class UberTask extends Task {
       // no one calls phase() on parent Progress (or get()?) in interim.
       map.getProgress().complete();
 
-      // Signal the communication thread to pass any progress on up to the TT.
-      // (This and the renameMapOutputForReduce() optimization below are the
-      // sole bits of output committer's "commitTask()" method that we actually
-      // want/need, so consider the subtask committed at this point.)
-      reporter.progress();
+      if (numReduceTasks == 0) {
+        // For map-only jobs, we need to save (commit) each map's output, which
+        // mainly entails asking the TT for permission (in case of speculation)
+        // and then moving it up two subdirectory levels in HDFS (i.e., out
+        // of _temporary/attempt_xxx).  Use UberTask's reporter so we set the
+        // progressFlag to which the communication thread is paying attention.
+        // (It knows nothing about subReporter.)
+        map.commit(umbilical, reporter, false);
+      } else {
+        // For map+reduce or reduce-only jobs, we merely need to signal the
+        // communication thread to pass any progress on up to the TT.  This
+        // and the renameMapOutputForReduce() optimization below are the sole
+        // bits of the commit() method that we actually want/need.
+        reporter.progress();
+      }
 
       // every map will produce file.out (in the same dir), so rename as we go
       // (longer-term, will use TaskAttemptIDs as part of name => avoid rename)

@@ -138,13 +138,15 @@ public class TestMapReduceLocal extends TestCase {
     job.setOutputKeyClass(Text.class);
     job.setOutputValueClass(IntWritable.class);
     job.setInputFormatClass(TrackingTextInputFormat.class);
+    conf.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
     FileInputFormat.addInputPath(job, new Path(TEST_ROOT_DIR + "/in"));
     FileOutputFormat.setOutputPath(job, new Path(TEST_ROOT_DIR + "/out"));
     assertTrue(job.waitForCompletion(false));
     String out = readFile("out/part-r-00000");
     System.out.println(out);
-    assertEquals("a\t1\ncount\t1\nis\t1\nmore\t1\nof\t1\ntest\t4\nthis\t1\nword\t1\n",
-                 out);
+    assertEquals(
+        "a\t1\ncount\t1\nis\t1\nmore\t1\nof\t1\ntest\t4\nthis\t1\nword\t1\n",
+        out);
     Counters ctrs = job.getCounters();
     System.out.println("Counters: " + ctrs);
     long mapIn = ctrs.findCounter(FileInputFormat.COUNTER_GROUP, 
@@ -170,8 +172,8 @@ public class TestMapReduceLocal extends TestCase {
     assertEquals("combine out = reduce in", combineOut, reduceIn);
     assertTrue("combine in > combine out", combineIn > combineOut);
     assertEquals("reduce groups = reduce out", reduceGrps, reduceOut);
-    assertEquals("Mismatch in mergedMapOutputs", mergedMapOutputs, 2);
-    assertEquals("Mismatch in shuffledMaps", shuffledMaps, 2);
+    assertEquals("Mismatch in mergedMapOutputs", 2, mergedMapOutputs);
+    assertEquals("Mismatch in shuffledMaps", 2, shuffledMaps);
     String group = "Random Group";
     CounterGroup ctrGrp = ctrs.getGroup(group);
     assertEquals(0, ctrGrp.size());
