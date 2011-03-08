@@ -80,9 +80,9 @@ class UberTask extends Task {
   }
 
   @Override
-  public TaskRunner createRunner(TaskTracker tracker, TaskInProgress tip)
-      throws IOException {
-    return new UberTaskRunner(tip, tracker, conf);
+  public TaskRunner createRunner(TaskTracker tracker, TaskInProgress tip,
+      TaskTracker.RunningJob rjob) throws IOException {
+    return new UberTaskRunner(tip, tracker, conf, rjob);
   }
 
   /* perhaps someday we'll allow an UberTask to run as either a MapTask or a

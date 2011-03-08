@@ -25,8 +25,9 @@ import org.apache.log4j.Level;
 
 public class UberTaskRunner extends TaskRunner {
 
-  public UberTaskRunner(TaskInProgress tip, TaskTracker tracker, JobConf conf) {
-    super(tip, tracker, conf);
+  public UberTaskRunner(TaskInProgress tip, TaskTracker tracker, JobConf conf,
+      TaskTracker.RunningJob rjob) throws IOException {
+    super(tip, tracker, conf, rjob);
   }
 
   @Override
