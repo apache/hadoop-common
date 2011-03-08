@@ -26,14 +26,14 @@ import static org.apache.hadoop.mapreduce.MRJobConfig.*;
 public class Limits {
 
   static final Configuration conf = new Configuration();
-  static final int GROUP_NAME_MAX = conf.getInt(COUNTER_GROUP_NAME_MAX_KEY,
-                                                COUNTER_GROUP_NAME_MAX_DEFAULT);
-  static final int COUNTER_NAME_MAX = conf.getInt(COUNTER_NAME_MAX_KEY,
-                                                  COUNTER_NAME_MAX_DEFAULT);
-  static final int GROUPS_MAX = conf.getInt(COUNTER_GROUPS_MAX_KEY,
-                                            COUNTER_GROUPS_MAX_DEFAULT);
-  static final int COUNTERS_MAX = conf.getInt(COUNTERS_MAX_KEY,
-                                              COUNTERS_MAX_DEFAULT);
+  public static final int GROUP_NAME_MAX =
+      conf.getInt(COUNTER_GROUP_NAME_MAX_KEY, COUNTER_GROUP_NAME_MAX_DEFAULT);
+  public static final int COUNTER_NAME_MAX =
+      conf.getInt(COUNTER_NAME_MAX_KEY, COUNTER_NAME_MAX_DEFAULT);
+  public static final int GROUPS_MAX =
+      conf.getInt(COUNTER_GROUPS_MAX_KEY, COUNTER_GROUPS_MAX_DEFAULT);
+  public static final int COUNTERS_MAX =
+      conf.getInt(COUNTERS_MAX_KEY, COUNTERS_MAX_DEFAULT);
 
   private int totalCounters;
   private LimitExceededException firstViolation;

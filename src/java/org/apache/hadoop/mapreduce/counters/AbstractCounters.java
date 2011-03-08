@@ -78,6 +78,8 @@ public abstract class AbstractCounters<C extends Counter,
                   JobCounter.class.getName());
   }
 
+  private final Limits limits = new Limits();
+
   @InterfaceAudience.Private
   public AbstractCounters(CounterGroupFactory<C, G> gf) {
     groupFactory = gf;
@@ -97,7 +99,7 @@ public abstract class AbstractCounters<C extends Counter,
     this.groupFactory = groupFactory;
     for(G1 group: counters) {
       String name = group.getName();
-      G newGroup = groupFactory.newGroup(name, group.getDisplayName());
+      G newGroup = groupFactory.newGroup(name, group.getDisplayName(), limits);
       (isFrameworkGroup(name) ? fgroups : groups).put(name, newGroup);
       for(Counter counter: group) {
         newGroup.addCounter(counter.getName(), counter.getDisplayName(),
@@ -129,7 +131,7 @@ public abstract class AbstractCounters<C extends Counter,
    */
   @InterfaceAudience.Private
   public G addGroup(String name, String displayName) {
-    return addGroup(groupFactory.newGroup(name, displayName));
+    return addGroup(groupFactory.newGroup(name, displayName, limits));
   }
 
   /**
@@ -194,11 +196,11 @@ public abstract class AbstractCounters<C extends Counter,
     boolean isFGroup = isFrameworkGroup(groupName);
     G group = isFGroup ? fgroups.get(groupName) : groups.get(groupName);
     if (group == null) {
-      group = groupFactory.newGroup(filterGroupName(groupName));
+      group = groupFactory.newGroup(filterGroupName(groupName), limits);
       if (isFGroup) {
         fgroups.put(groupName, group);
       } else {
-        groupFactory.limits().checkGroups(groups.size() + 1);
+        limits.checkGroups(groups.size() + 1);
         groups.put(groupName, group);
       }
     }
@@ -208,7 +210,7 @@ public abstract class AbstractCounters<C extends Counter,
   private String filterGroupName(String oldName) {
     String newName = legacyMap.get(oldName);
     if (newName == null) {
-      return groupFactory.limits().filterGroupName(oldName);
+      return limits.filterGroupName(oldName);
     }
     LOG.warn("Group "+ oldName +" is deprecated. Use "+ newName +" instead");
     return newName;
@@ -284,9 +286,8 @@ public abstract class AbstractCounters<C extends Counter,
     }
     int numGroups = WritableUtils.readVInt(in);
     while (numGroups-- > 0) {
-      groupFactory.limits().checkGroups(groups.size() + 1);
-      G group = groupFactory.newGenericGroup(Text.readString(in), null,
-                                             groupFactory.limits());
+      limits.checkGroups(groups.size() + 1);
+      G group = groupFactory.newGenericGroup(Text.readString(in), null, limits);
       group.readFields(in);
       groups.put(group.getName(), group);
     }
@@ -318,8 +319,9 @@ public abstract class AbstractCounters<C extends Counter,
     for(G right : other) {
       G left = groups.get(right.getName());
       if (left == null) {
-        groupFactory.limits().checkGroups(groups.size() + 1);
-        left = groupFactory.newGroup(right.getName(), right.getDisplayName());
+        limits.checkGroups(groups.size() + 1);
+        left = groupFactory.newGroup(right.getName(), right.getDisplayName(),
+                                     limits);
         groups.put(right.getName(), left);
       }
       left.incrAllCounters(right);
@@ -363,6 +365,6 @@ public abstract class AbstractCounters<C extends Counter,
 
   @InterfaceAudience.Private
   public Limits limits() {
-    return groupFactory.limits();
+    return limits;
   }
 }

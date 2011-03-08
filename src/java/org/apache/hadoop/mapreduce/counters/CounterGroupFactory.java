@@ -51,8 +51,6 @@ public abstract class CounterGroupFactory<C extends Counter,
   private static final List<String> i2s = Lists.newArrayList();
   private static final int VERSION = 1;
 
-  private final Limits limits = new Limits();
-
   private final Map<String, FrameworkGroupFactory<G>> fmap = Maps.newHashMap();
   {
     // Add builtin counter class here and the version when changed.
@@ -88,19 +86,22 @@ public abstract class CounterGroupFactory<C extends Counter,
   /**
    * Create a new counter group
    * @param name of the group
+   * @param limits the counters limits policy object
    * @return a new counter group
    */
-  public G newGroup(String name) {
-    return newGroup(name, ResourceBundles.getCounterGroupName(name, name));
+  public G newGroup(String name, Limits limits) {
+    return newGroup(name, ResourceBundles.getCounterGroupName(name, name),
+                    limits);
   }
 
   /**
    * Create a new counter group
    * @param name of the group
    * @param displayName of the group
+   * @param limits the counters limits policy object
    * @return a new counter group
    */
-  public G newGroup(String name, String displayName) {
+  public G newGroup(String name, String displayName, Limits limits) {
     FrameworkGroupFactory<G> gf = fmap.get(name);
     if (gf != null) return gf.newGroup(name);
     if (name.equals(FileSystemCounter.class.getName())) {
@@ -184,9 +185,4 @@ public abstract class CounterGroupFactory<C extends Counter,
    * @return a new file system counter group
    */
   protected abstract G newFileSystemGroup();
-
-  @InterfaceAudience.Private
-  public Limits limits() {
-    return limits;
-  }
 }
