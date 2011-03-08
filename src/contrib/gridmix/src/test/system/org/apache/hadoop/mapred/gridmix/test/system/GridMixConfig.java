@@ -72,4 +72,16 @@ public class GridMixConfig {
    */
   public static final String GRIDMIX_MINIMUM_FILE_SIZE =
       "gridmix.min.file.size";
+
+  /**
+   * Gridmix compression enable
+   */
+  public static final String GRIDMIX_COMPRESSION_ENABLE =
+      "gridmix.compression-emulation.enable";
+
+  /**
+   * Gridmix distcache enable
+   */
+  public static final String GRIDMIX_DISTCACHE_ENABLE = 
+      "gridmix.distributed-cache-emulation.enable";
 }

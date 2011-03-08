@@ -91,8 +91,14 @@ public class TestGridMixDataGeneration {
        inputSize+"m",
        "file:///dev/null"}; 
 
+    String [] otherArgs = {
+      "-D", GridMixConfig.GRIDMIX_DISTCACHE_ENABLE +
+      "=false",
+      "-D", GridMixConfig.GRIDMIX_COMPRESSION_ENABLE +
+      "=false"
+    };
     int exitCode = UtilsForGridmix.runGridmixJob(gridmixDir, 
-      conf,GridMixRunMode.DATA_GENERATION, runtimeValues);
+      conf,GridMixRunMode.DATA_GENERATION, runtimeValues, otherArgs);
     Assert.assertEquals("Data generation has failed.", 0 , exitCode);
     checkGeneratedDataAndJobStatus(inputSize);
   }
@@ -114,8 +120,15 @@ public class TestGridMixDataGeneration {
        "file://" + UtilsForGridmix.getProxyUsersFile(conf),
        "file:///dev/null"};
     
+    String [] otherArgs = {
+      "-D", GridMixConfig.GRIDMIX_DISTCACHE_ENABLE +
+      "=false",
+      "-D", GridMixConfig.GRIDMIX_COMPRESSION_ENABLE +
+      "=false"
+    };
+
     int exitCode = UtilsForGridmix.runGridmixJob(gridmixDir, 
-       conf,GridMixRunMode.DATA_GENERATION, runtimeValues);
+       conf,GridMixRunMode.DATA_GENERATION, runtimeValues, otherArgs);
     Assert.assertEquals("Data generation has failed.", 0 , exitCode);
     checkGeneratedDataAndJobStatus(inputSize); 
   }
@@ -140,7 +153,11 @@ public class TestGridMixDataGeneration {
     int bytesPerFile = 200; // 200 mb per file of data
     String [] otherArgs = {
       "-D", GridMixConfig.GRIDMIX_BYTES_PER_FILE + 
-      "=" + (bytesPerFile * 1024 * 1024)
+      "=" + (bytesPerFile * 1024 * 1024),
+      "-D", GridMixConfig.GRIDMIX_DISTCACHE_ENABLE +
+      "=false",
+      "-D", GridMixConfig.GRIDMIX_COMPRESSION_ENABLE +
+      "=false"
     };
     int exitCode = UtilsForGridmix.runGridmixJob(gridmixDir, 
        conf,GridMixRunMode.DATA_GENERATION, runtimeValues,otherArgs);

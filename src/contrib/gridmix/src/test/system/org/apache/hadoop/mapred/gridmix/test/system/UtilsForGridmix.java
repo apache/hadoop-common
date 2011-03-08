@@ -86,7 +86,7 @@ public class UtilsForGridmix {
        "-D", GridMixConfig.GRIDMIX_LOG_MODE + 
        "=DEBUG",
        "-D", GridMixConfig.GRIDMIX_OUTPUT_DIR + 
-       "=" + new Path(gridmixDir,"gridmix").toString(),
+       "=" + new Path("gridmix").toString(),
        "-D", GridMixConfig.GRIDMIX_JOB_SUBMISSION_QUEUE_IN_TRACE 
        + "=true",
        "-D", GridMixConfig.GRIDMIX_JOB_TYPE 
@@ -103,22 +103,23 @@ public class UtilsForGridmix {
      classArgs = new String[]{
         "-generate", values[3], 
         "-users", values[4], 
-        new Path(gridmixDir,"input").toString(), 
+        gridmixDir.toString(), 
         values[5]};
     } else if (gridmixRunMode == GridMixRunMode.DATA_GENERATION ||
        gridmixRunMode == GridMixRunMode.DATA_GENERATION_AND_RUN_GRIDMIX){
       classArgs = new String[]{
-         "-generate", values[3], new Path(gridmixDir,"input").toString(),
+         "-generate", values[3], 
+         gridmixDir.toString(),
          values[4]};
     } else if(gridmixRunMode == GridMixRunMode.RUN_GRIDMIX 
        && values[1].indexOf("RoundRobinUserResolver") > 0) {
       classArgs = new String[]{         
          "-users", values[3], 
-         new Path(gridmixDir,"input").toString(),
+         gridmixDir.toString(),
          values[4]};
     } else {
       classArgs = new String[]{
-         new Path(gridmixDir,"input").toString(),values[3]};
+         gridmixDir.toString(),values[3]};
     }
     
     String [] args = new String [runtimeArgs.length + 
