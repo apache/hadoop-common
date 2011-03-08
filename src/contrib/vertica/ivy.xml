@@ -44,25 +44,5 @@
       name="hadoop-common"
       rev="${hadoop-common.version}"
       conf="common->default"/>
-    <dependency org="commons-logging"
-      name="commons-logging"
-      rev="${commons-logging.version}"
-      conf="common->default"/>
-    <dependency org="commons-httpclient"
-      name="commons-httpclient"
-      rev="${commons-httpclient.version}"
-      conf="common->default"/>
-    <dependency org="commons-cli"
-      name="commons-cli"
-      rev="${commons-cli.version}"
-      conf="common->default"/>
-    <dependency org="junit"
-      name="junit"
-      rev="${junit.version}"
-      conf="common->default"/>
-    <dependency org="log4j"
-      name="log4j"
-      rev="${log4j.version}"
-      conf="common->master"/>
   </dependencies>
 </ivy-module>
