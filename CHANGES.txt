@@ -7,6 +7,7 @@ Trunk (unreleased changes)
   NEW FEATURES
 
   IMPROVEMENTS
+  Bug-2367384 Please make it clear why the job failed (Krishna Ramachandran via mahadev) from http://bug.corp.yahoo.com/attachment.cgi?id=1169543 
 
   OPTIMIZATIONS
 
