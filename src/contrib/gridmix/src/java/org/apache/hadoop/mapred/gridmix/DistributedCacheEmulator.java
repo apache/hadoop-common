@@ -118,7 +118,16 @@ class DistributedCacheEmulator {
   // Pseudo local file system where local FS based dist cache files are
   // created by gridmix.
   FileSystem pseudoLocalFs = null;
-  
+
+  {
+    // Need to handle deprecation of these MapReduce-internal configuration
+    // properties as MapReduce doesn't handle their deprecation.
+    Configuration.addDeprecation("mapred.cache.files.filesizes",
+        new String[] {MRJobConfig.CACHE_FILES_SIZES});
+    Configuration.addDeprecation("mapred.cache.files.visibilities",
+        new String[] {MRJobConfig.CACHE_FILE_VISIBILITIES});
+  }
+
   /**
    * @param conf gridmix configuration
    * @param ioPath &lt;ioPath&gt;/distributedCache/ is the gridmix Distributed
@@ -510,12 +519,16 @@ class DistributedCacheEmulator {
             cacheFiles.add(mappedPath);
           }
         }
-        // configure hdfs based dist cache files for simulated job
-        conf.setStrings(MRJobConfig.CACHE_FILES,
-                        cacheFiles.toArray(new String[cacheFiles.size()]));
-        // configure local FS based dist cache files for simulated job
-        conf.setStrings("tmpfiles", localCacheFiles.toArray(
-                                      new String[localCacheFiles.size()]));
+        if (cacheFiles.size() > 0) {
+          // configure hdfs based dist cache files for simulated job
+          conf.setStrings(MRJobConfig.CACHE_FILES,
+                          cacheFiles.toArray(new String[cacheFiles.size()]));
+        }
+        if (localCacheFiles.size() > 0) {
+          // configure local FS based dist cache files for simulated job
+          conf.setStrings("tmpfiles", localCacheFiles.toArray(
+                                        new String[localCacheFiles.size()]));
+        }
       }
     }
   }

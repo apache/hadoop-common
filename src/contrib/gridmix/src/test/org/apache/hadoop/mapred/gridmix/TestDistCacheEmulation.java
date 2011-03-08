@@ -129,18 +129,16 @@ public class TestDistCacheEmulation {
   }
 
   /**
-   * Runs setupGenerateDistCacheData() on a new DistrbutedCacheEmulator and
-   * and returns the jobConf. Fills the array <code>sortedFileSizes</code> that
-   * can be used for validation.
-   * Validation of exit code from setupGenerateDistCacheData() is done.
-   * @param generate true if -generate option is specified
-   * @param sortedFileSizes sorted distributed cache file sizes
+   * Configures 5 HDFS-based dist cache files and 1 local-FS-based dist cache
+   * file in the given Configuration object <code>conf</code>.
+   * @param conf configuration where dist cache config properties are to be set
+   * @param useOldProperties <code>true</code> if old config properties are to
+   *                         be set
+   * @return array of sorted HDFS-based distributed cache file sizes
    * @throws IOException
-   * @throws InterruptedException
    */
-  private JobConf runSetupGenerateDistCacheData(boolean generate,
-      long[] sortedFileSizes) throws IOException, InterruptedException {
-    Configuration conf = new Configuration();
+  private long[] configureDummyDistCacheFiles(Configuration conf,
+      boolean useOldProperties) throws IOException {
     String user = UserGroupInformation.getCurrentUser().getShortUserName();
     conf.set(MRJobConfig.USER_NAME, user);
     // Set some dummy dist cache files in gridmix configuration so that they go
@@ -152,17 +150,41 @@ public class TestDistCacheEmulation {
                                "subdir1/file5.txt",
                                "subdir2/file6.gz"};
     String[] fileSizes = {"400", "2500", "700", "1200", "1500", "500"};
-    // local FS based dist cache file whose path contains <user>/.staging is
-    // not created on HDFS. So file size 2500 is not added to sortedFileSizes
-    // and its visibility is not added to sortedVisibilities.
-    System.arraycopy(new long[] {1500, 1200, 700, 500, 400}, 0,
-                     sortedFileSizes, 0, 5);
+
     String[] visibilities = {"true", "false", "false", "true", "true", "false"};
     String[] timeStamps = {"1234", "2345", "34567", "5434", "125", "134"};
-    conf.setStrings(MRJobConfig.CACHE_FILES, distCacheFiles);
-    conf.setStrings(MRJobConfig.CACHE_FILES_SIZES, fileSizes);
-    conf.setStrings(MRJobConfig.CACHE_FILE_VISIBILITIES, visibilities);
-    conf.setStrings(MRJobConfig.CACHE_FILE_TIMESTAMPS, timeStamps);
+    if (useOldProperties) {
+      conf.setStrings("mapred.cache.files", distCacheFiles);
+      conf.setStrings("mapred.cache.files.filesizes", fileSizes);
+      conf.setStrings("mapred.cache.files.visibilities", visibilities);
+      conf.setStrings("mapred.cache.files.timestamps", timeStamps);
+    } else {
+      conf.setStrings(MRJobConfig.CACHE_FILES, distCacheFiles);
+      conf.setStrings(MRJobConfig.CACHE_FILES_SIZES, fileSizes);
+      conf.setStrings(MRJobConfig.CACHE_FILE_VISIBILITIES, visibilities);
+      conf.setStrings(MRJobConfig.CACHE_FILE_TIMESTAMPS, timeStamps);
+    }
+    // local FS based dist cache file whose path contains <user>/.staging is
+    // not created on HDFS. So file size 2500 is not added to sortedFileSizes.
+    long[] sortedFileSizes = new long[] {1500, 1200, 700, 500, 400};
+    return sortedFileSizes;
+  }
+
+  /**
+   * Runs setupGenerateDistCacheData() on a new DistrbutedCacheEmulator and
+   * and returns the jobConf. Fills the array <code>sortedFileSizes</code> that
+   * can be used for validation.
+   * Validation of exit code from setupGenerateDistCacheData() is done.
+   * @param generate true if -generate option is specified
+   * @param sortedFileSizes sorted HDFS-based distributed cache file sizes
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  private JobConf runSetupGenerateDistCacheData(boolean generate,
+      long[] sortedFileSizes) throws IOException, InterruptedException {
+    Configuration conf = new Configuration();
+    long[] fileSizes = configureDummyDistCacheFiles(conf, false);
+    System.arraycopy(fileSizes, 0, sortedFileSizes, 0, fileSizes.length);
 
     // Job stories of all 3 jobs will have same dist cache files in their
     // configurations
@@ -186,11 +208,26 @@ public class TestDistCacheEmulation {
                  expectedExitCode, exitCode);
 
     // reset back
+    resetDistCacheConfigProperties(jobConf);
+    return jobConf;
+  }
+
+  /**
+   * Reset the config properties related to Distributed Cache in the given
+   * job configuration <code>jobConf</code>.
+   * @param jobConf job configuration
+   */
+  private void resetDistCacheConfigProperties(JobConf jobConf) {
+    // reset current/latest property names
     jobConf.setStrings(MRJobConfig.CACHE_FILES, "");
     jobConf.setStrings(MRJobConfig.CACHE_FILES_SIZES, "");
     jobConf.setStrings(MRJobConfig.CACHE_FILE_TIMESTAMPS, "");
     jobConf.setStrings(MRJobConfig.CACHE_FILE_VISIBILITIES, "");
-    return jobConf;
+    // reset old property names
+    jobConf.setStrings("mapred.cache.files", "");
+    jobConf.setStrings("mapred.cache.files.filesizes", "");
+    jobConf.setStrings("mapred.cache.files.visibilities", "");
+    jobConf.setStrings("mapred.cache.files.timestamps", "");
   }
 
   /**
@@ -357,5 +394,89 @@ public class TestDistCacheEmulation {
     assertFalse("Disabling of emulation of distributed cache load by setting "
         + DistributedCacheEmulator.GRIDMIX_EMULATE_DISTRIBUTEDCACHE
         + " to false is not working.", dce.shouldEmulateDistCacheLoad());
+  }
+
+  /**
+   * Verify if DistributedCacheEmulator can configure distributed cache files
+   * for simulated job if job conf from trace had no dist cache files.
+   * @param conf configuration for the simulated job to be run
+   * @param jobConf job configuration of original cluster's job, obtained from
+   *                trace
+   * @throws IOException
+   */
+  private void validateJobConfWithOutDCFiles(Configuration conf,
+      JobConf jobConf) throws IOException {
+    // Validate if Gridmix can configure dist cache files properly if there are
+    // no HDFS-based dist cache files and localFS-based dist cache files in
+    // trace for a job.
+    dce.configureDistCacheFiles(conf, jobConf);
+    assertNull("Distributed cache files configured by GridMix is wrong.",
+               conf.get(MRJobConfig.CACHE_FILES));
+    assertNull("Distributed cache files configured by Gridmix through -files "
+               + "option is wrong.", conf.get("tmpfiles"));
+  }
+
+  /**
+   * Verify if DistributedCacheEmulator can configure distributed cache files
+   * for simulated job if job conf from trace had HDFS-based dist cache files
+   * and local-FS-based dist cache files.
+   * <br>Also validate if Gridmix can handle/read deprecated config properties
+   * like mapred.cache.files.filesizes and mapred.cache.files.visibilities from
+   * trace file.
+   * @param conf configuration for the simulated job to be run
+   * @param jobConf job configuration of original cluster's job, obtained from
+   *                trace
+   * @throws IOException
+   */
+  private void validateJobConfWithDCFiles(Configuration conf,
+      JobConf jobConf) throws IOException {
+    long[] sortedFileSizes = configureDummyDistCacheFiles(jobConf, true);
+
+    // Validate if Gridmix can handle deprecated config properties like
+    // mapred.cache.files.filesizes and mapred.cache.files.visibilities.
+    // 1 local FS based dist cache file and 5 HDFS based dist cache files. So
+    // total expected dist cache files count is 6.
+    assertEquals("Gridmix is not able to extract dist cache file sizes.",
+                 6, jobConf.getStrings(MRJobConfig.CACHE_FILES_SIZES).length);
+    assertEquals("Gridmix is not able to extract dist cache file visibilities.",
+                 6, jobConf.getStrings(MRJobConfig.CACHE_FILE_VISIBILITIES).length);
+
+    dce.configureDistCacheFiles(conf, jobConf);
+
+    assertEquals("Configuring of HDFS-based dist cache files by gridmix is "
+                 + "wrong.", sortedFileSizes.length,
+                 conf.getStrings(MRJobConfig.CACHE_FILES).length);
+    assertEquals("Configuring of local-FS-based dist cache files by gridmix is "
+                 + "wrong.", 1, conf.getStrings("tmpfiles").length);
+  }
+
+  /**
+   * Test if Gridmix can configure config properties related to Distributed
+   * Cache properly. Also verify if Gridmix can handle deprecated config
+   * properties related to Distributed Cache.
+   * @throws IOException
+   */
+  @Test
+  public void testDistCacheFilesConfiguration() throws IOException {
+    Configuration conf = new Configuration();
+    JobConf jobConf = GridmixTestUtils.mrCluster.createJobConf(
+                        new JobConf(conf));
+    Path ioPath = new Path("testDistCacheEmulationConfigurability")
+                    .makeQualified(GridmixTestUtils.dfs);
+    FileSystem fs = FileSystem.get(jobConf);
+    FileSystem.mkdirs(fs, ioPath, new FsPermission((short)0777));
+
+    // default config
+    dce = createDistributedCacheEmulator(jobConf, ioPath, false);
+    assertTrue("Default configuration of "
+               + DistributedCacheEmulator.GRIDMIX_EMULATE_DISTRIBUTEDCACHE
+               + " is wrong.", dce.shouldEmulateDistCacheLoad());
+
+    validateJobConfWithOutDCFiles(conf, jobConf);
+
+    // Validate if Gridmix can configure dist cache files properly if there are
+    // HDFS-based dist cache files and localFS-based dist cache files in trace
+    // for a job. Set old config properties and validate.
+    validateJobConfWithDCFiles(conf, jobConf);
   }
 }
