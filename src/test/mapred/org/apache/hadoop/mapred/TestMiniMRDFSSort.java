@@ -94,7 +94,6 @@ public class TestMiniMRDFSSort extends TestCase {
     job.setInt(JobContext.JVM_NUMTASKS_TORUN, -1);
     job.setInt(JobContext.IO_SORT_MB, 1);
     job.setNumMapTasks(12);
-    job.setBoolean(JobContext.JOB_UBERTASK_ENABLE, false);
 
     // Setup command-line arguments to 'sort'
     String[] sortArgs = {sortInput.toString(), sortOutput.toString()};
