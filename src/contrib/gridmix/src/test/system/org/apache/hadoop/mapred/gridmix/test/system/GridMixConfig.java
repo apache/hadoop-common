@@ -74,6 +74,30 @@ public class GridMixConfig {
       "gridmix.min.file.size";
 
   /**
+   * Gridmix sleep job map task only.
+   */
+  public static final String GRIDMIX_SLEEPJOB_MAPTASK_ONLY =
+      "gridmix.sleep.maptask-only";
+
+  /**
+   * Gridmix sleep map maximum time.
+   */
+  public static final String GRIDMIX_SLEEP_MAP_MAX_TIME =
+      "gridmix.sleep.max-map-time";
+
+  /**
+   * Gridmix sleep reduce maximum time.
+   */
+  public static final String GRIDMIX_SLEEP_REDUCE_MAX_TIME =
+    "gridmix.sleep.max-reduce-time";
+
+  /**
+   * Gridmix key fraction.
+   */
+  public static final String GRIDMIX_KEY_FRC =
+    "gridmix.key.fraction";
+
+  /**
    * Gridmix compression enable
    */
   public static final String GRIDMIX_COMPRESSION_ENABLE =

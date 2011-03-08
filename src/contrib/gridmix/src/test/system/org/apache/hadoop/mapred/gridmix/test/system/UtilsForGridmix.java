@@ -27,9 +27,13 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.mapred.gridmix.Gridmix;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapred.RunningJob;
+import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.mapreduce.JobID;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Arrays;
 import java.net.URI;
 import java.text.SimpleDateFormat;
@@ -246,6 +250,46 @@ public class UtilsForGridmix {
         return fileName;
      }
   }
+  
+  /**
+  * List the current gridmix jobid's.
+  * @param client - job client.
+  * @param execJobCount - number of executed jobs.
+  * @return - list of gridmix jobid's.
+  */
+ public static List<JobID> listGridmixJobIDs(JobClient client,
+     int execJobCount) throws IOException {
+   List<JobID> jobids = new ArrayList<JobID>();
+   for (int index = 1; index <= execJobCount; index++) {
+     JobID jobid = client.getAllJobs()[client.getAllJobs().
+        length - index].getJobID();
+     RunningJob runJob = client.getJob(jobid.toString());
+     if (!runJob.getJobName().equals("GRIDMIX_GENERATE_INPUT_DATA")) {
+       jobids.add(jobid);
+     }
+   }
+   return (jobids.size() == 0)? null : jobids;
+ }
+
+ /**
+  * List the proxy users. 
+  * @param conf
+  * @return
+  * @throws Exception
+  */
+ public static List<String> listProxyUsers(Configuration conf,
+     String loginUser) throws Exception {
+   List<String> proxyUsers = new ArrayList<String>();
+   ProxyUserDefinitions pud = getProxyUsersData(conf);
+   Map<String, GroupsAndHost> usersData = pud.getProxyUsers();
+   Collection users = usersData.keySet();
+   Iterator<String> itr = users.iterator();
+   while (itr.hasNext()) {
+     String user = itr.next();
+     if (!user.equals(loginUser)){ proxyUsers.add(user); };
+   }
+   return proxyUsers;
+ }
 
   private static String buildProxyUsersFile(final Map<String, GroupsAndHost> 
       proxyUserData) throws Exception {
