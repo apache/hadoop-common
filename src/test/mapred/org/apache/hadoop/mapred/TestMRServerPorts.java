@@ -29,6 +29,7 @@ import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 
 /**
  * This test checks correctness of port usage by mapreduce components:
@@ -41,6 +42,9 @@ import org.apache.hadoop.fs.FileSystem;
  * a free port and start on it.
  */
 public class TestMRServerPorts extends TestCase {
+
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
+
   TestHDFSServerPorts hdfs = new TestHDFSServerPorts();
 
   // Runs the JT in a separate thread

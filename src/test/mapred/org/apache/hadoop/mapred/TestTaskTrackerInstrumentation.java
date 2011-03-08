@@ -28,8 +28,12 @@ import static org.junit.Assert.*;
 
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 
 public class TestTaskTrackerInstrumentation {
+
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
+
   private static final Log LOG = LogFactory.getLog(
       TestTaskTrackerInstrumentation.class);
 

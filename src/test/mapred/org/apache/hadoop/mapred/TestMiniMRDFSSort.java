@@ -39,6 +39,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.examples.RandomWriter;
 import org.apache.hadoop.examples.Sort;
+import org.apache.hadoop.mapreduce.FileSystemCounter;
 
 /**
  * A JUnit test to test the Map-Reduce framework's sort 
@@ -105,8 +106,8 @@ public class TestMiniMRDFSSort extends TestCase {
       org.apache.hadoop.mapreduce.lib.input.FileInputFormat.COUNTER_GROUP,
       org.apache.hadoop.mapreduce.lib.input.FileInputFormat.BYTES_READ).
       getValue();
-    long hdfsRead = counters.findCounter(Task.FILESYSTEM_COUNTER_GROUP,
-                                         "HDFS_BYTES_READ").getValue();
+    long hdfsRead = counters.findCounter("HDFS", FileSystemCounter.BYTES_READ)
+                            .getValue();
     // the hdfs read should be between 100% and 110% of the map input bytes
     assertTrue("map input = " + mapInput + ", hdfs read = " + hdfsRead,
                (hdfsRead < (mapInput * 1.1)) &&

@@ -34,12 +34,15 @@ import org.apache.hadoop.mapreduce.jobhistory.HistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
 import org.apache.hadoop.mapreduce.split.JobSplit;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 
 /** 
  * Utilities used in unit test.
  *  
  */
 public class FakeObjectUtilities {
+
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
 
   static final Log LOG = LogFactory.getLog(FakeObjectUtilities.class);
 

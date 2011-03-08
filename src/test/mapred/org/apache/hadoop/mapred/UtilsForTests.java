@@ -50,7 +50,7 @@ import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.mapred.SortValidator.RecordStatsChecker.NonSplitableSequenceFileInputFormat;
 import org.apache.hadoop.mapred.lib.IdentityMapper;
 import org.apache.hadoop.mapred.lib.IdentityReducer;
-import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.util.StringUtils;
 
 import org.apache.commons.logging.Log;
@@ -72,6 +72,8 @@ public class UtilsForTests {
 
   static DecimalFormat dfm = new DecimalFormat("####.000");
   static DecimalFormat ifm = new DecimalFormat("###,###,###,###,###");
+
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
 
   public static String dfmt(double d) {
     return dfm.format(d);

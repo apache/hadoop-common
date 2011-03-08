@@ -67,7 +67,7 @@ public class MiniMRCluster {
   private JobConf job;
   private Clock clock;
 
-  { DefaultMetricsSystem.setMiniClusterMode(true); }
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
   
   /**
    * An inner class that runs a job tracker.

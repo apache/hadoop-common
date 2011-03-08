@@ -54,6 +54,7 @@ import org.apache.hadoop.mapred.TaskTracker.TaskInProgress;
 import org.apache.hadoop.mapred.UtilsForTests.InlineCleanupQueue;
 
 import junit.framework.TestCase;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 
 /**
  * Test to verify localization of a job and localization of a task on a
@@ -61,6 +62,8 @@ import junit.framework.TestCase;
  * 
  */
 public class TestTaskTrackerLocalization extends TestCase {
+
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
 
   private static File TEST_ROOT_DIR = 
     new File(System.getProperty("test.build.data", "/tmp"));
