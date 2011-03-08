@@ -28,13 +28,20 @@ import org.apache.hadoop.conf.Configuration;
 class MemoryMatcher {
 
   private static final Log LOG = LogFactory.getLog(MemoryMatcher.class);
-  static long memSizeForMapSlotOnJT = JobConf.DISABLED_MEMORY_LIMIT;
-  static long memSizeForReduceSlotOnJT = JobConf.DISABLED_MEMORY_LIMIT;
-  static long limitMaxMemForMapTasks = JobConf.DISABLED_MEMORY_LIMIT;
-  static long limitMaxMemForReduceTasks = JobConf.DISABLED_MEMORY_LIMIT;
+  private static JobTracker.MemoryLimits schedulerMemLimits =
+      new JobTracker.MemoryLimits();
 
 
   public MemoryMatcher() {
+    // initialize memory limits using official JobTracker values
+    schedulerMemLimits.setMemSizeForMapSlot(
+        JobTracker.getMemSizeForMapSlot());
+    schedulerMemLimits.setMemSizeForReduceSlot(
+        JobTracker.getMemSizeForReduceSlot());
+    schedulerMemLimits.setMaxMemForMapTasks(
+        JobTracker.getLimitMaxMemForMapTasks());
+    schedulerMemLimits.setMaxMemForReduceTasks(
+        JobTracker.getLimitMaxMemForReduceTasks());
   }
 
   /**
@@ -133,17 +140,7 @@ class MemoryMatcher {
   }
 
   static boolean isSchedulingBasedOnMemEnabled() {
-    if (getLimitMaxMemForMapSlot()
-                                  == JobConf.DISABLED_MEMORY_LIMIT
-        || getLimitMaxMemForReduceSlot()
-                                  == JobConf.DISABLED_MEMORY_LIMIT
-        || getMemSizeForMapSlot()
-                                  == JobConf.DISABLED_MEMORY_LIMIT
-        || getMemSizeForReduceSlot()
-                                  == JobConf.DISABLED_MEMORY_LIMIT) {
-      return false;
-    }
-    return true;
+    return schedulerMemLimits.isMemoryConfigSet();
   }
 
   public static void initializeMemoryRelatedConf(Configuration conf) {
@@ -164,72 +161,36 @@ class MemoryMatcher {
           CapacitySchedulerConf.UPPER_LIMIT_ON_TASK_PMEM_PROPERTY));
     }
 
-    if (conf.get(JobConf.MAPRED_TASK_DEFAULT_MAXVMEM_PROPERTY) != null) {
-      LOG.warn(
-        JobConf.deprecatedString(
-          JobConf.MAPRED_TASK_DEFAULT_MAXVMEM_PROPERTY));
-    }
+    // Our local schedulerMemLimits instance and everything from here to the
+    // end of the file is really just for TestCapacityScheduler, which assumes
+    // it can set weird values and have them automatically reinitialized prior
+    // to the subsequent test.  Otherwise the official JobTracker versions
+    // would suffice.
 
-    memSizeForMapSlotOnJT =
-        JobConf.normalizeMemoryConfigValue(conf.getLong(
-            MRConfig.MAPMEMORY_MB, JobConf.DISABLED_MEMORY_LIMIT));
-    memSizeForReduceSlotOnJT =
-        JobConf.normalizeMemoryConfigValue(conf.getLong(
-            MRConfig.REDUCEMEMORY_MB,
-            JobConf.DISABLED_MEMORY_LIMIT));
+    JobTracker.initializeMemoryRelatedConfig(conf, schedulerMemLimits);
 
-    //handling @deprecated values
-    if (conf.get(JobConf.UPPER_LIMIT_ON_TASK_VMEM_PROPERTY) != null) {
-      LOG.warn(
-        JobConf.deprecatedString(
-          JobConf.UPPER_LIMIT_ON_TASK_VMEM_PROPERTY)+
-          " instead use " + JTConfig.JT_MAX_MAPMEMORY_MB +
-          " and " + JTConfig.JT_MAX_REDUCEMEMORY_MB
-      );
-
-      limitMaxMemForMapTasks = limitMaxMemForReduceTasks =
-        JobConf.normalizeMemoryConfigValue(
-          conf.getLong(
-            JobConf.UPPER_LIMIT_ON_TASK_VMEM_PROPERTY,
-            JobConf.DISABLED_MEMORY_LIMIT));
-      if (limitMaxMemForMapTasks != JobConf.DISABLED_MEMORY_LIMIT &&
-        limitMaxMemForMapTasks >= 0) {
-        limitMaxMemForMapTasks = limitMaxMemForReduceTasks =
-          limitMaxMemForMapTasks /
-            (1024 * 1024); //Converting old values in bytes to MB
-      }
-    } else {
-      limitMaxMemForMapTasks =
-        JobConf.normalizeMemoryConfigValue(
-          conf.getLong(
-            JTConfig.JT_MAX_MAPMEMORY_MB, JobConf.DISABLED_MEMORY_LIMIT));
-      limitMaxMemForReduceTasks =
-        JobConf.normalizeMemoryConfigValue(
-          conf.getLong(
-            JTConfig.JT_MAX_REDUCEMEMORY_MB, JobConf.DISABLED_MEMORY_LIMIT));
-    }
-    LOG.info(String.format("Scheduler configured with "
-        + "(memSizeForMapSlotOnJT, memSizeForReduceSlotOnJT, "
-        + "limitMaxMemForMapTasks, limitMaxMemForReduceTasks)"
-        + " (%d,%d,%d,%d)", Long.valueOf(memSizeForMapSlotOnJT), Long
-        .valueOf(memSizeForReduceSlotOnJT), Long
-        .valueOf(limitMaxMemForMapTasks), Long
-        .valueOf(limitMaxMemForReduceTasks)));
+    LOG.info(new StringBuilder().append("Scheduler configured with ")
+        .append("(memSizeForMapSlotOnJT, memSizeForReduceSlotOnJT,")
+        .append(" limitMaxMemForMapTasks, limitMaxMemForReduceTasks) (")
+        .append(getMemSizeForMapSlot()).append(", ")
+        .append(getMemSizeForReduceSlot()).append(", ")
+        .append(getLimitMaxMemForMapSlot()).append(", ")
+        .append(getLimitMaxMemForReduceSlot()).append(")"));
   }
 
-  static long  getMemSizeForMapSlot() {
-    return memSizeForMapSlotOnJT;
+  static long getMemSizeForMapSlot() {
+    return schedulerMemLimits.getMemSizeForMapSlot();
   }
 
   static long getMemSizeForReduceSlot() {
-    return memSizeForReduceSlotOnJT;
+    return schedulerMemLimits.getMemSizeForReduceSlot();
   }
 
   static long getLimitMaxMemForMapSlot() {
-    return limitMaxMemForMapTasks;
+    return schedulerMemLimits.getMaxMemForMapTasks();
   }
 
   static long getLimitMaxMemForReduceSlot() {
-    return limitMaxMemForReduceTasks;
+    return schedulerMemLimits.getMaxMemForReduceTasks();
   }
 }

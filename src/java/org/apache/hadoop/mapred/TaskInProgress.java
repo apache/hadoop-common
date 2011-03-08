@@ -969,8 +969,9 @@ class TaskInProgress {
    * Get the split locations
    */
   public String[] getSplitLocations() {
-//GRR FIXME?  may need to add "(  ..  || isUberTask())" if ever called for uber (but locations for which split?  all of them?)
-    if (isMapTask() && !jobSetup && !jobCleanup) {
+    // last condition is redundant, but wanted to call out explicitly that
+    // UberTasks don't expose split locations even if they contain MapTasks:
+    if (isMapTask() && !jobSetup && !jobCleanup && !isUberTask()) {
       return splitInfo[0].getLocations();
     }
     return new String[0];
@@ -1236,8 +1237,6 @@ class TaskInProgress {
     return t;
   }
 
-  // GRR FIXME?  more efficient just to pass splitInfo directly...any need for
-  //             rest of it in UberTask?
   TaskSplitIndex[] getSplitIndexArray() {
     int numSplits = splitInfo.length;
     TaskSplitIndex[] splitIndex = new TaskSplitIndex[numSplits];

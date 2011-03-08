@@ -322,7 +322,7 @@ class MapTask extends Task {
     throws IOException, ClassNotFoundException, InterruptedException {
     this.umbilical = umbilical;
 
-    if (isMapTask()) {   //GRR Q: why is this conditional here? ALWAYS true (unless someone derives from MapTask and overrides isMapTask() but not run())
+    if (isMapTask()) {
       mapPhase = getProgress().addPhase("map", 0.667f);
       sortPhase = getProgress().addPhase("sort", 0.333f);
     }

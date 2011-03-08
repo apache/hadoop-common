@@ -1333,10 +1333,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
 
   private final ACLsManager aclsManager;
 
-  long limitMaxMemForMapTasks;
-  long limitMaxMemForReduceTasks;
-  long memSizeForMapSlotOnJT;
-  long memSizeForReduceSlotOnJT;
+  private static MemoryLimits jtMemLimits = new MemoryLimits();
 
   private final QueueManager queueManager;
 
@@ -4370,23 +4367,76 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
           .getQueueRefresher());
     }
   }
-  
+
+  @InterfaceAudience.Private
+  @InterfaceStability.Unstable
+  static class MemoryLimits {
+    private long memSizeForMapSlot = JobConf.DISABLED_MEMORY_LIMIT;
+    private long memSizeForReduceSlot = JobConf.DISABLED_MEMORY_LIMIT;
+    private long maxMemForMapTasks = JobConf.DISABLED_MEMORY_LIMIT;
+    private long maxMemForReduceTasks = JobConf.DISABLED_MEMORY_LIMIT;
+
+    public long getMemSizeForMapSlot()    { return memSizeForMapSlot; }
+    public long getMemSizeForReduceSlot() { return memSizeForReduceSlot; }
+    public long getMaxMemForMapTasks()    { return maxMemForMapTasks; }
+    public long getMaxMemForReduceTasks() { return maxMemForReduceTasks; }
+
+    public void setMemSizeForMapSlot(long mapMemSize) {
+      memSizeForMapSlot = mapMemSize;
+    }
+    public void setMemSizeForReduceSlot(long reduceMemSize) {
+      memSizeForReduceSlot = reduceMemSize;
+    }
+    public void setMaxMemForMapTasks(long maxMapMem) {
+      maxMemForMapTasks = maxMapMem;
+    }
+    public void setMaxMemForReduceTasks(long maxReduceMem) {
+      maxMemForReduceTasks = maxReduceMem;
+    }
+
+    public boolean isMemoryConfigSet() {
+      return (getMemSizeForMapSlot() != JobConf.DISABLED_MEMORY_LIMIT
+              && getMemSizeForReduceSlot() != JobConf.DISABLED_MEMORY_LIMIT
+              && getMaxMemForMapTasks() != JobConf.DISABLED_MEMORY_LIMIT
+              && getMaxMemForReduceTasks() != JobConf.DISABLED_MEMORY_LIMIT);
+    }
+  }
+
   private void initializeTaskMemoryRelatedConfig() {
-    memSizeForMapSlotOnJT =
+    initializeMemoryRelatedConfig(conf, jtMemLimits);
+    LOG.info(new StringBuilder().append("JobTracker configured with ")
+        .append("(memSizeForMapSlotOnJT, memSizeForReduceSlotOnJT,")
+        .append(" limitMaxMemForMapTasks, limitMaxMemForReduceTasks) (")
+        .append(jtMemLimits.getMemSizeForMapSlot()).append(", ")
+        .append(jtMemLimits.getMemSizeForReduceSlot()).append(", ")
+        .append(jtMemLimits.getMaxMemForMapTasks()).append(", ")
+        .append(jtMemLimits.getMaxMemForReduceTasks()).append(")"));
+  }
+
+  @InterfaceAudience.Private
+  @InterfaceStability.Unstable
+  public static void initializeMemoryRelatedConfig(Configuration conf,
+                                                   MemoryLimits memLimits) {
+    memLimits.setMemSizeForMapSlot(
         JobConf.normalizeMemoryConfigValue(conf.getLong(
-            MAPMEMORY_MB,
-            JobConf.DISABLED_MEMORY_LIMIT));
-    memSizeForReduceSlotOnJT =
+            MRConfig.MAPMEMORY_MB, JobConf.DISABLED_MEMORY_LIMIT)));
+    memLimits.setMemSizeForReduceSlot(
         JobConf.normalizeMemoryConfigValue(conf.getLong(
-            REDUCEMEMORY_MB,
-            JobConf.DISABLED_MEMORY_LIMIT));
+            MRConfig.REDUCEMEMORY_MB, JobConf.DISABLED_MEMORY_LIMIT)));
+
+    // handle @deprecated values
+    if (conf.get(JobConf.MAPRED_TASK_DEFAULT_MAXVMEM_PROPERTY) != null) {
+      LOG.warn(
+        JobConf.deprecatedString(JobConf.MAPRED_TASK_DEFAULT_MAXVMEM_PROPERTY));
+    }
+
+    long limitMaxMemForMapTasks, limitMaxMemForReduceTasks;
 
     if (conf.get(JobConf.UPPER_LIMIT_ON_TASK_VMEM_PROPERTY) != null) {
       LOG.warn(
-        JobConf.deprecatedString(
-          JobConf.UPPER_LIMIT_ON_TASK_VMEM_PROPERTY)+
-          " instead use "+JTConfig.JT_MAX_MAPMEMORY_MB+
-          " and " + JTConfig.JT_MAX_REDUCEMEMORY_MB
+        JobConf.deprecatedString(JobConf.UPPER_LIMIT_ON_TASK_VMEM_PROPERTY)
+        + " instead use " + JTConfig.JT_MAX_MAPMEMORY_MB
+        + " and " + JTConfig.JT_MAX_REDUCEMEMORY_MB
       );
 
       limitMaxMemForMapTasks = limitMaxMemForReduceTasks =
@@ -4413,12 +4463,32 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
             JobConf.DISABLED_MEMORY_LIMIT));
     }
 
-    LOG.info(new StringBuilder().append("Scheduler configured with ").append(
-        "(memSizeForMapSlotOnJT, memSizeForReduceSlotOnJT,").append(
-        " limitMaxMemForMapTasks, limitMaxMemForReduceTasks) (").append(
-        memSizeForMapSlotOnJT).append(", ").append(memSizeForReduceSlotOnJT)
-        .append(", ").append(limitMaxMemForMapTasks).append(", ").append(
-            limitMaxMemForReduceTasks).append(")"));
+    memLimits.setMaxMemForMapTasks(limitMaxMemForMapTasks);
+    memLimits.setMaxMemForReduceTasks(limitMaxMemForReduceTasks);
+  }
+
+  @InterfaceAudience.Private
+  @InterfaceStability.Unstable
+  static public long getMemSizeForMapSlot() {
+    return jtMemLimits.getMemSizeForMapSlot();
+  }
+
+  @InterfaceAudience.Private
+  @InterfaceStability.Unstable
+  static public long getMemSizeForReduceSlot() {
+    return jtMemLimits.getMemSizeForReduceSlot();
+  }
+
+  @InterfaceAudience.Private
+  @InterfaceStability.Unstable
+  static public long getLimitMaxMemForMapTasks() {
+    return jtMemLimits.getMaxMemForMapTasks();
+  }
+
+  @InterfaceAudience.Private
+  @InterfaceStability.Unstable
+  static public long getLimitMaxMemForReduceTasks() {
+    return jtMemLimits.getMaxMemForReduceTasks();
   }
 
   @Override
@@ -4435,16 +4505,6 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     
     Groups.getUserToGroupsMappingService().refresh();
   }
-  
-  private boolean perTaskMemoryConfigurationSetOnJT() {
-    if (limitMaxMemForMapTasks == JobConf.DISABLED_MEMORY_LIMIT
-        || limitMaxMemForReduceTasks == JobConf.DISABLED_MEMORY_LIMIT
-        || memSizeForMapSlotOnJT == JobConf.DISABLED_MEMORY_LIMIT
-        || memSizeForReduceSlotOnJT == JobConf.DISABLED_MEMORY_LIMIT) {
-      return false;
-    }
-    return true;
-  }
 
   /**
    * Check the job if it has invalid requirements and throw and IOException if does have.
@@ -4454,7 +4514,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
    */
   void checkMemoryRequirements(JobInProgress job)
       throws IOException {
-    if (!perTaskMemoryConfigurationSetOnJT()) {
+    if (!jtMemLimits.isMemoryConfigSet()) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Per-Task memory configuration is not set on JT. "
                   + "Not checking the job for invalid memory requirements.");
@@ -4473,8 +4533,8 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
       msg = "Invalid job requirements.";
     }
 
-    if (maxMemForMapTask > limitMaxMemForMapTasks
-        || maxMemForReduceTask > limitMaxMemForReduceTasks) {
+    if (maxMemForMapTask > getLimitMaxMemForMapTasks()
+        || maxMemForReduceTask > getLimitMaxMemForReduceTasks()) {
       invalidJob = true;
       msg = "Exceeds the cluster's max-memory-limit.";
     }

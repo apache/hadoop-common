@@ -50,7 +50,8 @@ public class UberTaskRunner extends TaskRunner {
 
   @Override
   public Level getLogLevel(JobConf jobConf) {
-    //GRR FIXME?  what if        !=  JobConf.MAPRED_MAP_TASK_LOG_LEVEL ?
+    // note that, if JobConf.MAPRED_MAP_TASK_LOG_LEVEL isn't same as REDUCE
+    // setting, sub-MapTasks will "do the wrong thing" (should be very rare)
     return Level.toLevel(jobConf.get(JobConf.MAPRED_REDUCE_TASK_LOG_LEVEL,
                                      JobConf.DEFAULT_LOG_LEVEL.toString()));
   }

@@ -258,12 +258,16 @@ class JSPUtil {
   /**
    * Method used to generate the Job table for Job pages.
    * 
-   * @param label display heading to be used in the job table. [GRR FIXME: not used for heading! jobtracker.jsp handles separately--would be better to pass in enum]
+   * @param label display heading to be used in the job table.
    * @param jobs vector of jobs to be displayed in table.
    * @param refresh refresh interval to be used in jobdetails page.
    * @param rowId beginning row id to be used in the table.
    * @return
    * @throws IOException
+   */
+  /*
+   * FIXME:  Label is not used for the table heading; jobtracker.jsp handles
+   *         that separately.  Would be better to pass in an enum.
    */
   public static String generateJobTable(String label,
       Collection<JobInProgress> jobs, int refresh, int rowId, JobConf conf)

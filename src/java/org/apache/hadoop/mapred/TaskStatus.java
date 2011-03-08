@@ -544,9 +544,9 @@ public abstract class TaskStatus implements Writable, Cloneable {
   
   static void writeTaskStatus(DataOutput out, TaskStatus taskStatus) 
   throws IOException {
-/* LATER
- *  //GRR FIXME:  longer-term, just store tsType as member var (but then need
- *  //            to modify or add new ctor:  used in many places)
+/*
+ *  // FIXME (LATER):  just store tsType as member var (but then need
+ *  //                 to modify or add new ctor:  used in many places)
  *  Type tsType = taskStatus.getIsUber()
  *      ? TaskStatus.Type.UBER
  *      : taskStatus.getIsMap()

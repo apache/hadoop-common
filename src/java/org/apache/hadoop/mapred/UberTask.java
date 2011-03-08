@@ -213,7 +213,6 @@ class UberTask extends Task {
     return mapIds;
   }
 
-//GRR PERF TODO: make sure not crossing disk boundaries (optimization: just renaming map outputs to reduce inputs without doing in-memory/disk-spill shuffle thing)
   private void renameMapOutputForReduce(TaskAttemptID mapId,
                                         MapOutputFile subMapOutputFile)
   throws IOException {
@@ -299,7 +298,8 @@ class UberTask extends Task {
       reporter.progress();
 
       // every map will produce file.out (in the same dir), so rename as we go
-      if (numReduceTasks > 0) {  //GRR FIXME:  is conditionalized approach a behavior change?  do map-only jobs produce file.out or map_#.out or nothing at all?  if not renamed here, do we suddenly lose data that we used to preserve?
+      // (longer-term, will use TaskAttemptIDs as part of name => avoid rename)
+      if (numReduceTasks > 0) {
         renameMapOutputForReduce(mapIds[j], map.getMapOutputFile());
       }
     }
@@ -391,7 +391,7 @@ class UberTask extends Task {
   @Override
   public void write(DataOutput out) throws IOException {
     super.write(out);
-    if (isMapOrReduce()) {  //GRR Q:  why would this ever NOT be true?
+    if (isMapOrReduce()) {
       out.writeBoolean(jobSetupCleanupNeeded);
       WritableUtils.writeVInt(out, numMapTasks);
       WritableUtils.writeVInt(out, numReduceTasks);
@@ -405,7 +405,7 @@ class UberTask extends Task {
   @Override
   public void readFields(DataInput in) throws IOException {
     super.readFields(in);
-    if (isMapOrReduce()) {  //GRR Q:  why would this ever NOT be true?
+    if (isMapOrReduce()) {
       jobSetupCleanupNeeded = in.readBoolean();
       numMapTasks = WritableUtils.readVInt(in);
       numReduceTasks = WritableUtils.readVInt(in);

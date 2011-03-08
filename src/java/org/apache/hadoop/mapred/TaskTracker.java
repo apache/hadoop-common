@@ -3212,7 +3212,7 @@ public class TaskTracker
     
     LOG.debug("JVM with ID : " + jvmId + " asked for a task");
     if (!jvmManager.isJvmKnown(jvmId)) {
-      LOG.info("Killing unknown JVM " + jvmId); //GRR FIXME:  bug?  no (apparent) killing going on here...
+      LOG.info("Killing unknown JVM " + jvmId); // FIXME:  cut-and-paste bug? (no apparent killing going on here... maybe "Ignoring unknown JVM ID"?)
       return new JvmTask(null, true);
     }
     RunningJob rjob = runningJobs.get(jvmId.getJobId());

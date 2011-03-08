@@ -513,17 +513,13 @@ public class JobInProgress {
                                               int maxCacheLevel) {
     Map<Node, List<TaskInProgress>> cache = 
       new IdentityHashMap<Node, List<TaskInProgress>>(maxCacheLevel);
-//GRR PERF FIXME:  wtf??  claiming hash size is maxCacheLevel == 2(!)
-//   potentially:  size == num splits * num split locations * numlevels (if every split location is on a separate host)...hmmm, possible for same split location to show up in more than 1 level?
     
-//GRR Q:  what are "splits" in this context?  if text file, does every 10,000 lines (or whatever) in same block constitute a split?
     for (int i = 0; i < splits.length; i++) {
       // originally UberTask was a flavor of MapTask (=> maps[0]), but the
       // current design makes it a flavor of ReduceTask instead (=> reduces[0])
       TaskInProgress map = uberMode? reduces[0] : maps[i];
       String[] splitLocations = splits[i].getLocations();
       if (splitLocations.length == 0) {
-//GRR Q:  don't understand this:  if given MapTask's split has no locations => non-local?  why not fail immediately if no data?  or treat as local since doesn't matter where? (or do we want to avoid contention for node that might have local data for some other map?)
         nonLocalMaps.add(map);
         continue;
       }
@@ -676,6 +672,7 @@ public class JobInProgress {
         Math.min(1, sysConf.getInt(MRJobConfig.JOB_UBERTASK_MAXREDUCES, 1));
     long sysMaxBytes = sysConf.getLong(MRJobConfig.JOB_UBERTASK_MAXBYTES,
         sysConf.getLong("dfs.block.size", 64*1024*1024));
+    long sysMemSizeForUberSlot = JobTracker.getMemSizeForReduceSlot();
 
     // user has overall veto power over uberization, or user can set more
     // stringent limits than the system specifies, but user may not exceed
@@ -687,14 +684,15 @@ public class JobInProgress {
         && numReduceTasks <= Math.min(sysMaxReduces,
             conf.getInt(MRJobConfig.JOB_UBERTASK_MAXREDUCES, sysMaxReduces))
         && inputLength <= Math.min(sysMaxBytes,
-            conf.getLong(MRJobConfig.JOB_UBERTASK_MAXBYTES, sysMaxBytes));
+            conf.getLong(MRJobConfig.JOB_UBERTASK_MAXBYTES, sysMaxBytes))
+        // ignoring overhead due to UberTask and statics as negligible here:
+        && (Math.max(memoryPerMap, memoryPerReduce) <= sysMemSizeForUberSlot
+            || sysMemSizeForUberSlot == JobConf.DISABLED_MEMORY_LIMIT);
 
     if (uberMode) {
       // save internal details for UI
       uberMapTasks = numMapTasks;
       uberReduceTasks = numReduceTasks;
-      //GRR FIXME:  check jobSetupCleanupNeeded and set "uberSetupTasks" and
-      //            "uberCleanupTasks" for UI, too?
 
       // this method modifies numMapTasks (-> 0), numReduceTasks (-> 1), and
       // jobSetupCleanupNeeded (-> false)  [and actually creates a TIP, not a
@@ -752,7 +750,7 @@ public class JobInProgress {
 
     tasksInited.set(true);
 
-//GRR Q:  what's difference between profile.getJobID() and jobId ?
+    // possible FIXME:  if profile.getJobID() and jobId are same thing, pick one
     JobInitedEvent jie = new JobInitedEvent(
         profile.getJobID(), launchTime, numMapTasks, numReduceTasks,
         uberMode, uberMapTasks, uberReduceTasks,
@@ -858,7 +856,6 @@ public class JobInProgress {
                                     this, numSlotsPerReduce,
                                     jobSetupCleanupNeeded);
     nonRunningReduces.add(reduces[0]);  // note:  no map analogue
-//GRR FIXME?  any conditions under which numSlotsPerReduce would not be correct thing to use for an UberTask (running in a reduce slot)?
     numMapTasks = 0;
     numReduceTasks = 1;
     jobSetupCleanupNeeded = false;
@@ -2078,7 +2075,6 @@ public class JobInProgress {
     if (nonRunningMapCache == null) {
       LOG.warn("Non-running cache for maps missing!! "
                + "Job details are missing.");
-//GRR Q:  why not throwing exception or otherwise killing self and/or job?  seems like logic error...or is this expected sometimes?
       return;
     }
 
@@ -2300,7 +2296,6 @@ public class JobInProgress {
 
     // We fall to linear scan of the list (III above) if we have misses in the 
     // above caches
-//GRR FIXME?  within _this_ function?  not seeing it in the code...
 
     Node node = jobtracker.getNode(tts.getHost());
     
@@ -2320,7 +2315,7 @@ public class JobInProgress {
       // findNewMapTask is to schedule only off-switch/speculative tasks
       int maxLevelToSchedule = Math.min(maxCacheLevel, maxLevel);
       for (level = 0; level < maxLevelToSchedule; ++level) {
-        List <TaskInProgress> cacheForLevel /* a.k.a. hostMap */ = nonRunningMapCache.get(key);
+        List <TaskInProgress> cacheForLevel = nonRunningMapCache.get(key);
         if (cacheForLevel != null) {
           // this may remove a TIP from cacheForLevel (but not necessarily tip):
           tip = findTaskFromList(cacheForLevel, tts,
@@ -2330,7 +2325,6 @@ public class JobInProgress {
             scheduleMap(tip);
 
             // remove the cache if it's empty
-//GRR FIXME:  findTaskFromList() may return null even though it removed a tip => might be empty anyway?  (seems like this if-block should move up)
             if (cacheForLevel.size() == 0) {
               nonRunningMapCache.remove(key);
             }
@@ -2345,8 +2339,6 @@ public class JobInProgress {
       if (level == maxCacheLevel) {
         return -1;
       }
-//GRR FIXME:  seems like check should be against maxLevelToSchedule:  if user specifies local (maxLevel == 0 or 1) but TT specifies any (maxCacheLevel == maxLevel+1), then maxLevelToSchedule == maxLevel, level == maxLevel == maxLevelToSchedule, and level != maxCacheLevel   => fall through to non-local
-//            [can this happen, or must TT value match user's setting?  presumably can, else would (should) use same variable for both...]
     }
 
     //2. Search breadth-wise across parents at max level for non-running 

@@ -292,10 +292,10 @@ class JobQueue extends AbstractQueue {
 
 
   /**
-   * Setup {@link CapacityTaskScheduler} specific information prior to
+   * Set up {@link CapacityTaskScheduler}-specific information prior to
    * job initialization.
    * <p/>
-   * TO DO: Currently this method uses , CapacityTaskScheduler based variables
+   * TO DO: Currently this method uses CapacityTaskScheduler-based variables;
    * need to shift those.
    */
   void preInitializeJob(JobInProgress job) {
@@ -306,9 +306,8 @@ class JobQueue extends AbstractQueue {
     int slotsPerReduce = 1;
     if (MemoryMatcher.isSchedulingBasedOnMemEnabled()) {
       slotsPerMap = jobConf.computeNumSlotsPerMap(
-        MemoryMatcher.getMemSizeForMapSlot());
-      slotsPerReduce =
-        jobConf.computeNumSlotsPerReduce(
+          MemoryMatcher.getMemSizeForMapSlot());
+      slotsPerReduce = jobConf.computeNumSlotsPerReduce(
           MemoryMatcher.getMemSizeForReduceSlot());
     }
     job.setNumSlotsPerMap(slotsPerMap);

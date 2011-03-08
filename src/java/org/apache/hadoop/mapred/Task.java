@@ -474,7 +474,7 @@ abstract public class Task implements Writable, Configurable {
   /** The number of milliseconds between progress reports. */
   public static final int PROGRESS_INTERVAL = 3000;
 
-  private transient Progress taskProgress = new Progress(); //GRR Q:  why transient?  lose entire tree every time serialize??
+  private transient Progress taskProgress = new Progress();
 
   // Current counters
   private transient Counters counters = new Counters();
@@ -930,7 +930,7 @@ abstract public class Task implements Writable, Configurable {
     int retries = MAX_RETRIES;
     while (true) {
       try {
-        //GRR FIXME (later):  alternatives to taskIdForUmbilical would be
+        // FIXME (later):  alternatives to taskIdForUmbilical would be
         // (1) include taskId as part of umbilical object and protocol;
         // (2) include taskId as part of taskStatus
         // (3) extend TaskAttemptID (or create related Task inner class?) to
