@@ -451,6 +451,30 @@ public class TestDistCacheEmulation {
   }
 
   /**
+   * Verify if configureDistCacheFiles() works fine when there are distributed
+   * cache files set but visibilities are not set. This is to handle history
+   * traces of older hadoop version where there are no private/public
+   * Distributed Caches.
+   * @throws IOException
+   */
+  private void validateWithOutVisibilities() throws IOException {
+    Configuration conf = new Configuration();// configuration for simulated job
+    JobConf jobConf = new JobConf();
+    String user = "user1";
+    jobConf.setUser(user);
+    String[] files = {"/tmp/hdfs1.txt", "/tmp/"+ user + "/.staging/file1"};
+    jobConf.setStrings(MRJobConfig.CACHE_FILES, files);
+    jobConf.setStrings(MRJobConfig.CACHE_FILES_SIZES, "12,200");
+    jobConf.setStrings(MRJobConfig.CACHE_FILE_TIMESTAMPS, "56789,98345");
+    dce.configureDistCacheFiles(conf, jobConf);
+    assertEquals("Configuring of HDFS-based dist cache files by gridmix is "
+                 + "wrong.", files.length,
+                 conf.getStrings(MRJobConfig.CACHE_FILES).length);
+    assertNull("Configuring of local-FS-based dist cache files by gridmix is "
+               + "wrong.", conf.get("tmpfiles"));
+  }
+
+  /**
    * Test if Gridmix can configure config properties related to Distributed
    * Cache properly. Also verify if Gridmix can handle deprecated config
    * properties related to Distributed Cache.
@@ -472,11 +496,18 @@ public class TestDistCacheEmulation {
                + DistributedCacheEmulator.GRIDMIX_EMULATE_DISTRIBUTEDCACHE
                + " is wrong.", dce.shouldEmulateDistCacheLoad());
 
+    // Validate if DistributedCacheEmulator can handle a JobStory with out
+    // Distributed Cache files properly.
     validateJobConfWithOutDCFiles(conf, jobConf);
 
     // Validate if Gridmix can configure dist cache files properly if there are
     // HDFS-based dist cache files and localFS-based dist cache files in trace
     // for a job. Set old config properties and validate.
     validateJobConfWithDCFiles(conf, jobConf);
+    
+    // Use new JobConf as JobStory conf and check if configureDistCacheFiles()
+    // doesn't throw NPE when there are dist cache files set but visibilities
+    // are not set.
+    validateWithOutVisibilities();
   }
 }

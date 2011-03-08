@@ -326,7 +326,11 @@ class DistributedCacheEmulator {
       FileSystem fs = FileSystem.get(conf);
       String user = jobConf.getUser();
       for (int i = 0; i < files.length; i++) {
-        if (isLocalDistCacheFile(files[i], user, visibilities[i])) {
+        // Check if visibilities are available because older hadoop versions
+        // didn't have public, private Distributed Caches separately.
+        boolean visibility =
+            (visibilities == null) ? true : Boolean.valueOf(visibilities[i]);
+        if (isLocalDistCacheFile(files[i], user, visibility)) {
           // local FS based dist cache file.
           // Create this file on the pseudo local FS on the fly (i.e. when the
           // simulated job is submitted).
@@ -334,7 +338,7 @@ class DistributedCacheEmulator {
         }
         // dist cache file on hdfs
         String mappedPath = mapDistCacheFilePath(files[i], timeStamps[i],
-                              Boolean.valueOf(visibilities[i]), user);
+                                                 visibility, user);
 
         // No need to add a dist cache file path to the list if
         // (1) the mapped path is already there in the list OR
@@ -363,9 +367,8 @@ class DistributedCacheEmulator {
    *              distributed cache file
    */
   private boolean isLocalDistCacheFile(String filePath, String user,
-                                       String visibility) {
-    return (!Boolean.valueOf(visibility)
-            && filePath.contains(user + "/.staging"));
+                                       boolean visibility) {
+    return (!visibility && filePath.contains(user + "/.staging"));
   }
 
   /**
@@ -500,7 +503,11 @@ class DistributedCacheEmulator {
 
         String user = jobConf.getUser();
         for (int i = 0; i < files.length; i++) {
-          if (isLocalDistCacheFile(files[i], user, visibilities[i])) {
+          // Check if visibilities are available because older hadoop versions
+          // didn't have public, private Distributed Caches separately.
+          boolean visibility =
+            (visibilities == null) ? true : Boolean.valueOf(visibilities[i]);
+          if (isLocalDistCacheFile(files[i], user, visibility)) {
             // local FS based dist cache file.
             // Create this file on the pseudo local FS.
             String fileId = MD5Hash.digest(files[i] + timeStamps[i]).toString();
@@ -515,7 +522,7 @@ class DistributedCacheEmulator {
             // hdfs based dist cache file.
             // Get the mapped HDFS path on simulated cluster
             String mappedPath = mapDistCacheFilePath(files[i], timeStamps[i],
-                                  Boolean.valueOf(visibilities[i]), user);
+                                                     visibility, user);
             cacheFiles.add(mappedPath);
           }
         }
