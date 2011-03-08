@@ -776,9 +776,10 @@ public class JobInProgress {
     return maps.length == 0 && reduces.length == 0 && !jobSetupCleanupNeeded;
   }
   
-//GRR FIXME?  who calls this, and what should it return for ubertasks?
+  // called only by JT's initJob() (and test-related clones), which calls it
+  // only after calling initTasks(), which may modify jobSetupCleanupNeeded:
   synchronized boolean isSetupCleanupRequired() {
-   return jobSetupCleanupNeeded;
+    return jobSetupCleanupNeeded;
   }
 
   // Should be called once the init is done. This will complete the job 
@@ -891,7 +892,6 @@ public class JobInProgress {
       // case), so henceforth we pretend that setup and cleanup aren't needed
       // --unless/until job fails or is killed, in which case a separate
       // cleanup task will be triggered
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress initSetupCleanupTasks(): forcing jobSetupCleanupNeeded to false");
       jobSetupCleanupNeeded = false;
       return;
     }
@@ -1498,19 +1498,16 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
                                              int numUniqueHosts,
                                              boolean isMapSlot
                                             ) throws IOException {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): starting");
     if(!tasksInited.get() || !jobSetupCleanupNeeded) {
       return null;
     }
     
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): about to enter locked section");
     synchronized(this) {
       if (!canLaunchJobCleanupTask()) {
         return null;
       }
       
       String taskTracker = tts.getTrackerName();
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): taskTracker = " + taskTracker);
       // Update the last-known clusterSize
       this.clusterSize = clusterSize;
       if (!shouldRunOnTaskTracker(taskTracker)) {
@@ -1525,14 +1522,12 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       }
       TaskInProgress tip = findTaskFromList(cleanupTaskList,
                              tts, numUniqueHosts, false);
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): found cleanup TIP " + tip);
       if (tip == null) {
         return null;
       }
       
       // Now launch the cleanupTask
       Task result = tip.getTaskToRun(tts.getTrackerName());
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobCleanupTask(): launching cleanup Task " + result);
       if (result != null) {
         addRunningTaskToTIP(tip, result.getTaskID(), tts, true);
         if (jobFailed) {
@@ -1594,13 +1589,11 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
                                              int numUniqueHosts,
                                              boolean isMapSlot
                                             ) throws IOException {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobSetupTask(): starting");
-    if(!tasksInited.get() || !jobSetupCleanupNeeded) {
+    // uberMode condition should be redundant, but make sure anyway:
+    if (!tasksInited.get() || !jobSetupCleanupNeeded || uberMode) {
       return null;
     }
-//GRR FIXME:  need special protection here (since no setup TIPs for ubermode)?  may need to split jobSetupCleanupNeeded into setup and cleanup halves...
-    
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobSetupTask(): about to enter locked section");
+
     synchronized(this) {
       if (!canLaunchSetupTask()) {
         return null;
@@ -1626,7 +1619,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       
       // Now launch the setupTask
       Task result = tip.getTaskToRun(tts.getTrackerName());
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress obtainJobSetupTask(): launching setup Task " + result);
       if (result != null) {
         addRunningTaskToTIP(tip, result.getTaskID(), tts, true);
       }
@@ -3067,7 +3059,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     if (uberMode) {
       // restore setup/cleanup status so separate cleanup task will be launched
       // (see obtainJobCleanupTask())
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress terminate(): restoring jobSetupCleanupNeeded to " + jobSetupCleanupNeeded);
       jobSetupCleanupNeeded = uberSetupCleanupNeeded;
     }
 
