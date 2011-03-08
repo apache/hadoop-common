@@ -45,24 +45,15 @@ class LaunchTaskAction extends TaskTrackerAction {
   
   public void write(DataOutput out) throws IOException {
     out.writeBoolean(task.isMapTask());
-    if (!task.isMapTask()) {
-      // which flavor of ReduceTask, uber or regular?
-      out.writeBoolean(task.isUberTask());
-    }
     task.write(out);
   }
-
+  
   public void readFields(DataInput in) throws IOException {
     boolean isMapTask = in.readBoolean();
     if (isMapTask) {
       task = new MapTask();
     } else {
-      boolean isUberTask = in.readBoolean();
-      if (isUberTask) {
-        task = new UberTask();
-      } else {
-        task = new ReduceTask();
-      }
+      task = new ReduceTask();
     }
     task.readFields(in);
   }

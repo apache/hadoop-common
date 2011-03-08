@@ -64,9 +64,6 @@
           {"name": "launchTime", "type": "long"},
           {"name": "totalMaps", "type": "int"},
           {"name": "totalReduces", "type": "int"},
-          {"name": "isUber", "type": "boolean"},
-          {"name": "numUberSubMaps", "type": "int"},
-          {"name": "numUberSubReduces", "type": "int"},
           {"name": "jobStatus", "type": "string"}
       ]
      },

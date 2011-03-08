@@ -499,17 +499,17 @@ public class CapacityTestUtils {
     boolean hasSpeculativeMap;
     boolean hasSpeculativeReduce;
 
-    FakeTaskInProgress(JobID jId, JobConf jobConf, Task t,
-                       boolean isMap, FakeJobInProgress job, 
-                       JobSplit.TaskSplitMetaInfo split) {
+    FakeTaskInProgress(
+      JobID jId, JobConf jobConf, Task t,
+      boolean isMap, FakeJobInProgress job, 
+      JobSplit.TaskSplitMetaInfo split) {
       super(jId, "", split, null, jobConf, job, 0, 1);
       this.isMap = isMap;
       this.fakeJob = job;
       activeTasks = new TreeMap<TaskAttemptID, String>();
       activeTasks.put(t.getTaskID(), "tt");
       // create a fake status for a task that is running for a bit
-      this.taskStatus = TaskStatus.createTaskStatus(
-          isMap? TaskStatus.Type.MAP : TaskStatus.Type.REDUCE);
+      this.taskStatus = TaskStatus.createTaskStatus(isMap);
       taskStatus.setProgress(0.5f);
       taskStatus.setRunState(TaskStatus.State.RUNNING);
       if (jobConf.getMapSpeculativeExecution()) {
@@ -859,11 +859,6 @@ public class CapacityTestUtils {
         @Override
         public boolean getIsMap() {
           return t.isMapTask();
-        }
-
-        @Override
-        public boolean getIsUber() {
-          return t.isUberTask();
         }
 
         @Override

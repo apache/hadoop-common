@@ -556,46 +556,6 @@
 </property>
 
 <property>
-  <name>mapreduce.job.ubertask.enable</name>
-  <value>true</value>
-  <description>Whether to enable the small-jobs "ubertask" optimization,
-  which runs "sufficiently small" jobs sequentially within a single JVM.
-  "Small" is defined by the following maxmaps, maxreduces, and maxbytes
-  settings.  Users may override this value.
-  </description>
-</property>
-
-<property>
-  <name>mapreduce.job.ubertask.maxmaps</name>
-  <value>9</value>
-  <description>Threshold for number of maps, beyond which job is considered
-  too big for the ubertasking optimization.  Users may override this value,
-  but only downward.
-  </description>
-</property>
-
-<property>
-  <name>mapreduce.job.ubertask.maxreduces</name>
-  <value>1</value>
-  <description>Threshold for number of reduces, beyond which job is considered
-  too big for the ubertasking optimization.  CURRENTLY THE CODE CANNOT SUPPORT
-  MORE THAN ONE REDUCE and will ignore larger values.  (Zero is a valid max,
-  however.)  Users may override this value, but only downward.
-  </description>
-</property>
-
-<property>
-  <name>mapreduce.job.ubertask.maxbytes</name>
-  <value></value>
-  <description>Threshold for number of input bytes, beyond which job is
-  considered too big for the ubertasking optimization.  If no value is
-  specified, dfs.block.size is used as a default.  Be sure to specify a
-  default value in mapred-site.xml if the underlying filesystem is not HDFS.
-  Users may override this value, but only downward.
-  </description>
-</property>
-
-<property>
   <name>mapreduce.input.fileinputformat.split.minsize</name>
   <value>0</value>
   <description>The minimum size chunk that map input should be split

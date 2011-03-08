@@ -2460,7 +2460,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     isBlacklisted = faultyTrackers.isBlacklisted(status.getHost());
     // Check for new tasks to be executed on the tasktracker
     if (acceptNewTasks && !isBlacklisted) {
-      TaskTrackerStatus taskTrackerStatus = getTaskTrackerStatus(trackerName);
+      TaskTrackerStatus taskTrackerStatus = getTaskTrackerStatus(trackerName) ;
       if (taskTrackerStatus == null) {
         LOG.warn("Unknown task tracker polling; ignoring: " + trackerName);
       } else {
@@ -2493,7 +2493,10 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     }
 
     // Check for tasks whose outputs can be saved
-    actions.addAll(getTasksToSave(status));
+    List<TaskTrackerAction> commitTasksList = getTasksToSave(status);
+    if (commitTasksList != null) {
+      actions.addAll(commitTasksList);
+    }
 
     // calculate next heartbeat interval and put in heartbeat response
     int nextInterval = getNextHeartbeatInterval();

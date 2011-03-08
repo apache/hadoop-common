@@ -827,7 +827,7 @@ public class TaskTracker
           f = rjob.getFetchStatus();
           for (TaskInProgress tip : rjob.tasks) {
             Task task = tip.getTask();
-            if (!task.isMapTask() && !task.isUberTask()) {
+            if (!task.isMapTask()) {
               if (((ReduceTask)task).getPhase() == 
                   TaskStatus.Phase.SHUFFLE) {
                 if (rjob.getFetchStatus() == null) {
@@ -2502,27 +2502,21 @@ public class TaskTracker
       this.lastProgressReport = System.currentTimeMillis();
       this.defaultJobConf = conf;
       localJobConf = null;
-      if (task.isUberTask()) {
-        taskStatus = new UberTaskStatus(
-            task.getTaskID(), 0.0f,
-            task.getNumSlotsRequired(), task.getState(),
-            diagnosticInfo.toString(), "initializing", getName(),
-            TaskStatus.Phase.MAP, task.getCounters());
-      } else {
-        taskStatus = TaskStatus.createTaskStatus(
-            task.isMapTask(), task.getTaskID(), 0.0f,
-            task.getNumSlotsRequired(), task.getState(),
-            diagnosticInfo.toString(), "initializing", getName(),
-            task.isTaskCleanupTask()
-              ? TaskStatus.Phase.CLEANUP
-              : task.isMapTask()
-                ? TaskStatus.Phase.MAP
-                : TaskStatus.Phase.SHUFFLE,
-            task.getCounters());
-      }
+      taskStatus = TaskStatus.createTaskStatus(task.isMapTask(), task.getTaskID(), 
+                                               0.0f, 
+                                               task.getNumSlotsRequired(),
+                                               task.getState(),
+                                               diagnosticInfo.toString(), 
+                                               "initializing",  
+                                               getName(), 
+                                               task.isTaskCleanupTask() ? 
+                                                 TaskStatus.Phase.CLEANUP :  
+                                               task.isMapTask()? TaskStatus.Phase.MAP:
+                                               TaskStatus.Phase.SHUFFLE,
+                                               task.getCounters()); 
       taskTimeout = (10 * 60 * 1000);
     }
-
+        
     void localizeTask(Task task) throws IOException{
 
       FileSystem localFs = FileSystem.getLocal(fConf);
@@ -2639,7 +2633,7 @@ public class TaskTracker
         this.taskStatus.setStartTime(System.currentTimeMillis());
       } else {
         LOG.info("Not launching task: " + task.getTaskID() + 
-            " since its state is " + this.taskStatus.getRunState());
+            " since it's state is " + this.taskStatus.getRunState());
       }
     }
 
@@ -3212,7 +3206,7 @@ public class TaskTracker
     
     LOG.debug("JVM with ID : " + jvmId + " asked for a task");
     if (!jvmManager.isJvmKnown(jvmId)) {
-      LOG.info("Killing unknown JVM " + jvmId); //GRR FIXME:  bug?  no (apparent) killing going on here...
+      LOG.info("Killing unknown JVM " + jvmId);
       return new JvmTask(null, true);
     }
     RunningJob rjob = runningJobs.get(jvmId.getJobId());
@@ -3243,7 +3237,7 @@ public class TaskTracker
   public synchronized boolean statusUpdate(TaskAttemptID taskid, 
                                               TaskStatus taskStatus) 
   throws IOException {
-    TaskInProgress tip = tasks.get(taskid);  // TT.TIP, not TaskInProgress.java
+    TaskInProgress tip = tasks.get(taskid);
     if (tip != null) {
       tip.reportProgress(taskStatus);
       myInstrumentation.statusUpdate(tip.getTask(), taskStatus);
@@ -3691,15 +3685,17 @@ public class TaskTracker
         }
         userName = rjob.jobConf.getUser();
       }
+      // Index file
+      Path indexFileName =
+          lDirAlloc.getLocalPathToRead(TaskTracker.getIntermediateOutputDir(
+              userName, jobId, mapId)
+              + "/file.out.index", conf);
 
-      // Map-output filename ("... /file.out")
-      StringBuilder sb = new StringBuilder();
-      sb.append(TaskTracker.getIntermediateOutputDir(userName, jobId, mapId))
-          .append("/").append(MapOutputFile.MAP_OUTPUT_FILENAME_STRING);
-      Path mapOutputFileName = lDirAlloc.getLocalPathToRead(sb.toString(), conf);
-      // Index filename ("... /file.out.index")
-      sb.append(MapOutputFile.MAP_OUTPUT_INDEX_SUFFIX_STRING);
-      Path indexFileName = lDirAlloc.getLocalPathToRead(sb.toString(), conf);
+      // Map-output file
+      Path mapOutputFileName =
+          lDirAlloc.getLocalPathToRead(TaskTracker.getIntermediateOutputDir(
+              userName, jobId, mapId)
+              + "/file.out", conf);
 
       /**
        * Read the index file to get the information about where the map-output

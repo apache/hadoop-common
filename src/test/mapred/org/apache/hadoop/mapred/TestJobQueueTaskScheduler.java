@@ -241,12 +241,8 @@ public class TestJobQueueTaskScheduler extends TestCase {
         }
 
         @Override
-        public boolean getIsUber() {
-          return t.isUberTask();
-        }
-
-        @Override
         public void addFetchFailedMap(TaskAttemptID mapTaskId) {
+          
         }
       };
       status.setRunState(TaskStatus.State.RUNNING);

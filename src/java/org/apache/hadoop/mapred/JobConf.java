@@ -239,32 +239,11 @@ public class JobConf extends Configuration {
    */
   public static final String MAPRED_REDUCE_TASK_JAVA_OPTS = 
     JobContext.REDUCE_JAVA_OPTS;
-
-  /**
-   * Configuration key to set the Java command-line options for the 'uber'
-   * tasks.
-   *
-   * Java opts for the task tracker "uber"/combo map+reduce processes.
-   * The following symbol, if present, will be interpolated: @taskid@.
-   * It is replaced by current TaskID. Any other occurrences of '@' will go
-   * unchanged.
-   * For example, to enable verbose gc logging to a file named for the taskid
-   * in /tmp and to set the heap maximum to be a gigabyte, pass a 'value' of:
-   *          -Xmx1024m -verbose:gc -Xloggc:/tmp/@taskid@.gc
-   *
-   * The configuration variable {@link #MAPRED_UBER_TASK_ULIMIT} can be used
-   * to control the maximum virtual memory of the map processes.
-   *
-   * The configuration variable {@link #MAPRED_UBER_TASK_ENV} can be used to
-   * pass other environment variables to the map processes.
-   */
-  public static final String MAPRED_UBER_TASK_JAVA_OPTS =
-    JobContext.UBERTASK_JAVA_OPTS;
-
+  
   public static final String DEFAULT_MAPRED_TASK_JAVA_OPTS = "-Xmx200m";
   
   /**
-   * Configuration key to set the maximum virtual memory available to the child
+   * Configuration key to set the maximum virutal memory available to the child
    * map and reduce tasks (in kilo-bytes).
    * 
    * Note: This must be greater than or equal to the -Xmx passed to the JavaVM
@@ -277,7 +256,7 @@ public class JobConf extends Configuration {
   public static final String MAPRED_TASK_ULIMIT = "mapred.child.ulimit";
 
   /**
-   * Configuration key to set the maximum virtual memory available to the
+   * Configuration key to set the maximum virutal memory available to the
    * map tasks (in kilo-bytes).
    * 
    * Note: This must be greater than or equal to the -Xmx passed to the JavaVM
@@ -286,7 +265,7 @@ public class JobConf extends Configuration {
   public static final String MAPRED_MAP_TASK_ULIMIT = JobContext.MAP_ULIMIT;
   
   /**
-   * Configuration key to set the maximum virtual memory available to the
+   * Configuration key to set the maximum virutal memory available to the
    * reduce tasks (in kilo-bytes).
    * 
    * Note: This must be greater than or equal to the -Xmx passed to the JavaVM
@@ -295,16 +274,6 @@ public class JobConf extends Configuration {
   public static final String MAPRED_REDUCE_TASK_ULIMIT = 
     JobContext.REDUCE_ULIMIT;
 
-
-  /**
-   * Configuration key to set the maximum virtual memory available to the
-   * 'uber' task (in kilobytes).
-   *
-   * Note: This must be greater than or equal to the -Xmx passed to the JavaVM
-   *       via {@link #MAPRED_MAP_TASK_JAVA_OPTS}, else the VM might not start.
-   */
-  public static final String MAPRED_UBER_TASK_ULIMIT =
-    JobContext.UBERTASK_ULIMIT;
 
   /**
    * Configuration key to set the environment of the child map/reduce tasks.
@@ -325,7 +294,8 @@ public class JobConf extends Configuration {
   public static final String MAPRED_TASK_ENV = "mapred.child.env";
 
   /**
-   * Configuration key to set the environment of the child map tasks.
+   * Configuration key to set the maximum virutal memory available to the
+   * map tasks.
    * 
    * The format of the value is <code>k1=v1,k2=v2</code>. Further it can 
    * reference existing environment variables via <code>$key</code>.
@@ -339,7 +309,8 @@ public class JobConf extends Configuration {
   public static final String MAPRED_MAP_TASK_ENV = JobContext.MAP_ENV;
   
   /**
-   * Configuration key to set the environment of the child reduce tasks.
+   * Configuration key to set the maximum virutal memory available to the
+   * reduce tasks.
    * 
    * The format of the value is <code>k1=v1,k2=v2</code>. Further it can 
    * reference existing environment variables via <code>$key</code>.
@@ -376,22 +347,7 @@ public class JobConf extends Configuration {
    * Default logging level for map/reduce tasks.
    */
   public static final Level DEFAULT_LOG_LEVEL = Level.INFO;
-
-  /**
-   * Configuration key to set the environment of the child 'uber' tasks.
-   *
-   * The format of the value is <code>k1=v1,k2=v2</code>. Further it can
-   * reference existing environment variables via <code>$key</code>.
-   *
-   * Example:
-   * <ul>
-   *   <li> A=foo - This will set the env variable A to foo. </li>
-   *   <li> B=$X:c - This will inherit tasktracker's X env variable. </li>
-   * </ul>
-   */
-  public static final String MAPRED_UBER_TASK_ENV =
-    JobContext.UBERTASK_ENV;
-
+  
   /**
    * Construct a map/reduce job configuration.
    */

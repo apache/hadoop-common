@@ -118,7 +118,6 @@ abstract public class Task implements Writable, Configurable {
   private String jobFile;                         // job configuration file
   private String user;                            // user running the job
   private TaskAttemptID taskId;                   // unique, includes job id
-  private TaskAttemptID taskIdForUmbilical;       // same, or uber's if subtask
   private int partition;                          // id within job
   TaskStatus taskStatus;                          // current status of the task
   protected JobStatus.State jobRunStateForCleanup;
@@ -160,8 +159,8 @@ abstract public class Task implements Writable, Configurable {
   ////////////////////////////////////////////
 
   public Task() {
+    taskStatus = TaskStatus.createTaskStatus(isMapTask());
     taskId = new TaskAttemptID();
-    taskIdForUmbilical = taskId;
     spilledRecordsCounter = 
       counters.findCounter(TaskCounter.SPILLED_RECORDS);
     failedShuffleCounter = 
@@ -175,10 +174,17 @@ abstract public class Task implements Writable, Configurable {
               int numSlotsRequired) {
     this.jobFile = jobFile;
     this.taskId = taskId;
-    this.taskIdForUmbilical = taskId;
      
     this.partition = partition;
     this.numSlotsRequired = numSlotsRequired;
+    this.taskStatus = TaskStatus.createTaskStatus(isMapTask(), this.taskId, 
+                                                  0.0f, numSlotsRequired, 
+                                                  TaskStatus.State.UNASSIGNED, 
+                                                  "", "", "", 
+                                                  isMapTask() ? 
+                                                    TaskStatus.Phase.MAP : 
+                                                    TaskStatus.Phase.SHUFFLE, 
+                                                  counters);
     spilledRecordsCounter = counters.findCounter(TaskCounter.SPILLED_RECORDS);
     failedShuffleCounter = counters.findCounter(TaskCounter.FAILED_SHUFFLE);
     mergedMapOutputsCounter = 
@@ -191,12 +197,7 @@ abstract public class Task implements Writable, Configurable {
   ////////////////////////////////////////////
   public void setJobFile(String jobFile) { this.jobFile = jobFile; }
   public String getJobFile() { return jobFile; }
-
   public TaskAttemptID getTaskID() { return taskId; }
-  public void setTaskIdForUmbilical(TaskAttemptID taskIdForUmbilical) {
-    this.taskIdForUmbilical = taskIdForUmbilical;
-  }
-
   public int getNumSlotsRequired() {
     return numSlotsRequired;
   }
@@ -268,7 +269,7 @@ abstract public class Task implements Writable, Configurable {
   /**
    * Report a fatal error to the parent (task) tracker.
    */
-  protected void reportFatalError(Throwable throwable,
+  protected void reportFatalError(TaskAttemptID id, Throwable throwable, 
                                   String logMsg) {
     LOG.fatal(logMsg);
     Throwable tCause = throwable.getCause();
@@ -276,7 +277,7 @@ abstract public class Task implements Writable, Configurable {
                    ? StringUtils.stringifyException(throwable)
                    : StringUtils.stringifyException(tCause);
     try {
-      umbilical.fatalError(taskIdForUmbilical, cause);
+      umbilical.fatalError(id, cause);
     } catch (IOException ioe) {
       LOG.fatal("Failed to contact the tasktracker", ioe);
       System.exit(-1);
@@ -388,14 +389,6 @@ abstract public class Task implements Writable, Configurable {
     this.user = user;
   }
 
-  /**
-   * Return the task's MapOutputFile instance.
-   * @return the task's MapOutputFile instance
-   */
-  MapOutputFile getMapOutputFile() {
-    return mapOutputFile;
-  }
-
   ////////////////////////////////////////////
   // Writable methods
   ////////////////////////////////////////////
@@ -403,7 +396,6 @@ abstract public class Task implements Writable, Configurable {
   public void write(DataOutput out) throws IOException {
     Text.writeString(out, jobFile);
     taskId.write(out);
-    taskIdForUmbilical.write(out);
     out.writeInt(partition);
     out.writeInt(numSlotsRequired);
     taskStatus.write(out);
@@ -422,7 +414,6 @@ abstract public class Task implements Writable, Configurable {
   public void readFields(DataInput in) throws IOException {
     jobFile = Text.readString(in);
     taskId = TaskAttemptID.read(in);
-    taskIdForUmbilical = TaskAttemptID.read(in);
     partition = in.readInt();
     numSlotsRequired = in.readInt();
     taskStatus.readFields(in);
@@ -474,7 +465,7 @@ abstract public class Task implements Writable, Configurable {
   /** The number of milliseconds between progress reports. */
   public static final int PROGRESS_INTERVAL = 3000;
 
-  private transient Progress taskProgress = new Progress(); //GRR Q:  why transient?  lose entire tree every time serialize??
+  private transient Progress taskProgress = new Progress();
 
   // Current counters
   private transient Counters counters = new Counters();
@@ -483,21 +474,6 @@ abstract public class Task implements Writable, Configurable {
   private AtomicBoolean taskDone = new AtomicBoolean(false);
   
   public abstract boolean isMapTask();
-
-  /**
-   * Is this really a combo-task masquerading as a plain MapTask?
-   */
-  public abstract boolean isUberTask();
-
-  /**
-   * This setter allows one to incorporate Tasks into multiple levels of
-   * a Progress addPhase()-generated hierarchy (i.e., not always the root
-   * node), which in turn allows Progress to handle all details of progress
-   * aggregation for an UberTask or even a whole job.
-   */
-  protected void setProgress(Progress progress) {
-    taskProgress = progress;
-  }
 
   public Progress getProgress() { return taskProgress; }
 
@@ -542,7 +518,7 @@ abstract public class Task implements Writable, Configurable {
         resourceCalculator.getProcResourceValues().getCumulativeCpuTime();
     }
   }
-
+  
   @InterfaceAudience.Private
   @InterfaceStability.Unstable
   protected class TaskReporter 
@@ -585,7 +561,6 @@ abstract public class Task implements Writable, Configurable {
       // indicate that progress update needs to be sent
       setProgressFlag();
     }
-    // FIXME?  why isn't this deprecated in favor of public setProgressFlag()?
     public void progress() {
       // indicate that progress update needs to be sent
       setProgressFlag();
@@ -628,16 +603,15 @@ abstract public class Task implements Writable, Configurable {
     }
     public InputSplit getInputSplit() throws UnsupportedOperationException {
       if (split == null) {
-        throw new UnsupportedOperationException("Input available only on map");
+        throw new UnsupportedOperationException("Input only available on map");
       } else {
         return split;
       }
     }  
     /** 
-     * The communication thread handles communication with the parent
-     * (TaskTracker). It sends progress updates if progress has been made or
-     * if the task needs to let the parent know that it's alive. It also pings
-     * the parent to see if it's alive. 
+     * The communication thread handles communication with the parent (Task Tracker). 
+     * It sends progress updates if progress has been made or if the task needs to 
+     * let the parent know that it's alive. It also pings the parent to see if it's alive. 
      */
     public void run() {
       final int MAX_RETRIES = 3;
@@ -673,8 +647,8 @@ abstract public class Task implements Writable, Configurable {
             taskFound = umbilical.ping(taskId);
           }
 
-          // if TaskTracker is not aware of our task ID (probably because it
-          // died and came back up), kill ourselves
+          // if Task Tracker is not aware of our task ID (probably because it died and 
+          // came back up), kill ourselves
           if (!taskFound) {
             LOG.warn("Parent died.  Exiting "+taskId);
             System.exit(66);
@@ -708,7 +682,7 @@ abstract public class Task implements Writable, Configurable {
       }
     }
   }
-
+  
   /**
    *  Reports the next executing record range to TaskTracker.
    *  
@@ -727,7 +701,7 @@ abstract public class Task implements Writable, Configurable {
     if (LOG.isDebugEnabled()) {
       LOG.debug("sending reportNextRecordRange " + range);
     }
-    umbilical.reportNextRecordRange(taskIdForUmbilical, range);
+    umbilical.reportNextRecordRange(taskId, range);
   }
 
   /**
@@ -863,13 +837,8 @@ abstract public class Task implements Writable, Configurable {
   public void done(TaskUmbilicalProtocol umbilical,
                    TaskReporter reporter
                    ) throws IOException, InterruptedException {
-    if (isUberTask()) {
-      LOG.info("UberTask:" + taskIdForUmbilical + " subtask:" + taskId
-               + "is done and is in the process of committing.");
-    } else {
-      LOG.info("Task:" + taskId
-               + "is done and is in the process of committing.");
-    }
+    LOG.info("Task:" + taskId + " is done."
+             + " And is in the process of commiting");
     updateCounters();
 
     boolean commitRequired = isCommitRequired();
@@ -879,7 +848,7 @@ abstract public class Task implements Writable, Configurable {
       // say the task tracker that task is commit pending
       while (true) {
         try {
-          umbilical.commitPending(taskIdForUmbilical, taskStatus);
+          umbilical.commitPending(taskId, taskStatus);
           break;
         } catch (InterruptedException ie) {
           // ignore
@@ -930,14 +899,8 @@ abstract public class Task implements Writable, Configurable {
     int retries = MAX_RETRIES;
     while (true) {
       try {
-        //GRR FIXME (later):  alternatives to taskIdForUmbilical would be
-        // (1) include taskId as part of umbilical object and protocol;
-        // (2) include taskId as part of taskStatus
-        // (3) extend TaskAttemptID (or create related Task inner class?) to
-        //     include taskAttemptId() and taskAtteptIdForUmbilical() method
-        //     that's overridden in uber context [Dick]
-        if (!umbilical.statusUpdate(taskIdForUmbilical, taskStatus)) {
-          LOG.warn("Parent died.  Exiting " + taskId);
+        if (!umbilical.statusUpdate(getTaskID(), taskStatus)) {
+          LOG.warn("Parent died.  Exiting "+taskId);
           System.exit(66);
         }
         taskStatus.clearStatus();
@@ -973,7 +936,7 @@ abstract public class Task implements Writable, Configurable {
    * @return -1 if it can't be found.
    */
    private long calculateOutputSize() throws IOException {
-    if (!isMapOrReduce() || isUberTask()) {
+    if (!isMapOrReduce()) {
       return -1;
     }
 
@@ -993,13 +956,8 @@ abstract public class Task implements Writable, Configurable {
     int retries = MAX_RETRIES;
     while (true) {
       try {
-        umbilical.done(taskIdForUmbilical);
-        if (isUberTask()) {
-          LOG.info("UberTask '" + taskIdForUmbilical + "' subtask '" + taskId
-                   + "' done.");
-        } else {
-          LOG.info("Task '" + taskId + "' done.");
-        }
+        umbilical.done(getTaskID());
+        LOG.info("Task '" + taskId + "' done.");
         return;
       } catch (IOException ie) {
         LOG.warn("Failure signalling completion: " + 
@@ -1018,7 +976,7 @@ abstract public class Task implements Writable, Configurable {
     int retries = MAX_RETRIES;
     while (true) {
       try {
-        while (!umbilical.canCommit(taskIdForUmbilical)) {
+        while (!umbilical.canCommit(taskId)) {
           try {
             Thread.sleep(1000);
           } catch(InterruptedException ie) {
@@ -1075,7 +1033,7 @@ abstract public class Task implements Writable, Configurable {
     setPhase(TaskStatus.Phase.CLEANUP);
     getProgress().setStatus("cleanup");
     statusUpdate(umbilical);
-    LOG.info("Running cleanup for the task");
+    LOG.info("Runnning cleanup for the task");
     // do the cleanup
     committer.abortTask(taskContext);
   }
@@ -1100,10 +1058,8 @@ abstract public class Task implements Writable, Configurable {
         oldCommitter.abortJob(jobContext, jobRunStateForCleanup);
       }
     } else if (jobRunStateForCleanup == JobStatus.State.SUCCEEDED){
-      // delete <outputdir>/_temporary and optionally create _SUCCESS file
-      if (!isUberTask()) {  // defer since output files have not yet been saved
-        commitJob();
-      }
+      LOG.info("Committing job");
+      committer.commitJob(jobContext);
     } else {
       throw new IOException("Invalid state of the job for cleanup. State found "
                             + jobRunStateForCleanup + " expecting "
@@ -1112,31 +1068,20 @@ abstract public class Task implements Writable, Configurable {
                             + JobStatus.State.KILLED);
     }
     
-    // delete the staging area for the job (e.g.,
-    // "hdfs://localhost:9000/tmp/hadoop-<user>/mapred/staging/<user>/.staging/
-    // job_YYYYMMDDhhmm_nnnn"--NOT same as "_temporary" subdir of output dir)
+    // delete the staging area for the job
     JobConf conf = new JobConf(jobContext.getConfiguration());
     if (!supportIsolationRunner(conf)) {
-      String jobStagingDir = conf.get("mapreduce.job.dir");
-      Path jobStagingDirPath = new Path(jobStagingDir);
-      FileSystem fs = jobStagingDirPath.getFileSystem(conf);
-      fs.delete(jobStagingDirPath, true);
+      String jobTempDir = conf.get("mapreduce.job.dir");
+      Path jobTempDirPath = new Path(jobTempDir);
+      FileSystem fs = jobTempDirPath.getFileSystem(conf);
+      fs.delete(jobTempDirPath, true);
     }
-    // update counters, save any pending output files, shut down the progress-
-    // reporter communication thread and the umbilical, and mark the task done
-    if (!isUberTask()) {  // defer so UberTask can send TT final update(s)
-      done(umbilical, reporter);
-    }
+    done(umbilical, reporter);
   }
-
-  protected void commitJob() throws IOException {
-    LOG.info("Committing job");
-    committer.commitJob(jobContext);
-  }
-
+  
   protected boolean supportIsolationRunner(JobConf conf) {
-    return (conf.getKeepTaskFilesPattern() != null ||
-            conf.getKeepFailedTaskFiles());
+    return (conf.getKeepTaskFilesPattern() != null || conf
+        .getKeepFailedTaskFiles());
   }
 
   protected void runJobSetupTask(TaskUmbilicalProtocol umbilical,
@@ -1145,12 +1090,9 @@ abstract public class Task implements Writable, Configurable {
     // do the setup
     getProgress().setStatus("setup");
     committer.setupJob(jobContext);
-    if (!isUberTask()) {
-      // UberTask calls done() directly; don't shut down umbilical prematurely
-      done(umbilical, reporter);
-    }
+    done(umbilical, reporter);
   }
-
+  
   public void setConf(Configuration conf) {
     if (conf instanceof JobConf) {
       this.conf = (JobConf) conf;

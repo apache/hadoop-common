@@ -40,7 +40,7 @@ import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
 import org.apache.hadoop.mapreduce.jobhistory.TaskUpdatedEvent;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
-import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitIndex;
+
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 
 import org.apache.hadoop.net.Node;
@@ -62,7 +62,7 @@ import org.apache.hadoop.net.Node;
  * **************************************************************
  */
 class TaskInProgress {
-  static final int MAX_TASK_EXECS = 1; //max # nonspec tasks to run concurrently
+  static final int MAX_TASK_EXECS = 1; //max # nonspec tasks to run concurrently  
   int maxTaskAttempts = 4;    
   static final long SPECULATIVE_LAG = 60 * 1000;
   private static final int NUM_ATTEMPTS_PER_RESTART = 1000;
@@ -75,19 +75,14 @@ class TaskInProgress {
 
   // Defines the TIP
   private String jobFile = null;
-  private TaskSplitMetaInfo[] splitInfo;
+  private TaskSplitMetaInfo splitInfo;
   private int numMaps;
-  private int numReduces;
   private int partition;
   private JobTracker jobtracker;
   private JobHistory jobHistory;
   private TaskID id;
   private JobInProgress job;
   private final int numSlotsRequired;
-  private boolean jobCleanup = false;
-  private boolean jobSetup = false;
-  private boolean isUber = false;
-  private boolean jobSetupCleanupNeeded = false;  // UberTasks only
 
   // Status of the TIP
   private int successEventNumber = -1;
@@ -105,6 +100,8 @@ class TaskInProgress {
   private long maxSkipRecords = 0;
   private FailedRanges failedRanges = new FailedRanges();
   private volatile boolean skipping = false;
+  private boolean jobCleanup = false; 
+  private boolean jobSetup = false;
 
   private static Enum CPU_COUNTER_KEY = TaskCounter.CPU_MILLISECONDS;
   private static Enum VM_BYTES_KEY = TaskCounter.VIRTUAL_MEMORY_BYTES;
@@ -172,8 +169,7 @@ class TaskInProgress {
                         JobInProgress job, int partition,
                         int numSlotsRequired) {
     this.jobFile = jobFile;
-    this.splitInfo = new TaskSplitMetaInfo[1];
-    this.splitInfo[0] = split;
+    this.splitInfo = split;
     this.jobtracker = jobtracker;
     this.job = job;
     this.conf = conf;
@@ -187,7 +183,7 @@ class TaskInProgress {
     }
     this.user = job.getUser();
   }
-
+        
   /**
    * Constructor for ReduceTask
    */
@@ -269,36 +265,7 @@ class TaskInProgress {
       }
     }
   }
-
-  /**
-   * Constructor for UberTask
-   */
-  public TaskInProgress(JobID jobid, String jobFile,
-                        TaskSplitMetaInfo[] splits,
-                        int numMaps, int numReduces,
-                        int partition, JobTracker jobtracker, JobConf conf,
-                        JobInProgress job, int numSlotsRequired,
-                        boolean jobSetupCleanupNeeded) {
-    this.isUber = true;
-    this.jobFile = jobFile;
-    this.splitInfo = splits;
-    this.numMaps = numMaps;
-    this.numReduces = numReduces;
-    this.jobSetupCleanupNeeded = jobSetupCleanupNeeded;
-    this.jobtracker = jobtracker;
-    this.job = job;
-    this.conf = conf;
-    this.partition = partition;
-    this.maxSkipRecords = SkipBadRecords.getMapperMaxSkipRecords(conf);
-    this.numSlotsRequired = numSlotsRequired;
-    setMaxTaskAttempts();
-    init(jobid);
-    if (jobtracker != null) {
-      this.jobHistory = jobtracker.getJobHistory();
-    }
-    this.user = job.getUser();
-  }
-
+  
   /**
    * Set the max number of attempts before we declare a TIP as "failed"
    */
@@ -309,6 +276,15 @@ class TaskInProgress {
       this.maxTaskAttempts = conf.getMaxReduceAttempts();
     }
   }
+    
+  /**
+   * Return the index of the tip within the job, so 
+   * "task_200707121733_1313_0002_m_012345" would return 12345;
+   * @return int the tip index
+   */
+  public int idWithinJob() {
+    return partition;
+  }    
 
   public boolean isJobCleanupTask() {
    return jobCleanup;
@@ -416,32 +392,19 @@ class TaskInProgress {
   public JobInProgress getJob() {
     return job;
   }
-
   /**
    * Return an ID for this task, not its component taskid-threads
    */
   public TaskID getTIPId() {
     return this.id;
   }
-
   /**
-   * Whether this is a map task.  Note that ubertasks return false here so
-   * they can run in a reduce slot (larger).  (Setup and cleanup tasks may
-   * return either true or false.)
+   * Whether this is a map task
    */
   public boolean isMapTask() {
-    return splitInfo != null && !isUber;
+    return splitInfo != null;
   }
-
-  /**
-   * Whether this is an ubertask, i.e., a meta-task that contains a handful
-   * of map tasks and (at most) a single reduce task.  Note that ubertasks
-   * are seen as reduce tasks in most contexts.
-   */
-  public boolean isUberTask() {
-    return isUber;
-  }
-
+    
   /**
    * Returns the {@link TaskType} of the {@link TaskAttemptID} passed. 
    * The type of an attempt is determined by the nature of the task and not its 
@@ -966,16 +929,15 @@ class TaskInProgress {
   }
 
   /**
-   * Get the split locations
+   * Get the split locations 
    */
   public String[] getSplitLocations() {
-//GRR FIXME?  may need to add "(  ..  || isUberTask())" if ever called for uber (but locations for which split?  all of them?)
     if (isMapTask() && !jobSetup && !jobCleanup) {
-      return splitInfo[0].getLocations();
+      return splitInfo.getLocations();
     }
     return new String[0];
   }
-
+  
   /**
    * Get the Status of the tasks managed by this TIP
    */
@@ -1158,7 +1120,7 @@ class TaskInProgress {
  
     //set this the first time we run a taskAttempt in this TIP
     //each Task attempt has its own TaskStatus, which tracks that
-    //attempt's execStartTime, thus this startTime is TIP wide.
+    //attempts execStartTime, thus this startTime is TIP wide.
     if (0 == execStartTime){
       setExecStartTime(lastDispatchTime);
     }
@@ -1170,9 +1132,8 @@ class TaskInProgress {
   }
   
   /**
-   * Creates a task or recreates a previously running one and adds it to this
-   * tip. The latter is used in case of jobtracker restarts.  This is the
-   * ultimate source of Task objects in a normal Hadoop setup.
+   * Adds a previously running task to this tip. This is used in case of 
+   * jobtracker restarts.
    */
   public Task addRunningTask(TaskAttemptID taskid, 
                              String taskTracker,
@@ -1186,20 +1147,10 @@ class TaskInProgress {
         LOG.debug("attempt " + numTaskFailures + " sending skippedRecords "
                   + failedRanges.getIndicesCount());
       }
-      t = new MapTask(jobFile, taskid, partition,
-                      splitInfo[0].getSplitIndex(), numSlotsNeeded);
+      t = new MapTask(jobFile, taskid, partition, splitInfo.getSplitIndex(),
+          numSlotsNeeded);
     } else {
-      if (isUberTask()) {
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Launching actual UberTask (" + numMaps + " maps, "
-                    + numReduces + " reduces)");
-        }
-        // numMaps is implicit in size of splitIndex array:
-        t = new UberTask(jobFile, taskid, partition, getSplitIndexArray(),
-                         numReduces, numSlotsNeeded, jobSetupCleanupNeeded);
-      } else {
-        t = new ReduceTask(jobFile, taskid, partition, numMaps, numSlotsNeeded);
-      }
+      t = new ReduceTask(jobFile, taskid, partition, numMaps, numSlotsNeeded);
     }
     if (jobCleanup) {
       t.setJobCleanupTask();
@@ -1234,17 +1185,6 @@ class TaskInProgress {
       firstTaskId = taskid;
     }
     return t;
-  }
-
-  // GRR FIXME?  more efficient just to pass splitInfo directly...any need for
-  //             rest of it in UberTask?
-  TaskSplitIndex[] getSplitIndexArray() {
-    int numSplits = splitInfo.length;
-    TaskSplitIndex[] splitIndex = new TaskSplitIndex[numSplits];
-    for (int i = 0; i < numSplits; ++i) {
-      splitIndex[i] = splitInfo[i].getSplitIndex();
-    }
-    return splitIndex;
   }
 
   boolean isRunningTask(TaskAttemptID taskid) {
@@ -1296,8 +1236,7 @@ class TaskInProgress {
   }
     
   /**
-   * Get the task index of this map or reduce task.  For example,
-   * "task_201011230308_87259_r_000240" would return 240.
+   * Get the id of this map or reduce task.
    * @return The index of this tip in the maps/reduces lists.
    */
   public int getIdWithinJob() {
@@ -1317,7 +1256,7 @@ class TaskInProgress {
   public int getSuccessEventNumber() {
     return successEventNumber;
   }
-
+  
   /** 
    * Gets the Node list of input split locations sorted in rack order.
    */ 
@@ -1325,7 +1264,7 @@ class TaskInProgress {
     if (!isMapTask() || jobSetup || jobCleanup) {
       return "";
     }
-    String[] splits = splitInfo[0].getLocations();  // actually replicas
+    String[] splits = splitInfo.getLocations();
     Node[] nodes = new Node[splits.length];
     for (int i = 0; i < splits.length; i++) {
       nodes[i] = jobtracker.getNode(splits[i]);
@@ -1354,20 +1293,13 @@ class TaskInProgress {
   }
 
   public long getMapInputSize() {
-    if (isUberTask()) {
-      int numSplits = splitInfo.length;
-      long sumInputDataLength = 0;
-      for (int i = 0; i < numSplits; ++i) {
-        sumInputDataLength += splitInfo[i].getInputDataLength();
-      }
-      return sumInputDataLength;
-    } else if (isMapTask() && !jobSetup && !jobCleanup) {
-      return splitInfo[0].getInputDataLength();
+    if(isMapTask() && !jobSetup && !jobCleanup) {
+      return splitInfo.getInputDataLength();
     } else {
       return 0;
     }
   }
-
+  
   /**
    * Compare most recent task attempts dispatch time to current system time so
    * that task progress rate will slow down as time proceeds even if no progress

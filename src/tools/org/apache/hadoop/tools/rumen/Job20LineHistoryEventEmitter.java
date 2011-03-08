@@ -125,15 +125,10 @@ public class Job20LineHistoryEventEmitter extends HistoryEventEmitter {
       String status = line.get("JOB_STATUS");
       String totalMaps = line.get("TOTAL_MAPS");
       String totalReduces = line.get("TOTAL_REDUCES");
-      // note:  UberTask playback not supported since uber data not yet logged
-      boolean isUber = false;
-      int numUberSubMaps = 0;
-      int numUberSubReduces = 0;
 
       if (launchTime != null && totalMaps != null && totalReduces != null) {
-        return new JobInitedEvent(jobID, Long.parseLong(launchTime),
-            Integer.parseInt(totalMaps), Integer.parseInt(totalReduces),
-            isUber, numUberSubMaps, numUberSubReduces, status);
+        return new JobInitedEvent(jobID, Long.parseLong(launchTime), Integer
+            .parseInt(totalMaps), Integer.parseInt(totalReduces), status);
       }
 
       return null;

@@ -72,8 +72,10 @@ public class ReduceTask extends Task {
 
   private CompressionCodec codec;
 
+
   { 
     getProgress().setStatus("reduce"); 
+    setPhase(TaskStatus.Phase.SHUFFLE);        // phase to start with 
   }
 
   private Progress copyPhase;
@@ -119,21 +121,14 @@ public class ReduceTask extends Task {
 
   public ReduceTask() {
     super();
-    this.taskStatus = new ReduceTaskStatus();
   }
 
   public ReduceTask(String jobFile, TaskAttemptID taskId,
                     int partition, int numMaps, int numSlotsRequired) {
     super(jobFile, taskId, partition, numSlotsRequired);
     this.numMaps = numMaps;
-/*
- */
-    this.taskStatus = new ReduceTaskStatus(getTaskID(), 0.0f, numSlotsRequired,
-                                           TaskStatus.State.UNASSIGNED,
-                                           "", "", "", TaskStatus.Phase.SHUFFLE,
-                                           getCounters());
   }
-
+  
   private CompressionCodec initCodec() {
     // check if map-outputs are to be compressed
     if (conf.getCompressMapOutput()) {
@@ -154,45 +149,6 @@ public class ReduceTask extends Task {
   @Override
   public boolean isMapTask() {
     return false;
-  }
-
-  /**
-   * Is this really a combo-task masquerading as a plain MapTask?  Decidedly
-   * not.
-   */
-  @Override
-  public boolean isUberTask() {
-    return false;
-  }
-
-  /**
-   * Allow UberTask (or, potentially, JobInProgress or others) to set up a
-   * deeper Progress hierarchy even if run() is skipped.  If setProgress()
-   * is also needed, it should be called <I>before</I> createPhase() or else
-   * the sub-phases created here will be wiped out.
-   */
-  void createPhase(TaskStatus.Phase phaseType, String status) {
-    if (phaseType == TaskStatus.Phase.SHUFFLE) {
-      copyPhase = getProgress().addPhase(status);
-    } else if (phaseType == TaskStatus.Phase.SORT) {
-      sortPhase = getProgress().addPhase(status);
-    } else /* TaskStatus.Phase.REDUCE */ {
-      reducePhase = getProgress().addPhase(status);
-    }
-  }
-
-  /**
-   * Allow UberTask to traverse the deeper Progress hierarchy in case run() is
-   * skipped.
-   */
-  void completePhase(TaskStatus.Phase phaseType) {
-    if (phaseType == TaskStatus.Phase.SHUFFLE) {
-      copyPhase.complete();
-    } else if (phaseType == TaskStatus.Phase.SORT) {
-      sortPhase.complete();
-    } else /* TaskStatus.Phase.REDUCE */ {
-      reducePhase.complete();
-    }
   }
 
   public int getNumMaps() { return numMaps; }
@@ -221,39 +177,37 @@ public class ReduceTask extends Task {
   }
   
   // Get the input files for the reducer.
-  static Path[] getMapFiles(ReduceTask reduce, FileSystem fs, boolean isLocal) 
+  private Path[] getMapFiles(FileSystem fs, boolean isLocal) 
   throws IOException {
     List<Path> fileList = new ArrayList<Path>();
     if (isLocal) {
       // for local jobs
-      for (int i = 0; i < reduce.numMaps; ++i) {
-        fileList.add(reduce.mapOutputFile.getInputFile(i));
+      for(int i = 0; i < numMaps; ++i) {
+        fileList.add(mapOutputFile.getInputFile(i));
       }
     } else {
       // for non local jobs
-      for (FileStatus filestatus : reduce.mapOutputFilesOnDisk) {
+      for (FileStatus filestatus : mapOutputFilesOnDisk) {
         fileList.add(filestatus.getPath());
       }
     }
     return fileList.toArray(new Path[0]);
   }
 
-  private static class ReduceValuesIterator<KEY,VALUE> 
+  private class ReduceValuesIterator<KEY,VALUE> 
           extends ValuesIterator<KEY,VALUE> {
-    ReduceTask reduce;
-    public ReduceValuesIterator (ReduceTask reduce, RawKeyValueIterator in,
+    public ReduceValuesIterator (RawKeyValueIterator in,
                                  RawComparator<KEY> comparator, 
                                  Class<KEY> keyClass,
                                  Class<VALUE> valClass,
                                  Configuration conf, Progressable reporter)
       throws IOException {
       super(in, comparator, keyClass, valClass, conf, reporter);
-      this.reduce = reduce;
     }
 
     @Override
     public VALUE next() {
-      reduce.reduceInputValueCounter.increment(1);
+      reduceInputValueCounter.increment(1);
       return moveToNext();
     }
     
@@ -262,13 +216,12 @@ public class ReduceTask extends Task {
     }
     
     public void informReduceProgress() {
-      // update progress:
-      reduce.reducePhase.set(super.in.getProgress().getProgress());
+      reducePhase.set(super.in.getProgress().getProgress()); // update progress
       reporter.progress();
     }
   }
 
-  private static class SkippingReduceValuesIterator<KEY,VALUE> 
+  private class SkippingReduceValuesIterator<KEY,VALUE> 
      extends ReduceValuesIterator<KEY,VALUE> {
      private SkipRangeIterator skipIt;
      private TaskUmbilicalProtocol umbilical;
@@ -281,27 +234,26 @@ public class ReduceTask extends Task {
      private boolean toWriteSkipRecs;
      private boolean hasNext;
      private TaskReporter reporter;
-
-     public SkippingReduceValuesIterator(ReduceTask reduce,
-         RawKeyValueIterator in,
+     
+     public SkippingReduceValuesIterator(RawKeyValueIterator in,
          RawComparator<KEY> comparator, Class<KEY> keyClass,
          Class<VALUE> valClass, Configuration conf, TaskReporter reporter,
          TaskUmbilicalProtocol umbilical) throws IOException {
-       super(reduce, in, comparator, keyClass, valClass, conf, reporter);
+       super(in, comparator, keyClass, valClass, conf, reporter);
        this.umbilical = umbilical;
-       this.skipGroupCounter =
+       this.skipGroupCounter = 
          reporter.getCounter(TaskCounter.REDUCE_SKIPPED_GROUPS);
-       this.skipRecCounter =
+       this.skipRecCounter = 
          reporter.getCounter(TaskCounter.REDUCE_SKIPPED_RECORDS);
-       this.toWriteSkipRecs = reduce.toWriteSkipRecs() &&
+       this.toWriteSkipRecs = toWriteSkipRecs() &&  
          SkipBadRecords.getSkipOutputPath(conf)!=null;
        this.keyClass = keyClass;
        this.valClass = valClass;
        this.reporter = reporter;
-       skipIt = reduce.getSkipRanges().skipRangeIterator();
+       skipIt = getSkipRanges().skipRangeIterator();
        mayBeSkip();
      }
-
+     
      public void nextKey() throws IOException {
        super.nextKey();
        mayBeSkip();
@@ -340,16 +292,16 @@ public class ReduceTask extends Task {
        }
        skipGroupCounter.increment(skip);
        skipRecCounter.increment(skipRec);
-       reduce.reportNextRecordRange(umbilical, grpIndex);
+       reportNextRecordRange(umbilical, grpIndex);
      }
      
      @SuppressWarnings("unchecked")
      private void writeSkippedRec(KEY key, VALUE value) throws IOException{
        if(skipWriter==null) {
-         Path skipDir = SkipBadRecords.getSkipOutputPath(reduce.conf);
-         Path skipFile = new Path(skipDir, reduce.getTaskID().toString());
+         Path skipDir = SkipBadRecords.getSkipOutputPath(conf);
+         Path skipFile = new Path(skipDir, getTaskID().toString());
          skipWriter = SequenceFile.createWriter(
-               skipFile.getFileSystem(reduce.conf), reduce.conf, skipFile,
+               skipFile.getFileSystem(conf), conf, skipFile,
                keyClass, valClass, 
                CompressionType.BLOCK, reporter);
        }
@@ -411,8 +363,8 @@ public class ReduceTask extends Task {
     } else {
       final FileSystem rfs = FileSystem.getLocal(job).getRaw();
       rIter = Merger.merge(job, rfs, job.getMapOutputKeyClass(),
-                           job.getMapOutputValueClass(), codec,
-                           getMapFiles(this, rfs, true),
+                           job.getMapOutputValueClass(), codec, 
+                           getMapFiles(rfs, true),
                            !conf.getKeepFailedTaskFiles(), 
                            job.getInt(JobContext.IO_SORT_FACTOR, 100),
                            new Path(getTaskID().toString()), 
@@ -430,40 +382,18 @@ public class ReduceTask extends Task {
     RawComparator comparator = job.getOutputValueGroupingComparator();
 
     if (useNewApi) {
-      runNewReducer(this, job, umbilical, reporter, rIter, comparator,
+      runNewReducer(job, umbilical, reporter, rIter, comparator, 
                     keyClass, valueClass);
     } else {
-      runOldReducer(this, job, umbilical, reporter, rIter, comparator,
+      runOldReducer(job, umbilical, reporter, rIter, comparator, 
                     keyClass, valueClass);
     }
     done(umbilical, reporter);
   }
 
-  private static class WrappedOutputCollector<OUTKEY, OUTVALUE>
-  implements OutputCollector<OUTKEY, OUTVALUE> {
-    RecordWriter<OUTKEY, OUTVALUE> out;
-    TaskReporter reporter;
-    Counters.Counter reduceOutputCounter;
-    public WrappedOutputCollector(ReduceTask reduce,
-                                  RecordWriter<OUTKEY, OUTVALUE> out,
-                                  TaskReporter reporter) {
-      this.out = out;
-      this.reporter = reporter;
-      this.reduceOutputCounter = reduce.reduceOutputCounter;
-    }
-
-    public void collect(OUTKEY key, OUTVALUE value)
-    throws IOException {
-      out.write(key, value);
-      reduceOutputCounter.increment(1);
-      // indicate that progress update needs to be sent
-      reporter.progress();
-    }
-  }
-
   @SuppressWarnings("unchecked")
-  static <INKEY,INVALUE,OUTKEY,OUTVALUE>
-  void runOldReducer(ReduceTask reduce, JobConf job,
+  private <INKEY,INVALUE,OUTKEY,OUTVALUE>
+  void runOldReducer(JobConf job,
                      TaskUmbilicalProtocol umbilical,
                      final TaskReporter reporter,
                      RawKeyValueIterator rIter,
@@ -473,7 +403,7 @@ public class ReduceTask extends Task {
     Reducer<INKEY,INVALUE,OUTKEY,OUTVALUE> reducer = 
       ReflectionUtils.newInstance(job.getReducerClass(), job);
     // make output collector
-    String finalName = getOutputName(reduce.getPartition());
+    String finalName = getOutputName(getPartition());
 
     FileSystem fs = FileSystem.get(job);
 
@@ -481,7 +411,15 @@ public class ReduceTask extends Task {
       job.getOutputFormat().getRecordWriter(fs, job, finalName, reporter);  
     
     OutputCollector<OUTKEY,OUTVALUE> collector = 
-      new WrappedOutputCollector<OUTKEY, OUTVALUE>(reduce, out, reporter);
+      new OutputCollector<OUTKEY,OUTVALUE>() {
+        public void collect(OUTKEY key, OUTVALUE value)
+          throws IOException {
+          out.write(key, value);
+          reduceOutputCounter.increment(1);
+          // indicate that progress update needs to be sent
+          reporter.progress();
+        }
+      };
     
     // apply reduce function
     try {
@@ -489,16 +427,16 @@ public class ReduceTask extends Task {
       boolean incrProcCount = SkipBadRecords.getReducerMaxSkipGroups(job)>0 &&
         SkipBadRecords.getAutoIncrReducerProcCount(job);
       
-      ReduceValuesIterator<INKEY,INVALUE> values = reduce.isSkipping() ?
-          new SkippingReduceValuesIterator<INKEY,INVALUE>(reduce, rIter,
+      ReduceValuesIterator<INKEY,INVALUE> values = isSkipping() ? 
+          new SkippingReduceValuesIterator<INKEY,INVALUE>(rIter, 
               comparator, keyClass, valueClass, 
               job, reporter, umbilical) :
-          new ReduceValuesIterator<INKEY,INVALUE>(reduce, rIter,
+          new ReduceValuesIterator<INKEY,INVALUE>(rIter, 
           job.getOutputValueGroupingComparator(), keyClass, valueClass, 
           job, reporter);
       values.informReduceProgress();
       while (values.more()) {
-        reduce.reduceInputKeyCounter.increment(1);
+        reduceInputKeyCounter.increment(1);
         reducer.reduce(values.getKey(), values, collector, reporter);
         if(incrProcCount) {
           reporter.incrCounter(SkipBadRecords.COUNTER_GROUP, 
@@ -511,7 +449,7 @@ public class ReduceTask extends Task {
       //Clean up: repeated in catch block below
       reducer.close();
       out.close(reporter);
-      //End of cleanup.
+      //End of clean up.
     } catch (IOException ioe) {
       try {
         reducer.close();
@@ -549,38 +487,9 @@ public class ReduceTask extends Task {
     }
   }
 
-  private static class WrappedRawKeyValueIterator implements RawKeyValueIterator {
-    ReduceTask reduce;
-    TaskReporter reporter;
-    RawKeyValueIterator rawIter;
-    public WrappedRawKeyValueIterator(ReduceTask reduce, TaskReporter reporter,
-                          RawKeyValueIterator rawIter) {
-      this.reduce = reduce;
-      this.rawIter = rawIter;
-      this.reporter = reporter;
-    }
-    public void close() throws IOException {
-      rawIter.close();
-    }
-    public DataInputBuffer getKey() throws IOException {
-      return rawIter.getKey();
-    }
-    public Progress getProgress() {
-      return rawIter.getProgress();
-    }
-    public DataInputBuffer getValue() throws IOException {
-      return rawIter.getValue();
-    }
-    public boolean next() throws IOException {
-      boolean ret = rawIter.next();
-      reporter.setProgress(rawIter.getProgress().getProgress());
-      return ret;
-    }
-  }
-
   @SuppressWarnings("unchecked")
-  static <INKEY,INVALUE,OUTKEY,OUTVALUE>
-  void runNewReducer(final ReduceTask reduce, JobConf job,
+  private <INKEY,INVALUE,OUTKEY,OUTVALUE>
+  void runNewReducer(JobConf job,
                      final TaskUmbilicalProtocol umbilical,
                      final TaskReporter reporter,
                      RawKeyValueIterator rIter,
@@ -589,29 +498,49 @@ public class ReduceTask extends Task {
                      Class<INVALUE> valueClass
                      ) throws IOException,InterruptedException, 
                               ClassNotFoundException {
-    org.apache.hadoop.mapreduce.TaskAttemptID reduceId = reduce.getTaskID();
     // wrap value iterator to report progress.
     final RawKeyValueIterator rawIter = rIter;
-    rIter = new WrappedRawKeyValueIterator(reduce, reporter, rawIter);
+    rIter = new RawKeyValueIterator() {
+      public void close() throws IOException {
+        rawIter.close();
+      }
+      public DataInputBuffer getKey() throws IOException {
+        return rawIter.getKey();
+      }
+      public Progress getProgress() {
+        return rawIter.getProgress();
+      }
+      public DataInputBuffer getValue() throws IOException {
+        return rawIter.getValue();
+      }
+      public boolean next() throws IOException {
+        boolean ret = rawIter.next();
+        reporter.setProgress(rawIter.getProgress().getProgress());
+        return ret;
+      }
+    };
     // make a task context so we can get the classes
     org.apache.hadoop.mapreduce.TaskAttemptContext taskContext =
-      new org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl(job, reduceId);
+      new org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl(job, getTaskID());
     // make a reducer
     org.apache.hadoop.mapreduce.Reducer<INKEY,INVALUE,OUTKEY,OUTVALUE> reducer =
       (org.apache.hadoop.mapreduce.Reducer<INKEY,INVALUE,OUTKEY,OUTVALUE>)
         ReflectionUtils.newInstance(taskContext.getReducerClass(), job);
     org.apache.hadoop.mapreduce.RecordWriter<OUTKEY,OUTVALUE> output =
       (org.apache.hadoop.mapreduce.RecordWriter<OUTKEY,OUTVALUE>)
-        reduce.outputFormat.getRecordWriter(taskContext);
+        outputFormat.getRecordWriter(taskContext);
     org.apache.hadoop.mapreduce.RecordWriter<OUTKEY,OUTVALUE> trackedRW = 
-      new NewTrackingRecordWriter<OUTKEY, OUTVALUE>(output, reduce.reduceOutputCounter);
-    job.setBoolean(JobContext.SKIP_RECORDS, reduce.isSkipping());
-    org.apache.hadoop.mapreduce.Reducer.Context reducerContext =
-      createReduceContext(reducer, job, reduceId, rIter,
-                          reduce.reduceInputKeyCounter, 
-                          reduce.reduceInputValueCounter, 
-                          trackedRW, reduce.committer, reporter,
-                          comparator, keyClass, valueClass);
+      new NewTrackingRecordWriter<OUTKEY, OUTVALUE>(output, reduceOutputCounter);
+    job.setBoolean("mapred.skip.on", isSkipping());
+    job.setBoolean(JobContext.SKIP_RECORDS, isSkipping());
+    org.apache.hadoop.mapreduce.Reducer.Context 
+         reducerContext = createReduceContext(reducer, job, getTaskID(),
+                                               rIter, reduceInputKeyCounter, 
+                                               reduceInputValueCounter, 
+                                               trackedRW,
+                                               committer,
+                                               reporter, comparator, keyClass,
+                                               valueClass);
     reducer.run(reducerContext);
     output.close(reducerContext);
   }

@@ -56,12 +56,6 @@
     if (job == null) {
       return;
     }
-    // MR-1220 FIXME (LATER):  to fully integrate uberization, need task-
-    // and attempt-level JobHistory/Avro/etc. changes to multiple Event
-    // types; instead, going with top-level hack for now
-    boolean isUber = job.getIsUber();
-    int numUberSubMaps = job.getNumUberSubMaps();
-    int numUberSubReduces = job.getNumUberSubReduces();
     if (job.getJobStatus().equals("FAILED")) 
       reasonforFailure = job.getErrorInfo();
 %>
@@ -96,7 +90,7 @@
 <center>
 <table border="2" cellpadding="5" cellspacing="2">
 <tr>
-<td>Kind</td><td>Total Tasks (successful+<wbr>failed+<wbr>killed)</td><td>Successful tasks</td><td>Failed tasks</td><td>Killed tasks</td><td>Start Time</td><td>Finish Time</td>
+<td>Kind</td><td>Total Tasks(successful+failed+killed)</td><td>Successful tasks</td><td>Failed tasks</td><td>Killed tasks</td><td>Start Time</td><td>Finish Time</td>
 </tr>
 <tr>
 <td>Setup</td>
@@ -112,10 +106,6 @@
     <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getSetupFinished(), sj.getSetupStarted()) %></td>
 </tr>
 <tr>
-
-<%
-    if (!isUber) {
-%>
 <td>Map</td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=MAP&status=all">
         <%=sj.getTotalMaps()%></a></td>
@@ -141,36 +131,6 @@
     <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceStarted(), 0) %></td>
     <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceFinished(), sj.getReduceStarted()) %></td>
 </tr>
-
-<%
-    } else /* isUber */ {
-%>
-
-<tr>
-<td>Uber</td>
-    <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=REDUCE&status=all">
-        <%=sj.getTotalReduces()%></a></td>
-    <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=REDUCE&status=SUCCEEDED">
-        <%=job.getFinishedReduces()%></a></td>
-    <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=REDUCE&status=FAILED">
-        <%=sj.getNumFailedReduces()%></a></td>
-    <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=REDUCE&status=KILLED">
-        <%=sj.getNumKilledReduces()%></a></td>  
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceStarted(), 0) %></td>
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceFinished(), sj.getReduceStarted()) %></td>
-</tr>
-<td>Map subtasks</td>
-    <td colspan="6"><%=numUberSubMaps%></td>
-</tr>
-<tr>
-<td>Reduce subtasks</td>
-    <td colspan="6"><%=numUberSubReduces%></td>
-</tr>
-
-<%
-    }
-%>
-
 <tr>
 <td>Cleanup</td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=JOB_CLEANUP&status=all">

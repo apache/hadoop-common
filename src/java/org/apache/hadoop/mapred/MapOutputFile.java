@@ -42,8 +42,6 @@ public class MapOutputFile {
 
   private JobConf conf;
 
-  static final String MAP_OUTPUT_FILENAME_STRING = "file.out";
-  static final String MAP_OUTPUT_INDEX_SUFFIX_STRING = ".index";
   static final String REDUCE_INPUT_FILE_FORMAT_STRING = "%s/map_%d.out";
 
   public MapOutputFile() {
@@ -61,7 +59,7 @@ public class MapOutputFile {
   public Path getOutputFile()
       throws IOException {
     return lDirAlloc.getLocalPathToRead(TaskTracker.OUTPUT + Path.SEPARATOR
-        + MAP_OUTPUT_FILENAME_STRING, conf);
+        + "file.out", conf);
   }
 
   /**
@@ -74,7 +72,7 @@ public class MapOutputFile {
   public Path getOutputFileForWrite(long size)
       throws IOException {
     return lDirAlloc.getLocalPathForWrite(TaskTracker.OUTPUT + Path.SEPARATOR
-        + MAP_OUTPUT_FILENAME_STRING, size, conf);
+        + "file.out", size, conf);
   }
 
   /**
@@ -86,7 +84,7 @@ public class MapOutputFile {
   public Path getOutputIndexFile()
       throws IOException {
     return lDirAlloc.getLocalPathToRead(TaskTracker.OUTPUT + Path.SEPARATOR
-        + MAP_OUTPUT_FILENAME_STRING + MAP_OUTPUT_INDEX_SUFFIX_STRING, conf);
+        + "file.out.index", conf);
   }
 
   /**
@@ -99,8 +97,7 @@ public class MapOutputFile {
   public Path getOutputIndexFileForWrite(long size)
       throws IOException {
     return lDirAlloc.getLocalPathForWrite(TaskTracker.OUTPUT + Path.SEPARATOR
-        + MAP_OUTPUT_FILENAME_STRING + MAP_OUTPUT_INDEX_SUFFIX_STRING,
-        size, conf);
+        + "file.out.index", size, conf);
   }
 
   /**

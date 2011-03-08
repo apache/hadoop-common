@@ -103,7 +103,7 @@ public class TestTaskStatus {
     // check the default case
     String test = "hi";
     final int maxSize = 16;
-    TaskStatus status = new TaskStatus(null, 0, 0, null, test, test, null, null,
+    TaskStatus status = new TaskStatus(null, 0, 0, null, test, test, null, null, 
                                        null) {
       @Override
       protected int getMaxStringSize() {
@@ -116,11 +116,6 @@ public class TestTaskStatus {
 
       @Override
       public boolean getIsMap() {
-        return false;
-      }
-
-      @Override
-      public boolean getIsUber() {
         return false;
       }
     };
@@ -201,11 +196,6 @@ public class TestTaskStatus {
 
       @Override
       public boolean getIsMap() {
-        return false;
-      }
-
-      @Override
-      public boolean getIsUber() {
         return false;
       }
     };
