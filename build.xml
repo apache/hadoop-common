@@ -1454,36 +1454,20 @@
       <substitution expression="${version}"/>
       <fileset dir="${basedir}/ivy">
         <include name="hadoop-mapred.xml"/>
-      </fileset>
-    </replaceregexp>
-    <replaceregexp byline="true">
-      <regexp pattern="@version"/>
-      <substitution expression="${version}"/>
-      <fileset dir="${basedir}/ivy">
         <include name="hadoop-mapred-test.xml"/>
-      </fileset>
-    </replaceregexp>
-    <replaceregexp byline="true">
-      <regexp pattern="@version"/>
-      <substitution expression="${version}"/>
-      <fileset dir="${basedir}/ivy">
         <include name="hadoop-mapred-examples.xml"/>
-      </fileset>
-    </replaceregexp>
-    <replaceregexp byline="true">
-      <regexp pattern="@version"/>
-      <substitution expression="${version}"/>
-      <fileset dir="${basedir}/ivy">
         <include name="hadoop-mapred-tools.xml"/>
-      </fileset>
-    </replaceregexp>
-    <replaceregexp byline="true">
-      <regexp pattern="@version"/>
-      <substitution expression="${version}"/>
-      <fileset dir="${basedir}/ivy">
         <include name="hadoop-mapred-${herriot.suffix}.xml"/>
         <include name="hadoop-mapred-${herriot.suffix}-test.xml"/>
       </fileset>
+    </replaceregexp>
+    <replaceregexp byline="true">
+      <regexp pattern="@hadoop-common.version"/>
+      <substitution expression="${hadoop-common.version}"/>
+        <fileset dir="${basedir}/ivy">
+          <include name="hadoop-mapred.xml"/>
+          <include name="hadoop-mapred-instrumented.xml"/>
+        </fileset>
     </replaceregexp>
   </target>
 

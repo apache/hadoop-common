@@ -45,9 +45,9 @@
     <dependency org="org.apache.hadoop" name="hadoop-common-test" 
                 rev="${hadoop-common.version}" conf="test->default"/>
     <dependency org="org.apache.hadoop" name="hadoop-hdfs" 
-                rev="${hadoop-common.version}" conf="common->default"/>
+                rev="${hadoop-hdfs.version}" conf="common->default"/>
     <dependency org="org.apache.hadoop" name="hadoop-hdfs-test" 
-                rev="${hadoop-common.version}" conf="test->default"/>
+                rev="${hadoop-hdfs.version}" conf="test->default"/>
     <dependency org="commons-logging"
       name="commons-logging"
       rev="${commons-logging.version}"
