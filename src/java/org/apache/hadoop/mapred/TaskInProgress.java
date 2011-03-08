@@ -781,7 +781,6 @@ class TaskInProgress {
           setProgressRate(currProgRate);
         }
       } else {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskInProgress updateStatus(): calling TaskStatus statusUpdate() for " + taskid + " with phase " + status.getPhase());
         taskStatuses.get(taskid).statusUpdate(status.getRunState(),
                                               status.getProgress(), status.getStateString(), status.getPhase(),
                                               status.getFinishTime());

@@ -319,7 +319,6 @@ abstract public class Task implements Writable, Configurable {
   }
 
   void setTaskCleanupTask() {
-System.out.println("GRR DEBUG:  Task setTaskCleanupTask(): setting taskCleanup = true (=> phase = CLEANUP on deserialization!)");
     taskCleanup = true;
   }
 	   
@@ -429,7 +428,6 @@ System.out.println("GRR DEBUG:  Task setTaskCleanupTask(): setting taskCleanup =
     writeSkipRecs = in.readBoolean();
     taskCleanup = in.readBoolean();
     if (taskCleanup) {
-System.out.println("GRR DEBUG:  Task readFields(): setting phase to CLEANUP");
       setPhase(TaskStatus.Phase.CLEANUP);
     }
     user = Text.readString(in);
@@ -1015,7 +1013,6 @@ System.out.println("GRR DEBUG:  Task readFields(): setting phase to CLEANUP");
       try {
         while (!umbilical.canCommit(taskIdForUmbilical)) {
           try {
-System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() returned false; sleeping 1 sec");
             // FIXME 1:  shouldn't this count down retries, too, in case JT glitched and no longer knows about us?  (else infinite loop)
             Thread.sleep(1000);  // FIXME 2:  shouldn't hardcoded 1-second sleep instead correspond to heartbeat interval for task?
           } catch(InterruptedException ie) {
@@ -1023,10 +1020,8 @@ System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() retur
           }
           reporter.setProgressFlag();
         }
-System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() returned true");
         break;
       } catch (IOException ie) {
-System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() threw exception");
         LOG.warn("Failure asking whether task can commit: " +
             StringUtils.stringifyException(ie));
         if (--retries == 0) {
@@ -1044,7 +1039,6 @@ System.out.println("GRR DEBUG:  Task commitAfterApproval(): TT canCommit() threw
   // this is protected (rather than private) solely for UberTask map-only case
   protected void commit(TaskUmbilicalProtocol umbilical,
                         TaskReporter reporter) throws IOException {
-System.out.println("GRR DEBUG:  Task commit(): about to call commitTask()");
     try {
       LOG.info("Task " + taskId + " is allowed to commit now");
       committer.commitTask(taskContext);
@@ -1078,7 +1072,6 @@ System.out.println("GRR DEBUG:  Task commit(): about to call commitTask()");
   void taskCleanup(TaskUmbilicalProtocol umbilical) 
   throws IOException {
     // set phase for this task
-System.out.println("GRR DEBUG:  Task taskCleanup(): setting phase to CLEANUP");
     setPhase(TaskStatus.Phase.CLEANUP);
     getProgress().setStatus("cleanup");
     statusUpdate(umbilical);
@@ -1091,7 +1084,6 @@ System.out.println("GRR DEBUG:  Task taskCleanup(): setting phase to CLEANUP");
                                TaskReporter reporter
                               ) throws IOException, InterruptedException {
     // set phase for this task
-System.out.println("GRR DEBUG:  Task runJobCleanupTask(): setting phase to CLEANUP");
     setPhase(TaskStatus.Phase.CLEANUP);
     getProgress().setStatus("cleanup");
     statusUpdate(umbilical);

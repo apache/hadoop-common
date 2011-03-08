@@ -71,7 +71,6 @@ public class DefaultTaskController extends TaskController {
                                   env.workDir, env.env);
     // set the ShellCommandExecutor for later use.
     context.shExec = shexec;
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  DefaultTaskController ctor: about to call ShellCommandExecutor's execute() method");
     shexec.execute();
   }
     
@@ -85,7 +84,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     // The default task controller does not need to set up
     // any permissions for proper execution.
     // So this is a dummy method.
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  DefaultTaskController initializeTask(): nothing to do here");
     return;
   }
 

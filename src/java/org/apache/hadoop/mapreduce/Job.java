@@ -574,9 +574,7 @@ public class Job extends JobContextImpl implements JobContext {
    */
   public Counters getCounters() 
       throws IOException, InterruptedException {
-System.out.println("GRR DEBUG:  Job getCounters(): about to call ensureState()");
     ensureState(JobState.RUNNING);
-System.out.println("GRR DEBUG:  Job getCounters(): back from ensureState(); about to call cluster.getClient().getJobCounters()");
     return cluster.getClient().getJobCounters(getJobID());
   }
 
@@ -1118,11 +1116,7 @@ System.out.println("GRR DEBUG:  Job getCounters(): back from ensureState(); abou
     IntegerRanges reduceRanges = getProfileTaskRange(false);
     int progMonitorPollIntervalMillis = 
       Job.getProgressPollInterval(clientConf);
-//GRR DEBUG ONLY!
-long numIters_GRR_DEBUG = 0;
     while (!isComplete()) {
-++numIters_GRR_DEBUG;
-if (numIters_GRR_DEBUG < 10 || (numIters_GRR_DEBUG % 10) == 0) { System.out.println("GRR DEBUG:  Job monitorAndPrintJob(): while-loop iteration #" + numIters_GRR_DEBUG); }
       Thread.sleep(progMonitorPollIntervalMillis);
       String report = 
         (" map " + StringUtils.formatPercent(mapProgress(), 0)+
@@ -1137,15 +1131,12 @@ if (numIters_GRR_DEBUG < 10 || (numIters_GRR_DEBUG % 10) == 0) { System.out.prin
         getTaskCompletionEvents(eventCounter, 10); 
       eventCounter += events.length;
       printTaskEvents(events, filter, profiling, mapRanges, reduceRanges);
-if (numIters_GRR_DEBUG > 40) { throw new InterruptedException(); } // then check TEST*.txt file and/or build/test/logs/.../* for additional logged clues
     }
     LOG.info("Job complete: " + jobId);
     Counters counters = getCounters();
-System.out.println("GRR DEBUG:  Job monitorAndPrintJob(): back from getCounters()");
     if (counters != null) {
       LOG.info(counters.toString());
     }
-System.out.println("GRR DEBUG:  Job monitorAndPrintJob(): returning " + isSuccessful() + " (status.getState() = " + status.getState() + ")");
     return isSuccessful();
   }
 
@@ -1288,7 +1279,7 @@ System.out.println("GRR DEBUG:  Job monitorAndPrintJob(): returning " + isSucces
         input.close();
       }
     } catch(IOException ioe) {
-      LOG.warn("Error reading task output" + ioe.getMessage()); 
+      LOG.warn("Error reading task output: " + ioe.getMessage()); 
     }
   }
   

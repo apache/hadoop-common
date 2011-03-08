@@ -424,12 +424,10 @@ public class TaskTracker
       if (!runningJobs.containsKey(jobId)) {
         rJob = new RunningJob(jobId);
         rJob.tasks = new HashSet<TaskInProgress>();
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker addTaskToJob(): adding running job " + jobId + " to runningJobs");
         runningJobs.put(jobId, rJob);
       } else {
         rJob = runningJobs.get(jobId);
       }
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker addTaskToJob(): adding Task/TIP " + tip.getTask().getTaskID() + " to runningJob " + jobId);
       synchronized (rJob) {
         rJob.tasks.add(tip);
       }
@@ -443,7 +441,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       if (rjob == null) {
         LOG.warn("Unknown job " + jobId + " being deleted.");
       } else {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker removeTaskFromJob(): removing Task/TIP " + tip.getTask().getTaskID() + " from runningJob " + jobId);
         synchronized (rjob) {
           rjob.tasks.remove(tip);
         }
@@ -1673,7 +1670,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     //
     if (status == null) {
       synchronized (this) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker transmitHeartBeat(): regenerating TaskTrackerStatus");
         status = new TaskTrackerStatus(taskTrackerName, localHostname, 
                                        httpPort, 
                                        cloneAndResetRunningTaskStatuses(
@@ -1741,7 +1737,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     //
     // Xmit the heartbeat
     //
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker transmitHeartBeat(): sending heartbeat");
     HeartbeatResponse heartbeatResponse = jobClient.heartbeat(status, 
                                                               justStarted,
                                                               justInited,
@@ -1755,7 +1750,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       
     synchronized (this) {
       for (TaskStatus taskStatus : status.getTaskReports()) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker transmitHeartBeat(): looping over TaskStatuses (task reports): Task/TIP " + taskStatus.getTaskID() + " runState = " + taskStatus.getRunState() + ", phase = " + taskStatus.getPhase());
         if (taskStatus.getRunState() != TaskStatus.State.RUNNING &&
             taskStatus.getRunState() != TaskStatus.State.UNASSIGNED &&
             taskStatus.getRunState() != TaskStatus.State.COMMIT_PENDING &&
@@ -1770,7 +1764,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
           } catch (Exception e) {
             LOG.warn("Caught: " + StringUtils.stringifyException(e));
           }
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker transmitHeartBeat(): removing Task/TIP " + taskStatus.getTaskID() + " from runningTasks (runState = " + taskStatus.getRunState() + ")");
           runningTasks.remove(taskStatus.getTaskID());
         }
       }
@@ -1996,7 +1989,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       }
     }
 
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker addTaskToJob(): removing running job " + jobId + " from runningJobs");
     synchronized(runningJobs) {
       runningJobs.remove(jobId);
     }
@@ -2120,7 +2112,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
         }
       }
     }
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker findTaskToKill(): returning TIP " + killMe.getTask().getTaskID());
     return killMe;
   }
 
@@ -2314,7 +2305,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     LOG.info("LaunchTaskAction (registerTask): " + t.getTaskID() +
              " task's state:" + t.getState());
     TaskInProgress tip = new TaskInProgress(t, this.fConf, launcher);
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker registerTask(): adding Task/TIP " + t.getTaskID() + " to runningTasks");
     synchronized (this) {
       tasks.put(t.getTaskID(), tip);
       runningTasks.put(t.getTaskID(), tip);
@@ -2646,7 +2636,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
         return;
       }
       
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker reportProgress(): calling TaskStatus statusUpdate() for " + task.getTaskID() + " with phase " + taskStatus.getPhase());
       this.taskStatus.statusUpdate(taskStatus);
       this.lastProgressReport = System.currentTimeMillis();
     }
@@ -3047,7 +3036,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
         taskStatus.setProgress(0.0f);
         reportDiagnosticInfo("Map output lost, rescheduling: " + 
                              failure);
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker mapOutputLost(): adding Task/TIP " + task.getTaskID() + " to runningTasks");
         runningTasks.put(task.getTaskID(), this);
         mapTotal++;
         myInstrumentation.statusUpdate(task, taskStatus);
@@ -3425,7 +3413,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       }
       result.add((TaskStatus)status.clone());
       status.clearStatus();
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TaskTracker cloneAndResetRunningTaskStatuses(): Task/TIP " + status.getTaskID() + " runState = " + status.getRunState() + ", phase = " + status.getPhase());
     }
     return result;
   }

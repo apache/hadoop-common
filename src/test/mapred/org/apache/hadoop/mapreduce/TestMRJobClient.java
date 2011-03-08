@@ -64,10 +64,8 @@ public class TestMRJobClient extends ClusterMapReduceTestCase {
     }
   }
 
-/* GRR TEMP HACK
   @Test
   public void testJobClient() throws Exception {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testJobClient(): starting");
     Configuration conf = createJobConf();
     Job job = runJob(conf);
     String jobId = job.getJobID().toString();
@@ -79,7 +77,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
   @Test
   public void testGetCounter(String jobId,
       Configuration conf) throws Exception {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testGetCounter(): starting");
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     int exitCode = runTool(conf, createJobClient(),
         new String[] { "-counter", jobId,
@@ -92,7 +89,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
   @Test
   public void testJobList(String jobId,
       Configuration conf) throws Exception {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testJobList(): starting");
     verifyJobPriority(jobId, "HIGH", conf, createJobClient());
   }
 
@@ -120,18 +116,15 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
   @Test
   public void testChangingJobPriority(String jobId, Configuration conf)
       throws Exception {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testChangingJobPriority(): starting");
     int exitCode = runTool(conf, createJobClient(),
         new String[] { "-set-priority", jobId, "VERY_LOW" },
         new ByteArrayOutputStream());
     assertEquals("Exit code", 0, exitCode);
     verifyJobPriority(jobId, "VERY_LOW", conf, createJobClient());
   }
-END GRR TEMP HACK */
 
   @Test
   public void testMissingProfileOutput() throws Exception {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): starting");
     Configuration conf = createJobConf();
     final String input = "hello1\n";
 
@@ -149,9 +142,7 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     job.setMaxReduceAttempts(1);
     job.setJobSetupCleanupNeeded(false);
     job.waitForCompletion(true);
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): done with job 1; BAILING (TEMP HACK)"); if (job != null) return;
 
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): done with job 1; about to start job 2");
     // Run another job with a (valid) hprof agentlib param; verify
     // that the HTTP fetch (of task reports) works here.
     Job job2 = MapReduceTestUtil.createJob(conf,
@@ -168,7 +159,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     job2.setJobSetupCleanupNeeded(false);
     job2.waitForCompletion(true);
 
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  TestMRJobClient testMissingProfileOutput(): done with job 2; getting final task reports, etc.");
     // Find the first map task, verify that we got its profile output file.
     TaskReport [] reports = job2.getTaskReports(TaskType.MAP);
     assertTrue("No task reports found!", reports.length > 0);

@@ -1163,7 +1163,6 @@ public class JobInProgress {
   public synchronized void updateTaskStatus(TaskInProgress tip, 
                                             TaskStatus status) {
 
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress updateTaskStatus() starting with TIP " + tip.getTIPId() + " and TaskStatus " + status + " (phase = " + status.getPhase() + ", state = " + status.getStateString() + ", progress = " + status.getProgress() + ", runState = " + status.getRunState() + ", TT = " + status.getTaskTracker() + ", diag = " + status.getDiagnosticInfo() + ")");
     double oldProgress = tip.getProgress();   // save old progress
     boolean wasRunning = tip.isRunning();
     boolean wasComplete = tip.isComplete();
@@ -1198,7 +1197,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     }
     
     boolean change = tip.updateStatus(status);
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress updateTaskStatus(): just called TIP updateStatus() with status " + status + " (phase = " + status.getPhase() + "); returned change = " + change);
     if (change) {
       TaskStatus.State state = status.getRunState();
       // get the TaskTrackerStatus where the task ran 
@@ -1243,7 +1241,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
         return;
       } else if (state == TaskStatus.State.FAILED_UNCLEAN ||
                  state == TaskStatus.State.KILLED_UNCLEAN) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress updateTaskStatus(): task state = *_UNCLEAN; calling TIP incompleteSubTask() and adding cleanup task " + taskid);
         tip.incompleteSubTask(taskid, this.status);
         // add this task, to be rescheduled as cleanup attempt
         if (tip.isMapTask()) {
@@ -1257,7 +1254,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       //For a failed task update the JT datastructures. 
       else if (state == TaskStatus.State.FAILED ||
                state == TaskStatus.State.KILLED) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress updateTaskStatus(): task state = plain FAILED/KILLED; about to call failedTask() and make new TaskCompletionEvent");
         // Get the event number for the (possibly) previously successful
         // task. If there exists one, then set that status to OBSOLETE 
         int eventNumber;
@@ -2731,7 +2727,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
   public synchronized boolean completedTask(TaskInProgress tip, 
                                             TaskStatus status)
   {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress completedTask() starting with TIP " + tip.getTIPId() + " and TaskStatus " + status);
     TaskAttemptID taskid = status.getTaskID();
     final JobTrackerInstrumentation metrics = jobtracker.getInstrumentation();
         
@@ -2810,7 +2805,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       killSetupTip(!tip.isMapTask());
       setupComplete();
     } else if (tip.isJobCleanupTask()) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress completedTask(): TIP " + tip.getTIPId() + " is a cleanup TIP");
       // cleanup task has finished. Kill the extra cleanup tip
       if (tip.isMapTask()) {
         // kill the reduce tip
@@ -2822,16 +2816,13 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
       // The Job is done
       // if the job is failed, then mark the job failed.
       if (jobFailed) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress completedTask(): calling terminateJob() with JobStatus.FAILED");
         terminateJob(JobStatus.FAILED);
       }
       // if the job is killed, then mark the job killed.
       if (jobKilled) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress completedTask(): calling terminateJob() with JobStatus.KILLED");
         terminateJob(JobStatus.KILLED);
       }
       else {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress completedTask(): calling jobComplete() (HUH??)");
         jobComplete();
       }
       // The job has been killed/failed/successful
@@ -2873,7 +2864,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     if (!jobSetupCleanupNeeded && canLaunchJobCleanupTask()) {
       jobComplete();
     }
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress completedTask(): done");
     return true;
   }
 
@@ -3010,11 +3000,9 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
   }
   
   private synchronized void terminateJob(int jobTerminationState) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress terminateJob() called with jobTerminationState = " + jobTerminationState);
     if ((status.getRunState() == JobStatus.RUNNING) ||
         (status.getRunState() == JobStatus.PREP)) {
 
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress terminateJob(): runState = " + status.getRunState());
       this.finishTime = JobTracker.getClock().getTime();
       this.status.setMapProgress(1.0f);
       this.status.setReduceProgress(1.0f);
@@ -3051,7 +3039,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
             this.conf, this.status.getJobID());
       }
     }
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress terminateJob() done");
   }
 
   /**
@@ -3135,13 +3122,11 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     while (!mapCleanupTasks.isEmpty()) {
       taskid = mapCleanupTasks.remove(0);
       tip = maps[taskid.getTaskID().getId()];
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress clearUncleanTasks(): calling updateTaskStatus() on map cleanup task " + taskid);
       updateTaskStatus(tip, tip.getTaskStatus(taskid));
     }
     while (!reduceCleanupTasks.isEmpty()) {
       taskid = reduceCleanupTasks.remove(0);
       tip = reduces[taskid.getTaskID().getId()];
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress clearUncleanTasks(): calling updateTaskStatus() on reduce cleanup task " + taskid);
       updateTaskStatus(tip, tip.getTaskStatus(taskid));
     }
   }
@@ -3425,7 +3410,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
   public synchronized void failedTask(TaskInProgress tip, TaskAttemptID taskid,
       String reason, TaskStatus.Phase phase, TaskStatus.State state, 
                          String trackerName) {
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress failedTask(): called with phase = " + phase + " (creating new TaskStatus)");
     TaskStatus status = TaskStatus.createTaskStatus(tip.isMapTask(), 
                                                     taskid,
                                                     0.0f,
@@ -3445,7 +3429,6 @@ System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.cur
     status.setStartTime(startTime);
     status.setFinishTime(JobTracker.getClock().getTime());
     boolean wasComplete = tip.isComplete();
-System.out.println("GRR DEBUG (" + String.format("%1$tF %1$tT,%1$tL", System.currentTimeMillis()) + "):  JobInProgress failedTask(): calling updateTaskStatus()");
     updateTaskStatus(tip, status);
     boolean isComplete = tip.isComplete();
     if (wasComplete && !isComplete) { // mark a successful tip as failed
