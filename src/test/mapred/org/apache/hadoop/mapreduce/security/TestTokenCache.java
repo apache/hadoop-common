@@ -149,6 +149,7 @@ public class TestTokenCache {
   @BeforeClass
   public static void setUp() throws Exception {
     Configuration conf = new Configuration();
+    conf.set("hadoop.security.auth_to_local", "RULE:[2:$1]");
     dfsCluster = new MiniDFSCluster(conf, numSlaves, true, null);
     jConf = new JobConf(conf);
     mrCluster = new MiniMRCluster(0, 0, numSlaves, 
@@ -226,7 +227,7 @@ public class TestTokenCache {
     String nnUri = dfsCluster.getURI().toString();
     jConf.set(MRJobConfig.JOB_NAMENODES, nnUri + "," + nnUri);
     // job tracker principla id..
-    jConf.set(JTConfig.JT_USER_NAME, "jt_id");
+    jConf.set(JTConfig.JT_USER_NAME, "jt_id/foo@BAR");
     
     // using argument to pass the file name
     String[] args = {
@@ -304,7 +305,7 @@ public class TestTokenCache {
 
     DelegationTokenSecretManager dtSecretManager = 
       dfsCluster.getNamesystem().getDelegationTokenSecretManager();
-    String renewer = "renewer";
+    String renewer = "renewer/foo@BAR";
     jConf.set(JTConfig.JT_USER_NAME,renewer);
     DelegationTokenIdentifier dtId = 
       new DelegationTokenIdentifier(new Text("user"), new Text(renewer), null);
@@ -360,4 +361,20 @@ public class TestTokenCache {
     }
   }
 
+  /** 
+   * verify _HOST substitution
+   * @throws IOException
+   */
+  @Test
+  public void testGetJTPrincipal() throws IOException {
+    String serviceName = "jt/";
+    String hostName = "foo";
+    String domainName = "@BAR";
+    Configuration conf = new Configuration();
+    conf.set(JTConfig.JT_IPC_ADDRESS, hostName + ":8888");
+    conf.set(JTConfig.JT_USER_NAME, serviceName + SecurityUtil.HOSTNAME_PATTERN
+        + domainName);
+    assertEquals("Failed to substitute HOSTNAME_PATTERN with hostName",
+        serviceName + hostName + domainName, TokenCache.getJTPrincipal(conf));
+  }
 }
