@@ -71,6 +71,73 @@ public class TestRumenFolder {
     TestRumenFolder.<LoggedJob> jsonFileMatchesGold(conf, lfs, foldedTracePath,
         foldedGoldFile, LoggedJob.class, "trace");
   }
+  
+  @Test
+  public void testStartsAfterOption() throws Exception {
+    final Configuration conf = new Configuration();
+    final FileSystem lfs = FileSystem.getLocal(conf);
+
+    @SuppressWarnings("deprecation")
+    final Path rootInputDir =
+      new Path(System.getProperty("test.tools.input.dir", ""))
+            .makeQualified(lfs);
+    @SuppressWarnings("deprecation")
+    final Path rootTempDir =
+      new Path(System.getProperty("test.build.data", "/tmp"))
+            .makeQualified(lfs);
+
+    final Path rootInputFile = new Path(rootInputDir, "rumen/small-trace-test");
+    final Path tempDir = new Path(rootTempDir, "TestRumenJobTraces");
+    lfs.delete(tempDir, true);
+
+    final Path foldedTracePath = new Path(tempDir, "folded-trace.json");
+
+    final Path inputFile =
+      new Path(rootInputFile, "folder-input-trace.json.gz");
+
+    String[] args =
+       { "-input-cycle", "100S", "-output-duration", "300S",
+           "-skew-buffer-length", "1", "-seed", "100", "-starts-after", "30S", "-concentration", "2",
+           inputFile.toString(), foldedTracePath.toString() };
+
+    final Path foldedGoldFile =
+        new Path(rootInputFile, "goldFoldedTrace.json.gz");
+
+    Folder folder = new Folder();
+    int result = ToolRunner.run(folder, args);
+    assertEquals("Non-zero exit", 0, result);
+
+    TestRumenFolder.<LoggedJob> checkValidityAfterSkippingJobs(conf, lfs, foldedTracePath,
+        foldedGoldFile, LoggedJob.class, "trace", 30000);
+  }
+  
+  static private <T extends DeepCompare> void 
+  	checkValidityAfterSkippingJobs(Configuration conf, 
+  			FileSystem lfs, Path result, Path gold,
+      Class<? extends T> clazz, String fileDescription, 
+      long startsAfter) throws IOException {
+  	JsonObjectMapperParser<T> goldParser =
+      new JsonObjectMapperParser<T>(gold, clazz, conf);
+    InputStream resultStream = lfs.open(result);
+    JsonObjectMapperParser<T> resultParser =
+        new JsonObjectMapperParser<T>(resultStream, clazz);
+    try {
+      long submitTime = ((LoggedJob)goldParser.getNext()).getSubmitTime();
+      long target = submitTime + startsAfter;
+      while(true) {
+        DeepCompare resultJob = resultParser.getNext();
+        if (resultJob == null) {
+          break;
+        }
+        LoggedJob job = (LoggedJob) resultJob;
+        assertTrue("job's submit time in the output trace is less " +
+          "than the specified value of starts-after", 
+          (job.getSubmitTime() >= target));
+      }
+    } finally {
+      IOUtils.cleanup(null, goldParser, resultParser);
+    }
+  }
 
   static private <T extends DeepCompare> void jsonFileMatchesGold(
       Configuration conf, FileSystem lfs, Path result, Path gold,
