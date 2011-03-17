@@ -1187,7 +1187,7 @@ abstract public class Task implements Writable, Configurable {
     }
     this.mapOutputFile = ReflectionUtils.newInstance(
         conf.getClass(MRConfig.TASK_LOCAL_OUTPUT_CLASS,
-          MapOutputFile.class, MapOutputFile.class), conf);
+          MROutputFiles.class, MapOutputFile.class), conf);
     this.lDirAlloc = new LocalDirAllocator(MRConfig.LOCAL_DIR);
     // add the static resolutions (this is required for the junit to
     // work on testcases that simulate multiple nodes on a single physical

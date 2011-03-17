@@ -266,7 +266,8 @@ public class UtilsForGridmix {
      JobStatus js = jobStatus[numJobs - index];
      JobID jobid = js.getJobID();
      String jobName = js.getJobName();
-     if (!jobName.equals("GRIDMIX_GENERATE_INPUT_DATA")) {
+     if (!jobName.equals("GRIDMIX_GENERATE_INPUT_DATA") && 
+          !jobName.equals("GRIDMIX_GENERATE_DISTCACHE_DATA")) {
        jobids.add(jobid);
      }
    }

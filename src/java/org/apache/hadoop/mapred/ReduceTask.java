@@ -407,7 +407,8 @@ public class ReduceTask extends Task {
                     shuffledMapsCounter,
                     reduceShuffleBytes, failedShuffleCounter,
                     mergedMapOutputsCounter,
-                    taskStatus, copyPhase, sortPhase, this);
+                    taskStatus, copyPhase, sortPhase, this,
+                    mapOutputFile);
       rIter = shuffle.run();
     } else {
       final FileSystem rfs = FileSystem.getLocal(job).getRaw();
