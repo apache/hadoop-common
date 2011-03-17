@@ -46,7 +46,7 @@
   FileSystem fs = (FileSystem) application.getAttribute("fileSys");
   JobTracker jobTracker = (JobTracker) application.getAttribute("job.tracker");
   JobHistoryParser.JobInfo job = JSPUtil.checkAccessAndGetJobInfo(request,
-      response, jobTracker, fs, new Path(logFile));
+  response, jobTracker, fs, new Path(logFile));
   if (job == null) {
     return;
   }
@@ -74,52 +74,52 @@
   Comparator<JobHistoryParser.TaskAttemptInfo> cMap = 
     new Comparator<JobHistoryParser.TaskAttemptInfo>() {
     public int compare(JobHistoryParser.TaskAttemptInfo t1, 
-        JobHistoryParser.TaskAttemptInfo t2) {
-      long l1 = t1.getFinishTime() - t1.getStartTime();
-      long l2 = t2.getFinishTime() - t2.getStartTime();
-      return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
+    JobHistoryParser.TaskAttemptInfo t2) {
+  long l1 = t1.getFinishTime() - t1.getStartTime();
+  long l2 = t2.getFinishTime() - t2.getStartTime();
+  return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
     }
   };
 
   Comparator<JobHistoryParser.TaskAttemptInfo> cShuffle = 
     new Comparator<JobHistoryParser.TaskAttemptInfo>() {
     public int compare(JobHistoryParser.TaskAttemptInfo t1, 
-        JobHistoryParser.TaskAttemptInfo t2) {
-      long l1 = t1.getShuffleFinishTime() - t1.getStartTime();
-      long l2 = t2.getShuffleFinishTime() - t2.getStartTime();
-      return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
+    JobHistoryParser.TaskAttemptInfo t2) {
+  long l1 = t1.getShuffleFinishTime() - t1.getStartTime();
+  long l2 = t2.getShuffleFinishTime() - t2.getStartTime();
+  return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
     }
   };
 
   Comparator<JobHistoryParser.TaskAttemptInfo> cFinishShuffle = 
     new Comparator<JobHistoryParser.TaskAttemptInfo>() {
     public int compare(JobHistoryParser.TaskAttemptInfo t1, 
-        JobHistoryParser.TaskAttemptInfo t2) {
-      long l1 = t1.getShuffleFinishTime(); 
-      long l2 = t2.getShuffleFinishTime();
-      return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
+    JobHistoryParser.TaskAttemptInfo t2) {
+  long l1 = t1.getShuffleFinishTime(); 
+  long l2 = t2.getShuffleFinishTime();
+  return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
     }
   };
 
   Comparator<JobHistoryParser.TaskAttemptInfo> cFinishMapRed = 
     new Comparator<JobHistoryParser.TaskAttemptInfo>() {
     public int compare(JobHistoryParser.TaskAttemptInfo t1, 
-        JobHistoryParser.TaskAttemptInfo t2) {
-      long l1 = t1.getFinishTime(); 
-      long l2 = t2.getFinishTime();
-      return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
+    JobHistoryParser.TaskAttemptInfo t2) {
+  long l1 = t1.getFinishTime(); 
+  long l2 = t2.getFinishTime();
+  return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
     }
   };
   
   Comparator<JobHistoryParser.TaskAttemptInfo> cReduce = 
     new Comparator<JobHistoryParser.TaskAttemptInfo>() {
     public int compare(JobHistoryParser.TaskAttemptInfo t1, 
-        JobHistoryParser.TaskAttemptInfo t2) {
-      long l1 = t1.getFinishTime() -
-                t1.getShuffleFinishTime();
-      long l2 = t2.getFinishTime() -
-                t2.getShuffleFinishTime();
-      return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
+    JobHistoryParser.TaskAttemptInfo t2) {
+  long l1 = t1.getFinishTime() -
+        t1.getShuffleFinishTime();
+  long l2 = t2.getFinishTime() -
+        t2.getShuffleFinishTime();
+  return (l2 < l1 ? -1 : (l2 == l1 ? 0 : 1));
     }
   }; 
 

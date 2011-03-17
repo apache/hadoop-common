@@ -53,19 +53,6 @@ public class TaskLogServlet extends HttpServlet {
     return f.canRead();
   }
 
-  /**
-   * Construct the taskLogUrl
-   * @param taskTrackerHostName
-   * @param httpPort
-   * @param taskAttemptID
-   * @return the taskLogUrl
-   */
-  public static String getTaskLogUrl(String taskTrackerHostName,
-      String httpPort, String taskAttemptID) {
-    return ("http://" + taskTrackerHostName + ":" + httpPort
-        + "/tasklog?attemptid=" + taskAttemptID);
-  }
-
   private void printTaskLog(HttpServletResponse response,
                             OutputStream out, TaskAttemptID taskId, 
                             long start, long end, boolean plainText, 

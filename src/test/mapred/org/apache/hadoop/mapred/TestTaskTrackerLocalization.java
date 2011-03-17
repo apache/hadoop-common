@@ -87,6 +87,7 @@ public class TestTaskTrackerLocalization extends TestCase {
   protected JobID jobId;
   protected TaskAttemptID taskId;
   protected Task task;
+  protected TTTask ttTask;
   protected String[] localDirs;
   protected static LocalDirAllocator lDirAlloc =
       new LocalDirAllocator(MRConfig.LOCAL_DIR);
@@ -178,7 +179,7 @@ public class TestTaskTrackerLocalization extends TestCase {
 
     // mimic register task
     // create the tip
-    tip = tracker.new TaskInProgress(task, trackerFConf);
+    tip = tracker.new TaskInProgress(ttTask, trackerFConf);
   }
 
   private void startTracker() throws IOException {
@@ -225,6 +226,7 @@ public class TestTaskTrackerLocalization extends TestCase {
     task = new MapTask(jobConfFile.toURI().toString(), taskId, 1, null, 1);
     task.setConf(jobConf); // Set conf. Set user name in particular.
     task.setUser(jobConf.getUser());
+    ttTask = new TTMapTask((MapTask)task);
   }
 
   protected UserGroupInformation getJobOwner() throws IOException {
@@ -623,7 +625,7 @@ public class TestTaskTrackerLocalization extends TestCase {
       new TrackerDistributedCacheManager(trackerFConf).
       newTaskDistributedCacheManager(jobId, trackerFConf);
 
-    TaskRunner runner = task.createRunner(tracker, tip, rjob);
+    TaskRunner runner = ttTask.createRunner(tracker, tip, rjob);
     tip.setTaskRunner(runner);
 
     // /////// Few more methods being tested
@@ -964,7 +966,7 @@ public class TestTaskTrackerLocalization extends TestCase {
     createTask();
     task.setTaskCleanupTask();
     // register task
-    tip = tracker.new TaskInProgress(task, trackerFConf);
+    tip = tracker.new TaskInProgress(ttTask, trackerFConf);
 
     // localize the job again.
     rjob = tracker.localizeJob(tip);
@@ -1005,7 +1007,7 @@ public class TestTaskTrackerLocalization extends TestCase {
     createTask();
     task.setTaskCleanupTask();
     // register task
-    tip = tracker.new TaskInProgress(task, trackerFConf);
+    tip = tracker.new TaskInProgress(ttTask, trackerFConf);
 
     // localize the job again.
     rjob = tracker.localizeJob(tip);
@@ -1031,7 +1033,7 @@ public class TestTaskTrackerLocalization extends TestCase {
 
     task.setTaskCleanupTask();
     // register task
-    tip = tracker.new TaskInProgress(task, trackerFConf);
+    tip = tracker.new TaskInProgress(ttTask, trackerFConf);
 
     // localize the job.
     RunningJob rjob = tracker.localizeJob(tip);

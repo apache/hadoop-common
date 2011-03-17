@@ -117,7 +117,7 @@ public class JobLocalizer {
     DISTDIR = JOBDIR + "/" + TaskTracker.DISTCACHEDIR;
     WORKDIR = JOBDIR + "/work";
     JARDST = JOBDIR + "/" + TaskTracker.JARSDIR + "/job.jar";
-    JOBCONF = JOBDIR + "/" + TaskTracker.JOBFILE;
+    JOBCONF = JOBDIR + "/" + Constants.JOBFILE;
     JOBTOKEN = JOBDIR + "/" + TaskTracker.JOB_TOKEN_FILE;
   }
 
@@ -346,7 +346,7 @@ public class JobLocalizer {
                                 DistributedCache.getCacheFiles(conf),
                                 DistributedCache.getLocalCacheFiles(conf),
                                 DistributedCache.getFileTimestamps(conf),
-                                TrackerDistributedCacheManager.
+                                DistributedCache.
                                   getFileVisibilities(conf),
                                 false);
     return 
@@ -354,7 +354,7 @@ public class JobLocalizer {
                                   DistributedCache.getCacheArchives(conf),
                                   DistributedCache.getLocalCacheArchives(conf),
                                   DistributedCache.getArchiveTimestamps(conf),
-                                  TrackerDistributedCacheManager.
+                                  DistributedCache.
                                     getArchiveVisibilities(conf),
                                   true);
   }

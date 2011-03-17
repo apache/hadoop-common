@@ -40,6 +40,7 @@ import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskAttemptInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 
 import static org.apache.hadoop.mapred.QueueManagerTestUtils.*;
 import org.apache.hadoop.security.Groups;
@@ -357,12 +358,12 @@ public class TestWebUIAuthorization extends ClusterMapReduceTestCase {
 
         // validate access to tasklogs - STDOUT and STDERR. SYSLOGs are not
         // generated for the 1 map sleep job in the test case.
-        String stdoutURL = TaskLogServlet.getTaskLogUrl("localhost",
+        String stdoutURL = HostUtil.getTaskLogUrl("localhost",
             Integer.toString(attemptsMap.get(attempt).getHttpPort()),
             attempt.toString()) + "&filter=" + TaskLog.LogName.STDOUT;
         validateViewJob(stdoutURL, "GET");
 
-        String stderrURL = TaskLogServlet.getTaskLogUrl("localhost",
+        String stderrURL = HostUtil.getTaskLogUrl("localhost",
             Integer.toString(attemptsMap.get(attempt).getHttpPort()),
             attempt.toString()) + "&filter=" + TaskLog.LogName.STDERR;
         validateViewJob(stderrURL, "GET");
@@ -385,11 +386,11 @@ public class TestWebUIAuthorization extends ClusterMapReduceTestCase {
         tipsMap.get(tip).getAllTaskAttempts();
       for (TaskAttemptID attempt : attemptsMap.keySet()) {
 
-        String stdoutURL = TaskLogServlet.getTaskLogUrl("localhost",
+        String stdoutURL = HostUtil.getTaskLogUrl("localhost",
             Integer.toString(attemptsMap.get(attempt).getHttpPort()),
             attempt.toString()) + "&filter=" + TaskLog.LogName.STDOUT;;
 
-        String stderrURL = TaskLogServlet.getTaskLogUrl("localhost",
+        String stderrURL = HostUtil.getTaskLogUrl("localhost",
             Integer.toString(attemptsMap.get(attempt).getHttpPort()),
             attempt.toString()) + "&filter=" + TaskLog.LogName.STDERR;
 

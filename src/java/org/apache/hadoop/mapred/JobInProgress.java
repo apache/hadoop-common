@@ -79,6 +79,7 @@ import org.apache.hadoop.mapreduce.split.JobSplit;
 import org.apache.hadoop.mapreduce.split.SplitMetaInfoReader;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
@@ -1849,16 +1850,6 @@ public class JobInProgress {
     }
   }
     
-  public static String convertTrackerNameToHostName(String trackerName) {
-    // Ugly!
-    // Convert the trackerName to its host name
-    int indexOfColon = trackerName.indexOf(":");
-    String trackerHostName = (indexOfColon == -1) ? 
-      trackerName : 
-      trackerName.substring(0, indexOfColon);
-    return trackerHostName.substring("tracker_".length());
-  }
-    
   /**
    * Note that a task has failed on a given tracker and add the tracker  
    * to the blacklist iff too many trackers in the cluster i.e. 
@@ -1869,7 +1860,7 @@ public class JobInProgress {
   synchronized void addTrackerTaskFailure(String trackerName, 
                                           TaskTracker taskTracker) {
     if (flakyTaskTrackers < (clusterSize * CLUSTER_BLACKLIST_PERCENT)) { 
-      String trackerHostName = convertTrackerNameToHostName(trackerName);
+      String trackerHostName = HostUtil.convertTrackerNameToHostName(trackerName);
 
       Integer trackerFailures = trackerToFailuresMap.get(trackerHostName);
       if (trackerFailures == null) {
@@ -1975,7 +1966,7 @@ public class JobInProgress {
   }
   
   private int getTrackerTaskFailures(String trackerName) {
-    String trackerHostName = convertTrackerNameToHostName(trackerName);
+    String trackerHostName = HostUtil.convertTrackerNameToHostName(trackerName);
     Integer failedTasks = trackerToFailuresMap.get(trackerHostName);
     return (failedTasks != null) ? failedTasks.intValue() : 0; 
   }
@@ -2730,7 +2721,7 @@ public class JobInProgress {
     if ((flakyTaskTrackers < (clusterSize * CLUSTER_BLACKLIST_PERCENT)) && 
         taskTrackerFailedTasks >= maxTaskFailuresPerTracker) {
       if (LOG.isDebugEnabled()) {
-        String flakyTracker = convertTrackerNameToHostName(taskTracker);
+        String flakyTracker = HostUtil.convertTrackerNameToHostName(taskTracker);
         if (LOG.isDebugEnabled()) {
           LOG.debug("Ignoring the black-listed tasktracker: '" + flakyTracker 
                     + "' for assigning a new task");
@@ -3311,7 +3302,7 @@ public class JobInProgress {
     // get taskStatus from tip
     TaskStatus taskStatus = tip.getTaskStatus(taskid);
     String taskTrackerName = taskStatus.getTaskTracker();
-    String taskTrackerHostName = convertTrackerNameToHostName(taskTrackerName);
+    String taskTrackerHostName = HostUtil.convertTrackerNameToHostName(taskTrackerName);
     int taskTrackerPort = -1;
     TaskTrackerStatus taskTrackerStatus = 
       (taskTracker == null) ? null : taskTracker.getStatus();

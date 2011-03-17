@@ -27,6 +27,7 @@ import org.apache.hadoop.mapreduce.ClusterMetrics;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 
 import junit.extensions.TestSetup;
 import junit.framework.Test;
@@ -100,13 +101,13 @@ public class TestTrackerReservation extends TestCase {
     TaskTracker tt2 = jobTracker.getTaskTracker(trackers[1]);
     TaskTracker tt3 = jobTracker.getTaskTracker(trackers[2]);
     TaskTrackerStatus status1 = new TaskTrackerStatus(
-        trackers[0],JobInProgress.convertTrackerNameToHostName(
+        trackers[0],HostUtil.convertTrackerNameToHostName(
             trackers[0]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     TaskTrackerStatus status2 = new TaskTrackerStatus(
-        trackers[1],JobInProgress.convertTrackerNameToHostName(
+        trackers[1],HostUtil.convertTrackerNameToHostName(
             trackers[1]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     TaskTrackerStatus status3 = new TaskTrackerStatus(
-        trackers[1],JobInProgress.convertTrackerNameToHostName(
+        trackers[1],HostUtil.convertTrackerNameToHostName(
             trackers[1]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     tt1.setStatus(status1);
     tt2.setStatus(status2);
@@ -169,7 +170,7 @@ public class TestTrackerReservation extends TestCase {
         .getBlackListedTrackers().size());
     assertTrue("Tracker 1 not blacklisted for the job", job
         .getBlackListedTrackers().contains(
-            JobInProgress.convertTrackerNameToHostName(trackers[0])));
+            HostUtil.convertTrackerNameToHostName(trackers[0])));
     assertEquals("Job didnt complete successfully complete", job.getStatus()
         .getRunState(), JobStatus.SUCCEEDED);
     assertEquals("Reservation for the job not released: Maps", 
@@ -207,13 +208,13 @@ public class TestTrackerReservation extends TestCase {
     TaskTracker tt2 = jobTracker.getTaskTracker(trackers[1]);
     TaskTracker tt3 = jobTracker.getTaskTracker(trackers[2]);
     TaskTrackerStatus status1 = new TaskTrackerStatus(
-        trackers[0],JobInProgress.convertTrackerNameToHostName(
+        trackers[0],HostUtil.convertTrackerNameToHostName(
             trackers[0]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     TaskTrackerStatus status2 = new TaskTrackerStatus(
-        trackers[1],JobInProgress.convertTrackerNameToHostName(
+        trackers[1],HostUtil.convertTrackerNameToHostName(
             trackers[1]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     TaskTrackerStatus status3 = new TaskTrackerStatus(
-        trackers[1],JobInProgress.convertTrackerNameToHostName(
+        trackers[1],HostUtil.convertTrackerNameToHostName(
             trackers[1]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     tt1.setStatus(status1);
     tt2.setStatus(status2);

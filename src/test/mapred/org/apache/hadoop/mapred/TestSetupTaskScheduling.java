@@ -26,6 +26,7 @@ import org.apache.hadoop.mapred.FakeObjectUtilities.FakeTaskInProgress;
 import org.apache.hadoop.mapred.FakeObjectUtilities.FakeJobTracker;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.split.JobSplit;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.TaskType;
 
@@ -207,7 +208,7 @@ public class TestSetupTaskScheduling extends TestCase {
       List<TaskStatus> reports) {
     TaskTrackerStatus ttStatus =
       new TaskTrackerStatus(tracker, 
-          JobInProgress.convertTrackerNameToHostName(tracker),
+          HostUtil.convertTrackerNameToHostName(tracker),
           0, reports, 0, 2, 2);
     return ttStatus;
   }

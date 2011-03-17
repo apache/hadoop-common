@@ -357,7 +357,8 @@ public class SimulatorTaskTracker implements SimulatorEventListener {
     }
     // First, create statuses and update used slots for map and reduce 
     // task separately
-    Task task = action.getTask();
+    TTTask ttTask = action.getTask();
+    Task task = ttTask.getTask();
     TaskAttemptID taskId = task.getTaskID();
     if (tasks.containsKey(taskId)) {
       throw new IllegalArgumentException("Multiple launch of task id =" + taskId);

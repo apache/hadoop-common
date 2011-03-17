@@ -39,6 +39,7 @@ import org.apache.hadoop.mapred.TaskTrackerStatus.TaskTrackerHealthStatus;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 
 public class TestTaskTrackerBlacklisting extends TestCase {
 
@@ -129,7 +130,7 @@ public class TestTaskTrackerBlacklisting extends TestCase {
         String tracker = entry.getKey();
         if (failures.intValue() >= this.getJobConf()
             .getMaxTaskFailuresPerTracker()) {
-          blackListedTrackers.add(JobInProgress
+          blackListedTrackers.add(HostUtil
               .convertTrackerNameToHostName(tracker));
         }
       }
@@ -162,7 +163,7 @@ public class TestTaskTrackerBlacklisting extends TestCase {
                                     boolean initialContact) 
   throws IOException {
     for (String tracker : trackers) {
-      TaskTrackerStatus tts = new TaskTrackerStatus(tracker, JobInProgress
+      TaskTrackerStatus tts = new TaskTrackerStatus(tracker, HostUtil
           .convertTrackerNameToHostName(tracker));
       if (status != null) {
         TaskTrackerHealthStatus healthStatus = tts.getHealthStatus();

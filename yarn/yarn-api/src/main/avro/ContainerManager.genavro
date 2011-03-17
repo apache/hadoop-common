@@ -1,0 +1,50 @@
+@namespace("org.apache.hadoop.yarn")
+protocol ContainerManager {
+
+  import idl "yarn/yarn-api/src/main/avro/yarn-types.genavro";
+
+  enum YarnContainerTags {
+    // Any env reference of the form <YARN_ENV_TAG.PROPERTYNAME> either
+    // in the environment specification or in the command line
+    // for e.g. <YARN_ENV_TAG.PWD> will be expanded by the ContainerManager
+    // to refer to the corresponding env variable value.
+    YARN_ENV_TAG,
+    // Any reference of the form <YARN_WORK_DIR> either in the environment
+    // specification or in the command line will be expanded by
+    // the ContainerManager to refer to the current working directory
+    // of the Container
+    YARN_WORK_DIR
+  }
+
+  record ContainerLaunchContext {
+    ContainerID id;
+    string user; // TODO: Shouldn't pass it like this.
+    Resource resource; // TODO: Needs RM validation
+    union {null, map<LocalResource>} resources;
+
+    union {null, bytes} containerTokens; // FileSystem related and other application specific tokens.
+    union {null, map<bytes>} serviceData;
+
+    //env to be set before launching the command
+    //KEY-> env variable name
+    //VALUE -> env variable value.
+    map<string> env;
+
+    //commandline to launch the container. All resources are downloaded in the 
+    //working directory of the command.
+    array<string> command;
+  }
+
+  record ContainerStatus {
+    ContainerID containerID;
+    ContainerState state;
+    int exitStatus;
+  }
+
+  void startContainer(ContainerLaunchContext container) throws YarnRemoteException;
+  void stopContainer(ContainerID containerID) throws YarnRemoteException;
+  void cleanupContainer(ContainerID containerID) throws YarnRemoteException;
+
+  ContainerStatus getContainerStatus(ContainerID containerID) throws YarnRemoteException;
+
+}

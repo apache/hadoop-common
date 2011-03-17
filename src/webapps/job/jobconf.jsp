@@ -48,10 +48,9 @@
 <h2>Job Configuration: JobId - <%= jobId %></h2><br>
 
 <%
-
   final JobID jobIdObj = JobID.forName(jobId);
   JobWithViewAccessCheck myJob = JSPUtil.checkAccessAndGetJob(tracker,
-      jobIdObj, request, response);
+  jobIdObj, request, response);
   if (!myJob.isViewJobAllowed()) {
     return; // user is not authorized to view this job
   }
@@ -61,8 +60,8 @@
   if (job == null) {
     String historyFile = tracker.getJobHistory().getHistoryFilePath(jobIdObj);
     if (historyFile == null) {
-      out.println("<h2>Job " + jobId + " not known!</h2>");
-      return;
+  out.println("<h2>Job " + jobId + " not known!</h2>");
+  return;
     }
     String historyUrl = "/jobconf_history.jsp?logFile=" + historyFile;
     response.sendRedirect(response.encodeRedirectURL(historyUrl));
@@ -75,16 +74,16 @@
     jobFile = new FileInputStream(jobFilePath);
     JobConf jobConf = new JobConf(jobFilePath);
     XMLUtils.transform(
-        jobConf.getConfResourceAsInputStream("webapps/static/jobconf.xsl"),
-        jobFile, out);
+    jobConf.getConfResourceAsInputStream("webapps/static/jobconf.xsl"),
+    jobFile, out);
   } catch (Exception e) {
     out.println("Failed to retreive job configuration for job '" + jobId + "!");
     out.println(e);
   } finally {
     if (jobFile != null) {
-      try { 
-        jobFile.close(); 
-      } catch (IOException e) {}
+  try { 
+    jobFile.close(); 
+  } catch (IOException e) {}
     }
   }
 %>

@@ -1,5 +1,4 @@
-<%
-/*
+<%/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file 
  * distributed with this work for additional information
@@ -15,8 +14,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-%>
+ */%>
 <%@ page
   contentType="text/html; charset=UTF-8"
   import="javax.servlet.*"
@@ -40,14 +38,13 @@
   MemoryMXBean mem = ManagementFactory.getMemoryMXBean();
   ClusterMetrics metrics = tracker.getClusterMetrics();
   String trackerName = 
-           StringUtils.simpleHostname(tracker.getJobTrackerMachine());
+   StringUtils.simpleHostname(tracker.getJobTrackerMachine());
   JobQueueInfo[] queues = tracker.getJobQueues();
   List<JobInProgress> runningJobs = tracker.getRunningJobs();
   List<JobInProgress> completedJobs = tracker.getCompletedJobs();
   List<JobInProgress> failedJobs = tracker.getFailedJobs();
 %>
-<%!
-  private static DecimalFormat percentFormat = new DecimalFormat("##0.00");
+<%!private static DecimalFormat percentFormat = new DecimalFormat("##0.00");
   
   public void generateSummaryTable(JspWriter out, ClusterMetrics metrics,
                                    JobTracker tracker) throws IOException {
@@ -124,7 +121,6 @@
   </ul>
 </div>
 
-<b>State:</b> <%= status.getJobTrackerState() %><br>
 <b>Started:</b> <%= new Date(tracker.getStartTime())%><br>
 <b>Version:</b> <%= VersionInfo.getVersion()%>,
                 <%= VersionInfo.getRevision()%><br>

@@ -1,0 +1,121 @@
+/**
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
+package org.apache.hadoop.yarn.server.resourcemanager;
+
+import com.google.common.collect.Lists;
+
+import java.util.List;
+
+import org.apache.hadoop.net.Node;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.NodeID;
+import org.apache.hadoop.yarn.Resource;
+
+/**
+ * Test helper to generate mock nodes
+ */
+public class MockNodes {
+  private static int NODE_ID = 0;
+
+  public static List<NodeInfo> newNodes(int racks, int nodesPerRack,
+                                        Resource perNode) {
+    List<NodeInfo> list = Lists.newArrayList();
+    for (int i = 0; i < racks; ++i) {
+      for (int j = 0; j < nodesPerRack; ++j) {
+        list.add(newNodeInfo(i, perNode));
+      }
+    }
+    return list;
+  }
+
+  public static NodeID newNodeID(int id) {
+    NodeID nid = new NodeID();
+    nid.id = id;
+    return nid;
+  }
+
+  public static Resource newResource(int mem) {
+    Resource rs = new Resource();
+    rs.memory = mem;
+    return rs;
+  }
+
+  public static Resource newUsedResource(Resource total) {
+    Resource rs = new Resource();
+    rs.memory = (int)(Math.random() * total.memory);
+    return rs;
+  }
+
+  public static Resource newAvailResource(Resource total, Resource used) {
+    Resource rs = new Resource();
+    rs.memory = total.memory - used.memory;
+    return rs;
+  }
+
+  public static NodeInfo newNodeInfo(int rack, final Resource perNode) {
+    final String rackName = "rack"+ rack;
+    final int nid = NODE_ID++;
+    final NodeID nodeID = newNodeID(nid);
+    final String hostName = "host"+ nid;
+    final Resource used = newUsedResource(perNode);
+    final Resource avail = newAvailResource(perNode, used);
+    final int containers = (int)(Math.random() * 8);
+    return new NodeInfo() {
+      @Override
+      public NodeID getNodeID() {
+        return nodeID;
+      }
+
+      @Override
+      public String getHostName() {
+        return hostName;
+      }
+
+      @Override
+      public Resource getTotalCapability() {
+        return perNode;
+      }
+
+      @Override
+      public String getRackName() {
+        return rackName;
+      }
+
+      @Override
+      public Node getNode() {
+        throw new UnsupportedOperationException("Not supported yet.");
+      }
+
+      @Override
+      public Resource getAvailableResource() {
+        return avail;
+      }
+
+      @Override
+      public Resource getUsedResource() {
+        return used;
+      }
+
+      @Override
+      public int getNumContainers() {
+        return containers;
+      }
+    };
+  }
+}

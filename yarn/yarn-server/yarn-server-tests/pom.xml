@@ -1,0 +1,66 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <artifactId>yarn-server</artifactId>
+    <groupId>org.apache.hadoop</groupId>
+    <version>${yarn.version}</version>
+  </parent>
+  <groupId>org.apache.hadoop</groupId>
+  <artifactId>yarn-server-tests</artifactId>
+  <name>yarn-server-tests</name>
+  <version>${yarn.version}</version>
+  <dependencies>
+    <!-- begin MNG-4223 workaround -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>yarn-api</artifactId>
+      <version>${yarn.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>yarn-common</artifactId>
+      <version>${yarn.version}</version>
+    </dependency>
+    <!-- end MNG-4223 workaround -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>yarn-server-common</artifactId>
+      <version>${yarn.version}</version>
+      <type>jar</type>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>yarn-server-nodemanager</artifactId>
+      <version>${yarn.version}</version>
+      <type>jar</type>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>yarn-server-resourcemanager</artifactId>
+      <version>${yarn.version}</version>
+      <type>jar</type>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.3.1</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <phase>test-compile</phase>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

@@ -30,7 +30,11 @@ import org.apache.hadoop.mapreduce.MRConfig;
 @InterfaceStability.Evolving
 public interface JTConfig extends MRConfig {
   // JobTracker configuration parameters
-  public static final String JT_IPC_ADDRESS  = "mapreduce.jobtracker.address";
+  /**
+   * deprecated Use {@link MRConfig#MASTER_ADDRESS} instead
+   */
+  @Deprecated
+  public static final String JT_IPC_ADDRESS = MASTER_ADDRESS;
   public static final String JT_HTTP_ADDRESS = 
     "mapreduce.jobtracker.http.address";
   public static final String JT_IPC_HANDLER_COUNT = 
@@ -102,9 +106,6 @@ public interface JTConfig extends MRConfig {
     "mapreduce.jobtracker.maxmapmemory.mb";
   public static final String JT_MAX_REDUCEMEMORY_MB = 
     "mapreduce.jobtracker.maxreducememory.mb";
-  public static final String JT_MAX_JOB_SPLIT_METAINFO_SIZE = 
-  "mapreduce.jobtracker.split.metainfo.maxsize";
-  public static final String JT_USER_NAME = "mapreduce.jobtracker.kerberos.principal";
   public static final String JT_KEYTAB_FILE = 
     "mapreduce.jobtracker.keytab.file";
 }

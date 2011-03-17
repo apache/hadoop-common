@@ -46,7 +46,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.EmptyInputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.JobTracker;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.mapred.OutputCollector;
@@ -55,6 +54,7 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.NullOutputFormat;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
@@ -253,7 +253,7 @@ public class TestTokenCacheOldApi {
     URI nnUri = NameNode.getUri(nn.getNameNodeAddress());
     jConf.set(JobContext.JOB_NAMENODES, nnUri + "," + nnUri.toString());
     // job tracker principle id..
-    jConf.set(JobTracker.JT_USER_NAME, "jt_id");
+    jConf.set(MRConfig.MASTER_USER_NAME, "jt_id");
 
     // using argument to pass the file name
     String[] args = {

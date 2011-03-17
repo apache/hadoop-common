@@ -26,6 +26,7 @@ import junit.framework.TestCase;
 import org.apache.hadoop.mapred.UtilsForTests.FakeClock;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 import org.hamcrest.Matcher;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
@@ -106,7 +107,7 @@ public class TestLostTaskTracker extends TestCase {
 
   private void establishFirstContact(String tracker) throws IOException {
     TaskTrackerStatus status = new TaskTrackerStatus(tracker, 
-        JobInProgress.convertTrackerNameToHostName(tracker));
+        HostUtil.convertTrackerNameToHostName(tracker));
     jobTracker.heartbeat(status, false, true, false, (short) 0);
   }
   

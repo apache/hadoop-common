@@ -29,6 +29,7 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.mapred.JobTracker.State;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
@@ -40,6 +41,7 @@ import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.StaticMapping;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.tools.rumen.LoggedJob.JobType;
 
 /**
  * This class creates a single-process Map-Reduce cluster for junit testing.
@@ -106,6 +108,10 @@ public class MiniMRCluster {
   
     public JobTracker getJobTracker() {
       return tracker;
+    }
+    
+    public JobTracker.State getState() {
+      return tracker.getState();
     }
     
     /**
@@ -313,6 +319,18 @@ public class MiniMRCluster {
     }
   }
 
+  public void waitForJT() {
+    while (jobTracker.getState() != State.RUNNING) {
+      try {
+        Thread.sleep(1000);
+      } catch (InterruptedException ie) {}
+    }
+  }
+  
+  public JobTracker.State getJobTrackerState() {
+    return jobTracker.getState();
+  }
+  
   /**
    * Wait until the system is idle.
    */
@@ -649,7 +667,7 @@ public class MiniMRCluster {
     ClusterStatus status = null;
     if (jobTracker.isUp()) {
       status = jobTracker.getJobTracker().getClusterStatus(false);
-      while (jobTracker.isActive() && status.getJobTrackerState() 
+      while (jobTracker.isActive() && jobTracker.getState() 
              == JobTracker.State.INITIALIZING) {
         try {
           LOG.info("JobTracker still initializing. Waiting.");

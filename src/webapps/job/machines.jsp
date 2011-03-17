@@ -35,8 +35,7 @@
            StringUtils.simpleHostname(tracker.getJobTrackerMachine());
   String type = request.getParameter("type");
 %>
-<%!
-  public void generateTaskTrackerTable(JspWriter out,
+<%!public void generateTaskTrackerTable(JspWriter out,
                                        String type,
                                        JobTracker tracker) throws IOException {
     Collection c;
@@ -162,8 +161,7 @@
       out.print("</table>\n");
       out.print("</center>\n");
     }
-  }
-%>
+  }%>
 
 <html>
 

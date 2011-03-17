@@ -74,11 +74,10 @@ public class GridmixSystemTestCase {
   @AfterClass
   public static void after() throws Exception {
     UtilsForGridmix.cleanup(gridmixDir, rtClient.getDaemonConf());
-    org.apache.hadoop.fs.FileUtil.fullyDelete(new java.io.File(System.
-        getProperty("java.io.tmpdir") + "/gridmix-st/"));
+    org.apache.hadoop.fs.FileUtil.fullyDelete(new java.io.File("/tmp/gridmix-st"));
     cluster.tearDown();
-    if (gridmixJS != null && gridmixJS.getJobConf().
-        get("gridmix.user.resolve.class"). contains("RoundRobin")) {
+    if (gridmixJS.getJobConf().get("gridmix.user.resolve.class").
+        contains("RoundRobin")) {
        List<String> proxyUsers = UtilsForGridmix.
            listProxyUsers(gridmixJS.getJobConf(),
            UserGroupInformation.getLoginUser().getShortUserName());
@@ -98,19 +97,19 @@ public class GridmixSystemTestCase {
   
   public static void runGridmixAndVerify(String [] runtimeValues, 
       String [] otherValues, String tracePath, int mode) throws Exception {
-    List<JobID> jobids = runGridmix(runtimeValues, otherValues, mode);
+    jobids = runGridmix(runtimeValues, otherValues, mode);
     gridmixJV = new GridmixJobVerification(
         new Path(tracePath), gridmixJS.getJobConf(), jtClient);
     gridmixJV.verifyGridmixJobsWithJobStories(jobids);  
   }
-
+  
   public static List<JobID> runGridmix(String[] runtimeValues, 
      String[] otherValues, int mode) throws Exception {
     gridmixJS = new GridmixJobSubmission(rtClient.getDaemonConf(),
        jtClient, gridmixDir);
     gridmixJS.submitJobs(runtimeValues, otherValues, mode);
-    List<JobID> jobids = UtilsForGridmix.listGridmixJobIDs(
-       jtClient.getClient(), gridmixJS.getGridmixJobCount());
+    jobids = UtilsForGridmix.listGridmixJobIDs(jtClient.getClient(), 
+       gridmixJS.getGridmixJobCount());
     return jobids;
   }
   
@@ -126,11 +125,5 @@ public class GridmixSystemTestCase {
       }
     }
     return null;
-  }
-
-  public static boolean isLocalDistCache(String fileName, String userName, 
-     boolean visibility) {
-    return DistributedCacheEmulator.isLocalDistCacheFile(fileName, 
-        userName, visibility);
   }
 }

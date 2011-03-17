@@ -44,6 +44,7 @@ import org.apache.hadoop.mapred.lib.IdentityReducer;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
@@ -446,7 +447,7 @@ public class TestNodeRefresh extends TestCase {
     
     // find the tracker to decommission
     String hostToDecommission = 
-      JobInProgress.convertTrackerNameToHostName(
+      HostUtil.convertTrackerNameToHostName(
           jt.getBlacklistedTrackers()[0].getTaskTrackerName());
     LOG.info("Decommissioning host " + hostToDecommission);
     

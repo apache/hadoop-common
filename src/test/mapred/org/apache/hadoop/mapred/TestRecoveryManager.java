@@ -131,7 +131,7 @@ public class TestRecoveryManager extends TestCase {
     
     // check if the jobtracker came up or not
     assertEquals("JobTracker crashed!", 
-                 JobTracker.State.RUNNING, status.getJobTrackerState());
+                 JobTracker.State.RUNNING, mr.getJobTrackerState());
 
     // assert the no of recovered jobs
     assertEquals("No of recovered jobs not correct",
@@ -250,7 +250,7 @@ public class TestRecoveryManager extends TestCase {
     // start the jobtracker
     LOG.info("Starting jobtracker");
     mr.startJobTracker();
-    UtilsForTests.waitForJobTracker(jc);
+    mr.waitForJT();
     
     jobtracker = mr.getJobTrackerRunner().getJobTracker();
     

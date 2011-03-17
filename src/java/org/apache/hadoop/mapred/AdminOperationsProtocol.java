@@ -23,7 +23,7 @@ import java.io.IOException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.ipc.VersionedProtocol;
-import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
+import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.security.KerberosInfo;
 
 /**
@@ -31,7 +31,7 @@ import org.apache.hadoop.security.KerberosInfo;
  * NOT_TO_BE_USED_BY_USERS_DIRECTLY.
  */
 @KerberosInfo(
-    serverPrincipal = JTConfig.JT_USER_NAME)
+    serverPrincipal = MRConfig.MASTER_USER_NAME)
 @InterfaceAudience.Private
 @InterfaceStability.Stable
 public interface AdminOperationsProtocol extends VersionedProtocol {

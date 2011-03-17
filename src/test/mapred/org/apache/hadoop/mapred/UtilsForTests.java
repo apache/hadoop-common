@@ -243,22 +243,6 @@ public class UtilsForTests {
   }
   
   /**
-   * Wait for the jobtracker to be RUNNING.
-   */
-  static void waitForJobTracker(JobClient jobClient) {
-    while (true) {
-      try {
-        ClusterStatus status = jobClient.getClusterStatus();
-        while (status.getJobTrackerState() != JobTracker.State.RUNNING) {
-          waitFor(100);
-          status = jobClient.getClusterStatus();
-        }
-        break; // means that the jt is ready
-      } catch (IOException ioe) {}
-    }
-  }
-  
-  /**
    * Waits until all the jobs at the jobtracker complete.
    */
   static void waitTillDone(JobClient jobClient) throws IOException {

@@ -1,5 +1,4 @@
-<%
-/*
+<%/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file 
  * distributed with this work for additional information
@@ -15,8 +14,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-%>
+ */%>
 <%@ page
   contentType="text/html; charset=UTF-8"
   import="javax.servlet.*"
@@ -28,6 +26,7 @@
   import="org.apache.hadoop.mapred.JSPUtil.JobWithViewAccessCheck"
   import="org.apache.hadoop.mapreduce.TaskType"
   import="org.apache.hadoop.util.*"
+  import="org.apache.hadoop.mapreduce.util.*"
 %>
 
 <%!	private static final long serialVersionUID = 1L;
@@ -36,10 +35,9 @@
 <%
   JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
   String trackerName = 
-           StringUtils.simpleHostname(tracker.getJobTrackerMachine());
+       StringUtils.simpleHostname(tracker.getJobTrackerMachine());
 %>
-<%! 
-  private void printFailedAttempts(JspWriter out,
+<%!private void printFailedAttempts(JspWriter out,
                                    JobTracker tracker,
                                    TaskInProgress tip,
                                    TaskStatus.State failState) throws IOException {
@@ -80,7 +78,7 @@
         out.print("<td>");
         String taskLogUrl = null;
         if (taskTracker != null) {
-          taskLogUrl = TaskLogServlet.getTaskLogUrl(taskTracker.getHost(),
+          taskLogUrl = HostUtil.getTaskLogUrl(taskTracker.getHost(),
                                 String.valueOf(taskTracker.getHttpPort()),
                                 statuses[i].getTaskID().toString());
         }
@@ -157,27 +155,26 @@
       }
     }
     out.print("</table>\n");
-  }
-%>
+  }%>
 
 <%
-    String jobId = request.getParameter("jobid");
+  String jobId = request.getParameter("jobid");
     if (jobId == null) {
-      out.println("<h2>Missing 'jobid'!</h2>");
-      return;
+  out.println("<h2>Missing 'jobid'!</h2>");
+  return;
     }
     JobID jobIdObj = JobID.forName(jobId);
     
     JobWithViewAccessCheck myJob = JSPUtil.checkAccessAndGetJob(
-        tracker, jobIdObj, request, response);
+    tracker, jobIdObj, request, response);
     if (!myJob.isViewJobAllowed()) {
-      return; // user is not authorized to view this job
+  return; // user is not authorized to view this job
     }
 
     JobInProgress job = myJob.getJob();
     if (job == null) {
-      out.print("<b>Job " + jobId + " not found.</b><br>\n");
-      return;
+  out.print("<b>Job " + jobId + " not found.</b><br>\n");
+  return;
     }
 
     String kind = request.getParameter("kind");

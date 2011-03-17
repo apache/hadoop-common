@@ -48,8 +48,10 @@ import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Master;
 import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.SleepJob;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
@@ -227,7 +229,7 @@ public class TestTokenCache {
     String nnUri = dfsCluster.getURI(0).toString();
     jConf.set(MRJobConfig.JOB_NAMENODES, nnUri + "," + nnUri);
     // job tracker principla id..
-    jConf.set(JTConfig.JT_USER_NAME, "jt_id/foo@BAR");
+    jConf.set(MRConfig.MASTER_USER_NAME, "jt_id/foo@BAR");
     
     // using argument to pass the file name
     String[] args = {
@@ -306,7 +308,7 @@ public class TestTokenCache {
     DelegationTokenSecretManager dtSecretManager = 
       dfsCluster.getNamesystem().getDelegationTokenSecretManager();
     String renewer = "renewer/foo@BAR";
-    jConf.set(JTConfig.JT_USER_NAME,renewer);
+    jConf.set(MRConfig.MASTER_USER_NAME,renewer);
     DelegationTokenIdentifier dtId = 
       new DelegationTokenIdentifier(new Text("user"), new Text(renewer), null);
     final Token<DelegationTokenIdentifier> t = 
@@ -372,9 +374,9 @@ public class TestTokenCache {
     String domainName = "@BAR";
     Configuration conf = new Configuration();
     conf.set(JTConfig.JT_IPC_ADDRESS, hostName + ":8888");
-    conf.set(JTConfig.JT_USER_NAME, serviceName + SecurityUtil.HOSTNAME_PATTERN
+    conf.set(MRConfig.MASTER_USER_NAME, serviceName + SecurityUtil.HOSTNAME_PATTERN
         + domainName);
     assertEquals("Failed to substitute HOSTNAME_PATTERN with hostName",
-        serviceName + hostName + domainName, TokenCache.getJTPrincipal(conf));
+        serviceName + hostName + domainName, Master.getMasterPrincipal(conf));
   }
 }

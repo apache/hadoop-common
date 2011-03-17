@@ -177,10 +177,9 @@ public class TestGridMixDataGeneration {
        dataSize + 0.1 > inputSize || dataSize - 0.1 < inputSize);
  
     JobClient jobClient = jtClient.getClient();
-    int len = jobClient.getAllJobs().length;
     LOG.info("Verify the job status after completion of job.");
     Assert.assertEquals("Job has not succeeded.", JobStatus.SUCCEEDED, 
-       jobClient.getAllJobs()[len-1].getRunState());
+       jobClient.getAllJobs()[0].getRunState());
   }
   
   private void verifyEachNodeSize(Path inputDir) throws IOException {

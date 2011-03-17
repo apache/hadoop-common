@@ -42,6 +42,7 @@ import org.apache.hadoop.mapreduce.jobhistory.TaskUpdatedEvent;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitIndex;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 
 import org.apache.hadoop.net.Node;
 
@@ -810,7 +811,7 @@ class TaskInProgress {
     if (status != null) {
       trackerName = status.getTaskTracker();
       trackerHostName = 
-        JobInProgress.convertTrackerNameToHostName(trackerName);
+        HostUtil.convertTrackerNameToHostName(trackerName);
       // Check if the user manually KILLED/FAILED this task-attempt...
       Boolean shouldFail = tasksToKill.remove(taskid);
       if (shouldFail != null) {

@@ -44,12 +44,11 @@
 
 <%
   final JobTracker tracker = (JobTracker) application.getAttribute(
-      "job.tracker");
+  "job.tracker");
   String trackerName = 
-           StringUtils.simpleHostname(tracker.getJobTrackerMachine());
+       StringUtils.simpleHostname(tracker.getJobTrackerMachine());
 %>
-<%!
-  private void printTaskSummary(JspWriter out,
+<%!private void printTaskSummary(JspWriter out,
                                 String jobId,
                                 String kind,
                                 double completePercent,
@@ -166,105 +165,102 @@
         + "</td><td width=\"100\"><form method=\"post\" action=\"" + url
         + "\"><input type=\"submit\" value=\"Cancel\" name=\"Cancel\""
         + "/></form></td></tr></table></body></html>");
-  }
-  
-%>       
-<%   
-    String jobId = request.getParameter("jobid"); 
-    String refreshParam = request.getParameter("refresh");
-    if (jobId == null) {
-      out.println("<h2>Missing 'jobid'!</h2>");
-      return;
-    }
-    
-    int refresh = 60; // refresh every 60 seconds by default
-    if (refreshParam != null) {
-        try {
-            refresh = Integer.parseInt(refreshParam);
-        }
-        catch (NumberFormatException ignored) {
-        }
-    }
+  }%>       
+<%
+         String jobId = request.getParameter("jobid"); 
+           String refreshParam = request.getParameter("refresh");
+           if (jobId == null) {
+         out.println("<h2>Missing 'jobid'!</h2>");
+         return;
+           }
+           
+           int refresh = 60; // refresh every 60 seconds by default
+           if (refreshParam != null) {
+           try {
+               refresh = Integer.parseInt(refreshParam);
+           }
+           catch (NumberFormatException ignored) {
+           }
+           }
 
-    final JobID jobIdObj = JobID.forName(jobId);
-    JobWithViewAccessCheck myJob = JSPUtil.checkAccessAndGetJob(tracker, jobIdObj,
-                                                     request, response);
-    if (!myJob.isViewJobAllowed()) {
-      return; // user is not authorized to view this job
-    }
+           final JobID jobIdObj = JobID.forName(jobId);
+           JobWithViewAccessCheck myJob = JSPUtil.checkAccessAndGetJob(tracker, jobIdObj,
+                                                        request, response);
+           if (!myJob.isViewJobAllowed()) {
+         return; // user is not authorized to view this job
+           }
 
-    JobInProgress job = myJob.getJob();
+           JobInProgress job = myJob.getJob();
 
-    final String newPriority = request.getParameter("prio");
-    String user = request.getRemoteUser();
-    UserGroupInformation ugi = null;
-    if (user != null) {
-      ugi = UserGroupInformation.createRemoteUser(user);
-    }
-    String action = request.getParameter("action");
-    if(JSPUtil.privateActionsAllowed(tracker.conf) && 
-        "changeprio".equalsIgnoreCase(action) 
-        && request.getMethod().equalsIgnoreCase("POST")) {
-      if (ugi != null) {
-        try {
-          ugi.doAs(new PrivilegedExceptionAction<Void>() {
-            public Void run() throws IOException{
+           final String newPriority = request.getParameter("prio");
+           String user = request.getRemoteUser();
+           UserGroupInformation ugi = null;
+           if (user != null) {
+         ugi = UserGroupInformation.createRemoteUser(user);
+           }
+           String action = request.getParameter("action");
+           if(JSPUtil.privateActionsAllowed(tracker.conf) && 
+           "changeprio".equalsIgnoreCase(action) 
+           && request.getMethod().equalsIgnoreCase("POST")) {
+         if (ugi != null) {
+           try {
+             ugi.doAs(new PrivilegedExceptionAction<Void>() {
+               public Void run() throws IOException{
 
-              // checks job modify permission
-              tracker.setJobPriority(jobIdObj, 
-                  JobPriority.valueOf(newPriority));
-              return null;
-            }
-          });
-        } catch(AccessControlException e) {
-          String errMsg = "User " + user + " failed to modify priority of " +
-              jobIdObj + "!<br><br>" + e.getMessage() +
-              "<hr><a href=\"jobdetails.jsp?jobid=" + jobId +
-              "\">Go back to Job</a><br>";
-          JSPUtil.setErrorAndForward(errMsg, request, response);
-          return;
-        }
-      }
-      else {// no authorization needed
-        tracker.setJobPriority(jobIdObj,
-             JobPriority.valueOf(newPriority));;
-      }
-    }
-    
-    if(JSPUtil.privateActionsAllowed(tracker.conf)) {
-      action = request.getParameter("action");
-      if(action!=null && action.equalsIgnoreCase("confirm")) {
-        printConfirm(out, jobId);
-        return;
-      }
-      else if(action != null && action.equalsIgnoreCase("kill") &&
-          request.getMethod().equalsIgnoreCase("POST")) {
-        if (ugi != null) {
-          try {
-            ugi.doAs(new PrivilegedExceptionAction<Void>() {
-              public Void run() throws IOException{
+                 // checks job modify permission
+                 tracker.setJobPriority(jobIdObj, 
+                     JobPriority.valueOf(newPriority));
+                 return null;
+               }
+             });
+           } catch(AccessControlException e) {
+             String errMsg = "User " + user + " failed to modify priority of " +
+                 jobIdObj + "!<br><br>" + e.getMessage() +
+                 "<hr><a href=\"jobdetails.jsp?jobid=" + jobId +
+                 "\">Go back to Job</a><br>";
+             JSPUtil.setErrorAndForward(errMsg, request, response);
+             return;
+           }
+         }
+         else {// no authorization needed
+           tracker.setJobPriority(jobIdObj,
+                JobPriority.valueOf(newPriority));;
+         }
+           }
+           
+           if(JSPUtil.privateActionsAllowed(tracker.conf)) {
+         action = request.getParameter("action");
+         if(action!=null && action.equalsIgnoreCase("confirm")) {
+           printConfirm(out, jobId);
+           return;
+         }
+         else if(action != null && action.equalsIgnoreCase("kill") &&
+             request.getMethod().equalsIgnoreCase("POST")) {
+           if (ugi != null) {
+             try {
+               ugi.doAs(new PrivilegedExceptionAction<Void>() {
+                 public Void run() throws IOException{
 
-                // checks job modify permission
-                tracker.killJob(jobIdObj);// checks job modify permission
-                return null;
-              }
-            });
-          } catch(AccessControlException e) {
-            String errMsg = "User " + user + " failed to kill " + jobIdObj +
-                "!<br><br>" + e.getMessage() +
-                "<hr><a href=\"jobdetails.jsp?jobid=" + jobId +
-                "\">Go back to Job</a><br>";
-            JSPUtil.setErrorAndForward(errMsg, request, response);
-            return;
-          }
-        }
-        else {// no authorization needed
-          tracker.killJob(jobIdObj);
-        }
-      }
-    }
-
-%>
+                   // checks job modify permission
+                   tracker.killJob(jobIdObj);// checks job modify permission
+                   return null;
+                 }
+               });
+             } catch(AccessControlException e) {
+               String errMsg = "User " + user + " failed to kill " + jobIdObj +
+                   "!<br><br>" + e.getMessage() +
+                   "<hr><a href=\"jobdetails.jsp?jobid=" + jobId +
+                   "\">Go back to Job</a><br>";
+               JSPUtil.setErrorAndForward(errMsg, request, response);
+               return;
+             }
+           }
+           else {// no authorization needed
+             tracker.killJob(jobIdObj);
+           }
+         }
+           }
+       %>
 
 <%@page import="org.apache.hadoop.mapred.TaskGraphServlet"%>
 <html>

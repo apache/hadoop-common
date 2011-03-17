@@ -67,9 +67,6 @@ abstract class TaskRunner extends Thread {
   private boolean exitCodeSet = false;
   
   private static String SYSTEM_PATH_SEPARATOR = System.getProperty("path.separator");
-  static final String HADOOP_WORK_DIR = "HADOOP_WORK_DIR";
-
-  
   private TaskTracker tracker;
   private TaskDistributedCacheManager taskDistributedCacheManager;
   private String[] localdirs;
@@ -522,7 +519,7 @@ abstract class TaskRunner extends Thread {
       ldLibraryPath.append(oldLdLibraryPath);
     }
     env.put("LD_LIBRARY_PATH", ldLibraryPath.toString());
-    env.put(HADOOP_WORK_DIR, workDir.toString());
+    env.put(Constants.HADOOP_WORK_DIR, workDir.toString());
     
     // put jobTokenFile name into env
     String jobTokenFile = conf.get(TokenCache.JOB_TOKENS_FILENAME);

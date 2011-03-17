@@ -316,8 +316,7 @@ public class TestJobInProgress extends TestCase {
     // Should be invoked numMaps + numReds times by different TIP objects
     verify(jspy, times(4)).setFirstTaskLaunchTime(any(TaskInProgress.class));
 
-    ClusterStatus cspy = spy(new ClusterStatus(4, 0, 0, 0, 0, 4, 4,
-                                               JobTracker.State.RUNNING, 0));
+    ClusterStatus cspy = spy(new ClusterStatus(4, 0, 0, 0, 0, 4, 4, 0));
 
     JobInProgress.JobSummary.logJobSummary(jspy, cspy);
 

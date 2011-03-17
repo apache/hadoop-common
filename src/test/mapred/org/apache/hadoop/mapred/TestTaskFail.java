@@ -34,6 +34,7 @@ import org.apache.hadoop.mapred.lib.IdentityReducer;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.MapReduceTestUtil;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 
 public class TestTaskFail extends TestCase {
   private static String taskLog = "Task attempt log";
@@ -141,7 +142,7 @@ public class TestTaskFail extends TestCase {
     // access the logs from web url
     TaskTrackerStatus ttStatus = jt.getTaskTracker(
         tip.machineWhereTaskRan(attemptId)).getStatus();
-    String tasklogUrl = TaskLogServlet.getTaskLogUrl("localhost",
+    String tasklogUrl = HostUtil.getTaskLogUrl("localhost",
         String.valueOf(ttStatus.getHttpPort()), attemptId.toString()) +
         "&filter=STDERR";
     assertEquals(HttpURLConnection.HTTP_OK, TestWebUIAuthorization
@@ -158,7 +159,7 @@ public class TestTaskFail extends TestCase {
       // access the cleanup attempt's logs from web url
       ttStatus = jt.getTaskTracker(tip.machineWhereCleanupRan(attemptId))
           .getStatus();
-      String cleanupTasklogUrl = TaskLogServlet.getTaskLogUrl("localhost",
+      String cleanupTasklogUrl = HostUtil.getTaskLogUrl("localhost",
           String.valueOf(ttStatus.getHttpPort()), attemptId.toString())
           + "&filter=STDERR&cleanup=true";
       assertEquals(HttpURLConnection.HTTP_OK, TestWebUIAuthorization

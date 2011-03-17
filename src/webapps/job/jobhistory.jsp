@@ -1,5 +1,4 @@
-<%
-/*
+<%/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file 
  * distributed with this work for additional information
@@ -15,8 +14,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-%>
+ */%>
 <%@ page
   contentType="text/html; charset=UTF-8"
   import="java.io.*"
@@ -36,23 +34,20 @@
   import="org.apache.hadoop.mapreduce.jobhistory.JobHistory.JobHistoryRecordRetriever"
 %>
 
-<%!	private static final long serialVersionUID = 1L;
-%>
+<%!private static final long serialVersionUID = 1L;%>
 
-<%	
+<%
   JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
   String trackerName =
-           StringUtils.simpleHostname(tracker.getJobTrackerMachine());
+   StringUtils.simpleHostname(tracker.getJobTrackerMachine());
 %>
-<%!	
-  private static SimpleDateFormat dateFormat = 
-                                    new SimpleDateFormat("d/MM HH:mm:ss");
-%>
+<%!private static SimpleDateFormat dateFormat = 
+                                    new SimpleDateFormat("d/MM HH:mm:ss");%>
 <html>
 <head>
 <script type="text/JavaScript">
 <!--
-<% // assuming search is already quoted %>
+<%// assuming search is already quoted%>
 function showUserHistory(search)
 {
 var url
@@ -66,18 +61,18 @@ window.location.href = url;
 //-->
 </script>
 <link rel="stylesheet" type="text/css" href="/static/hadoop.css">
-<title><%= trackerName %> Hadoop Map/Reduce History Viewer</title>
+<title><%=trackerName%> Hadoop Map/Reduce History Viewer</title>
 <link rel="stylesheet" type="text/css" href="/static/hadoop.css">
 </head>
 <body>
-<h1> <a href="jobtracker.jsp"><%= trackerName %></a> Hadoop Map/Reduce 
+<h1> <a href="jobtracker.jsp"><%=trackerName%></a> Hadoop Map/Reduce 
      <a href="jobhistory.jsp">History Viewer</a></h1>
 <hr>
 <%
   //{{ // this is here to make indentation work, and must be commented out
     final String search = (request.getParameter("search") == null)
-                          ? ""
-                          : request.getParameter("search");
+                      ? ""
+                      : request.getParameter("search");
 
     String soughtDate = "";
     String soughtJobName = "";
@@ -90,31 +85,31 @@ window.location.href = url;
     final String DATE_PATTERN = "([0-1]?[0-9])/([0-3]?[0-9])/((?:2[0-9])?[0-9][0-9])";
 
     if (splitDate.length >= 2) {
-      soughtDate = splitDate[1];
+  soughtDate = splitDate[1];
     }
 
     String[] splitJobName = splitDate[0].split(";");
 
     if (splitJobName.length >= 2) {
-      soughtJobName = splitJobName[1];
+  soughtJobName = splitJobName[1];
     }
 
     String[] splitJobid = splitJobName[0].split(":");
 
     if (splitJobid.length >= 2) {
-      soughtJobid = splitJobid[1];
+  soughtJobid = splitJobid[1];
     }
 
     final String soughtUser = (splitJobid.length >= 1)
-                        ? splitJobid[0].toLowerCase()
-                        : "";
+                    ? splitJobid[0].toLowerCase()
+                    : "";
 
     if (soughtDate.length() != 0) {
-      Pattern p = Pattern.compile(DATE_PATTERN);
-      Matcher m = p.matcher(soughtDate);
-      if (!m.matches()) {
-        soughtDate = "";
-      }
+  Pattern p = Pattern.compile(DATE_PATTERN);
+  Matcher m = p.matcher(soughtDate);
+  if (!m.matches()) {
+    soughtDate = "";
+  }
     }
 
     JobHistory jobHistory = (JobHistory) application.getAttribute("jobHistoryHistory");
@@ -122,54 +117,54 @@ window.location.href = url;
     soughtDates[0] = soughtDate;
 
     JobHistoryRecordRetriever retriever
-      = jobHistory.getMatchingJobs
-           (soughtUser, soughtJobName, soughtDates, soughtJobid);
+  = jobHistory.getMatchingJobs
+       (soughtUser, soughtJobName, soughtDates, soughtJobid);
     
     JobHistoryJobRecord[] records
-      = new JobHistoryJobRecord[retriever.numberMatches()];
+  = new JobHistoryJobRecord[retriever.numberMatches()];
 
     int recordsIndex = 0;
 
     while (retriever.hasNext()) {
-      records[recordsIndex++] = retriever.next();
+  records[recordsIndex++] = retriever.next();
     }
     
     out.println("<!--  user : " + soughtUser + ", jobid : " + soughtJobid + "-->");
     if (records.length == 0)  {
-      out.println("No files found!"); 
-      return ; 
+  out.println("No files found!"); 
+  return ; 
     }
 
     // get the pageno
     int pageno = request.getParameter("pageno") == null
-                ? 1
-                : Integer.parseInt(request.getParameter("pageno"));
+            ? 1
+            : Integer.parseInt(request.getParameter("pageno"));
 
     // get the total number of files to display
     int size = 100;
 
     // if show-all is requested or jobfiles < size(100)
     if (pageno == -1 || size > records.length) {
-      size = records.length;
+  size = records.length;
     }
 
     if (pageno == -1) { // special case 'show all'
-      pageno = 1;
+  pageno = 1;
     }
 
     int maxPageNo = (records.length + size - 1) / size;
 
     // check and fix pageno
     if (pageno < 1 || pageno > maxPageNo) {
-      out.println("Invalid page index");
-      return ;
+  out.println("Invalid page index");
+  return ;
     }
 
     int length = size ; // determine the length of job history files to be displayed
     if (pageno == maxPageNo) {
-      // find the number of files to be shown on the last page
-      int startOnLast = ((pageno - 1) * size) + 1;
-      length = records.length - startOnLast + 1;
+  // find the number of files to be shown on the last page
+  int startOnLast = ((pageno - 1) * size) + 1;
+  length = records.length - startOnLast + 1;
     }
 
     // Display the search box
@@ -190,13 +185,13 @@ window.location.href = url;
     // display the number of jobs, start index, end index
     out.println("(<i> <span class=\"small\">Displaying <b>" + length + "</b> jobs from <b>" + start + "</b> to <b>" + (start + length - 1) + "</b> out of <b>" + records.length + "</b> jobs");
     if (!"".equals(soughtUser)) {
-      out.println(" for user <b>" + soughtUser + "</b>"); // show the user if present
+  out.println(" for user <b>" + soughtUser + "</b>"); // show the user if present
     }
     if (!"".equals(soughtJobid)) {
-      out.println(" for jobid <b>" + soughtJobid + "</b> in it "); // show the jobid keyword if present
+  out.println(" for jobid <b>" + soughtJobid + "</b> in it "); // show the jobid keyword if present
     }
     if (!"".equals(soughtDate)) {
-      out.println(" for date <b>" + soughtDate + "</b>"); // show the jobid keyword if present
+  out.println(" for date <b>" + soughtDate + "</b>"); // show the jobid keyword if present
     }
     out.print("</span></i>)");
 
@@ -205,39 +200,39 @@ window.location.href = url;
 
     // show the 'first-page' link
     if (pageno > 1) {
-      out.println(" [<span class=\"small\"><a href=\"jobhistory.jsp?pageno=1&search=" + search + "\">first page</a></span>]");
+  out.println(" [<span class=\"small\"><a href=\"jobhistory.jsp?pageno=1&search=" + search + "\">first page</a></span>]");
     } else {
-      out.println("[<span class=\"small\">first page]</span>");
+  out.println("[<span class=\"small\">first page]</span>");
     }
 
     // show the 'last-page' link
     if (pageno < maxPageNo) {
-      out.println(" [<span class=\"small\"><a href=\"jobhistory.jsp?pageno=" + maxPageNo + "&search=" + search + "\">last page</a></span>]");
+  out.println(" [<span class=\"small\"><a href=\"jobhistory.jsp?pageno=" + maxPageNo + "&search=" + search + "\">last page</a></span>]");
     } else {
-      out.println("<span class=\"small\">[last page]</span>");
+  out.println("<span class=\"small\">[last page]</span>");
     }
 
     // REVERSE sort the files on creation time.
     Arrays.sort(records, new Comparator<JobHistoryJobRecord>() {
-                  public int compare(JobHistoryJobRecord rec1, JobHistoryJobRecord rec2) {
-                    String id1 = rec1.getJobIDString(true);
-                    String id2 = rec2.getJobIDString(true);
+              public int compare(JobHistoryJobRecord rec1, JobHistoryJobRecord rec2) {
+                String id1 = rec1.getJobIDString(true);
+                String id2 = rec2.getJobIDString(true);
 
-                    String[] idsplit1 = id1.split("_");
-                    String[] idsplit2 = id2.split("_");
-        
-                    // compare job tracker start time
-                    Long jtTime2 = Long.parseLong(idsplit2[1]);
-                    // comparison sense is reversed
-                    int res = jtTime2.compareTo(Long.parseLong(idsplit1[1]));
-                    if (res == 0) {
-                      // comparison sense is reversed
-                      Long sn2 = Long.parseLong(idsplit2[2]);
-                      res = sn2.compareTo(Long.parseLong(idsplit1[2]));
-                    }
-                    return res;
-                  }
-                });
+                String[] idsplit1 = id1.split("_");
+                String[] idsplit2 = id2.split("_");
+    
+                // compare job tracker start time
+                Long jtTime2 = Long.parseLong(idsplit2[1]);
+                // comparison sense is reversed
+                int res = jtTime2.compareTo(Long.parseLong(idsplit1[1]));
+                if (res == 0) {
+                  // comparison sense is reversed
+                  Long sn2 = Long.parseLong(idsplit2[2]);
+                  res = sn2.compareTo(Long.parseLong(idsplit1[2]));
+                }
+                return res;
+              }
+            });
 
     out.println("<br><br>");
 
@@ -254,22 +249,21 @@ window.location.href = url;
     
     Set<String> displayedJobs = new HashSet<String>();
     for (int i = start - 1; i < start + length - 1; ++i) {
-      JobHistoryJobRecord record = records[i];
+  JobHistoryJobRecord record = records[i];
 
-      String jobId = record.getJobIDString();
-      String userName = record.getUserName();
-      long submitTime = record.getSubmitTime();
-      String jobName = record.getJobName();
-      Path logPath = record.getPath();
+  String jobId = record.getJobIDString();
+  String userName = record.getUserName();
+  long submitTime = record.getSubmitTime();
+  String jobName = record.getJobName();
+  Path logPath = record.getPath();
 
-      // Check if the job is already displayed. There can be multiple job 
-      // history files for jobs that have restarted
-      if (displayedJobs.contains(jobId)) {
-        continue;
-      } else {
-        displayedJobs.add(jobId);
-      }
-      
+  // Check if the job is already displayed. There can be multiple job 
+  // history files for jobs that have restarted
+  if (displayedJobs.contains(jobId)) {
+    continue;
+  } else {
+    displayedJobs.add(jobId);
+  }
 %>
 <center>
 <%	
@@ -283,8 +277,7 @@ window.location.href = url;
     // show the navigation info (bottom)
     printNavigation(pageno, size, maxPageNo, search, out);
 %>
-<%!
-    private void printJob(long timestamp, String jobId, 
+<%!private void printJob(long timestamp, String jobId, 
                           String user, Path logFile, String jobName, JspWriter out)
     throws IOException {
       out.print("<tr>"); 
@@ -358,6 +351,5 @@ window.location.href = url;
         out.println("<a href=\"jobhistory.jsp?pageno=" + (pageno + 1) + "&search=" + search + "\">Next</a>");
       }
       out.print("></center>");
-    }
-%> 
+    }%> 
 </body></html>

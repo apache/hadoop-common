@@ -52,7 +52,7 @@
   FileSystem fs = (FileSystem) application.getAttribute("fileSys");
   JobTracker jobTracker = (JobTracker) application.getAttribute("job.tracker");
   JobHistoryParser.JobInfo job = JSPUtil.checkAccessAndGetJobInfo(request,
-      response, jobTracker, fs, new Path(logFile));
+  response, jobTracker, fs, new Path(logFile));
   if (job == null) {
     return;
   }

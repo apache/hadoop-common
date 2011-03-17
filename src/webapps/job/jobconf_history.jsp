@@ -46,15 +46,14 @@
 
   Path logFile = new Path(logFileString);
   String jobId = JobHistory.getJobIDFromHistoryFilePath(logFile).toString();
-
 %>
   
 <html>
 
-<title>Job Configuration: JobId - <%= jobId %></title>
+<title>Job Configuration: JobId - <%=jobId%></title>
 
 <body>
-<h2>Job Configuration: JobId - <%= jobId %></h2><br>
+<h2>Job Configuration: JobId - <%=jobId%></h2><br>
 
 <%
   Path jobFilePath = JSPUtil.getJobConfFilePath(logFile);
@@ -66,24 +65,24 @@
     JobTracker jobTracker = (JobTracker) application.getAttribute("job.tracker");
 
     JobHistoryParser.JobInfo job = JSPUtil.checkAccessAndGetJobInfo(request,
-        response, jobTracker, fs, logFile);
+    response, jobTracker, fs, logFile);
     if (job == null) {
-      return;
+  return;
     }
 
     XMLUtils.transform(
-        jobConf.getConfResourceAsInputStream("webapps/static/jobconf.xsl"),
-        jobFile, out);
+    jobConf.getConfResourceAsInputStream("webapps/static/jobconf.xsl"),
+    jobFile, out);
   } catch (Exception e) {
     out.println("Failed to retreive job configuration for job '" + jobId + "!");
     out.println(e);
   } finally {
     if (jobFile != null) {
-      try { 
-        jobFile.close(); 
-      } catch (IOException e) {}
+  try { 
+    jobFile.close(); 
+  } catch (IOException e) {}
     }
-  } 
+  }
 %>
 
 <br>

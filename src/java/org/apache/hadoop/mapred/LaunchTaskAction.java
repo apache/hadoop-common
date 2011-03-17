@@ -28,7 +28,7 @@ import java.io.IOException;
  * 
  */
 class LaunchTaskAction extends TaskTrackerAction {
-  private Task task;
+  private TTTask task;
 
   public LaunchTaskAction() {
     super(ActionType.LAUNCH_TASK);
@@ -36,14 +36,40 @@ class LaunchTaskAction extends TaskTrackerAction {
   
   public LaunchTaskAction(Task task) {
     super(ActionType.LAUNCH_TASK);
-    this.task = task;
+    if (task.isMapTask()) {
+      this.task = new TTMapTask((MapTask)task);
+    } else {
+      if (task.isUberTask()) {
+        this.task = new TTUberTask((UberTask)task);
+      } else {
+        this.task = new TTReduceTask((ReduceTask)task);
+      }
+    }
   }
   
-  public Task getTask() {
+  public TTTask getTask() {
     return task;
   }
-  
+
+  @Override
+  public void readFields(DataInput in) throws IOException {
+    boolean isMapTask = in.readBoolean();
+    if (isMapTask) {
+      this.task = new TTMapTask(new MapTask());
+    } else {
+      boolean isUberTask = in.readBoolean();
+      if (isUberTask) {
+        task = new TTUberTask(new UberTask());
+      } else {
+        task = new TTReduceTask(new ReduceTask());
+      }
+    }
+    task.getTask().readFields(in);
+  }
+
+  @Override
   public void write(DataOutput out) throws IOException {
+    Task task = this.task.getTask();
     out.writeBoolean(task.isMapTask());
     if (!task.isMapTask()) {
       // which flavor of ReduceTask, uber or regular?
@@ -51,20 +77,6 @@ class LaunchTaskAction extends TaskTrackerAction {
     }
     task.write(out);
   }
-
-  public void readFields(DataInput in) throws IOException {
-    boolean isMapTask = in.readBoolean();
-    if (isMapTask) {
-      task = new MapTask();
-    } else {
-      boolean isUberTask = in.readBoolean();
-      if (isUberTask) {
-        task = new UberTask();
-      } else {
-        task = new ReduceTask();
-      }
-    }
-    task.readFields(in);
-  }
-
+  
+  
 }

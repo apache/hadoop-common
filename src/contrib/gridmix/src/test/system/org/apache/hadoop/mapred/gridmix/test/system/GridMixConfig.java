@@ -108,29 +108,4 @@ public class GridMixConfig {
    */
   public static final String GRIDMIX_DISTCACHE_ENABLE = 
       "gridmix.distributed-cache-emulation.enable";
-
-  /**
-   * Gridmix distributed cache visibilities.
-   */
-  public static final String GRIDMIX_DISTCACHE_VISIBILITIES =
-    "mapreduce.job.cache.files.visibilities";
-  
-  /**
-   * Gridmix distributed cache files.
-   */
-  public static final String GRIDMIX_DISTCACHE_FILES = 
-    "mapreduce.job.cache.files";
-  
-  /**
-   * Gridmix distributed cache files size.
-   */
-  public static final String GRIDMIX_DISTCACHE_FILESSIZE =
-    "mapreduce.job.cache.files.filesizes";
-
-  /**
-   * Gridmix distributed cache files time stamp.
-   */
-  public static final String GRIDMIX_DISTCACHE_TIMESTAMP =
-    "mapreduce.job.cache.files.timestamps";
 }
-

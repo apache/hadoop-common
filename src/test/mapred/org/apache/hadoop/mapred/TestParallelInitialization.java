@@ -105,8 +105,7 @@ public class TestParallelInitialization extends TestCase {
                                10 * 60 * 1000,
                                maps, reduces,
                                numTrackers * maxMapTasksPerTracker,
-                               numTrackers * maxReduceTasksPerTracker,
-                               JobTracker.State.RUNNING);
+                               numTrackers * maxReduceTasksPerTracker);
     }
     
     public int getNumberOfUniqueHosts() {

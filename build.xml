@@ -1354,10 +1354,8 @@
   </target>   
 
   <target name="clean-cache" description="Clean. Delete ivy cache">
-    <delete dir="${user.home}/.ivy2/cache/org.apache.hadoop/hadoop-common"/>
-    <delete dir="${user.home}/.ivy2/cache/org.apache.hadoop/hadoop-common-test"/>
-    <delete dir="${user.home}/.ivy2/cache/org.apache.hadoop/hadoop-hdfs"/>
-    <delete dir="${user.home}/.ivy2/cache/org.apache.hadoop/hadoop-hdfs-test"/>
+    <delete dir="${user.home}/.ivy2/cache/org.apache.hadoop"/>
+    <delete dir="${user.home}/.ivy2/cache/org.apache.hadoop.mapreduce"/>
   </target>
 
   <target name="mvn-install-mapred" depends="mvn-taskdef,examples,tools,set-version">

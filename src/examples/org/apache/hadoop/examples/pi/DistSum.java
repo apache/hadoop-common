@@ -39,6 +39,7 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.JobTracker;
+import org.apache.hadoop.mapred.Master;
 import org.apache.hadoop.mapreduce.Cluster;
 import org.apache.hadoop.mapreduce.ClusterMetrics;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -387,7 +388,7 @@ public final class DistSum extends Configured implements Tool {
     public synchronized void init(Job job) throws IOException {
       final Configuration conf = job.getConfiguration();
       if (cluster == null)
-        cluster = new Cluster(JobTracker.getAddress(conf), conf);
+        cluster = new Cluster(Master.getMasterAddress(conf), conf);
       chooseMachine(conf).init(job);
     }
 

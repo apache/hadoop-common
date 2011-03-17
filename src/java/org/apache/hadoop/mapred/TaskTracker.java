@@ -99,6 +99,7 @@ import org.apache.hadoop.mapreduce.util.MRAsyncDiskService;
 import org.apache.hadoop.mapreduce.util.MemoryCalculatorPlugin;
 import org.apache.hadoop.mapreduce.util.ProcfsBasedProcessTree;
 import org.apache.hadoop.mapreduce.util.ResourceCalculatorPlugin;
+import org.apache.hadoop.mapreduce.util.ServerConfigUtil;
 import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.Credentials;
@@ -145,7 +146,7 @@ public class TaskTracker
   static enum State {NORMAL, STALE, INTERRUPTED, DENIED}
 
   static{
-    ConfigUtil.loadResources();
+    ServerConfigUtil.loadResources();
   }
 
   public static final Log LOG =
@@ -243,7 +244,6 @@ public class TaskTracker
   static final String JARSDIR = "jars";
   static final String LOCAL_SPLIT_FILE = "split.dta";
   static final String LOCAL_SPLIT_META_FILE = "split.info";
-  static final String JOBFILE = "job.xml";
   static final String JOB_TOKEN_FILE="jobToken"; //localized file
   static final String TT_PRIVATE_DIR = "ttprivate";
 
@@ -485,7 +485,7 @@ public class TaskTracker
   }
 
   static String getLocalJobConfFile(String user, String jobid) {
-    return getLocalJobDir(user, jobid) + Path.SEPARATOR + TaskTracker.JOBFILE;
+    return getLocalJobDir(user, jobid) + Path.SEPARATOR + Constants.JOBFILE;
   }
   
   static String getPrivateDirJobConfFile(String user, String jobid) {
@@ -500,7 +500,7 @@ public class TaskTracker
   static String getTaskConfFile(String user, String jobid, String taskid,
       boolean isCleanupAttempt) {
     return getLocalTaskDir(user, jobid, taskid, isCleanupAttempt)
-        + Path.SEPARATOR + TaskTracker.JOBFILE;
+        + Path.SEPARATOR + Constants.JOBFILE;
   }
 
  static String getPrivateDirTaskScriptLocation(String user, String jobid,
@@ -750,7 +750,7 @@ public class TaskTracker
     mapEventsFetcher.start();
 
     Class<? extends ResourceCalculatorPlugin> clazz =
-        fConf.getClass(TT_RESOURCE_CALCULATOR_PLUGIN,
+        fConf.getClass(RESOURCE_CALCULATOR_PLUGIN,
             null, ResourceCalculatorPlugin.class);
     resourceCalculatorPlugin = ResourceCalculatorPlugin
             .getResourceCalculatorPlugin(clazz, fConf);
@@ -1398,7 +1398,7 @@ public class TaskTracker
     fConf = conf;
     maxMapSlots = conf.getInt(TT_MAP_SLOTS, 2);
     maxReduceSlots = conf.getInt(TT_REDUCE_SLOTS, 2);
-    this.jobTrackAddr = JobTracker.getAddress(conf);
+    this.jobTrackAddr = Master.getMasterAddress(conf);
     InetSocketAddress infoSocAddr = NetUtils.createSocketAddr(
         conf.get(TT_HTTP_ADDRESS, "0.0.0.0:50060"));
     String httpBindAddress = infoSocAddr.getHostName();
@@ -2165,7 +2165,7 @@ public class TaskTracker
   }
 
   private void addToTaskQueue(LaunchTaskAction action) {
-    if (action.getTask().isMapTask()) {
+    if (action.getTask().getTask().isMapTask()) {
       mapLauncher.addToTaskQueue(action);
     } else {
       reduceLauncher.addToTaskQueue(action);
@@ -2301,10 +2301,11 @@ public class TaskTracker
   }
   private TaskInProgress registerTask(LaunchTaskAction action, 
       TaskLauncher launcher) {
-    Task t = action.getTask();
+    TTTask ttTask = action.getTask();
+    Task t = ttTask.getTask();
     LOG.info("LaunchTaskAction (registerTask): " + t.getTaskID() +
              " task's state:" + t.getState());
-    TaskInProgress tip = new TaskInProgress(t, this.fConf, launcher);
+    TaskInProgress tip = new TaskInProgress(ttTask, this.fConf, launcher);
     synchronized (this) {
       tasks.put(t.getTaskID(), tip);
       runningTasks.put(t.getTaskID(), tip);
@@ -2455,6 +2456,7 @@ public class TaskTracker
   // its TaskStatus, and the TaskRunner.
   ///////////////////////////////////////////////////////
   class TaskInProgress {
+    final TTTask ttTask;
     Task task;
     long lastProgressReport;
     StringBuffer diagnosticInfo = new StringBuffer();
@@ -2485,12 +2487,13 @@ public class TaskTracker
 
     /**
      */
-    public TaskInProgress(Task task, JobConf conf) {
-      this(task, conf, null);
+    public TaskInProgress(TTTask ttTask, JobConf conf) {
+      this(ttTask, conf, null);
     }
     
-    public TaskInProgress(Task task, JobConf conf, TaskLauncher launcher) {
-      this.task = task;
+    public TaskInProgress(TTTask ttTask, JobConf conf, TaskLauncher launcher) {
+      this.ttTask = ttTask;
+      this.task = ttTask.getTask();
       this.launcher = launcher;
       this.lastProgressReport = System.currentTimeMillis();
       this.ttConf = conf;
@@ -2585,7 +2588,7 @@ public class TaskTracker
         if (this.taskStatus.getRunState() == TaskStatus.State.UNASSIGNED) {
           this.taskStatus.setRunState(TaskStatus.State.RUNNING);
         }
-        setTaskRunner(task.createRunner(TaskTracker.this, this, rjob));
+        setTaskRunner(ttTask.createRunner(TaskTracker.this, this, rjob));
         this.runner.start();
         this.taskStatus.setStartTime(System.currentTimeMillis());
       } else {

@@ -151,13 +151,13 @@ public class TaskDistributedCacheManager {
     this.cacheFiles.addAll(
         CacheFile.makeCacheFiles(DistributedCache.getCacheFiles(taskConf),
             DistributedCache.getFileTimestamps(taskConf),
-            TrackerDistributedCacheManager.getFileVisibilities(taskConf),
+            DistributedCache.getFileVisibilities(taskConf),
             DistributedCache.getFileClassPaths(taskConf),
             CacheFile.FileType.REGULAR));
     this.cacheFiles.addAll(
         CacheFile.makeCacheFiles(DistributedCache.getCacheArchives(taskConf),
           DistributedCache.getArchiveTimestamps(taskConf),
-          TrackerDistributedCacheManager.getArchiveVisibilities(taskConf),
+          DistributedCache.getArchiveVisibilities(taskConf),
           DistributedCache.getArchiveClassPaths(taskConf), 
           CacheFile.FileType.ARCHIVE));
   }
@@ -215,13 +215,13 @@ public class TaskDistributedCacheManager {
     if (!localArchives.isEmpty()) {
       // TODO verify
 //      DistributedCache.addLocalArchives(taskConf, 
-      TrackerDistributedCacheManager.setLocalArchives(taskConf, 
+      DistributedCache.setLocalArchives(taskConf, 
         stringifyPathList(localArchives));
     }
     if (!localFiles.isEmpty()) {
       // TODO verify
 //      DistributedCache.addLocalFiles(taskConf, stringifyPathList(localFiles));
-      TrackerDistributedCacheManager.setLocalFiles(taskConf,
+      DistributedCache.setLocalFiles(taskConf,
         stringifyPathList(localFiles));
     }
 

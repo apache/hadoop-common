@@ -31,6 +31,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 
 import junit.extensions.TestSetup;
 import junit.framework.Test;
@@ -102,7 +103,7 @@ public class TestClusterStatus extends TestCase {
   private TaskTrackerStatus getTTStatus(String trackerName,
       List<TaskStatus> taskStatuses) {
     return new TaskTrackerStatus(trackerName, 
-      JobInProgress.convertTrackerNameToHostName(trackerName), 0,
+      HostUtil.convertTrackerNameToHostName(trackerName), 0,
       taskStatuses, 0, mapSlotsPerTracker, reduceSlotsPerTracker);
   }
   
@@ -217,10 +218,10 @@ public class TestClusterStatus extends TestCase {
     TaskTracker tt1 = jobTracker.getTaskTracker(trackers[0]);
     TaskTracker tt2 = jobTracker.getTaskTracker(trackers[1]);
     TaskTrackerStatus status1 = new TaskTrackerStatus(
-        trackers[0],JobInProgress.convertTrackerNameToHostName(
+        trackers[0],HostUtil.convertTrackerNameToHostName(
             trackers[0]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     TaskTrackerStatus status2 = new TaskTrackerStatus(
-        trackers[1],JobInProgress.convertTrackerNameToHostName(
+        trackers[1],HostUtil.convertTrackerNameToHostName(
             trackers[1]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
     tt1.setStatus(status1);
     tt2.setStatus(status2);

@@ -30,7 +30,7 @@
 <%
   JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
   String trackerName = StringUtils.simpleHostname(tracker
-      .getJobTrackerMachine());
+  .getJobTrackerMachine());
   String queueName = request.getParameter("queueName");
   TaskScheduler scheduler = tracker.getTaskScheduler();
   JobQueueInfo schedInfo = tracker.getQueueInfo(queueName);

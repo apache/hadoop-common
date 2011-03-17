@@ -38,13 +38,13 @@
 <%!	private static final long serialVersionUID = 1L;
 %>
 
-<%	
+<%
   String logFile = request.getParameter("logFile");
   String tipid = request.getParameter("tipid"); 
   FileSystem fs = (FileSystem) application.getAttribute("fileSys");
   JobTracker jobTracker = (JobTracker) application.getAttribute("job.tracker");
   JobHistoryParser.JobInfo job = JSPUtil.checkAccessAndGetJobInfo(request,
-      response, jobTracker, fs, new Path(logFile));
+  response, jobTracker, fs, new Path(logFile));
   if (job == null) {
     return;
   }
@@ -89,8 +89,7 @@
 <%
   }
 %>
-<%!
-  private void printTaskAttempt(JobHistoryParser.TaskAttemptInfo taskAttempt,
+<%!private void printTaskAttempt(JobHistoryParser.TaskAttemptInfo taskAttempt,
                                 TaskType type, JspWriter out, String logFile) 
   throws IOException {
     out.print("<tr>"); 
@@ -138,7 +137,6 @@
       out.print("<td></td>");
     }
     out.print("</tr>"); 
-  }
-%>
+  }%>
 </body>
 </html>

@@ -34,6 +34,7 @@ import org.apache.hadoop.mapred.UtilsForTests.FakeClock;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 
 @SuppressWarnings("deprecation")
 public class TestJobTrackerInstrumentation extends TestCase {
@@ -89,7 +90,7 @@ public class TestJobTrackerInstrumentation extends TestCase {
   private TaskTrackerStatus getTTStatus(String trackerName,
       List<TaskStatus> taskStatuses) {
     return new TaskTrackerStatus(trackerName, 
-        JobInProgress.convertTrackerNameToHostName(trackerName), 0,
+        HostUtil.convertTrackerNameToHostName(trackerName), 0,
         taskStatuses, 0, mapSlotsPerTracker, reduceSlotsPerTracker);
   }
 
@@ -287,7 +288,7 @@ public class TestJobTrackerInstrumentation extends TestCase {
       //Set task tracker objects for reservation.
       TaskTracker tt2 = jobTracker.getTaskTracker(trackers[1]);
       TaskTrackerStatus status2 = new TaskTrackerStatus(
-          trackers[1],JobInProgress.convertTrackerNameToHostName(
+          trackers[1],HostUtil.convertTrackerNameToHostName(
               trackers[1]),0,new ArrayList<TaskStatus>(), 0, 2, 2);
       tt2.setStatus(status2);
       

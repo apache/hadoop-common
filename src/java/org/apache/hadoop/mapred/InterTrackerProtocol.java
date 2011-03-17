@@ -23,7 +23,7 @@ import java.io.IOException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.ipc.VersionedProtocol;
-import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
+import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
 import org.apache.hadoop.security.KerberosInfo;
 
@@ -32,7 +32,7 @@ import org.apache.hadoop.security.KerberosInfo;
  * The JobTracker is the Server, which implements this protocol.
  */ 
 @KerberosInfo(
-    serverPrincipal = JTConfig.JT_USER_NAME,
+    serverPrincipal = MRConfig.MASTER_USER_NAME,
     clientPrincipal = TTConfig.TT_USER_NAME)
 @InterfaceAudience.Private
 @InterfaceStability.Stable

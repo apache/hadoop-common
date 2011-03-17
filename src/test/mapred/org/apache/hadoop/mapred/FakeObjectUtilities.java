@@ -34,6 +34,7 @@ import org.apache.hadoop.mapreduce.jobhistory.HistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistory;
 import org.apache.hadoop.mapreduce.split.JobSplit;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.mapreduce.util.HostUtil;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 
 /** 
@@ -68,8 +69,7 @@ public class FakeObjectUtilities {
     public ClusterStatus getClusterStatus(boolean detailed) {
       return new ClusterStatus(
           taskTrackers().size() - getBlacklistedTrackerCount(),
-          getBlacklistedTrackerCount(), 0, 0, 0, totalSlots/2, totalSlots/2, 
-           JobTracker.State.RUNNING, 0);
+          getBlacklistedTrackerCount(), 0, 0, 0, totalSlots/2, totalSlots/2, 0);
     }
 
     public void setNumSlots(int totalSlots) {
@@ -169,14 +169,14 @@ public class FakeObjectUtilities {
     public TaskAttemptID findMapTask(String trackerName)
     throws IOException {
       return findTask(trackerName, 
-          JobInProgress.convertTrackerNameToHostName(trackerName),
+          HostUtil.convertTrackerNameToHostName(trackerName),
           nonLocalMaps, nonLocalRunningMaps, TaskType.MAP);
     }
 
     public TaskAttemptID findReduceTask(String trackerName) 
     throws IOException {
       return findTask(trackerName, 
-          JobInProgress.convertTrackerNameToHostName(trackerName),
+          HostUtil.convertTrackerNameToHostName(trackerName),
           nonRunningReduces, runningReduces, TaskType.REDUCE);
     }
 
@@ -192,7 +192,7 @@ public class FakeObjectUtilities {
     private void makeRunning(TaskAttemptID taskId, TaskInProgress tip, 
         String taskTracker) {
       addRunningTaskToTIP(tip, taskId, new TaskTrackerStatus(taskTracker,
-          JobInProgress.convertTrackerNameToHostName(taskTracker)), true);
+          HostUtil.convertTrackerNameToHostName(taskTracker)), true);
 
       TaskStatus status = TaskStatus.createTaskStatus(tip.isMapTask(), taskId, 
           0.0f, 1, TaskStatus.State.RUNNING, "", "", taskTracker,
@@ -241,7 +241,7 @@ public class FakeObjectUtilities {
     throws IOException {
     if (status == null) {
       status = new TaskTrackerStatus(tracker, 
-          JobInProgress.convertTrackerNameToHostName(tracker));
+          HostUtil.convertTrackerNameToHostName(tracker));
 
     }
       jt.heartbeat(status, false, initialContact, acceptNewTasks, responseId);

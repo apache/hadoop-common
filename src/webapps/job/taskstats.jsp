@@ -36,20 +36,20 @@
 <%
   JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
   String trackerName = 
-           StringUtils.simpleHostname(tracker.getJobTrackerMachine());
+   StringUtils.simpleHostname(tracker.getJobTrackerMachine());
 
   String attemptid = request.getParameter("attemptid");
   TaskAttemptID attemptidObj = TaskAttemptID.forName(attemptid);
   // Obtain tipid for attemptId, if attemptId is available.
   TaskID tipidObj =
-      (attemptidObj == null) ? TaskID.forName(request.getParameter("tipid"))
-                             : attemptidObj.getTaskID();
+  (attemptidObj == null) ? TaskID.forName(request.getParameter("tipid"))
+                     : attemptidObj.getTaskID();
   // Obtain jobid from tipid
   JobID jobidObj = tipidObj.getJobID();
   String jobid = jobidObj.toString();
   
   JobWithViewAccessCheck myJob = JSPUtil.checkAccessAndGetJob(tracker, jobidObj,
-      request, response);
+  request, response);
   if (!myJob.isViewJobAllowed()) {
     return; // user is not authorized to view this job
   }
@@ -60,11 +60,11 @@
     JobID jobIdObj = JobID.forName(jobid);
     String historyFile = tracker.getJobHistory().getHistoryFilePath(jobIdObj);
     if (historyFile == null) {
-      out.println("<h2>Job " + jobid + " not known!</h2>");
-      return;
+  out.println("<h2>Job " + jobid + " not known!</h2>");
+  return;
     }
     String historyUrl = "/taskstatshistory.jsp?logFile=" + historyFile +
-                        "&attemptid=" + attemptid;
+                "&attemptid=" + attemptid;
     response.sendRedirect(response.encodeRedirectURL(historyUrl));
     return;
   }

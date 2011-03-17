@@ -51,8 +51,6 @@ public interface TTConfig extends MRConfig {
     "mapreduce.tasktracker.taskcontroller";
   public static final String TT_CONTENTION_TRACKING = 
     "mapreduce.tasktracker.contention.tracking";
-  public static final String TT_STATIC_RESOLUTIONS = 
-    "mapreduce.tasktracker.net.static.resolutions";
   public static final String TT_HTTP_THREADS = 
     "mapreduce.tasktracker.http.threads";
   public static final String TT_HOST_NAME = "mapreduce.tasktracker.host.name";
@@ -64,22 +62,22 @@ public interface TTConfig extends MRConfig {
     "mapreduce.tasktracker.dns.nameserver";
   public static final String TT_MAX_TASK_COMPLETION_EVENTS_TO_POLL  = 
     "mapreduce.tasktracker.events.batchsize";
-  public static final String TT_INDEX_CACHE = 
-    "mapreduce.tasktracker.indexcache.mb";
   public static final String TT_INSTRUMENTATION = 
     "mapreduce.tasktracker.instrumentation";
   public static final String TT_MAP_SLOTS = 
     "mapreduce.tasktracker.map.tasks.maximum";
-  public static final String TT_MAP_INPUT_SPLITINFO =
-    "mapreduce.tasktracker.map.input.splitinfo";
   /**
    * @deprecated Use {@link #TT_RESOURCE_CALCULATOR_PLUGIN} instead
    */
   @Deprecated
   public static final String TT_MEMORY_CALCULATOR_PLUGIN = 
     "mapreduce.tasktracker.memorycalculatorplugin";
+  /**
+   * @deprecated Use {@link MRConfig#RESOURCE_CALCULATOR_PLUGIN} instead
+   */
+  @Deprecated
   public static final String TT_RESOURCE_CALCULATOR_PLUGIN = 
-    "mapreduce.tasktracker.resourcecalculatorplugin";
+    RESOURCE_CALCULATOR_PLUGIN;
   public static final String TT_REDUCE_SLOTS = 
     "mapreduce.tasktracker.reduce.tasks.maximum";
   public static final String TT_MEMORY_MANAGER_MONITORING_INTERVAL = 
@@ -102,4 +100,11 @@ public interface TTConfig extends MRConfig {
     "mapreduce.tasktracker.userlogcleanup.sleeptime";
   public static final String TT_DISTRIBUTED_CACHE_CHECK_PERIOD =
     "mapreduce.tasktracker.distributedcache.checkperiod";
+  
+  /**
+   * @deprecated Use {@link MRConfig#JOB_INDEX_CACHE} instead
+   */
+  @Deprecated
+  public static final String TT_INDEX_CACHE = JOB_INDEX_CACHE;
+
 }

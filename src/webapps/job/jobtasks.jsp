@@ -36,7 +36,7 @@
 <%
   JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
   String trackerName = 
-           StringUtils.simpleHostname(tracker.getJobTrackerMachine());
+   StringUtils.simpleHostname(tracker.getJobTrackerMachine());
   String jobid = request.getParameter("jobid");
   if (jobid == null) {
     out.println("<h2>Missing 'jobid'!</h2>");
@@ -45,7 +45,7 @@
   JobID jobidObj = JobID.forName(jobid);
 
   JobWithViewAccessCheck myJob = JSPUtil.checkAccessAndGetJob(tracker, jobidObj,
-      request, response);
+  request, response);
   if (!myJob.isViewJobAllowed()) {
     return; // user is not authorized to view this job
   }

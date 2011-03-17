@@ -116,9 +116,11 @@ public class TestJvmManager {
     JobConf taskConf = new JobConf(ttConf);
     TaskAttemptID attemptID = new TaskAttemptID("test", 0, TaskType.MAP, 0, 0);
     Task task = new MapTask(null, attemptID, 0, null, MAP_SLOTS);
+    TTTask ttTask = new TTMapTask((MapTask)task); 
     task.setUser(user);
     task.setConf(taskConf);
-    TaskInProgress tip = tt.new TaskInProgress(task, taskConf);
+    TaskInProgress tip = 
+      tt.new TaskInProgress(ttTask, taskConf);
     File pidFile = new File(TEST_DIR, "pid");
     RunningJob rjob = new RunningJob(attemptID.getJobID());
     TaskController taskController = new DefaultTaskController();
@@ -126,7 +128,7 @@ public class TestJvmManager {
     rjob.distCacheMgr = 
       new TrackerDistributedCacheManager(ttConf).
       newTaskDistributedCacheManager(attemptID.getJobID(), taskConf);
-    final TaskRunner taskRunner = task.createRunner(tt, tip, rjob);
+    final TaskRunner taskRunner = ttTask.createRunner(tt, tip, rjob);
     // launch a jvm which sleeps for 60 seconds
     final Vector<String> vargs = new Vector<String>(2);
     vargs.add(writeScript("SLEEP", "sleep 60\n", pidFile).getAbsolutePath());
@@ -196,10 +198,11 @@ public class TestJvmManager {
     // launch another jvm and see it finishes properly
     attemptID = new TaskAttemptID("test", 0, TaskType.MAP, 0, 1);
     task = new MapTask(null, attemptID, 0, null, MAP_SLOTS);
+    ttTask = new TTMapTask((MapTask)task);
     task.setUser(user);
     task.setConf(taskConf);
-    tip = tt.new TaskInProgress(task, taskConf);
-    TaskRunner taskRunner2 = task.createRunner(tt, tip, rjob);
+    tip = tt.new TaskInProgress(ttTask, taskConf);
+    TaskRunner taskRunner2 = ttTask.createRunner(tt, tip, rjob);
     // build dummy vargs to call ls
     Vector<String> vargs2 = new Vector<String>(1);
     vargs2.add(writeScript("LS", "ls", pidFile).getAbsolutePath());

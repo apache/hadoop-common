@@ -155,8 +155,7 @@ public class TestJobQueueTaskScheduler extends TestCase {
                                10 * 60 * 1000,
                                maps, reduces,
                                numTrackers * maxMapTasksPerTracker,
-                               numTrackers * maxReduceTasksPerTracker,
-                               JobTracker.State.RUNNING);
+                               numTrackers * maxReduceTasksPerTracker);
     }
 
     @Override

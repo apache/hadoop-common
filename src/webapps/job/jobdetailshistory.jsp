@@ -44,7 +44,7 @@
 
 <%! static SimpleDateFormat dateFormat = new SimpleDateFormat("d-MMM-yyyy HH:mm:ss") ; %>
 <%
-    String logFile = request.getParameter("logFile");
+  String logFile = request.getParameter("logFile");
     String reasonforFailure = " ";
     final Path jobFile = new Path(logFile);
     String jobid = JobHistory.getJobIDFromHistoryFilePath(jobFile).toString();
@@ -52,9 +52,9 @@
     final FileSystem fs = (FileSystem) application.getAttribute("fileSys");
     final JobTracker jobTracker = (JobTracker) application.getAttribute("job.tracker");
     JobInfo job = JSPUtil.checkAccessAndGetJobInfo(request, response,
-        jobTracker, fs, jobFile);
+    jobTracker, fs, jobFile);
     if (job == null) {
-      return;
+  return;
     }
     // MR-1220 FIXME (LATER):  to fully integrate uberization, need task-
     // and attempt-level JobHistory/Avro/etc. changes to multiple Event
@@ -63,7 +63,7 @@
     int numUberSubMaps = job.getNumUberSubMaps();
     int numUberSubReduces = job.getNumUberSubReduces();
     if (job.getJobStatus().equals("FAILED")) 
-      reasonforFailure = job.getErrorInfo();
+  reasonforFailure = job.getErrorInfo();
 %>
 
 <html>
@@ -89,7 +89,7 @@
 <b>Status: </b> <%= ((job.getJobStatus()) == null ? "Incomplete" :job.getJobStatus()) %><br/> 
 <b>ReasonForFailure: </b> <%=reasonforFailure %><br/>
 <%
-    HistoryViewer.SummarizedJob sj = new HistoryViewer.SummarizedJob(job);
+  HistoryViewer.SummarizedJob sj = new HistoryViewer.SummarizedJob(job);
 %>
 <b><a href="analysejobhistory.jsp?logFile=<%=logFile%>">Analyse This Job</a></b> 
 <hr/>
@@ -108,25 +108,25 @@
         <%=sj.getNumFailedSetups()%></a></td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=JOB_SETUP&status=KILLED">
         <%=sj.getNumKilledSetups()%></a></td>  
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getSetupStarted(), 0) %></td>
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getSetupFinished(), sj.getSetupStarted()) %></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getSetupStarted(), 0)%></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getSetupFinished(), sj.getSetupStarted())%></td>
 </tr>
 <tr>
 
 <%
-    if (!isUber) {
+  if (!isUber) {
 %>
 <td>Map</td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=MAP&status=all">
         <%=sj.getTotalMaps()%></a></td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=MAP&status=SUCCEEDED">
-        <%=job.getFinishedMaps() %></a></td>
+        <%=job.getFinishedMaps()%></a></td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=MAP&status=FAILED">
         <%=sj.getNumFailedMaps()%></a></td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=MAP&status=KILLED">
         <%=sj.getNumKilledMaps()%></a></td>
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getMapStarted(), 0) %></td>
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getMapFinished(), sj.getMapStarted()) %></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getMapStarted(), 0)%></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getMapFinished(), sj.getMapStarted())%></td>
 </tr>
 <tr>
 <td>Reduce</td>
@@ -138,12 +138,12 @@
         <%=sj.getNumFailedReduces()%></a></td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=REDUCE&status=KILLED">
         <%=sj.getNumKilledReduces()%></a></td>  
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceStarted(), 0) %></td>
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceFinished(), sj.getReduceStarted()) %></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceStarted(), 0)%></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceFinished(), sj.getReduceStarted())%></td>
 </tr>
 
 <%
-    } else /* isUber */ {
+  } else /* isUber */ {
 %>
 
 <tr>
@@ -156,8 +156,8 @@
         <%=sj.getNumFailedReduces()%></a></td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=REDUCE&status=KILLED">
         <%=sj.getNumKilledReduces()%></a></td>  
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceStarted(), 0) %></td>
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceFinished(), sj.getReduceStarted()) %></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceStarted(), 0)%></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getReduceFinished(), sj.getReduceStarted())%></td>
 </tr>
 <td>Map subtasks</td>
     <td colspan="6"><%=numUberSubMaps%></td>
@@ -168,7 +168,7 @@
 </tr>
 
 <%
-    }
+  }
 %>
 
 <tr>
@@ -181,8 +181,8 @@
         <%=sj.getNumFailedCleanups()%></a></td>
     <td><a href="jobtaskshistory.jsp?logFile=<%=logFile%>&taskType=JOB_CLEANUP&status=KILLED>">
         <%=sj.getNumKilledCleanups()%></a></td>  
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getCleanupStarted(), 0) %></td>
-    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getCleanupFinished(), sj.getCleanupStarted()) %></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getCleanupStarted(), 0)%></td>
+    <td><%=StringUtils.getFormattedTimeWithDiff(dateFormat, sj.getCleanupFinished(), sj.getCleanupStarted())%></td>
 </tr>
 </table>
 
@@ -198,9 +198,8 @@
   <th>Total</th>
 </tr>
 
-<%  
-
- Counters totalCounters = job.getTotalCounters();
+<%
+  Counters totalCounters = job.getTotalCounters();
  Counters mapCounters = job.getMapCounters();
  Counters reduceCounters = job.getReduceCounters();
 
@@ -215,24 +214,24 @@
      boolean isFirst = true;
      Iterator<Counter> ctrItr = totalGroup.iterator();
      while(ctrItr.hasNext()) {
-       Counter counter = ctrItr.next();
-       String name = counter.getName();
-       String mapValue = 
-        decimal.format(mapGroup.findCounter(name).getValue());
-       String reduceValue = 
-        decimal.format(reduceGroup.findCounter(name).getValue());
-       String totalValue = 
-        decimal.format(counter.getValue());
+   Counter counter = ctrItr.next();
+   String name = counter.getName();
+   String mapValue = 
+    decimal.format(mapGroup.findCounter(name).getValue());
+   String reduceValue = 
+    decimal.format(reduceGroup.findCounter(name).getValue());
+   String totalValue = 
+    decimal.format(counter.getValue());
 %>
        <tr>
 <%
-       if (isFirst) {
-         isFirst = false;
+  if (isFirst) {
+     isFirst = false;
 %>
          <td rowspan="<%=totalGroup.size()%>">
          <%=HtmlQuoting.quoteHtmlChars(totalGroup.getDisplayName())%></td>
 <%
-       }
+  }
 %>
        <td><%=HtmlQuoting.quoteHtmlChars(counter.getDisplayName())%></td>
        <td align="right"><%=mapValue%></td>
@@ -240,7 +239,7 @@
        <td align="right"><%=totalValue%></td>
      </tr>
 <%
-      }
+  }
     }
   }
 %>
@@ -249,49 +248,49 @@
 
 <br/>
  <%
-    HistoryViewer.FilteredJob filter = new HistoryViewer.FilteredJob(job,TaskStatus.State.FAILED.toString()); 
-    Map<String, Set<TaskID>> badNodes = filter.getFilteredMap(); 
-    if (badNodes.size() > 0) {
+   HistoryViewer.FilteredJob filter = new HistoryViewer.FilteredJob(job,TaskStatus.State.FAILED.toString()); 
+      Map<String, Set<TaskID>> badNodes = filter.getFilteredMap(); 
+      if (badNodes.size() > 0) {
  %>
 <h3>Failed tasks attempts by nodes </h3>
 <table border="1">
 <tr><td>Hostname</td><td>Failed Tasks</td></tr>
- <%	  
-      for (Map.Entry<String, Set<TaskID>> entry : badNodes.entrySet()) {
-        String node = entry.getKey();
-        Set<TaskID> failedTasks = entry.getValue();
-%>
+ <%
+   for (Map.Entry<String, Set<TaskID>> entry : badNodes.entrySet()) {
+      String node = entry.getKey();
+      Set<TaskID> failedTasks = entry.getValue();
+ %>
         <tr>
-        <td><%=node %></td>
+        <td><%=node%></td>
         <td>
 <%
-          boolean firstId = true;
-          for (TaskID tid : failedTasks) {
-             if (firstId) {
-              firstId = false;
+  boolean firstId = true;
+  for (TaskID tid : failedTasks) {
+     if (firstId) {
+      firstId = false;
 %>
-            <a href="taskdetailshistory.jsp?logFile=<%=logFile%>&tipid=<%=tid %>"><%=tid %></a>
-<%		  
-          } else {
+            <a href="taskdetailshistory.jsp?logFile=<%=logFile%>&tipid=<%=tid%>"><%=tid%></a>
+<%
+  } else {
 %>	
-            ,&nbsp<a href="taskdetailshistory.jsp?logFile=<%=logFile%>&tipid=<%=tid %>"><%=tid %></a>
-<%		  
-          }
-        }
+            ,&nbsp<a href="taskdetailshistory.jsp?logFile=<%=logFile%>&tipid=<%=tid%>"><%=tid%></a>
+<%
+  }
+    }
 %>	
         </td>
         </tr>
-<%	  
-      }
+<%
+  }
 	}
- %>
+%>
 </table>
 <br/>
 
  <%
-    filter = new HistoryViewer.FilteredJob(job, TaskStatus.State.KILLED.toString());
-    badNodes = filter.getFilteredMap(); 
-    if (badNodes.size() > 0) {
+   filter = new HistoryViewer.FilteredJob(job, TaskStatus.State.KILLED.toString());
+      badNodes = filter.getFilteredMap(); 
+      if (badNodes.size() > 0) {
  %>
 <h3>Killed tasks attempts by nodes </h3>
 <table border="1">

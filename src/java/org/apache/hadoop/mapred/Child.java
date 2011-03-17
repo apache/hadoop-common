@@ -80,10 +80,10 @@ class Child {
     DefaultMetricsSystem.initialize(
         StringUtils.camelize(firstTaskid.getTaskType().name()) +"Task");
 
-    cwd = System.getenv().get(TaskRunner.HADOOP_WORK_DIR);
+    cwd = System.getenv().get(Constants.HADOOP_WORK_DIR);
     if (cwd == null) {
       throw new IOException("Environment variable " +
-                             TaskRunner.HADOOP_WORK_DIR + " is not set");
+                             Constants.HADOOP_WORK_DIR + " is not set");
     }
     //load token cache storage
     String jobTokenFile = 
@@ -306,7 +306,7 @@ class Child {
      LocalDirAllocator lDirAlloc =
        new LocalDirAllocator(JobConf.MAPRED_LOCAL_DIR_PROPERTY);
      Path localTaskFile =
-       lDirAlloc.getLocalPathForWrite(TaskTracker.JOBFILE, jobConf);
+       lDirAlloc.getLocalPathForWrite(Constants.JOBFILE, jobConf);
      JobLocalizer.writeLocalJobFile(localTaskFile, jobConf);
      task.setJobFile(localTaskFile.toString());
      task.setConf(jobConf);

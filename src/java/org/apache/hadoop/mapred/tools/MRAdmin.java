@@ -29,6 +29,8 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.mapred.AdminOperationsProtocol;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobTracker;
+import org.apache.hadoop.mapred.Master;
+import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.RefreshUserMappingsProtocol;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -151,14 +153,14 @@ public class MRAdmin extends Configured implements Tool {
     // should be JT's one.
     JobConf jConf = new JobConf(conf);
     conf.set(CommonConfigurationKeys.HADOOP_SECURITY_SERVICE_USER_NAME_KEY, 
-        jConf.get(JobTracker.JT_USER_NAME, ""));
+        jConf.get(MRConfig.MASTER_USER_NAME, ""));
 
     // Create the client
     RefreshAuthorizationPolicyProtocol refreshProtocol = 
       (RefreshAuthorizationPolicyProtocol) 
       RPC.getProxy(RefreshAuthorizationPolicyProtocol.class, 
                    RefreshAuthorizationPolicyProtocol.versionID, 
-                   JobTracker.getAddress(conf), getUGI(conf), conf,
+                   Master.getMasterAddress(conf), getUGI(conf), conf,
                    NetUtils.getSocketFactory(conf, 
                                              RefreshAuthorizationPolicyProtocol.class));
     
@@ -183,14 +185,14 @@ public class MRAdmin extends Configured implements Tool {
     // should be JT's one.
     JobConf jConf = new JobConf(conf);
     conf.set(CommonConfigurationKeys.HADOOP_SECURITY_SERVICE_USER_NAME_KEY, 
-        jConf.get(JobTracker.JT_USER_NAME, ""));
+        jConf.get(MRConfig.MASTER_USER_NAME, ""));
 
     // Create the client
     RefreshUserMappingsProtocol refreshProtocol = 
       (RefreshUserMappingsProtocol) 
       RPC.getProxy(RefreshUserMappingsProtocol.class, 
           RefreshUserMappingsProtocol.versionID, 
-          JobTracker.getAddress(conf), getUGI(conf), conf,
+          Master.getMasterAddress(conf), getUGI(conf), conf,
           NetUtils.getSocketFactory(conf, 
               RefreshUserMappingsProtocol.class));
 
@@ -215,14 +217,14 @@ public class MRAdmin extends Configured implements Tool {
     // should be JT's one.
     JobConf jConf = new JobConf(conf);
     conf.set(CommonConfigurationKeys.HADOOP_SECURITY_SERVICE_USER_NAME_KEY, 
-        jConf.get(JobTracker.JT_USER_NAME, ""));
+        jConf.get(MRConfig.MASTER_USER_NAME, ""));
 
     // Create the client
     RefreshUserMappingsProtocol refreshProtocol = 
       (RefreshUserMappingsProtocol) 
       RPC.getProxy(RefreshUserMappingsProtocol.class, 
           RefreshUserMappingsProtocol.versionID, 
-          JobTracker.getAddress(conf), getUGI(conf), conf,
+          Master.getMasterAddress(conf), getUGI(conf), conf,
           NetUtils.getSocketFactory(conf, 
               RefreshUserMappingsProtocol.class));
 
@@ -241,7 +243,7 @@ public class MRAdmin extends Configured implements Tool {
       (AdminOperationsProtocol) 
       RPC.getProxy(AdminOperationsProtocol.class, 
                    AdminOperationsProtocol.versionID, 
-                   JobTracker.getAddress(conf), getUGI(conf), conf,
+                   Master.getMasterAddress(conf), getUGI(conf), conf,
                    NetUtils.getSocketFactory(conf, 
                                              AdminOperationsProtocol.class));
     
@@ -266,7 +268,7 @@ public class MRAdmin extends Configured implements Tool {
       (AdminOperationsProtocol) 
       RPC.getProxy(AdminOperationsProtocol.class, 
                    AdminOperationsProtocol.versionID, 
-                   JobTracker.getAddress(conf), getUGI(conf), conf,
+                   Master.getMasterAddress(conf), getUGI(conf), conf,
                    NetUtils.getSocketFactory(conf, 
                                              AdminOperationsProtocol.class));
     

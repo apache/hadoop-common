@@ -92,6 +92,7 @@ import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
 import org.apache.hadoop.mapreduce.util.ConfigUtil;
 import org.apache.hadoop.mapreduce.util.MRAsyncDiskService;
+import org.apache.hadoop.mapreduce.util.ServerConfigUtil;
 import org.apache.hadoop.net.DNSToSwitchMapping;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
@@ -128,7 +129,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     RefreshAuthorizationPolicyProtocol, AdminOperationsProtocol, JTConfig {
 
   static{
-    ConfigUtil.loadResources();
+    ServerConfigUtil.loadResources();
   }
 
   private final long tasktrackerExpiryInterval;
@@ -163,7 +164,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
   @InterfaceAudience.Private
   @InterfaceStability.Unstable
   public static enum State { INITIALIZING, RUNNING }
-  State state = State.INITIALIZING;
+  volatile State state = State.INITIALIZING;
   private static final int FS_ACCESS_RETRY_PERIOD = 10000;
   
   static final String JOB_INFO_FILE = "job-info";
@@ -1372,11 +1373,11 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
   JobTracker(final JobConf conf, Clock newClock, String jobtrackerIndentifier) 
   throws IOException, InterruptedException {
     // Set ports, start RPC servers, setup security policy etc.
-    InetSocketAddress addr = getAddress(conf);
+    InetSocketAddress addr = Master.getMasterAddress(conf);
     this.localMachine = addr.getHostName();
     this.port = addr.getPort();
     UserGroupInformation.setConfiguration(conf);
-    SecurityUtil.login(conf, JTConfig.JT_KEYTAB_FILE, JTConfig.JT_USER_NAME,
+    SecurityUtil.login(conf, JTConfig.JT_KEYTAB_FILE, MRConfig.MASTER_USER_NAME,
         localMachine);
 
     clock = newClock;
@@ -1510,7 +1511,8 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     // The rpc/web-server ports can be ephemeral ports... 
     // ... ensure we have the correct info
     this.port = interTrackerServer.getListenerAddress().getPort();
-    this.conf.set(JT_IPC_ADDRESS, (this.localMachine + ":" + this.port));
+    this.conf.set(MRConfig.MASTER_ADDRESS, 
+        (this.localMachine + ":" + this.port));
     this.localFs = FileSystem.getLocal(conf);
     LOG.info("JobTracker up at: " + this.port);
     this.infoPort = this.infoServer.getPort();
@@ -1628,6 +1630,10 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     completedJobStatusStore = new CompletedJobStatusStore(conf, aclsManager);
   }
 
+  State getState() {
+    return state;
+  }
+  
   private static SimpleDateFormat getDateFormat() {
     return new SimpleDateFormat("yyyyMMddHHmm");
   }
@@ -1701,10 +1707,12 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     return myInstrumentation;
   }
 
+  /**
+   * @deprecated Use {@link Master#getMasterAddress(Configuration)} instead.
+   */
+  @Deprecated
   public static InetSocketAddress getAddress(Configuration conf) {
-    String jobTrackerStr =
-      conf.get(JT_IPC_ADDRESS, "localhost:8012");
-    return NetUtils.createSocketAddr(jobTrackerStr);
+    return Master.getMasterAddress(conf);
   }
 
   void  startExpireTrackersThread() {
@@ -3157,7 +3165,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
             totalReduces,
             totalMapTaskCapacity,
             totalReduceTaskCapacity, 
-            state, getExcludedNodes().size()
+            getExcludedNodes().size()
             );
       } else {
         return new ClusterStatus(taskTrackers.size() - 
@@ -3168,7 +3176,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
             totalReduces,
             totalMapTaskCapacity,
             totalReduceTaskCapacity, 
-            state, getExcludedNodes().size());          
+            getExcludedNodes().size());          
       }
     }
   }
@@ -4623,11 +4631,11 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
         conf.getInt("mapred.heartbeats.in.second", 100);
     
     // Set ports, start RPC servers, setup security policy etc.
-    InetSocketAddress addr = getAddress(conf);
+    InetSocketAddress addr = Master.getMasterAddress(conf);
     this.localMachine = addr.getHostName();
     this.port = addr.getPort();
     UserGroupInformation.setConfiguration(conf);
-    SecurityUtil.login(conf, JTConfig.JT_KEYTAB_FILE, JTConfig.JT_USER_NAME,
+    SecurityUtil.login(conf, JTConfig.JT_KEYTAB_FILE, MRConfig.MASTER_USER_NAME,
         localMachine);
     
     secretManager = null;

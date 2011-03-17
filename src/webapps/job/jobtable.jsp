@@ -30,7 +30,7 @@ import="org.apache.hadoop.util.ServletUtil"
 private static final long serialVersionUID = 1L;
 %>
 <%
-JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
+  JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
 QueueManager qmgr = tracker.getQueueManager();
 String queue = request.getParameter("queue_name");
 TaskScheduler scheduler = tracker.getTaskScheduler();
@@ -44,7 +44,7 @@ if(queueInfo == null || (queueInfo.getChildren() != null &&
 } else {
 %>
 <%
-Collection<JobInProgress> jobs = scheduler.getJobs(queue);
+  Collection<JobInProgress> jobs = scheduler.getJobs(queue);
 String[] queueLabelSplits = queue.split(":");
 String queueLabel = 
   queueLabelSplits.length==0?queue:queueLabelSplits[queueLabelSplits.length-1];

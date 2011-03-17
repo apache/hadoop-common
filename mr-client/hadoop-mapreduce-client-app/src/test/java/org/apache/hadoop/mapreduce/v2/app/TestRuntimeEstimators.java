@@ -1,0 +1,757 @@
+/**
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
+package org.apache.hadoop.mapreduce.v2.app;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.app.AppContext;
+import org.apache.hadoop.mapreduce.v2.app.Clock;
+import org.apache.hadoop.mapreduce.v2.app.job.Job;
+import org.apache.hadoop.mapreduce.v2.app.job.Task;
+import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
+import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEvent;
+import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEventType;
+import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
+import org.apache.hadoop.mapreduce.v2.app.speculate.DefaultSpeculator;
+import org.apache.hadoop.mapreduce.v2.app.speculate.ExponentiallySmoothedTaskRuntimeEstimator;
+import org.apache.hadoop.mapreduce.v2.app.speculate.LegacyTaskRuntimeEstimator;
+import org.apache.hadoop.mapreduce.v2.app.speculate.Speculator;
+import org.apache.hadoop.mapreduce.v2.app.speculate.SpeculatorEvent;
+import org.apache.hadoop.mapreduce.v2.app.speculate.TaskRuntimeEstimator;
+import org.apache.hadoop.yarn.event.AsyncDispatcher;
+import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.service.CompositeService;
+import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.ContainerID;
+import org.apache.hadoop.mapreduce.v2.api.Counters;
+import org.apache.hadoop.mapreduce.v2.api.JobID;
+import org.apache.hadoop.mapreduce.v2.api.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.JobState;
+import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
+import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.TaskID;
+import org.apache.hadoop.mapreduce.v2.api.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.junit.Assert;
+import org.junit.Test;
+
+public class TestRuntimeEstimators {
+
+  private static int INITIAL_NUMBER_FREE_SLOTS = 300;
+  private static int MAP_SLOT_REQUIREMENT = 3;
+  // this has to be at least as much as map slot requirement
+  private static int REDUCE_SLOT_REQUIREMENT = 4;
+  private static int MAP_TASKS = 200;
+  private static int REDUCE_TASKS = 150;
+
+  private Queue<TaskEvent> taskEvents;
+
+  Clock clock;
+
+  Job myJob;
+
+  AppContext myAppContext;
+
+  private static final Log LOG = LogFactory.getLog(TestRuntimeEstimators.class);
+
+  private final AtomicInteger slotsInUse = new AtomicInteger(0);
+
+  Dispatcher dispatcher;
+
+  DefaultSpeculator speculator;
+
+  TaskRuntimeEstimator estimator;
+
+  // This is a huge kluge.  The real implementations have a decent approach
+  private final AtomicInteger completedMaps = new AtomicInteger(0);
+  private final AtomicInteger completedReduces = new AtomicInteger(0);
+
+  private final AtomicInteger successfulSpeculations
+      = new AtomicInteger(0);
+  private final AtomicLong taskTimeSavedBySpeculation
+      = new AtomicLong(0L);
+
+  private void coreTestEstimator
+      (TaskRuntimeEstimator testedEstimator, int expectedSpeculations) {
+    estimator = testedEstimator;
+    taskEvents = new ConcurrentLinkedQueue<TaskEvent>();
+    myJob = null;
+    slotsInUse.set(0);
+    completedMaps.set(0);
+    completedReduces.set(0);
+    successfulSpeculations.set(0);
+    taskTimeSavedBySpeculation.set(0);
+
+    ((MockClock)clock).advanceTime(1000);
+
+    Configuration conf = new Configuration();
+
+    myAppContext = new MyAppContext(MAP_TASKS, REDUCE_TASKS);
+    myJob = myAppContext.getAllJobs().values().iterator().next();
+
+    estimator.contextualize(conf, myAppContext);
+
+    speculator = new DefaultSpeculator(conf, myAppContext, estimator, clock);
+
+    dispatcher.register(Speculator.EventType.class, speculator);
+
+    dispatcher.register(TaskEventType.class, new SpeculationRequestEventHandler());
+
+    ((AsyncDispatcher)dispatcher).init(conf);
+    ((AsyncDispatcher)dispatcher).start();
+
+
+
+    speculator.init(conf);
+    speculator.start();
+
+    // Now that the plumbing is hooked up, we do the following:
+    //  do until all tasks are finished, ...
+    //  1: If we have spare capacity, assign as many map tasks as we can, then
+    //     assign as many reduce tasks as we can.  Note that an odd reduce
+    //     task might be started while there are still map tasks, because
+    //     map tasks take 3 slots and reduce tasks 2 slots.
+    //  2: Send a speculation event for every task attempt that's running
+    //  note that new attempts might get started by the speculator
+
+    // discover undone tasks
+    int undoneMaps = MAP_TASKS;
+    int undoneReduces = REDUCE_TASKS;
+
+    // build a task sequence where all the maps precede any of the reduces
+    List<Task> allTasksSequence = new LinkedList<Task>();
+
+    allTasksSequence.addAll(myJob.getTasks(TaskType.MAP).values());
+    allTasksSequence.addAll(myJob.getTasks(TaskType.REDUCE).values());
+
+    while (undoneMaps + undoneReduces > 0) {
+      undoneMaps = 0; undoneReduces = 0;
+      // start all attempts which are new but for which there is enough slots
+      for (Task task : allTasksSequence) {
+        if (!task.isFinished()) {
+          if (task.getType() == TaskType.MAP) {
+            ++undoneMaps;
+          } else {
+            ++undoneReduces;
+          }
+        }
+        for (TaskAttempt attempt : task.getAttempts().values()) {
+          if (attempt.getState() == TaskAttemptState.NEW
+              && INITIAL_NUMBER_FREE_SLOTS - slotsInUse.get()
+                    >= taskTypeSlots(task.getType())) {
+            MyTaskAttemptImpl attemptImpl = (MyTaskAttemptImpl)attempt;
+            SpeculatorEvent event
+                = new SpeculatorEvent(attempt.getID(), false, clock.getTime());
+            speculator.handle(event);
+            attemptImpl.startUp();
+          } else {
+            // If a task attempt is in progress we should send the news to
+            // the Speculator.
+            TaskAttemptStatus status = new TaskAttemptStatus();
+            status.id = attempt.getID();
+            status.progress = attempt.getProgress();
+            status.stateString = attempt.getState().name();
+            SpeculatorEvent event = new SpeculatorEvent(status, clock.getTime());
+            speculator.handle(event);
+          }
+        }
+      }
+
+      long startTime = System.currentTimeMillis();
+
+      // drain the speculator event queue
+      while (!speculator.eventQueueEmpty()) {
+        Thread.yield();
+        if (System.currentTimeMillis() > startTime + 130000) {
+          return;
+        }
+      }
+
+      ((MockClock) clock).advanceTime(1000L);
+
+      if (clock.getTime() % 10000L == 0L) {
+        speculator.scanForSpeculations();
+      }
+    }
+
+    Assert.assertEquals("We got the wrong number of successful speculations.",
+        expectedSpeculations, successfulSpeculations.get());
+  }
+
+  @Test
+  public void testLegacyEstimator() throws Exception {
+    clock = new MockClock();
+    TaskRuntimeEstimator specificEstimator = new LegacyTaskRuntimeEstimator();
+    Configuration conf = new Configuration();
+    dispatcher = new AsyncDispatcher();
+    myAppContext = new MyAppContext(MAP_TASKS, REDUCE_TASKS);
+
+    coreTestEstimator(specificEstimator, 3);
+  }
+
+  @Test
+  public void testExponentialEstimator() throws Exception {
+    clock = new MockClock();
+    TaskRuntimeEstimator specificEstimator
+        = new ExponentiallySmoothedTaskRuntimeEstimator();
+    Configuration conf = new Configuration();
+    dispatcher = new AsyncDispatcher();
+    myAppContext = new MyAppContext(MAP_TASKS, REDUCE_TASKS);
+
+    coreTestEstimator(new LegacyTaskRuntimeEstimator(), 3);
+  }
+
+  int taskTypeSlots(TaskType type) {
+    return type == TaskType.MAP ? MAP_SLOT_REQUIREMENT : REDUCE_SLOT_REQUIREMENT;
+  }
+
+  private boolean jobComplete() {
+    for (Task task : myJob.getTasks().values()) {
+      if (!task.isFinished()) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private int slotsInUse(int mapSize, int reduceSize) {
+    return slotsInUse.get();
+  }
+
+  class SpeculationRequestEventHandler implements EventHandler<TaskEvent> {
+
+    @Override
+    public void handle(TaskEvent event) {
+      TaskID taskID = event.getTaskID();
+      Task task = myJob.getTask(taskID);
+
+      Assert.assertEquals
+          ("Wrong type event", TaskEventType.T_ADD_SPEC_ATTEMPT, event.getType());
+
+      System.out.println("SpeculationRequestEventHandler.handle adds a speculation task for " + taskID);
+
+      addAttempt(task);
+    }
+  }
+
+  void addAttempt(Task task) {
+    MyTaskImpl myTask = (MyTaskImpl) task;
+
+    myTask.addAttempt();
+  }
+
+  class MyTaskImpl implements Task {
+    private final TaskID taskID;
+    private final Map<TaskAttemptID, TaskAttempt> attempts
+        = new HashMap<TaskAttemptID, TaskAttempt>(4);
+
+    MyTaskImpl(JobID jobID, int index, TaskType type) {
+      taskID = new TaskID();
+      taskID.id = index;
+      taskID.taskType = type;
+      taskID.jobID = jobID;
+    }
+
+    void addAttempt() {
+      TaskAttempt taskAttempt
+          = new MyTaskAttemptImpl(taskID, attempts.size(), clock);
+      TaskAttemptID taskAttemptID = taskAttempt.getID();
+
+      attempts.put(taskAttemptID, taskAttempt);
+
+      System.out.println("TLTRE.MyTaskImpl.addAttempt " + getID());
+
+      SpeculatorEvent event = new SpeculatorEvent(taskID, +1);
+      dispatcher.getEventHandler().handle(event);
+    }
+
+    @Override
+    public TaskID getID() {
+      return taskID;
+    }
+
+    @Override
+    public TaskReport getReport() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public Counters getCounters() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public float getProgress() {
+      float result = 0.0F;
+
+
+     for (TaskAttempt attempt : attempts.values()) {
+       result = Math.max(result, attempt.getProgress());
+     }
+
+     return result;
+    }
+
+    @Override
+    public TaskType getType() {
+      return taskID.taskType;
+    }
+
+    @Override
+    public Map<TaskAttemptID, TaskAttempt> getAttempts() {
+      Map<TaskAttemptID, TaskAttempt> result
+          = new HashMap<TaskAttemptID, TaskAttempt>(attempts.size());
+      result.putAll(attempts);
+      return result;
+    }
+
+    @Override
+    public TaskAttempt getAttempt(TaskAttemptID attemptID) {
+      return attempts.get(attemptID);
+    }
+
+    @Override
+    public boolean isFinished() {
+      for (TaskAttempt attempt : attempts.values()) {
+        if (attempt.getState() == TaskAttemptState.SUCCEEDED) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    @Override
+    public boolean canCommit(TaskAttemptID taskAttemptID) {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public TaskState getState() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+  }
+
+  class MyJobImpl implements Job {
+    private final JobID jobID;
+    private final Map<TaskID, Task> allTasks = new HashMap<TaskID, Task>();
+    private final Map<TaskID, Task> mapTasks = new HashMap<TaskID, Task>();
+    private final Map<TaskID, Task> reduceTasks = new HashMap<TaskID, Task>();
+
+    MyJobImpl(JobID jobID, int numMaps, int numReduces) {
+      this.jobID = jobID;
+      for (int i = 0; i < numMaps; ++i) {
+        Task newTask = new MyTaskImpl(jobID, i, TaskType.MAP);
+        mapTasks.put(newTask.getID(), newTask);
+        allTasks.put(newTask.getID(), newTask);
+      }
+      for (int i = 0; i < numReduces; ++i) {
+        Task newTask = new MyTaskImpl(jobID, i, TaskType.REDUCE);
+        reduceTasks.put(newTask.getID(), newTask);
+        allTasks.put(newTask.getID(), newTask);
+      }
+
+      // give every task an attempt
+      for (Task task : allTasks.values()) {
+        MyTaskImpl myTaskImpl = (MyTaskImpl) task;
+        myTaskImpl.addAttempt();
+      }
+    }
+
+    @Override
+    public JobID getID() {
+      return jobID;
+    }
+
+    @Override
+    public JobState getState() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public JobReport getReport() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public Counters getCounters() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public Map<TaskID, Task> getTasks() {
+      return allTasks;
+    }
+
+    @Override
+    public Map<TaskID, Task> getTasks(TaskType taskType) {
+      return taskType == TaskType.MAP ? mapTasks : reduceTasks;
+    }
+
+    @Override
+    public Task getTask(TaskID taskID) {
+      return allTasks.get(taskID);
+    }
+
+    @Override
+    public List<String> getDiagnostics() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public int getCompletedMaps() {
+      return completedMaps.get();
+    }
+
+    @Override
+    public int getCompletedReduces() {
+      return completedReduces.get();
+    }
+
+    @Override
+    public TaskAttemptCompletionEvent[]
+            getTaskAttemptCompletionEvents(int fromEventId, int maxEvents) {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public CharSequence getName() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public int getTotalMaps() {
+      return mapTasks.size();
+    }
+
+    @Override
+    public int getTotalReduces() {
+      return reduceTasks.size();
+    }
+  }
+
+  /*
+   * We follow the pattern of the real XxxImpl .  We create a job and initialize
+   * it with a full suite of tasks which in turn have one attempt each in the
+   * NEW state.  Attempts transition only from NEW to RUNNING to SUCCEEDED .
+   */
+  class MyTaskAttemptImpl implements TaskAttempt {
+    private final TaskAttemptID myAttemptID;
+
+    long startMockTime = Long.MIN_VALUE;
+
+    long shuffleCompletedTime = Long.MAX_VALUE;
+
+    TaskAttemptState overridingState = TaskAttemptState.NEW;
+
+    MyTaskAttemptImpl(TaskID taskID, int index, Clock clock) {
+      myAttemptID = new TaskAttemptID();
+      myAttemptID.id = index;
+      myAttemptID.taskID = taskID;
+    }
+
+    void startUp() {
+      startMockTime = clock.getTime();
+      overridingState = null;
+
+      slotsInUse.addAndGet(taskTypeSlots(myAttemptID.taskID.taskType));
+
+      System.out.println("TLTRE.MyTaskAttemptImpl.startUp starting " + getID());
+
+      SpeculatorEvent event = new SpeculatorEvent(getID().taskID, -1);
+      dispatcher.getEventHandler().handle(event);
+    }
+
+    @Override
+    public TaskAttemptID getID() {
+      return myAttemptID;
+    }
+
+    @Override
+    public TaskAttemptReport getReport() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public List<CharSequence> getDiagnostics() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public Counters getCounters() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    private float getCodeRuntime() {
+      int taskIndex = myAttemptID.taskID.id;
+      int attemptIndex = myAttemptID.id;
+
+      float result = 200.0F;
+
+      switch (taskIndex % 4) {
+        case 0:
+          if (taskIndex % 40 == 0 && attemptIndex == 0) {
+            result = 600.0F;
+            break;
+          }
+
+          break;
+        case 2:
+          break;
+
+        case 1:
+          result = 150.0F;
+          break;
+
+        case 3:
+          result = 250.0F;
+          break;
+      }
+
+      return result;
+    }
+
+    private float getMapProgress() {
+      float runtime = getCodeRuntime();
+
+      return Math.min
+          ((float) (clock.getTime() - startMockTime) / (runtime * 1000.0F), 1.0F);
+    }
+
+    private float getReduceProgress() {
+      Job job = myAppContext.getJob(myAttemptID.taskID.jobID);
+      float runtime = getCodeRuntime();
+
+      Collection<Task> allMapTasks = job.getTasks(TaskType.MAP).values();
+
+      int numberMaps = allMapTasks.size();
+      int numberDoneMaps = 0;
+
+      for (Task mapTask : allMapTasks) {
+        if (mapTask.isFinished()) {
+          ++numberDoneMaps;
+        }
+      }
+
+      if (numberMaps == numberDoneMaps) {
+        shuffleCompletedTime = Math.min(shuffleCompletedTime, clock.getTime());
+
+        return Math.min
+            ((float) (clock.getTime() - shuffleCompletedTime)
+                        / (runtime * 2000.0F) + 0.5F,
+             1.0F);
+      } else {
+        return ((float) numberDoneMaps) / numberMaps * 0.5F;
+      }
+    }
+
+    // we compute progress from time and an algorithm now
+    @Override
+    public float getProgress() {
+      if (overridingState == TaskAttemptState.NEW) {
+        return 0.0F;
+      }
+      return myAttemptID.taskID.taskType == TaskType.MAP ? getMapProgress() : getReduceProgress();
+    }
+
+    @Override
+    public TaskAttemptState getState() {
+      if (overridingState != null) {
+        return overridingState;
+      }
+      TaskAttemptState result
+          = getProgress() < 1.0F ? TaskAttemptState.RUNNING : TaskAttemptState.SUCCEEDED;
+
+      if (result == TaskAttemptState.SUCCEEDED) {
+        overridingState = TaskAttemptState.SUCCEEDED;
+
+        System.out.println("MyTaskAttemptImpl.getState() -- attempt " + myAttemptID + " finished.");
+
+        slotsInUse.addAndGet(- taskTypeSlots(myAttemptID.taskID.taskType));
+
+        (myAttemptID.taskID.taskType == TaskType.MAP
+            ? completedMaps : completedReduces).getAndIncrement();
+
+        // check for a spectacularly successful speculation
+        TaskID taskID = myAttemptID.taskID;
+        Task undoneTask = null;
+
+        Task task = myJob.getTask(taskID);
+
+        for (TaskAttempt otherAttempt : task.getAttempts().values()) {
+          if (otherAttempt != this
+              && otherAttempt.getState() == TaskAttemptState.RUNNING) {
+            // we had two instances running.  Try to determine how much
+            //  we might have saved by speculation
+            if (getID().id > otherAttempt.getID().id) {
+              // the speculation won
+              successfulSpeculations.getAndIncrement();
+              float hisProgress = otherAttempt.getProgress();
+              long hisStartTime = ((MyTaskAttemptImpl)otherAttempt).startMockTime;
+              System.out.println("TLTRE:A speculation finished at time "
+                  + clock.getTime()
+                  + ".  The stalled attempt is at " + (hisProgress * 100.0)
+                  + "% progress, and it started at "
+                  + hisStartTime + ", which is "
+                  + (clock.getTime() - hisStartTime) + " ago.");
+              long originalTaskEndEstimate
+                  = (hisStartTime
+                      + estimator.estimatedRuntime(otherAttempt.getID()));
+              System.out.println(
+                  "TLTRE: We would have expected the original attempt to take "
+                  + estimator.estimatedRuntime(otherAttempt.getID())
+                  + ", finishing at " + originalTaskEndEstimate);
+              long estimatedSavings = originalTaskEndEstimate - clock.getTime();
+              taskTimeSavedBySpeculation.addAndGet(estimatedSavings);
+              System.out.println("TLTRE: The task is " + task.getID());
+              slotsInUse.addAndGet(- taskTypeSlots(myAttemptID.taskID.taskType));
+              ((MyTaskAttemptImpl)otherAttempt).overridingState
+                  = TaskAttemptState.KILLED;
+            } else {
+              System.out.println(
+                  "TLTRE: The normal attempt beat the speculation in "
+                  + task.getID());
+            }
+          }
+        }
+      }
+
+      return result;
+    }
+
+    @Override
+    public boolean isFinished() {
+      return getProgress() == 1.0F;
+    }
+
+    @Override
+    public ContainerID getAssignedContainerID() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public String getAssignedContainerMgrAddress() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public long getLaunchTime() {
+      return startMockTime;
+    }
+
+    @Override
+    public long getFinishTime() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+  }
+
+  static class MockClock extends Clock {
+    private long currentTime = 0;
+
+    @Override
+    long getMeasuredTime() {
+      return currentTime;
+    }
+
+    void setMeasuredTime(long newTime) {
+      currentTime = newTime;
+    }
+
+    void advanceTime(long increment) {
+      currentTime += increment;
+    }
+  }
+
+  class MyAppMaster extends CompositeService {
+    final Clock clock;
+      public MyAppMaster(Clock clock) {
+        super(MyAppMaster.class.getName());
+        if (clock == null) {
+          clock = new Clock();
+        }
+      this.clock = clock;
+      LOG.info("Created MyAppMaster");
+    }
+  }
+
+  class MyAppContext implements AppContext {
+    // I'll be making Avro objects by hand.  Please don't do that very often.
+
+    private final ApplicationID myApplicationID;
+    private final JobID myJobID;
+    private final Map<JobID, Job> allJobs;
+
+    MyAppContext(int numberMaps, int numberReduces) {
+      myApplicationID = new ApplicationID();
+      myApplicationID.clusterTimeStamp = clock.getTime();
+      myApplicationID.id = 1;
+
+      myJobID = new JobID();
+      myJobID.appID = myApplicationID;
+
+      Job myJob
+          = new MyJobImpl(myJobID, numberMaps, numberReduces);
+
+      allJobs = Collections.singletonMap(myJobID, myJob);
+    }
+
+    @Override
+    public ApplicationID getApplicationID() {
+      return myApplicationID;
+    }
+
+    @Override
+    public Job getJob(JobID jobID) {
+      return allJobs.get(jobID);
+    }
+
+    @Override
+    public Map<JobID, Job> getAllJobs() {
+      return allJobs;
+    }
+
+    @Override
+    public EventHandler getEventHandler() {
+      return dispatcher.getEventHandler();
+    }
+
+    @Override
+    public CharSequence getUser() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+  }
+}

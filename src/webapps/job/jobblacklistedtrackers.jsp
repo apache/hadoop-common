@@ -1,5 +1,4 @@
-<%
-/*
+<%/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file 
  * distributed with this work for additional information
@@ -15,8 +14,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-%>
+ */%>
 <%@ page
   contentType="text/html; charset=UTF-8"
   import="javax.servlet.*"
@@ -33,12 +31,11 @@
 
 <%
   JobTracker tracker = (JobTracker) application.getAttribute(
-      "job.tracker");
+  "job.tracker");
   String trackerName = 
-           StringUtils.simpleHostname(tracker.getJobTrackerMachine());
+   StringUtils.simpleHostname(tracker.getJobTrackerMachine());
 %>
-<%!       
-  private void printBlackListedTrackers(JspWriter out, 
+<%!private void printBlackListedTrackers(JspWriter out, 
                              JobInProgress job) throws IOException {
     Map<String, Integer> trackerErrors = job.getTaskTrackerErrors();
     out.print("<table border=2 cellpadding=\"5\" cellspacing=\"2\">");
@@ -51,26 +48,25 @@
       }
     }
     out.print("</table>\n");
-  }
-%>
+  }%>
 
 <%
-    String jobId = request.getParameter("jobid");
+  String jobId = request.getParameter("jobid");
     if (jobId == null) {
   	  out.println("<h2>Missing 'jobid' for fetching black-listed tasktrackers!</h2>");
   	  return;
     }
     
     JobWithViewAccessCheck myJob = JSPUtil.checkAccessAndGetJob(tracker,
-        JobID.forName(jobId), request, response);
+    JobID.forName(jobId), request, response);
     if (!myJob.isViewJobAllowed()) {
-      return; // user is not authorized to view this job
+  return; // user is not authorized to view this job
     }
 
     JobInProgress job = myJob.getJob();
     if (job == null) {
-      out.print("<b>Job " + jobId + " not found.</b><br>\n");
-      return;
+  out.print("<b>Job " + jobId + " not found.</b><br>\n");
+  return;
     }
 %>
 

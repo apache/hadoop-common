@@ -48,6 +48,6 @@ class SimulatorLaunchTaskAction extends LaunchTaskAction {
   @Override
   public String toString() {
     return this.getClass().getName() + "[taskID=" + 
-           this.getTask().getTaskID() + "]";
+           this.getTask().getTask().getTaskID() + "]";
   }
 }
