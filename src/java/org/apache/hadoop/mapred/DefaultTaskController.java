@@ -52,46 +52,6 @@ public class DefaultTaskController extends TaskController {
   private static final Log LOG = 
       LogFactory.getLog(DefaultTaskController.class);
   private FileSystem fs;
-  /**
-   * Launch a new JVM for the task.
-   * 
-   * This method launches the new JVM for the task by executing the
-   * the JVM command using the {@link Shell.ShellCommandExecutor}
-   */
-  void launchTaskJVM(TaskController.TaskControllerContext context) 
-                                      throws IOException {
-    initializeTask(context);
-
-    JvmEnv env = context.env;
-    List<String> wrappedCommand = 
-      TaskLog.captureOutAndError(env.setup, env.vargs, env.stdout, env.stderr,
-          env.logSize, true);
-    ShellCommandExecutor shexec = 
-        new ShellCommandExecutor(wrappedCommand.toArray(new String[0]), 
-                                  env.workDir, env.env);
-    // set the ShellCommandExecutor for later use.
-    context.shExec = shexec;
-    shexec.execute();
-  }
-    
-  /**
-   * Initialize the task environment.
-   * 
-   * Since tasks are launched as the tasktracker user itself, this
-   * method has no action to perform.
-   */
-  void initializeTask(TaskController.TaskControllerContext context) {
-    // The default task controller does not need to set up
-    // any permissions for proper execution.
-    // So this is a dummy method.
-    return;
-  }
-
-  /*
-   * No need to do anything as we don't need to do as we dont need anything
-   * extra from what TaskTracker has done.
-   */
-
   @Override
   public void setConf(Configuration conf) {
     super.setConf(conf);
