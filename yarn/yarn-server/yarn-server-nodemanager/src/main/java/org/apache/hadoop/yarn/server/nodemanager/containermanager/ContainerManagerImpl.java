@@ -33,13 +33,21 @@ import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.ContainerID;
+import org.apache.hadoop.yarn.ContainerLaunchContext;
+import org.apache.hadoop.yarn.ContainerManager;
+import org.apache.hadoop.yarn.ContainerStatus;
+import org.apache.hadoop.yarn.YarnRemoteException;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
-import org.apache.hadoop.yarn.event.Event;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ContainerManagerSecurityInfo;
+import org.apache.hadoop.yarn.server.nodemanager.CMgrCompletedAppsEvent;
+import org.apache.hadoop.yarn.server.nodemanager.CMgrCompletedContainersEvent;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
+import org.apache.hadoop.yarn.server.nodemanager.ContainerManagerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
 import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
@@ -62,15 +70,10 @@ import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
 import org.apache.hadoop.yarn.service.ServiceStateChangeListener;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerStatus;
-import org.apache.hadoop.yarn.YarnRemoteException;
 
 public class ContainerManagerImpl extends CompositeService implements
-    ServiceStateChangeListener, ContainerManager, EventHandler<Event> {
+    ServiceStateChangeListener, ContainerManager,
+    EventHandler<ContainerManagerEvent> {
 
   private static final Log LOG = LogFactory.getLog(ContainerManagerImpl.class);
 
@@ -86,11 +89,14 @@ public class ContainerManagerImpl extends CompositeService implements
 
   protected AsyncDispatcher dispatcher;
 
+  private DeletionService deletionService;
+
   public ContainerManagerImpl(Context context, ContainerExecutor exec,
       DeletionService deletionContext, NodeStatusUpdater nodeStatusUpdater) {
     super(ContainerManagerImpl.class.getName());
     this.context = context;
     dispatcher = new AsyncDispatcher();
+    this.deletionService = deletionContext;
 
     rsrcLocalizationSrvc =
         createResourceLocalizationService(exec, deletionContext);
@@ -139,7 +145,6 @@ public class ContainerManagerImpl extends CompositeService implements
 
   @Override
   public void init(Configuration conf) {
-    // TODO enqueue user dirs in deletion context
     cmAddr = NetUtils.createSocketAddr(
         conf.get(NM_BIND_ADDRESS, DEFAULT_NM_BIND_ADDRESS));
     Configuration cmConf = new Configuration(conf);
@@ -150,6 +155,9 @@ public class ContainerManagerImpl extends CompositeService implements
 
   @Override
   public void start() {
+
+    // Enqueue user dirs in deletion context
+
     YarnRPC rpc = YarnRPC.create(getConfig());
     if (UserGroupInformation.isSecurityEnabled()) {
       // This is fine as status updater is started before ContainerManager and
@@ -210,8 +218,7 @@ public class ContainerManagerImpl extends CompositeService implements
     }
 
     // TODO: Validate the request
-    dispatcher.getEventHandler().handle(
-        new ApplicationInitEvent(containerID));
+    dispatcher.getEventHandler().handle(new ApplicationInitEvent(container));
     return null;
   }
 
@@ -241,7 +248,7 @@ public class ContainerManagerImpl extends CompositeService implements
     LOG.info("Getting container-status for " + containerID);
     Container container = this.context.getContainers().get(containerID);
     if (container != null) {
-      ContainerStatus containerStatus = container.getContainerStatus();
+      ContainerStatus containerStatus = container.cloneAndGetContainerStatus();
       LOG.info("Returning " + containerStatus);
       return containerStatus;
     } else {
@@ -283,8 +290,30 @@ public class ContainerManagerImpl extends CompositeService implements
   }
 
   @Override
-  public void handle(Event event) {
-    dispatcher.getEventHandler().handle(event);
+  public void handle(ContainerManagerEvent event) {
+    switch (event.getType()) {
+    case FINISH_APPS:
+      CMgrCompletedAppsEvent appsFinishedEvent =
+          (CMgrCompletedAppsEvent) event;
+      for (ApplicationID appID : appsFinishedEvent.getAppsToCleanup()) {
+        this.dispatcher.getEventHandler().handle(
+            new ApplicationEvent(appID,
+                ApplicationEventType.FINISH_APPLICATION));
+      }
+      break;
+    case FINISH_CONTAINERS:
+      CMgrCompletedContainersEvent containersFinishedEvent =
+          (CMgrCompletedContainersEvent) event;
+      for (org.apache.hadoop.yarn.Container container : containersFinishedEvent
+          .getContainersToCleanup()) {
+        this.dispatcher.getEventHandler().handle(
+            new ContainerEvent(container.id,
+                ContainerEventType.KILL_CONTAINER));
+      }
+      break;
+    default:
+      LOG.warn("Invalid event " + event.getType() + ". Ignoring.");
+    }
   }
 
   @Override

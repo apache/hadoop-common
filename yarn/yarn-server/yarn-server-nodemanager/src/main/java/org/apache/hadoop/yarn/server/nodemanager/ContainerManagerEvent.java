@@ -18,29 +18,12 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
-import org.apache.avro.ipc.AvroRemoteException;
-import org.apache.hadoop.yarn.HeartbeatResponse;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.NodeStatus;
-import org.apache.hadoop.yarn.RegistrationResponse;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceTracker;
+import org.apache.hadoop.yarn.event.AbstractEvent;
 
-public class LocalRMInterface implements ResourceTracker {
+public class ContainerManagerEvent extends
+    AbstractEvent<ContainerManagerEventType> {
 
-  @Override
-  public RegistrationResponse registerNodeManager(CharSequence node,
-      Resource resource) throws AvroRemoteException {
-    RegistrationResponse registrationResponse = new RegistrationResponse();
-    registrationResponse.nodeID = new NodeID();
-    return registrationResponse;
+  public ContainerManagerEvent(ContainerManagerEventType type) {
+    super(type);
   }
-
-  @Override
-  public HeartbeatResponse nodeHeartbeat(NodeStatus nodeStatus)
-      throws AvroRemoteException {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
 }

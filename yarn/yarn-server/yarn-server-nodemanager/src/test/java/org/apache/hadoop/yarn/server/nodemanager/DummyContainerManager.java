@@ -26,28 +26,27 @@ import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.Context;
-import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
+import org.apache.hadoop.yarn.ContainerID;
+import org.apache.hadoop.yarn.ContainerManager;
+import org.apache.hadoop.yarn.ContainerState;
+import org.apache.hadoop.yarn.ContainerStatus;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationInitedEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerExitEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ApplicationLocalizerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEvent;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerState;
-import org.apache.hadoop.yarn.ContainerStatus;
 
-class DummyContainerManager extends ContainerManagerImpl {
+public class DummyContainerManager extends ContainerManagerImpl {
 
   private static final Log LOG = LogFactory
       .getLog(DummyContainerManager.class);
@@ -77,12 +76,18 @@ class DummyContainerManager extends ContainerManagerImpl {
               ((ContainerLocalizerEvent) event).getContainer();
           // TODO: delete the container dir
           this.dispatcher.getEventHandler().handle(
-              new ContainerEvent(container.getLaunchContext().id,
+              new ContainerEvent(container.getContainerID(),
                   ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP));
           break;
         case DESTROY_APPLICATION_RESOURCES:
+          Application application =
+            ((ApplicationLocalizerEvent) event).getApplication();
+
           // decrement reference counts of all resources associated with this
           // app
+          this.dispatcher.getEventHandler().handle(
+              new ApplicationEvent(application.getAppId(),
+                  ApplicationEventType.APPLICATION_RESOURCES_CLEANEDUP));
           break;
         }
       }
@@ -96,7 +101,7 @@ class DummyContainerManager extends ContainerManagerImpl {
       @Override
       public void handle(ContainersLauncherEvent event) {
         Container container = event.getContainer();
-        ContainerID containerId = container.getLaunchContext().id;
+        ContainerID containerId = container.getContainerID();
         switch (event.getType()) {
         case LAUNCH_CONTAINER:
           dispatcher.getEventHandler().handle(
@@ -105,15 +110,15 @@ class DummyContainerManager extends ContainerManagerImpl {
           break;
         case CLEANUP_CONTAINER:
           dispatcher.getEventHandler().handle(
-              new ContainerEvent(containerId,
-                  ContainerEventType.CONTAINER_KILLED_ON_REQUEST));
+              new ContainerExitEvent(containerId,
+                  ContainerEventType.CONTAINER_KILLED_ON_REQUEST, 0));
           break;
         }
       }
     };
   }
 
-  static void waitForContainerState(ContainerManager containerManager,
+  public static void waitForContainerState(ContainerManager containerManager,
         ContainerID containerID, ContainerState finalState)
         throws InterruptedException, AvroRemoteException {
       ContainerStatus containerStatus =

@@ -18,9 +18,8 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
-import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.yarn.event.Event;
 import org.apache.hadoop.yarn.ContainerID;
+import org.apache.hadoop.yarn.event.AbstractEvent;
 
 public class ContainerEvent extends AbstractEvent<ContainerEventType> {
 

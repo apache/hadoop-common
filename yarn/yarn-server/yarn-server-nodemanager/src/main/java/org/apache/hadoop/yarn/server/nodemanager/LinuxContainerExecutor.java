@@ -58,7 +58,7 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   enum Commands {
     INITIALIZE_JOB(0),
     LAUNCH_CONTAINER(1),
-    SIGNAL_TASK(2),
+    SIGNAL_CONTAINER(2),
     DELETE_AS_USER(3),
     DELETE_LOG_AS_USER(4);
 
@@ -180,9 +180,6 @@ public class LinuxContainerExecutor extends ContainerExecutor {
         logOutput(shExec.getOutput());
       }
     } catch (ExitCodeException e) {
-      if (shExec == null) {
-        return -1;
-      }
       int exitCode = shExec.getExitCode();
       LOG.warn("Exit code from task is : " + exitCode);
       // 143 (SIGTERM) and 137 (SIGKILL) exit codes means the task was
@@ -197,7 +194,7 @@ public class LinuxContainerExecutor extends ContainerExecutor {
       launchCommandObjs.remove(container.getLaunchContext().id);
     }
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Output from LinuxTaskController's launchTask follows:");
+      LOG.debug("Output from LinuxContainerExecutor's launchTask follows:");
       logOutput(shExec.getOutput());
     }
     return 0;
@@ -210,7 +207,7 @@ public class LinuxContainerExecutor extends ContainerExecutor {
     String[] command =
         new String[] { containerExecutorExe,
                    user,
-                   Integer.toString(Commands.SIGNAL_TASK.getValue()),
+                   Integer.toString(Commands.SIGNAL_CONTAINER.getValue()),
                    pid,
                    Integer.toString(signal.getValue()) };
     ShellCommandExecutor shExec = new ShellCommandExecutor(command);
@@ -232,8 +229,47 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public void deleteAsUser(String user, Path subDir, Path... basedirs)
+  public void deleteAsUser(String user, Path subDir, Path... baseDirs)
       throws IOException, InterruptedException {
+
+    if (baseDirs == null || baseDirs.length == 0) {
+      LOG.info("Deleting absolute path : " + subDir);
+      deleteAsUser(user, subDir);
+      return;
+    }
+    for (Path baseDir : baseDirs) {
+      Path del = new Path(baseDir, subDir);
+      LOG.info("Deleting path : " + del);
+      deleteAsUser(user, del);
+    }
   }
 
+  private void deleteAsUser(String user, Path dir) {
+    List<String> command = new ArrayList<String>(
+        Arrays.asList(containerExecutorExe,
+                    user,
+                    Integer.toString(Commands.DELETE_AS_USER.getValue()),
+                    dir.toUri().getPath()));
+    String[] commandArray = command.toArray(new String[command.size()]);
+    ShellCommandExecutor shExec = new ShellCommandExecutor(commandArray);
+    LOG.info(" -- DEBUG -- deleteAsUser: " + Arrays.toString(commandArray));
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("deleteAsUser: " + Arrays.toString(commandArray));
+    }
+    try {
+      shExec.execute();
+      if (LOG.isDebugEnabled()) {
+        logOutput(shExec.getOutput());
+      }
+    } catch (IOException e) {
+      int exitCode = shExec.getExitCode();
+      LOG.warn("Exit code from task is : " + exitCode);
+      if (exitCode != 0) {
+        LOG.error("DeleteAsUser for " + dir.toUri().getPath()
+            + " returned with non-zero exit code" + exitCode);
+        LOG.error("Output from LinuxContainerExecutor's deleteAsUser follows:");
+        logOutput(shExec.getOutput());
+      }
+    }
+  }
 }

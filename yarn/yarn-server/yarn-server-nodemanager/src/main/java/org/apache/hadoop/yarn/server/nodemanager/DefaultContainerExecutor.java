@@ -46,7 +46,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
 
   private final FileContext lfs;
 
-  DefaultContainerExecutor() {
+  public DefaultContainerExecutor() {
     try {
       this.lfs = FileContext.getLocalFSFileContext();
     } catch (UnsupportedFileSystemException e) {

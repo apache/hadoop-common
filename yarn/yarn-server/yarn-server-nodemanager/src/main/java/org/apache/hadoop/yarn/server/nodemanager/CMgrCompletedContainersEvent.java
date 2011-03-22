@@ -18,29 +18,20 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
-import org.apache.avro.ipc.AvroRemoteException;
-import org.apache.hadoop.yarn.HeartbeatResponse;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.NodeStatus;
-import org.apache.hadoop.yarn.RegistrationResponse;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceTracker;
+import java.util.List;
 
-public class LocalRMInterface implements ResourceTracker {
+import org.apache.hadoop.yarn.Container;
 
-  @Override
-  public RegistrationResponse registerNodeManager(CharSequence node,
-      Resource resource) throws AvroRemoteException {
-    RegistrationResponse registrationResponse = new RegistrationResponse();
-    registrationResponse.nodeID = new NodeID();
-    return registrationResponse;
+public class CMgrCompletedContainersEvent extends ContainerManagerEvent {
+
+  private List<Container> containerToCleanup;
+
+  public CMgrCompletedContainersEvent(List<Container> containersToCleanup) {
+    super(ContainerManagerEventType.FINISH_CONTAINERS);
+    this.containerToCleanup = containersToCleanup;
   }
 
-  @Override
-  public HeartbeatResponse nodeHeartbeat(NodeStatus nodeStatus)
-      throws AvroRemoteException {
-    // TODO Auto-generated method stub
-    return null;
+  public List<Container> getContainersToCleanup() {
+    return this.containerToCleanup;
   }
-
 }

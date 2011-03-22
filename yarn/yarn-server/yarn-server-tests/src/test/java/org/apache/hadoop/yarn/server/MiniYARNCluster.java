@@ -26,6 +26,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
 import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
@@ -82,6 +83,7 @@ public class MiniYARNCluster extends CompositeService {
     public synchronized void start() {
       try {
         resourceManager = new ResourceManager() {
+          @Override
           protected void doSecureLogin() throws IOException {
             // Don't try to login using keytab in the testcase.
           };
@@ -126,10 +128,13 @@ public class MiniYARNCluster extends CompositeService {
             // Don't try to login using keytab in the testcase.
           };
 
-          protected org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater
+          @Override
+          protected
+              org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater
               createNodeStatusUpdater(
-                  org.apache.hadoop.yarn.server.nodemanager.Context context) {
-            return new NodeStatusUpdaterImpl(context) {
+                  org.apache.hadoop.yarn.server.nodemanager.Context context,
+                  Dispatcher dispatcher) {
+            return new NodeStatusUpdaterImpl(context, dispatcher) {
               @Override
               protected org.apache.hadoop.yarn.ResourceTracker getRMClient() {
                 // For in-process communication without RPC

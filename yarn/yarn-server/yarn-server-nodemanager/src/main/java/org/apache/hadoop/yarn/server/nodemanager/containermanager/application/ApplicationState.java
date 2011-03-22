@@ -19,5 +19,5 @@
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
 public enum ApplicationState {
-  NEW, INITING, INITED, FINISHING, FINISHED 
+  NEW, INITING, RUNNING, FINISHING_CONTAINERS_WAIT, APPLICATION_RESOURCES_CLEANINGUP, FINISHED 
 }

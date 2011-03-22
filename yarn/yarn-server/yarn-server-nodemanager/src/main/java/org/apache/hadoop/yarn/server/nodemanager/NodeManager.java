@@ -18,32 +18,30 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
-import java.io.IOException;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_CONTAINER_EXECUTOR_CLASS;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_KEYTAB;
 
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.event.AsyncDispatcher;
+import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.YarnServerConfig;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
-
-
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-
-import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.*;
 
 public class NodeManager extends CompositeService {
 
@@ -59,32 +57,39 @@ public class NodeManager extends CompositeService {
     DeletionService del = new DeletionService(exec);
     addService(del);
 
+    // NodeManager level dispatcher
+    Dispatcher dispatcher = new AsyncDispatcher();
+
     // StatusUpdater should be added first so that it can start first. Once it
     // contacts RM, does registration and gets tokens, then only
     // ContainerManager can start.
-    NodeStatusUpdater nodeStatusUpdater = createNodeStatusUpdater(context);
+    NodeStatusUpdater nodeStatusUpdater =
+        createNodeStatusUpdater(context, dispatcher);
     addService(nodeStatusUpdater);
 
     NodeResourceMonitor nodeResourceMonitor = createNodeResourceMonitor();
     addService(nodeResourceMonitor);
 
-    Service containerManager =
+    ContainerManagerImpl containerManager =
         createContainerManager(context, exec, del, nodeStatusUpdater);
     addService(containerManager);
 
     Service webServer = createWebServer();
     addService(webServer);
+
+    dispatcher.register(ContainerManagerEventType.class, containerManager);
   }
 
-  protected NodeStatusUpdater createNodeStatusUpdater(Context context) {
-    return new NodeStatusUpdaterImpl(context);
+  protected NodeStatusUpdater createNodeStatusUpdater(Context context,
+      Dispatcher dispatcher) {
+    return new NodeStatusUpdaterImpl(context, dispatcher);
   }
 
   protected NodeResourceMonitor createNodeResourceMonitor() {
     return new NodeResourceMonitorImpl();
   }
 
-  protected Service createContainerManager(Context context,
+  protected ContainerManagerImpl createContainerManager(Context context,
       ContainerExecutor exec, DeletionService del,
       NodeStatusUpdater nodeStatusUpdater) {
     return new ContainerManagerImpl(context, exec, del, nodeStatusUpdater);

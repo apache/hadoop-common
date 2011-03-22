@@ -42,5 +42,7 @@ public interface Application extends EventHandler<ApplicationEvent> {
 
   ApplicationID getAppId();
 
+  ApplicationState getApplicationState();
+
   Credentials getCredentials() throws IOException;
 }

@@ -35,11 +35,7 @@ import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.ipc.YarnRPC;
-import org.apache.hadoop.yarn.server.RMNMSecurityInfoClass;
-import org.apache.hadoop.yarn.server.YarnServerConfig;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
-import org.apache.hadoop.yarn.service.AbstractService;
+import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.ContainerState;
 import org.apache.hadoop.yarn.HeartbeatResponse;
@@ -48,6 +44,12 @@ import org.apache.hadoop.yarn.NodeStatus;
 import org.apache.hadoop.yarn.RegistrationResponse;
 import org.apache.hadoop.yarn.Resource;
 import org.apache.hadoop.yarn.ResourceTracker;
+import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.ipc.YarnRPC;
+import org.apache.hadoop.yarn.server.RMNMSecurityInfoClass;
+import org.apache.hadoop.yarn.server.YarnServerConfig;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.service.AbstractService;
 
 public class NodeStatusUpdaterImpl extends AbstractService implements
     NodeStatusUpdater {
@@ -57,6 +59,8 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
   private final Object heartbeatMonitor = new Object();
 
   private Context context;
+  private Dispatcher dispatcher;
+
   private long heartBeatInterval;
   private ResourceTracker resourceTracker;
   private String rmAddress;
@@ -66,9 +70,10 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
   private byte[] secretKeyBytes = new byte[0];
   private boolean isStopped;
 
-  public NodeStatusUpdaterImpl(Context context) {
+  public NodeStatusUpdaterImpl(Context context, Dispatcher dispatcher) {
     super(NodeStatusUpdaterImpl.class.getName());
     this.context = context;
+    this.dispatcher = dispatcher;
   }
 
   @Override
@@ -173,7 +178,7 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
         }
 
         // Clone the container to send it to the RM
-        org.apache.hadoop.yarn.Container c = container.getContainer();
+        org.apache.hadoop.yarn.Container c = container.cloneAndGetContainer();
         c.hostName = this.nodeName;
         applicationContainers.add(c);
         ++numActiveContainers;
@@ -219,6 +224,18 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
             HeartbeatResponse response =
               resourceTracker.nodeHeartbeat(nodeStatus);
             lastHeartBeatID = response.responseId;
+            List<org.apache.hadoop.yarn.Container> containersToCleanup =
+                response.containersToCleanup;
+            if (containersToCleanup.size() != 0) {
+              dispatcher.getEventHandler().handle(
+                  new CMgrCompletedContainersEvent(containersToCleanup));
+            }
+            List<ApplicationID> appsToCleanup =
+                response.appplicationsToCleanup;
+            if (appsToCleanup.size() != 0) {
+              dispatcher.getEventHandler().handle(
+                  new CMgrCompletedAppsEvent(appsToCleanup));
+            }
           } catch (AvroRemoteException e) {
             LOG.error("Caught exception in status-updater", e);
             break;

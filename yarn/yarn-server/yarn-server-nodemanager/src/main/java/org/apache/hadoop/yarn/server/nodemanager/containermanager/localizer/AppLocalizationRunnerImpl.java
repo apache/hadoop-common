@@ -135,7 +135,8 @@ public class AppLocalizationRunnerImpl implements AppLocalizationRunner {
       Path appTokens = new Path(sysDir, ApplicationLocalizer.APPTOKEN_FILE);
       tokenOut = lfs.create(appTokens, EnumSet.of(CREATE, OVERWRITE));
       Credentials appCreds = app.getCredentials();
-      LOG.info("Writing credentials again. Credentials list: ");
+      LOG.info("Writing credentials again to " + appTokens.toString()
+          + ". Credentials list: ");
       for (Token<? extends TokenIdentifier> tk : appCreds.getAllTokens()) {
         LOG.info(tk.getService() + " : " + tk.encodeToUrlString());
       }

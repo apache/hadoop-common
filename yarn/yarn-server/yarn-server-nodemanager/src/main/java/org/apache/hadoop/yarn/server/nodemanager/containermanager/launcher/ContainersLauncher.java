@@ -129,8 +129,8 @@ public class ContainersLauncher extends AbstractService
   public void handle(ContainersLauncherEvent event) {
     // TODO: ContainersLauncher launches containers one by one!!
     Container container = event.getContainer();
-    ContainerID containerId = container.getLaunchContext().id;
-    String userName = container.getLaunchContext().user.toString();
+    ContainerID containerId = container.getContainerID();
+    String userName = container.getUser();
     switch (event.getType()) {
       case LAUNCH_CONTAINER:
         Application app =

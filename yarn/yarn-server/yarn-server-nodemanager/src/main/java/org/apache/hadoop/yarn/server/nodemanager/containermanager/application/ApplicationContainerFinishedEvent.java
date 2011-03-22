@@ -18,20 +18,19 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.ContainerID;
 
-public class ApplicationInitEvent extends ApplicationEvent {
+public class ApplicationContainerFinishedEvent extends ApplicationEvent {
+  private ContainerID containerID;
 
-  private final Container container;
-
-  public ApplicationInitEvent(Container container) {
-    super(container.getContainerID().appID,
-        ApplicationEventType.INIT_APPLICATION);
-    this.container = container;
+  public ApplicationContainerFinishedEvent(
+      ContainerID containerID) {
+    super(containerID.appID,
+        ApplicationEventType.APPLICATION_CONTAINER_FINISHED);
+    this.containerID = containerID;
   }
 
-  public Container getContainer() {
-    return this.container;
+  public ContainerID getContainerID() {
+    return this.containerID;
   }
-
 }

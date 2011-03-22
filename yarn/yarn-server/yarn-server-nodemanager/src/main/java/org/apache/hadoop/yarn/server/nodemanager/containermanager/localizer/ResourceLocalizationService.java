@@ -18,6 +18,13 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCALIZER_BIND_ADDRESS;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCAL_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOG_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCALIZER_BIND_ADDRESS;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCAL_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOG_DIR;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -39,7 +46,10 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.yarn.LocalizationProtocol;
+import org.apache.hadoop.yarn.URL;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.YarnRemoteException;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
@@ -47,6 +57,8 @@ import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
@@ -57,11 +69,6 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.secu
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.security.LocalizerTokenSecretManager;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.util.AvroUtil;
-import org.apache.hadoop.yarn.LocalizationProtocol;
-import org.apache.hadoop.yarn.URL;
-import org.apache.hadoop.yarn.YarnRemoteException;
-
-import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.*;
 
 public class ResourceLocalizationService extends AbstractService
     implements EventHandler<LocalizerEvent>, LocalizationProtocol {
@@ -96,7 +103,7 @@ public class ResourceLocalizationService extends AbstractService
 
   public ResourceLocalizationService(Dispatcher dispatcher,
       ContainerExecutor exec, DeletionService delService) {
-    super("localizer");
+    super(ResourceLocalizationService.class.getName());
     this.exec = exec;
     this.dispatcher = dispatcher;
     this.delService = delService;
@@ -222,6 +229,9 @@ public class ResourceLocalizationService extends AbstractService
 
   @Override
   public void handle(LocalizerEvent event) {
+    String userName;
+    String appIDStr;
+    
     switch (event.getType()) {
     case INIT_APPLICATION_RESOURCES:
       Application app = ((ApplicationLocalizerEvent)event).getApplication();
@@ -257,13 +267,60 @@ public class ResourceLocalizationService extends AbstractService
       break;
     case CLEANUP_CONTAINER_RESOURCES:
       Container container = ((ContainerLocalizerEvent)event).getContainer();
-      // TODO: delete the container dir
+
+      // Delete the container directories
+      userName = container.getUser();;
+      String containerIDStr = container.toString();
+      appIDStr = AvroUtil.toString(container.getContainerID().appID);
+      for (Path localDir : localDirs) {
+        Path usersdir = new Path(localDir, ApplicationLocalizer.USERCACHE);
+        Path userdir =
+            new Path(usersdir, userName);
+        Path allAppsdir = new Path(userdir, ApplicationLocalizer.APPCACHE);
+        Path appDir = new Path(allAppsdir, appIDStr);
+        Path containerDir =
+            new Path(appDir, containerIDStr);
+        delService.delete(userName,
+            containerDir, null);
+
+        Path sysDir = new Path(localDir, NM_PRIVATE_DIR);
+        Path appSysDir = new Path(sysDir, appIDStr);
+        Path containerSysDir = new Path(appSysDir, containerIDStr);
+        delService.delete(null, containerSysDir, null);
+      }
+
       dispatcher.getEventHandler().handle(new ContainerEvent(
-            container.getLaunchContext().id,
+            container.getContainerID(),
             ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP));
       break;
     case DESTROY_APPLICATION_RESOURCES:
-      // decrement reference counts of all resources associated with this app
+
+      Application application =
+          ((ApplicationLocalizerEvent) event).getApplication();
+
+      // Delete the application directories
+      userName = application.getUser();
+      appIDStr = application.toString();
+      for (Path localDir : localDirs) {
+        Path usersdir = new Path(localDir, ApplicationLocalizer.USERCACHE);
+        Path userdir =
+            new Path(usersdir, userName);
+        Path allAppsdir = new Path(userdir, ApplicationLocalizer.APPCACHE);
+        Path appDir = new Path(allAppsdir, appIDStr);
+        delService.delete(userName,
+            appDir, null);
+
+        Path sysDir = new Path(localDir, NM_PRIVATE_DIR);
+        Path appSysDir = new Path(sysDir, appIDStr);
+        delService.delete(null, appSysDir, null);
+      }
+
+      // TODO: decrement reference counts of all resources associated with this
+      // app
+
+      dispatcher.getEventHandler().handle(new ApplicationEvent(
+            application.getAppId(),
+            ApplicationEventType.APPLICATION_RESOURCES_CLEANEDUP));
       break;
     }
   }

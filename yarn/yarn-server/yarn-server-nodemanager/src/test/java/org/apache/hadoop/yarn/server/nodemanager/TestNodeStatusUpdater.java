@@ -29,16 +29,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.server.nodemanager.Context;
-import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
-import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
-import org.apache.hadoop.yarn.service.Service;
-import org.apache.hadoop.yarn.service.Service.STATE;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.ContainerLaunchContext;
@@ -48,8 +38,13 @@ import org.apache.hadoop.yarn.NodeStatus;
 import org.apache.hadoop.yarn.RegistrationResponse;
 import org.apache.hadoop.yarn.Resource;
 import org.apache.hadoop.yarn.ResourceTracker;
-import org.junit.Assert;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
+import org.apache.hadoop.yarn.service.Service.STATE;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -164,8 +159,8 @@ public class TestNodeStatusUpdater {
   private class MyNodeStatusUpdater extends NodeStatusUpdaterImpl {
     private Context context;
 
-    public MyNodeStatusUpdater(Context context) {
-      super(context);
+    public MyNodeStatusUpdater(Context context, Dispatcher dispatcher) {
+      super(context, dispatcher);
       this.context = context;
     }
 
@@ -190,8 +185,9 @@ public class TestNodeStatusUpdater {
   public void testNMRegistration() throws InterruptedException {
     final NodeManager nm = new NodeManager() {
       @Override
-      protected NodeStatusUpdater createNodeStatusUpdater(Context context) {
-        return new MyNodeStatusUpdater(context);
+      protected NodeStatusUpdater createNodeStatusUpdater(Context context,
+          Dispatcher dispatcher) {
+        return new MyNodeStatusUpdater(context, dispatcher);
       }
     };
 

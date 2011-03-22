@@ -21,25 +21,19 @@ package org.apache.hadoop.yarn.server.nodemanager;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.Context;
-import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
-import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.ContainerLaunchContext;
 import org.apache.hadoop.yarn.ContainerState;
 import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.URL;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.event.AsyncDispatcher;
+import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
 import org.junit.Test;
 
 public class TestEventFlow {
@@ -54,7 +48,9 @@ public class TestEventFlow {
     YarnConfiguration conf = new YarnConfiguration();
     ContainerExecutor exec = new DefaultContainerExecutor();
     DeletionService del = new DeletionService(exec);
-    NodeStatusUpdater nodeStatusUpdater = new NodeStatusUpdaterImpl(context) {
+    Dispatcher dispatcher = new AsyncDispatcher();
+    NodeStatusUpdater nodeStatusUpdater =
+        new NodeStatusUpdaterImpl(context, dispatcher) {
       @Override
       protected org.apache.hadoop.yarn.ResourceTracker getRMClient() {
         return new LocalRMInterface();

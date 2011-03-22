@@ -29,6 +29,7 @@ import org.apache.hadoop.yarn.ContainerStatus;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationContainerFinishedEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizerEvent;
@@ -57,6 +58,9 @@ public class ContainerImpl implements Container {
     stateMachine = stateMachineFactory.make(this);
   }
 
+  private static final ContainerDoneTransition CONTAINER_DONE_TRANSITION =
+    new ContainerDoneTransition();
+
   // State Machine for each container.
   private static StateMachineFactory
            <ContainerImpl, ContainerState, ContainerEventType, ContainerEvent>
@@ -66,7 +70,7 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.NEW, ContainerState.LOCALIZING,
         ContainerEventType.INIT_CONTAINER)
     .addTransition(ContainerState.NEW, ContainerState.DONE,
-        ContainerEventType.KILL_CONTAINER)
+        ContainerEventType.KILL_CONTAINER, CONTAINER_DONE_TRANSITION)
 
     // From LOCALIZING State
     .addTransition(ContainerState.LOCALIZING,
@@ -99,14 +103,16 @@ public class ContainerImpl implements Container {
 
     // From CONTAINER_EXITED_WITH_SUCCESS State
     .addTransition(ContainerState.EXITED_WITH_SUCCESS, ContainerState.DONE,
-            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP)
+            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
+            CONTAINER_DONE_TRANSITION)
     .addTransition(ContainerState.EXITED_WITH_SUCCESS,
                    ContainerState.EXITED_WITH_SUCCESS,
                    ContainerEventType.KILL_CONTAINER)
 
     // From EXITED_WITH_FAILURE State
     .addTransition(ContainerState.EXITED_WITH_FAILURE, ContainerState.DONE,
-            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP)
+            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
+            CONTAINER_DONE_TRANSITION)
     .addTransition(ContainerState.EXITED_WITH_FAILURE,
                    ContainerState.EXITED_WITH_FAILURE,
                    ContainerEventType.KILL_CONTAINER)
@@ -128,11 +134,12 @@ public class ContainerImpl implements Container {
     // From CONTAINER_CLEANEDUP_AFTER_KILL State.
     .addTransition(ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
             ContainerState.DONE,
-            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP)
+            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
+            CONTAINER_DONE_TRANSITION)
 
     // From DONE
     .addTransition(ContainerState.DONE, ContainerState.DONE,
-        ContainerEventType.KILL_CONTAINER)
+        ContainerEventType.KILL_CONTAINER, CONTAINER_DONE_TRANSITION)
 
     // create the topology tables
     .installTopology();
@@ -160,7 +167,22 @@ public class ContainerImpl implements Container {
   }
 
   @Override
-  public synchronized org.apache.hadoop.yarn.Container getContainer() {
+  public ContainerID getContainerID() {
+    return this.launchContext.id;
+  }
+
+  @Override
+  public String getUser() {
+    return this.launchContext.user.toString();
+  }
+
+  @Override
+  public ContainerState getContainerState() {
+    return stateMachine.getCurrentState();
+  }
+
+  @Override
+  public synchronized org.apache.hadoop.yarn.Container cloneAndGetContainer() {
     org.apache.hadoop.yarn.Container c = new org.apache.hadoop.yarn.Container();
     c.id = this.launchContext.id;
     c.resource = this.launchContext.resource;
@@ -174,7 +196,7 @@ public class ContainerImpl implements Container {
   }
 
   @Override
-  public ContainerStatus getContainerStatus() {
+  public ContainerStatus cloneAndGetContainerStatus() {
     ContainerStatus containerStatus = new ContainerStatus();
     containerStatus.state = getCurrentState();
     containerStatus.containerID = this.launchContext.id;
@@ -291,6 +313,16 @@ public class ContainerImpl implements Container {
       container.dispatcher.getEventHandler().handle(
           new ContainerLocalizerEvent(
             LocalizerEventType.CLEANUP_CONTAINER_RESOURCES, container));
+    }
+  }
+
+  static class ContainerDoneTransition implements
+      SingleArcTransition<ContainerImpl, ContainerEvent> {
+    @Override
+    public void transition(ContainerImpl container, ContainerEvent event) {
+      // Inform the application
+      container.dispatcher.getEventHandler().handle(
+          new ApplicationContainerFinishedEvent(container.getContainerID()));
     }
   }
 

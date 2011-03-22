@@ -24,12 +24,17 @@ import org.apache.hadoop.yarn.ContainerStatus;
 
 public interface Container extends EventHandler<ContainerEvent> {
 
-  org.apache.hadoop.yarn.Container getContainer();
+  org.apache.hadoop.yarn.ContainerID getContainerID();
 
-  // TODO overly-general interface
+  String getUser();
+
+  ContainerState getContainerState();
+
   ContainerLaunchContext getLaunchContext();
 
-  ContainerStatus getContainerStatus();
+  org.apache.hadoop.yarn.Container cloneAndGetContainer();
+
+  ContainerStatus cloneAndGetContainerStatus();
 
   String toString();
 }

@@ -114,7 +114,7 @@ public class ContainerLaunch implements Callable<Integer> {
         }
       }
       dispatcher.getEventHandler().handle(new ContainerEvent(
-            launchContext.id,
+            container.getContainerID(),
             ContainerEventType.CONTAINER_LAUNCHED));
       ret =
         exec.launchContainer(container, launchSysDir, user, app.toString(),

@@ -16,22 +16,9 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
+package org.apache.hadoop.yarn.server.nodemanager;
 
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
-
-public class ApplicationInitEvent extends ApplicationEvent {
-
-  private final Container container;
-
-  public ApplicationInitEvent(Container container) {
-    super(container.getContainerID().appID,
-        ApplicationEventType.INIT_APPLICATION);
-    this.container = container;
-  }
-
-  public Container getContainer() {
-    return this.container;
-  }
-
+public enum ContainerManagerEventType {
+  FINISH_APPS,
+  FINISH_CONTAINERS
 }

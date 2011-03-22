@@ -23,10 +23,11 @@ import java.io.IOException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.TestContainerManager;
+import org.junit.After;
 
 public class TestContainerManagerWithLCE extends TestContainerManager {
 
@@ -62,21 +63,34 @@ public class TestContainerManagerWithLCE extends TestContainerManager {
             (short) 0777));
   }
 
+  @After
   @Override
   public void tearDown() throws IOException, InterruptedException {
-    super.tearDown();
-    FileUtil.chmod(localDir.getAbsolutePath(), "777", true);
-    localFS.delete(new Path(localDir.getCanonicalPath()), true);
+    if (shouldRunTest()) {
+      super.tearDown();
+    }
   }
 
   @Override
   public void testContainerSetup() throws IOException, InterruptedException {
-    // No cleanup as of now. Only one test for now. TODO: FIX
+    // Don't run the test if the binary is not available.
+    if (!shouldRunTest()) {
+      LOG.info("LCE binary path is not passed. Not running the test");
+      return;
+    }
+    LOG.info("Running testContainerSetup");
+    super.testContainerSetup();
   }
 
   @Override
   public void testContainerManagerInitialization() throws IOException {
-    // No cleanup as of now. Only one test for now. TODO: FIX
+    // Don't run the test if the binary is not available.
+    if (!shouldRunTest()) {
+      LOG.info("LCE binary path is not passed. Not running the test");
+      return;
+    }
+    LOG.info("Running testContainerManagerInitialization");
+    super.testContainerManagerInitialization();
   }
 
   @Override
@@ -87,7 +101,20 @@ public class TestContainerManagerWithLCE extends TestContainerManager {
       LOG.info("LCE binary path is not passed. Not running the test");
       return;
     }
+    LOG.info("Running testContainerLaunchAndStop");
     super.testContainerLaunchAndStop();
+  }
+
+  @Override
+  public void testLocalFilesCleanup() throws InterruptedException,
+      IOException {
+    // Don't run the test if the binary is not available.
+    if (!shouldRunTest()) {
+      LOG.info("LCE binary path is not passed. Not running the test");
+      return;
+    }
+    LOG.info("Running testLocalFilesCleanup");
+    super.testLocalFilesCleanup();
   }
 
   private boolean shouldRunTest() {
