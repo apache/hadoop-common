@@ -289,8 +289,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
   private void normalizeRequest(ResourceRequest ask) {
     int memory = ask.capability.memory;
     int minMemory = minimumAllocation.memory;
-    memory = 
-      minMemory * ((memory/minMemory) + (memory%minMemory)); 
+    ask.capability.memory =
+      minMemory * ((memory/minMemory) + (memory%minMemory > 0 ? 1 : 0));
   }
   
 
