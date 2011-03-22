@@ -35,30 +35,25 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.Context;
-import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
-import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
-import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationImpl;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
-import org.apache.hadoop.yarn.service.Service.STATE;
-import org.apache.hadoop.yarn.util.AvroUtil;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.ContainerLaunchContext;
 import org.apache.hadoop.yarn.ContainerState;
+import org.apache.hadoop.yarn.ContainerStatus;
 import org.apache.hadoop.yarn.LocalResource;
 import org.apache.hadoop.yarn.LocalResourceType;
 import org.apache.hadoop.yarn.LocalResourceVisibility;
-import org.apache.hadoop.yarn.Resource;
 import org.apache.hadoop.yarn.URL;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
+import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.Signal;
+import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
+import org.apache.hadoop.yarn.service.Service.STATE;
+import org.apache.hadoop.yarn.util.AvroUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,17 +64,23 @@ public class TestContainerManager {
     DefaultMetricsSystem.setMiniClusterMode(true);
   }
 
+  protected FileContext localFS;
+
+  public TestContainerManager() throws UnsupportedFileSystemException {
+    localFS = FileContext.getLocalFSFileContext();
+  }
+
   private static Log LOG = LogFactory.getLog(TestContainerManager.class);
 
-  private static File localDir = new File("target",
+  protected static File localDir = new File("target",
       TestContainerManager.class.getName() + "-localDir").getAbsoluteFile();
 
-  private static File tmpDir = new File("target",
+  protected static File tmpDir = new File("target",
       TestContainerManager.class.getName() + "-tmpDir");
 
-  private Configuration conf = new YarnConfiguration();
+  protected Configuration conf = new YarnConfiguration();
   private Context context = new NMContext();
-  private ContainerExecutor exec = new DefaultContainerExecutor();
+  private ContainerExecutor exec;
   private DeletionService delSrvc = new DeletionService(exec);
   private NodeStatusUpdater nodeStatusUpdater = new NodeStatusUpdaterImpl(context) {
     @Override
@@ -96,9 +97,12 @@ public class TestContainerManager {
 
   private ContainerManagerImpl containerManager = null;
 
+  protected ContainerExecutor createContainerExecutor() {
+    return new DefaultContainerExecutor();
+  }
+
   @Before
   public void setup() throws IOException {
-    FileContext localFS = FileContext.getLocalFSFileContext();
     localFS.delete(new Path(localDir.getAbsolutePath()), true);
     localFS.delete(new Path(tmpDir.getAbsolutePath()), true);
     localDir.mkdir();
@@ -109,13 +113,14 @@ public class TestContainerManager {
     String bindAddress = "0.0.0.0:5555";
     conf.set(NMConfig.NM_BIND_ADDRESS, bindAddress);
     conf.set(NMConfig.NM_LOCAL_DIR, localDir.getAbsolutePath());
+    exec = createContainerExecutor();
     containerManager =
         new ContainerManagerImpl(context, exec, delSrvc, nodeStatusUpdater);
     containerManager.init(conf);
   }
 
   @After
-  public void tearDown() {
+  public void tearDown() throws IOException, InterruptedException {
     if (containerManager != null
         && containerManager.getServiceState() == STATE.STARTED) {
       containerManager.stop();
@@ -158,7 +163,7 @@ public class TestContainerManager {
     cId.appID = appId;
     container.id = cId;
 
-    String user = "dummy-user";
+    String user = "nobody";
     container.user = user;
 
     // ////// Construct the container-spec.
@@ -167,7 +172,7 @@ public class TestContainerManager {
     containerLaunchContext.resources =
         new HashMap<CharSequence, LocalResource>();
     URL resource_alpha =
-        AvroUtil.getYarnUrlFromPath(FileContext.getLocalFSFileContext()
+        AvroUtil.getYarnUrlFromPath(localFS
             .makeQualified(new Path(file.getAbsolutePath())));
     LocalResource rsrc_alpha = new LocalResource();
     rsrc_alpha.resource = resource_alpha;
@@ -210,16 +215,22 @@ public class TestContainerManager {
   }
 
   @Test
-  public void testContainerLaunchAndStop() throws IOException, InterruptedException {
+  public void testContainerLaunchAndStop() throws IOException,
+      InterruptedException {
     containerManager.start();
 
     File scriptFile = new File(tmpDir, "scriptFile.sh");
     PrintWriter fileWriter = new PrintWriter(scriptFile);
-    File outputFile = new File(tmpDir, "output.txt").getAbsoluteFile();
-    fileWriter.write("echo Hello World! > " + outputFile);
+    File processStartFile =
+        new File(tmpDir, "start_file.txt").getAbsoluteFile();
+    fileWriter.write("umask 0"); // So that start file is readable by the test.
+    fileWriter.write("\necho Hello World! > " + processStartFile);
+    fileWriter.write("\necho $$ >> " + processStartFile);
+    fileWriter.write("\nsleep 100");
     fileWriter.close();
 
-    ContainerLaunchContext containerLaunchContext = new ContainerLaunchContext();
+    ContainerLaunchContext containerLaunchContext =
+        new ContainerLaunchContext();
 
     // ////// Construct the Container-id
     ApplicationID appId = new ApplicationID();
@@ -227,13 +238,13 @@ public class TestContainerManager {
     cId.appID = appId;
     containerLaunchContext.id = cId;
 
-    String user = "dummy-user";
+    String user = "nobody";
     containerLaunchContext.user = user;
 
     containerLaunchContext.resources =
         new HashMap<CharSequence, LocalResource>();
     URL resource_alpha =
-        AvroUtil.getYarnUrlFromPath(FileContext.getLocalFSFileContext()
+        AvroUtil.getYarnUrlFromPath(localFS
             .makeQualified(new Path(scriptFile.getAbsolutePath())));
     LocalResource rsrc_alpha = new LocalResource();
     rsrc_alpha.resource = resource_alpha;
@@ -249,18 +260,47 @@ public class TestContainerManager {
     commandArgs.add(scriptFile.getAbsolutePath());
     containerLaunchContext.command = commandArgs;
     containerManager.startContainer(containerLaunchContext);
+ 
+    int timeoutSecs = 0;
+    while (!processStartFile.exists() && timeoutSecs++ < 20) {
+      Thread.sleep(1000);
+      LOG.info("Waiting for process start-file to be created");
+    }
+    Assert.assertTrue("ProcessStartFile doesn't exist!",
+        processStartFile.exists());
+    
+    // Now verify the contents of the file
+    BufferedReader reader =
+        new BufferedReader(new FileReader(processStartFile));
+    Assert.assertEquals("Hello World!", reader.readLine());
+    // Get the pid of the process
+    String pid = reader.readLine().trim();
+    // No more lines
+    Assert.assertEquals(null, reader.readLine());
+
+    // Now test the stop functionality.
+
+    // Assert that the process is alive
+    Assert.assertTrue("Process is not alive!",
+        exec.signalContainer(user,
+            pid, Signal.NULL));
+    // Once more
+    Assert.assertTrue("Process is not alive!",
+        exec.signalContainer(user,
+            pid, Signal.NULL));
+
+    containerManager.stopContainer(cId);
 
     DummyContainerManager.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE);
+    ContainerStatus containerStatus = containerManager.getContainerStatus(cId);
+    Assert.assertEquals(ExitCode.KILLED.getExitCode(),
+        containerStatus.exitStatus);
 
-    Assert.assertTrue("OutputFile doesn't exist!", outputFile.exists());
-    
-    // Now verify the contents of the file
-    BufferedReader reader = new BufferedReader(new FileReader(outputFile));
-    Assert.assertEquals("Hello World!", reader.readLine());
-    Assert.assertEquals(null, reader.readLine());
-
-    // TODO: test the stop functionality.
+    // Assert that the process is not alive anymore
+    Assert.assertFalse("Process is still alive!",
+        exec.signalContainer(user,
+            pid, Signal.NULL));
   }
 
 //  @Test

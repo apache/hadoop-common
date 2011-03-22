@@ -41,7 +41,8 @@ import org.apache.hadoop.yarn.LocalizationProtocol;
 
 public class DefaultContainerExecutor extends ContainerExecutor {
 
-  static final Log LOG = LogFactory.getLog(DefaultContainerExecutor.class);
+  private static final Log LOG = LogFactory
+      .getLog(DefaultContainerExecutor.class);
 
   private final FileContext lfs;
 
@@ -120,6 +121,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
           new String[] { "bash", "-c", launchDst.toUri().getPath().toString() };
       shExec = new ShellCommandExecutor(command,
           new File(appWorkDir.toUri().getPath()));
+      launchCommandObjs.put(container.getLaunchContext().id, shExec);
       shExec.execute();
     } catch (Exception e) {
       if (null == shExec) {
@@ -129,16 +131,18 @@ public class DefaultContainerExecutor extends ContainerExecutor {
       LOG.warn("Exit code from task is : " + exitCode);
       logOutput(shExec.getOutput());
       return exitCode;
+    } finally {
+      launchCommandObjs.remove(container.getLaunchContext().id);
     }
     return 0;
   }
 
   @Override
-  public boolean signalContainer(String user, int pid, Signal signal)
-      throws IOException, InterruptedException {
-    final int sigpid = ContainerExecutor.isSetsidAvailable
-      ? -1 * pid
-      : pid;
+  public boolean signalContainer(String user, String pid, Signal signal)
+      throws IOException {
+    final String sigpid = ContainerExecutor.isSetsidAvailable
+        ? "-" + pid
+        : pid;
     try {
       sendSignal(sigpid, Signal.NULL);
     } catch (ExitCodeException e) {
@@ -164,9 +168,9 @@ public class DefaultContainerExecutor extends ContainerExecutor {
    * @param signal signal to send
    * (for logging).
    */
-  protected void sendSignal(int pid, Signal signal) throws IOException {
+  protected void sendSignal(String pid, Signal signal) throws IOException {
     ShellCommandExecutor shexec = null;
-      String[] arg = { "kill", "-" + signal.getValue(), Integer.toString(pid) };
+      String[] arg = { "kill", "-" + signal.getValue(), pid };
       shexec = new ShellCommandExecutor(arg);
     shexec.execute();
   }

@@ -121,7 +121,7 @@ public class NodeManager extends CompositeService {
     super.start();
   }
 
-  static class NMContext implements Context {
+  public static class NMContext implements Context {
 
     private final ConcurrentMap<ApplicationID, Application> applications =
         new ConcurrentHashMap<ApplicationID, Application>();

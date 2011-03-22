@@ -18,21 +18,18 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
-public enum ContainerEventType {
+import org.apache.hadoop.yarn.ContainerID;
 
-  // Producer: ContainerManager
-  INIT_CONTAINER,
-  KILL_CONTAINER,
-  CONTAINER_DONE,
+public class ContainerExitEvent extends ContainerEvent {
+  private int exitCode;
 
-  // DownloadManager
-  CONTAINER_INITED,
-  CONTAINER_RESOURCES_LOCALIZED,
-  CONTAINER_RESOURCES_CLEANEDUP,
+  public ContainerExitEvent(ContainerID cID, ContainerEventType eventType,
+      int exitCode) {
+    super(cID, eventType);
+    this.exitCode = exitCode;
+  }
 
-  // Producer: ContainersLauncher
-  CONTAINER_LAUNCHED,
-  CONTAINER_EXITED_WITH_SUCCESS,
-  CONTAINER_EXITED_WITH_FAILURE,
-  CONTAINER_KILLED_ON_REQUEST,
+  public int getExitCode() {
+    return this.exitCode;
+  }
 }

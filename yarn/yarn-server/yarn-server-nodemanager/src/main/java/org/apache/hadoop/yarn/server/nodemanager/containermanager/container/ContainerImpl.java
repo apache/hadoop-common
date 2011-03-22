@@ -23,6 +23,9 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.yarn.ContainerID;
+import org.apache.hadoop.yarn.ContainerLaunchContext;
+import org.apache.hadoop.yarn.ContainerStatus;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEventType;
@@ -37,15 +40,12 @@ import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
 import org.apache.hadoop.yarn.util.AvroUtil;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerStatus;
 
 public class ContainerImpl implements Container {
 
   private final Dispatcher dispatcher;
   private final ContainerLaunchContext launchContext;
+  private int exitCode;
 
   private static final Log LOG = LogFactory.getLog(Container.class);
 
@@ -114,7 +114,7 @@ public class ContainerImpl implements Container {
     // From KILLING State.
     .addTransition(ContainerState.KILLING,
         ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
-        ContainerEventType.CONTAINER_CLEANEDUP_AFTER_KILL,
+        ContainerEventType.CONTAINER_KILLED_ON_REQUEST,
         new ContainerKilledTransition())
     .addTransition(ContainerState.KILLING, ContainerState.KILLING,
         ContainerEventType.KILL_CONTAINER)
@@ -178,7 +178,7 @@ public class ContainerImpl implements Container {
     ContainerStatus containerStatus = new ContainerStatus();
     containerStatus.state = getCurrentState();
     containerStatus.containerID = this.launchContext.id;
-    // TODO: Exit status.
+    containerStatus.exitStatus = exitCode;
     return containerStatus;
   }
 
@@ -241,6 +241,9 @@ public class ContainerImpl implements Container {
   static class ExitedWithFailureTransition extends ContainerTransition {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
+      ContainerExitEvent exitEvent = (ContainerExitEvent) event;
+      container.exitCode = exitEvent.getExitCode();
+
       // TODO: Add containerWorkDir to the deletion service.
       // TODO: Add containerOuputDir to the deletion service.
 
@@ -280,6 +283,9 @@ public class ContainerImpl implements Container {
       SingleArcTransition<ContainerImpl, ContainerEvent> {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
+      ContainerExitEvent exitEvent = (ContainerExitEvent) event;
+      container.exitCode = exitEvent.getExitCode();
+
       // The process/process-grp is killed. Decrement reference counts and
       // cleanup resources
       container.dispatcher.getEventHandler().handle(

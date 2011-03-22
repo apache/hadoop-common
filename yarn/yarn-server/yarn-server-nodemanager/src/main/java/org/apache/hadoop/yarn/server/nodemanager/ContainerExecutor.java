@@ -19,7 +19,10 @@
 package org.apache.hadoop.yarn.server.nodemanager;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -28,16 +31,19 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.LocalizationProtocol;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 
 public abstract class ContainerExecutor implements Configurable {
 
-  static final Log LOG = LogFactory.getLog(ContainerExecutor.class);
+  private static final Log LOG = LogFactory.getLog(ContainerExecutor.class);
   final public static FsPermission TASK_LAUNCH_SCRIPT_PERMISSION =
     FsPermission.createImmutable((short) 0700);
 
   private Configuration conf;
+  protected ConcurrentMap<ContainerID, ShellCommandExecutor> launchCommandObjs =
+      new ConcurrentHashMap<ContainerID, ShellCommandExecutor>();
 
   @Override
   public void setConf(Configuration conf) {
@@ -72,18 +78,39 @@ public abstract class ContainerExecutor implements Configurable {
       throws IOException, InterruptedException;
 
   /**
-   * Launch the container on the node.
-   * @param launchCtxt 
+   * Launch the container on the node. This is a blocking call and returns only
+   * when the container exits.
+   * 
+   * @param launchCtxt
    */
   public abstract int launchContainer(Container container, Path nmLocal,
       String user, String appId, List<Path> appDirs, String stdout,
       String stderr) throws IOException;
 
-  public abstract boolean signalContainer(String user, int pid, Signal signal)
-      throws IOException, InterruptedException;
+  public abstract boolean signalContainer(String user, String pid,
+      Signal signal)
+      throws IOException;
 
   public abstract void deleteAsUser(String user, Path subDir, Path... basedirs)
       throws IOException, InterruptedException;
+
+  public enum ExitCode {
+    KILLED(137);
+    private final int code;
+
+    private ExitCode(int exitCode) {
+      this.code = exitCode;
+    }
+
+    public int getExitCode() {
+      return code;
+    }
+
+    @Override
+    public String toString() {
+      return String.valueOf(code);
+    }
+  }
 
   /**
    * The constants for the signals.
@@ -115,6 +142,41 @@ public abstract class ContainerExecutor implements Configurable {
     }
   }
 
+  /**
+   * Get the process-identifier for the container
+   * 
+   * @param containerID
+   * @return the processid of the container if it has already launched,
+   *         otherwise return null
+   */
+  public String getProcessId(ContainerID containerID) {
+    String pid = null;
+    ShellCommandExecutor shExec = launchCommandObjs.get(containerID);
+    if (shExec == null) {
+      // This container isn't even launched yet.
+      return pid;
+    }
+    Process proc = shExec.getProcess();
+    if (proc == null) {
+      // This happens if the command is not yet started
+      return pid;
+    }
+    try {
+      Field pidField = proc.getClass().getDeclaredField("pid");
+      pidField.setAccessible(true);
+      pid = ((Integer) pidField.get(proc)).toString();
+    } catch (SecurityException e) {
+      // SecurityManager not expected with yarn. Ignore.
+    } catch (NoSuchFieldException e) {
+      // Yarn only on UNIX for now. Ignore.
+    } catch (IllegalArgumentException e) {
+      ;
+    } catch (IllegalAccessException e) {
+      ;
+    }
+    return pid;
+  }
+
   public static final boolean isSetsidAvailable = isSetsidSupported();
   private static boolean isSetsidSupported() {
     ShellCommandExecutor shexec = null;
@@ -134,11 +196,13 @@ public abstract class ContainerExecutor implements Configurable {
 
   public static class DelayedProcessKiller extends Thread {
     private final String user;
-    private final int pid;
+    private final String pid;
     private final long delay;
     private final Signal signal;
     private final ContainerExecutor containerExecutor;
-    public DelayedProcessKiller(String user, int pid, long delay, Signal signal,
+
+    public DelayedProcessKiller(String user, String pid, long delay,
+        Signal signal,
         ContainerExecutor containerExecutor) {
       this.user = user;
       this.pid = pid;

@@ -106,7 +106,7 @@ class DummyContainerManager extends ContainerManagerImpl {
         case CLEANUP_CONTAINER:
           dispatcher.getEventHandler().handle(
               new ContainerEvent(containerId,
-                  ContainerEventType.CONTAINER_CLEANEDUP_AFTER_KILL));
+                  ContainerEventType.CONTAINER_KILLED_ON_REQUEST));
           break;
         }
       }

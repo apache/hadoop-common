@@ -52,7 +52,7 @@
                   <workDir>src/main/c/container-executor</workDir>
                 </configuration>
                 <goals>
-<!--                  <goal>autoreconf</goal>-->
+                  <goal>autoreconf</goal>
                 </goals>
               </execution>
               <execution>
@@ -77,8 +77,8 @@
                 </configuration>
                 <goals>
                   <!-- always clean, to ensure conf dir regenerated -->
-<!--                  <goal>make-clean</goal>-->
-<!--                  <goal>configure</goal>-->
+                  <goal>make-clean</goal>
+                  <goal>configure</goal>
                 </goals>
               </execution>
               <execution>
@@ -89,7 +89,7 @@
                   <workDir>src/main/c/container-executor</workDir>
                 </configuration>
                 <goals>
-<!--                  <goal>make-install</goal>-->
+                  <goal>make-install</goal>
                 </goals>
               </execution>
             </executions>

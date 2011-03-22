@@ -18,6 +18,11 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher;
 
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCAL_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOG_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCAL_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOG_DIR;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,24 +36,25 @@ import java.util.concurrent.Future;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
+import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.Signal;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.service.AbstractService;
 
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-
-import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.*;
-
+/**
+ * The launcher for the containers. This service should be started only after
+ * the {@link ResourceLocalizationService} is started as it depends on creation
+ * of system directories on the local file-system.
+ * 
+ */
 public class ContainersLauncher extends AbstractService
     implements EventHandler<ContainersLauncherEvent> {
 
@@ -60,8 +66,19 @@ public class ContainersLauncher extends AbstractService
   private List<Path> logDirs;
   private List<Path> localDirs;
   private List<Path> sysDirs;
-  private final Map<ContainerID,Future<Integer>> running =
-    Collections.synchronizedMap(new HashMap<ContainerID,Future<Integer>>());
+
+  private static final class RunningContainer {
+    public RunningContainer(String string, Future<Integer> submit) {
+      this.user = string;
+      this.runningcontainer = submit;
+    }
+
+    String user;
+    Future<Integer> runningcontainer;
+  }
+
+  private final Map<ContainerID, RunningContainer> running =
+    Collections.synchronizedMap(new HashMap<ContainerID, RunningContainer>());
 
   public ContainersLauncher(Context context, Dispatcher dispatcher,
       ContainerExecutor exec) {
@@ -113,6 +130,7 @@ public class ContainersLauncher extends AbstractService
     // TODO: ContainersLauncher launches containers one by one!!
     Container container = event.getContainer();
     ContainerID containerId = container.getLaunchContext().id;
+    String userName = container.getLaunchContext().user.toString();
     switch (event.getType()) {
       case LAUNCH_CONTAINER:
         Application app =
@@ -120,8 +138,7 @@ public class ContainersLauncher extends AbstractService
         List<Path> appDirs = new ArrayList<Path>(localDirs.size());
         for (Path p : localDirs) {
           Path usersdir = new Path(p, ApplicationLocalizer.USERCACHE);
-          Path userdir = new Path(usersdir,
-              container.getLaunchContext().user.toString());
+          Path userdir = new Path(usersdir, userName);
           Path appsdir = new Path(userdir, ApplicationLocalizer.APPCACHE);
           appDirs.add(new Path(appsdir, app.toString()));
         }
@@ -131,17 +148,35 @@ public class ContainersLauncher extends AbstractService
         ContainerLaunch launch =
           new ContainerLaunch(dispatcher, exec, app,
               event.getContainer(), appSysDir, appDirs);
-        running.put(containerId, containerLauncher.submit(launch));
+        running.put(containerId,
+            new RunningContainer(userName,
+                containerLauncher.submit(launch)));
         break;
       case CLEANUP_CONTAINER:
-        Future<Integer> rContainer = running.remove(containerId);
+        RunningContainer rContainerDatum = running.remove(containerId);
+        Future<Integer> rContainer = rContainerDatum.runningcontainer;
         if (rContainer != null) {
-          // TODO needs to kill the container
+  
+          if (rContainer.isDone()) {
+            // The future is already done by this time.
+            break;
+          }
+  
+          // Cancel the future so that it won't be launched if it isn't already.
           rContainer.cancel(false);
+  
+          // Kill the container
+          String processId = exec.getProcessId(containerId);
+          if (processId != null) {
+            try {
+              exec.signalContainer(rContainerDatum.user,
+                  processId, Signal.KILL);
+            } catch (IOException e) {
+              // TODO Auto-generated catch block
+              e.printStackTrace();
+            }
+          }
         }
-      dispatcher.getEventHandler().handle(
-          new ContainerEvent(containerId,
-              ContainerEventType.CONTAINER_CLEANEDUP_AFTER_KILL));
         break;
     }
   }

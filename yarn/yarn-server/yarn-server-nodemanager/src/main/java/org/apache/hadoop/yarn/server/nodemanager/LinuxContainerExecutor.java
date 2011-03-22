@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.Shell.ExitCodeException;
@@ -37,8 +39,11 @@ import org.apache.hadoop.yarn.LocalizationProtocol;
 
 public class LinuxContainerExecutor extends ContainerExecutor {
 
+  private static final Log LOG = LogFactory
+      .getLog(LinuxContainerExecutor.class);
+
   private String containerExecutorExe;
-  private static final String CONTAINER_EXECUTOR_EXEC_KEY =
+  protected static final String CONTAINER_EXECUTOR_EXEC_KEY =
     NMConfig.NM_PREFIX + "linux-container-executor.path";
   
   @Override
@@ -163,6 +168,7 @@ public class LinuxContainerExecutor extends ContainerExecutor {
                     appToken.toUri().getPath().toString()));
     String[] commandArray = command.toArray(new String[command.size()]);
     ShellCommandExecutor shExec = new ShellCommandExecutor(commandArray);
+    launchCommandObjs.put(container.getLaunchContext().id, shExec);
     // DEBUG
     LOG.info("launchContainer: " + Arrays.toString(commandArray));
     if (LOG.isDebugEnabled()) {
@@ -187,6 +193,8 @@ public class LinuxContainerExecutor extends ContainerExecutor {
         logOutput(shExec.getOutput());
       }
       return exitCode;
+    } finally {
+      launchCommandObjs.remove(container.getLaunchContext().id);
     }
     if (LOG.isDebugEnabled()) {
       LOG.debug("Output from LinuxTaskController's launchTask follows:");
@@ -196,8 +204,30 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public boolean signalContainer(String user, int pid, Signal signal)
-      throws IOException, InterruptedException {
+  public boolean signalContainer(String user, String pid, Signal signal)
+      throws IOException {
+
+    String[] command =
+        new String[] { containerExecutorExe,
+                   user,
+                   Integer.toString(Commands.SIGNAL_TASK.getValue()),
+                   pid,
+                   Integer.toString(signal.getValue()) };
+    ShellCommandExecutor shExec = new ShellCommandExecutor(command);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("signalTask: " + Arrays.toString(command));
+    }
+    try {
+      shExec.execute();
+    } catch (ExitCodeException e) {
+      int ret_code = shExec.getExitCode();
+      if (ret_code == ResultCode.INVALID_TASK_PID.getValue()) {
+        return false;
+      }
+      logOutput(shExec.getOutput());
+      throw new IOException("Problem signalling container " + pid + " with " +
+                            signal + "; exit = " + ret_code);
+    }
     return true;
   }
 
