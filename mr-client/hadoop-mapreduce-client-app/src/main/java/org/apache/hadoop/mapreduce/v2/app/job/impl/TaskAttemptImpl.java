@@ -169,9 +169,9 @@ public abstract class TaskAttemptImpl implements
      .addTransition(TaskAttemptState.ASSIGNED, TaskAttemptState.FAILED,
          TaskAttemptEventType.TA_CONTAINER_LAUNCH_FAILED,
          new DeallocateContainerTransition(TaskAttemptState.FAILED, false))
-     .addTransition(TaskAttemptState.ASSIGNED, TaskAttemptState.KILLED,
-         TaskAttemptEventType.TA_KILL, new DeallocateContainerTransition(
-             TaskAttemptState.KILLED, false))
+     .addTransition(TaskAttemptState.ASSIGNED, 
+         TaskAttemptState.KILL_CONTAINER_CLEANUP,
+         TaskAttemptEventType.TA_KILL, CLEANUP_CONTAINER_TRANSITION)
 
      // Transitions from RUNNING state.
      .addTransition(TaskAttemptState.RUNNING, TaskAttemptState.RUNNING,
@@ -272,6 +272,7 @@ public abstract class TaskAttemptImpl implements
              TaskAttemptEventType.TA_UPDATE,
              TaskAttemptEventType.TA_DIAGNOSTICS_UPDATE,
              TaskAttemptEventType.TA_COMMIT_PENDING,
+             TaskAttemptEventType.TA_CONTAINER_LAUNCHED,
              TaskAttemptEventType.TA_DONE,
              TaskAttemptEventType.TA_FAILMSG,
              TaskAttemptEventType.TA_TIMED_OUT))
@@ -335,6 +336,7 @@ public abstract class TaskAttemptImpl implements
              TaskAttemptEventType.TA_CONTAINER_COMPLETED,
              TaskAttemptEventType.TA_UPDATE,
              TaskAttemptEventType.TA_DIAGNOSTICS_UPDATE,
+             TaskAttemptEventType.TA_CONTAINER_LAUNCHED,
              TaskAttemptEventType.TA_COMMIT_PENDING,
              TaskAttemptEventType.TA_DONE,
              TaskAttemptEventType.TA_FAILMSG))
