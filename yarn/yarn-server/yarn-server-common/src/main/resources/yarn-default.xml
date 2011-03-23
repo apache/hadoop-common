@@ -94,9 +94,7 @@
   <property>
   <name>nodemanager.auxiluary.services</name>
   <value></value>
-  <!--
   <value>mapreduce.shuffle</value>
-  -->
   </property>
 
   <property>
