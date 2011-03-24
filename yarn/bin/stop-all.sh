@@ -28,3 +28,6 @@ bin=`cd "$bin"; pwd`
 "$bin"/yarn-daemon.sh --config $YARN_CONF_DIR  stop resourcemanager
 # stop nodeManager
 "$bin"/yarn-daemons.sh --config $YARN_CONF_DIR  stop nodemanager
+# stop historyServer
+"$bin"/yarn-daemon.sh --config $YARN_CONF_DIR  stop historyserver
+

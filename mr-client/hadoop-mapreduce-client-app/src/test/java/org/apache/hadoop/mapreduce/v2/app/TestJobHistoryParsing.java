@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
@@ -43,11 +44,13 @@ import org.junit.Test;
 
 public class TestJobHistoryParsing {
   private static final Log LOG = LogFactory.getLog(TestJobHistoryParsing.class);
-
+  //TODO FIX once final CompletedStatusStore is available
+  private static final String STATUS_STORE_DIR_KEY =
+    "yarn.server.nodemanager.jobstatus";
   @Test
   public void testHistoryParsing() throws Exception {
     Configuration conf = new Configuration();
-    MRApp app = new HistoryEnabledApp(2, 1, true);
+    MRApp app = new MRApp(2, 1, true);
     app.submit(conf);
     Job job = app.getContext().getAllJobs().values().iterator().next();
     JobID jobId = job.getID();
@@ -57,9 +60,9 @@ public class TestJobHistoryParsing {
     String jobhistoryFileName = TypeConverter.fromYarn(jobId).toString();
     String user =
       conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));
-    String jobhistoryDir = conf.get("yarn.server.nodemanager.jobhistory",
+    String jobhistoryDir = conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
         "file:///tmp/yarn/done/") + user; 
-    String jobstatusDir = conf.get("yarn.server.nodemanager.jobhistory",
+    String jobstatusDir = conf.get(STATUS_STORE_DIR_KEY,
         "file:///tmp/yarn/done/status/") + user + "/" +
         jobhistoryFileName;
     FSDataInputStream in = null;
@@ -123,10 +126,9 @@ public class TestJobHistoryParsing {
     @Override
     protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
         Configuration conf) {
-      return new JobHistoryEventHandler(conf);
+      return new JobHistoryEventHandler();
     }
   }
-
   public static void main(String[] args) throws Exception {
     TestJobHistoryParsing t = new TestJobHistoryParsing();
     t.testHistoryParsing();

@@ -30,6 +30,7 @@ import org.apache.hadoop.mapred.WrappedJvmID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.MRAppMaster;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
@@ -87,6 +88,10 @@ public class MRApp extends MRAppMaster {
   public Job submit(Configuration conf) throws Exception {
     String user = conf.get(MRJobConfig.USER_NAME, "mapred");
     conf.set(MRJobConfig.USER_NAME, user);
+    conf.set(YarnMRJobConfig.HISTORY_STAGING_DIR_KEY,
+       "file:///tmp/yarn/");
+    conf.set(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
+       "file:///tmp/yarn/done/");
     init(conf);
     start();
     Job job = getContext().getAllJobs().values().iterator().next();

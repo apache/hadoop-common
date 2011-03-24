@@ -48,6 +48,7 @@ import org.apache.hadoop.yarn.YarnRemoteException;
 import org.apache.hadoop.mapreduce.v2.api.JobReport;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.TaskReport;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 
 public class ClientServiceDelegate {
   private static final Log LOG = LogFactory.getLog(ClientServiceDelegate.class);
@@ -71,8 +72,8 @@ public class ClientServiceDelegate {
   private void refreshProxy() throws AvroRemoteException {
     ApplicationMaster appMaster = rm.getApplicationMaster(appId);
     if (ApplicationState.COMPLETED.equals(appMaster.state)) {
-      serviceAddr = conf.get("jobhistory.server.hostname") + ":"
-      + conf.get("jobhistory.server.port");
+      String serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
+          YarnMRJobConfig.DEFAULT_HS_BIND_ADDRESS);
       LOG.debug("Reconnecting to job history server " + serviceAddr);
     } else {
       /* TODO check to confirm its really launched */

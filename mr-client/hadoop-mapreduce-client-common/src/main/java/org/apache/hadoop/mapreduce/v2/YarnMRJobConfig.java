@@ -35,4 +35,16 @@ public class YarnMRJobConfig {
       = "yarn.mapreduce.job.task.runtime.estimator.exponential.smooth.lambda";
   public static final String EXPONENTIAL_SMOOTHING_SMOOTH_RATE
       = "yarn.mapreduce.job.task.runtime.estimator.exponential.smooth.smoothsrate";
+  public static final String HS_PREFIX = "yarn.server.historyserver.";
+
+  public static final String DEFAULT_HS_BIND_ADDRESS = "0.0.0.0:10020";
+
+  /** host:port address to which to bind to **/
+  public static final String HS_BIND_ADDRESS = HS_PREFIX + "address";
+
+  public static final String HISTORY_STAGING_DIR_KEY =
+       "yarn.historyfile.stagingDir";
+
+  public static final String HISTORY_DONE_DIR_KEY =
+       "yarn.historyfile.doneDir";
 }

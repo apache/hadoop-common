@@ -56,12 +56,14 @@ import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
 import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
 import org.apache.hadoop.mapreduce.v2.api.TaskReport;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.junit.Test;
 
 public class TestClientRedirect {
 
   private static final Log LOG = LogFactory.getLog(TestClientRedirect.class);
   private static final String RMADDRESS = "0.0.0.0:8054";
+  private static final String AMHOSTADDRESS = "0.0.0.0:10020";
   private static final String AMHOSTNAME = "0.0.0.0";
   private static final int AMPORT = 10020;
   private boolean firstRedirect = false; 
@@ -72,8 +74,7 @@ public class TestClientRedirect {
     
     Configuration conf = new YarnConfiguration();
     conf.set(YarnConfiguration.APPSMANAGER_ADDRESS, RMADDRESS);
-    conf.set("jobhistory.server.hostname", AMHOSTNAME);
-    conf.setInt("jobhistory.server.port", AMPORT);
+    conf.set(YarnMRJobConfig.HS_BIND_ADDRESS, AMHOSTADDRESS);
     RMService rmService = new RMService("test");
     rmService.init(conf);
     rmService.start();
@@ -182,7 +183,7 @@ public class TestClientRedirect {
     public void start(Configuration conf) {
       YarnRPC rpc = YarnRPC.create(conf);
       //TODO : use fixed port ??
-      InetSocketAddress address = NetUtils.createSocketAddr(AMHOSTNAME + ":" + AMPORT);
+      InetSocketAddress address = NetUtils.createSocketAddr(AMHOSTADDRESS);
       InetAddress hostNameResolved = null;
       try {
         address.getAddress();

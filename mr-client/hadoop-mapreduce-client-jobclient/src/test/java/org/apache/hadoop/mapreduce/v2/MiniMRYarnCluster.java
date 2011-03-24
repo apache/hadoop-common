@@ -70,7 +70,10 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
         "apps_staging_dir/${user.name}/").getAbsolutePath());
     conf.set(MRConfig.MASTER_ADDRESS, "test"); // The default is local because of
                                              // which shuffle doesn't happen
-    
+    conf.set(YarnMRJobConfig.HISTORY_STAGING_DIR_KEY,
+        "file:///tmp/yarn/");
+    conf.set(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
+        "file:///tmp/yarn/done/");
     //configure the shuffle service in NM
     conf.setStrings(AuxServices.AUX_SERVICES,
         new String[] { ShuffleHandler.MAPREDUCE_SHUFFLE_SERVICEID });

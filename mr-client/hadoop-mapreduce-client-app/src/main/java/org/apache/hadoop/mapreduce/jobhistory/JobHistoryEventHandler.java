@@ -18,28 +18,30 @@
 
 package org.apache.hadoop.mapreduce.jobhistory;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.mapreduce.v2.api.JobID;
 import org.apache.hadoop.mapreduce.v2.lib.TypeConverter;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
+import org.apache.hadoop.yarn.service.AbstractService;
 
 /**
  * The job history events get routed to this class. This class writes the 
@@ -48,20 +50,22 @@ import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
  * JobHistory implementation is in this package to access package private 
  * classes.
  */
-public class JobHistoryEventHandler 
+public class JobHistoryEventHandler extends AbstractService
     implements EventHandler<JobHistoryEvent> {
 
   private FileContext logDirFc; // log Dir FileContext
   private FileContext doneDirFc; // done Dir FileContext
-  private Configuration conf;
 
-  private Path logDir = null;
-  private Path done = null; // folder for completed jobs
+  private Path logDirPath = null;
+  private Path doneDirPrefixPath = null; // folder for completed jobs
+
+  private BlockingQueue<JobHistoryEvent> eventQueue =
+    new LinkedBlockingQueue<JobHistoryEvent>();
+  private Thread eventHandlingThread;
+  private volatile boolean stopped;
 
   private static final Log LOG = LogFactory.getLog(
       JobHistoryEventHandler.class);
-
-  private EventWriter eventWriter = null;
 
   private static final Map<JobID, MetaInfo> fileMap =
     Collections.<JobID,MetaInfo>synchronizedMap(new HashMap<JobID,MetaInfo>());
@@ -72,42 +76,81 @@ public class JobHistoryEventHandler
   public static final FsPermission HISTORY_FILE_PERMISSION =
     FsPermission.createImmutable((short) 0740); // rwxr-----
 
-  public JobHistoryEventHandler(Configuration conf) {
-    this.conf = conf;
-/*
-    String localDir = conf.get("yarn.server.nodemanager.jobhistory",
-        "file:///" +
-        new File(System.getProperty("yarn.log.dir")).getAbsolutePath() +
-        File.separator + "history");
-*/
-    String localDir = conf.get("yarn.server.nodemanager.jobhistory.localdir",
-      "file:///tmp/yarn");
-    logDir = new Path(localDir);
-    String  doneLocation =
-      conf.get("yarn.server.nodemanager.jobhistory",
-      "file:///tmp/yarn/done");
-    if (doneLocation != null) {
-      try {
-        done = FileContext.getFileContext(conf).makeQualified(new Path(doneLocation));
-        doneDirFc = FileContext.getFileContext(done.toUri(), conf);
-        if (!doneDirFc.util().exists(done))
-          doneDirFc.mkdir(done,
-            new FsPermission(HISTORY_DIR_PERMISSION), true);
-        } catch (IOException e) {
+  public JobHistoryEventHandler() {
+    super("JobHistoryEventHandler");
+  }
+
+  @Override
+  public void init(Configuration conf) {
+    String defaultLogDir = conf.get(
+        YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/staging";
+    String logDir = conf.get(YarnMRJobConfig.HISTORY_STAGING_DIR_KEY,
+      defaultLogDir);
+    String defaultDoneDir = conf.get(
+        YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
+    String  doneDirPrefix =
+      conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
+          defaultDoneDir);
+    try {
+      doneDirPrefixPath = FileContext.getFileContext(conf).makeQualified(
+          new Path(doneDirPrefix));
+      doneDirFc = FileContext.getFileContext(doneDirPrefixPath.toUri(), conf);
+      if (!doneDirFc.util().exists(doneDirPrefixPath)) {
+        doneDirFc.mkdir(doneDirPrefixPath,
+          new FsPermission(HISTORY_DIR_PERMISSION), true);
+      }
+    } catch (IOException e) {
           LOG.info("error creating done directory on dfs " + e);
           throw new YarnException(e);
-      }
     }
     try {
-      logDirFc = FileContext.getFileContext(logDir.toUri(), conf);
-      if (!logDirFc.util().exists(logDir)) {
-        logDirFc.mkdir(logDir, new FsPermission(HISTORY_DIR_PERMISSION), true);
+      logDirPath = FileContext.getFileContext(conf).makeQualified(
+          new Path(logDir));
+      logDirFc = FileContext.getFileContext(logDirPath.toUri(), conf);
+      if (!logDirFc.util().exists(logDirPath)) {
+        logDirFc.mkdir(logDirPath,
+          new FsPermission(HISTORY_DIR_PERMISSION), true);
       }
     } catch (IOException ioe) {
       LOG.info("Mkdirs failed to create " +
-          logDir.toString());
+          logDirPath.toString());
       throw new YarnException(ioe);
     }
+    super.init(conf);
+    start();
+  }
+
+  @Override
+  public void start() {
+    eventHandlingThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        JobHistoryEvent event = null;
+        while (!stopped || !Thread.currentThread().isInterrupted()) {
+          try {
+            event = eventQueue.take();
+          } catch (InterruptedException e) {
+            LOG.error("Returning, interrupted : " + e);
+            return;
+          }
+          handleEvent(event);
+        }
+      }
+    });
+    eventHandlingThread.start();
+    super.start();
+  }
+
+  @Override
+  public void stop() {
+    stopped = true;
+    eventHandlingThread.interrupt();
+    try {
+      eventHandlingThread.join();
+    } catch (InterruptedException ie) {
+      LOG.info("Interruped Exception while stopping", ie);
+    }
+    super.stop();
   }
 
   /**
@@ -118,7 +161,7 @@ public class JobHistoryEventHandler
    */
   protected void setupEventWriter(JobID jobId)
   throws IOException {
-    if (logDir == null) {
+    if (logDirPath == null) {
       throw new IOException("Missing Log Directory for History");
     }
 
@@ -126,9 +169,9 @@ public class JobHistoryEventHandler
 
     long submitTime = (oldFi == null ? System.currentTimeMillis() : oldFi.submitTime);
 
-    Path logFile = getJobHistoryFile(logDir, jobId);
+    Path logFile = getJobHistoryFile(logDirPath, jobId);
     // String user = conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));
-    String user = conf.get(MRJobConfig.USER_NAME);
+    String user = getConfig().get(MRJobConfig.USER_NAME);
     if (user == null) {
       throw new IOException("User is null while setting up jobhistory eventwriter" );
     }
@@ -145,7 +188,6 @@ public class JobHistoryEventHandler
         throw ioe;
       }
     }
-    this.eventWriter = writer;
     /*TODO Storing the job conf on the log dir if required*/
     MetaInfo fi = new MetaInfo(logFile, writer, submitTime, user, jobName);
     fileMap.put(jobId, fi);
@@ -165,7 +207,16 @@ public class JobHistoryEventHandler
     }
   }
 
-  public synchronized void handle(JobHistoryEvent event) {
+  @Override
+  public void handle(JobHistoryEvent event) {
+    try {
+      eventQueue.put(event);
+    } catch (InterruptedException e) {
+      throw new YarnException(e);
+    }
+  }
+
+  protected void handleEvent(JobHistoryEvent event) {
     // check for first event from a job
     if (event.getHistoryEvent().getEventType() == EventType.JOB_SUBMITTED) {
       try {
@@ -180,6 +231,7 @@ public class JobHistoryEventHandler
     try {
       HistoryEvent historyEvent = event.getHistoryEvent();
       mi.writeEvent(historyEvent);
+      LOG.info("In HistoryEventHandler " + event.getHistoryEvent().getEventType());
     } catch (IOException e) {
       LOG.error("in handler ioException " + e);
       throw new YarnException(e);
@@ -187,7 +239,7 @@ public class JobHistoryEventHandler
     // check for done
     if (event.getHistoryEvent().getEventType().equals(EventType.JOB_FINISHED)) {
       JobFinishedEvent jfe = (JobFinishedEvent) event.getHistoryEvent();
-      String statusstoredir = done + "/status/" + mi.user + "/" + mi.jobName;
+      String statusstoredir = doneDirPrefixPath + "/status/" + mi.user + "/" + mi.jobName;
       try {
         writeStatus(statusstoredir, jfe);
       } catch (IOException e) {
@@ -205,23 +257,26 @@ public class JobHistoryEventHandler
   protected void closeEventWriter(JobID jobId) throws IOException {
     final MetaInfo mi = fileMap.get(jobId);
     try {
-      Path fromLocalFile = mi.getHistoryFile();
-      // Path toPath = new Path(done, mi.jobName);
-      String jobhistorydir = done + "/" + mi.user + "/";
-      Path jobhistorydirpath =
-    	  logDirFc.makeQualified(new Path(jobhistorydir));
-      logDirFc.mkdir(jobhistorydirpath,
-         new FsPermission(HISTORY_DIR_PERMISSION), true);
+      Path logFile = mi.getHistoryFile();
+      //TODO fix - add indexed structure 
+      // 
+      String doneDir = doneDirPrefixPath + "/" + mi.user + "/";
+      Path doneDirPath =
+    	  doneDirFc.makeQualified(new Path(doneDir));
+      if (!pathExists(doneDirFc, doneDirPath)) {
+        doneDirFc.mkdir(doneDirPath, new FsPermission(HISTORY_DIR_PERMISSION),
+            true);
+      }
       // Path localFile = new Path(fromLocalFile);
-      Path localQualifiedFile =
-    	  logDirFc.makeQualified(fromLocalFile);
-      Path jobHistoryFile =
-    	  logDirFc.makeQualified(new Path(jobhistorydirpath, mi.jobName));
+      Path qualifiedLogFile =
+    	  logDirFc.makeQualified(logFile);
+      Path qualifiedDoneFile =
+    	  doneDirFc.makeQualified(new Path(doneDirPath, mi.jobName));
       if (mi != null) {
         mi.closeWriter();
       }
-      moveToDoneNow(localQualifiedFile, jobHistoryFile);
-      logDirFc.delete(localQualifiedFile, true);
+      moveToDoneNow(qualifiedLogFile, qualifiedDoneFile);
+      logDirFc.delete(qualifiedLogFile, true);
     } catch (IOException e) {
       LOG.info("Error closing writer for JobID: " + jobId);
       throw e;
@@ -287,7 +342,11 @@ public class JobHistoryEventHandler
       doneDirFc.setPermission(toPath,
           new FsPermission(HISTORY_FILE_PERMISSION));
     }
-  }  
+  }
+
+  boolean pathExists(FileContext fc, Path path) throws IOException {
+    return fc.util().exists(path);
+  }
 
   private void writeStatus(String statusstoredir, HistoryEvent event) throws IOException {
     try {

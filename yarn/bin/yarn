@@ -294,7 +294,7 @@ elif [ "$COMMAND" = "nodemanager" ] ; then
     YARN_OPTS="$YARN_OPTS -server $YARN_NODEMANAGER_OPTS"
   fi
 elif [ "$COMMAND" = "historyserver" ] ; then
-  CLASS=org.apache.hadoop.yarn.mapreduce.hs.JobHistoryServer
+  CLASS=org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer
   YARN_OPTS="$YARN_OPTS $YARN_JOB_HISTORYSERVER_OPTS"
 elif [ "$COMMAND" = "job" ] ; then
   CLASS=org.apache.hadoop.mapred.JobClient

@@ -28,3 +28,5 @@ bin=`cd "$bin"; pwd`
 "$bin"/yarn-daemon.sh --config $YARN_CONF_DIR  start resourcemanager
 # start nodeManager
 "$bin"/yarn-daemons.sh --config $YARN_CONF_DIR  start nodemanager
+# start historyserver
+#"$bin"/yarn-daemon.sh --config $YARN_CONF_DIR  start historyserver

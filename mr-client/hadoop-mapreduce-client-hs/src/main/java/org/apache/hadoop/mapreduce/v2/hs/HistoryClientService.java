@@ -50,6 +50,7 @@ import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
 import org.apache.hadoop.mapreduce.v2.api.TaskID;
 import org.apache.hadoop.mapreduce.v2.api.TaskReport;
 import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 
 /**
  * This module is responsible for talking to the 
@@ -75,8 +76,8 @@ public class HistoryClientService extends AbstractService {
   public void start() {
     Configuration conf = new Configuration(getConfig());
     YarnRPC rpc = YarnRPC.create(conf);
-    String serviceAddr = conf.get("jobhistory.server.hostname") + ":"
-        + conf.get("jobhistory.server.port");
+    String serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
+        YarnMRJobConfig.DEFAULT_HS_BIND_ADDRESS);
     InetSocketAddress address = NetUtils.createSocketAddr(serviceAddr);
     InetAddress hostNameResolved = null;
     try {

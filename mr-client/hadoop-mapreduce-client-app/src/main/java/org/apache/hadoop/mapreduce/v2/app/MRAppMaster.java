@@ -37,6 +37,7 @@ import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.mapreduce.v2.api.JobID;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.client.MRClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -63,6 +64,7 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -71,8 +73,6 @@ import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
 
 /**
  * The Map-Reduce Application Master.
@@ -150,6 +150,10 @@ public class MRAppMaster extends CompositeService {
     containerAllocator = createContainerAllocator(clientService, context);
     addIfService(containerAllocator);
 
+    //service to log job history events
+    EventHandler<JobHistoryEvent> historyService = 
+      createJobHistoryHandler(conf);
+
     //register the event dispatchers
     dispatcher.register(ContainerAllocator.EventType.class, containerAllocator);
     dispatcher.register(ContainerLauncher.EventType.class, containerLauncher);
@@ -158,6 +162,8 @@ public class MRAppMaster extends CompositeService {
     dispatcher.register(TaskAttemptEventType.class, 
         new TaskAttemptEventDispatcher());
     dispatcher.register(TaskCleaner.EventType.class, taskCleaner);
+    dispatcher.register(org.apache.hadoop.mapreduce.jobhistory.EventType.class,
+        historyService);
     
     if (conf.getBoolean(MRJobConfig.MAP_SPECULATIVE, false)
         || conf.getBoolean(MRJobConfig.REDUCE_SPECULATIVE, false)) {
@@ -189,13 +195,9 @@ public class MRAppMaster extends CompositeService {
 
   protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
       Configuration conf) {
-    return new EventHandler<JobHistoryEvent>() {
-      @Override
-      public void handle(JobHistoryEvent event) {
-      }
-    };
-    //TODO use the real job history handler.
-    //return new JobHistoryEventHandler(conf);
+    JobHistoryEventHandler eventHandler = new JobHistoryEventHandler();
+    eventHandler.init(conf);
+    return eventHandler;
   }
 
   protected Speculator createSpeculator(Configuration conf, AppContext context) {
@@ -366,8 +368,6 @@ public class MRAppMaster extends CompositeService {
             taskAttemptListener, jobTokenSecretManager, fsTokens);
     ((RunningAppContext) context).jobs.put(job.getID(), job);
 
-    dispatcher.register(org.apache.hadoop.mapreduce.jobhistory.EventType.class,
-        createJobHistoryHandler(config));
     dispatcher.register(JobFinishEvent.Type.class,
         new EventHandler<JobFinishEvent>() {
           @Override
