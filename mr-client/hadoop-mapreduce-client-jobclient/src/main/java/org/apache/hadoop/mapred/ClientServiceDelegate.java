@@ -27,58 +27,75 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.JobStatus;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.TaskType;
-import org.apache.hadoop.mapreduce.v2.lib.TypeConverter;
-import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.security.SecurityInfo;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.ipc.YarnRPC;
-import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
-import org.apache.hadoop.yarn.security.SchedulerSecurityInfo;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.YarnRemoteException;
+import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.JobReport;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.security.SecurityInfo;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.ApplicationMaster;
+import org.apache.hadoop.yarn.ApplicationState;
+import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.YarnRemoteException;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
+import org.apache.hadoop.yarn.ipc.YarnRPC;
+import org.apache.hadoop.yarn.security.SchedulerSecurityInfo;
 
 public class ClientServiceDelegate {
   private static final Log LOG = LogFactory.getLog(ClientServiceDelegate.class);
+
   private Configuration conf;
-  private ApplicationID appId;
+  private ApplicationID currentAppId;
   private final ResourceMgrDelegate rm;
   private MRClientProtocol realProxy = null;
   private String serviceAddr = "";
   private String serviceHttpAddr = "";
-  
-  ClientServiceDelegate(Configuration conf, ResourceMgrDelegate rm, 
-      ApplicationID appId) throws AvroRemoteException {
+
+  ClientServiceDelegate(Configuration conf, ResourceMgrDelegate rm) {
     this.conf = conf;
     this.rm = rm;
-    this.appId = appId;
-    if (appId != null) {
+  }
+
+  private MRClientProtocol getProxy(JobID jobId) throws AvroRemoteException {
+    return getProxy(TypeConverter.toYarn(jobId).appID, false);
+  }
+
+  private MRClientProtocol getRefreshedProxy(JobID jobId) throws AvroRemoteException {
+    return getProxy(TypeConverter.toYarn(jobId).appID, true);
+  }
+
+  private MRClientProtocol getProxy(ApplicationID appId, 
+      boolean forceRefresh) throws AvroRemoteException {
+    if (currentAppId != appId || forceRefresh) {
+      currentAppId = appId;
       refreshProxy();
     }
+    return realProxy;
   }
 
   private void refreshProxy() throws AvroRemoteException {
-    ApplicationMaster appMaster = rm.getApplicationMaster(appId);
+    ApplicationMaster appMaster = rm.getApplicationMaster(currentAppId);
     if (ApplicationState.COMPLETED.equals(appMaster.state)) {
-      String serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
+      serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
           YarnMRJobConfig.DEFAULT_HS_BIND_ADDRESS);
-      LOG.debug("Reconnecting to job history server " + serviceAddr);
-    } else {
-      /* TODO check to confirm its really launched */
+      LOG.info("Application state is completed. " +
+            "Redirecting to job history server " + serviceAddr);
+      //TODO:
+      serviceHttpAddr = "";
+    } else if (ApplicationState.RUNNING.equals(appMaster.state)){
       serviceAddr = appMaster.host + ":" + appMaster.rpcPort;
       serviceHttpAddr = appMaster.host + ":" + appMaster.httpPort;
+    } else {
+      LOG.warn("Cannot connect to Application with state " + appMaster.state);
+      throw new YarnException(
+          "Cannot connect to Application with state " + appMaster.state);
     }
     try {
       instantiateProxy(serviceAddr);
@@ -87,31 +104,6 @@ public class ClientServiceDelegate {
     }
   }
 
-  void instantiateProxy(ApplicationID applicationId, ApplicationMaster appMaster)
-      throws IOException {
-    try {
-      this.appId = applicationId;
-      LOG.info("Trying to connect to the ApplicationManager of"
-          + " application " + applicationId + " running at " + appMaster);
-      UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
-      serviceAddr = appMaster.host + ":"
-          + appMaster.rpcPort;
-      serviceHttpAddr = appMaster.host + ":" + appMaster.httpPort;
-      if (UserGroupInformation.isSecurityEnabled()) {
-        String clientTokenEncoded = appMaster.clientToken.toString();
-        Token<ApplicationTokenIdentifier> clientToken = new Token<ApplicationTokenIdentifier>();
-        clientToken.decodeFromUrlString(clientTokenEncoded);
-        clientToken.setService(new Text(appMaster.host.toString() + ":"
-            + appMaster.rpcPort));
-        currentUser.addToken(clientToken);
-      }
-      instantiateProxy(serviceAddr);
-      LOG.info("Connection to the ApplicationManager established.");
-    } catch (IOException e) {
-      throw (new IOException(e));
-    }
-  }
-  
   private void instantiateProxy(final String serviceAddr) throws IOException {
     UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
     realProxy = currentUser.doAs(new PrivilegedAction<MRClientProtocol>() {
@@ -130,15 +122,20 @@ public class ClientServiceDelegate {
 
   public org.apache.hadoop.mapreduce.Counters getJobCounters(JobID arg0) throws IOException,
       InterruptedException {
-    appId = TypeConverter.toYarn(arg0).appID;
     org.apache.hadoop.mapreduce.v2.api.JobID jobID = TypeConverter.toYarn(arg0);
-    if (realProxy == null) refreshProxy();
     try {
-      return TypeConverter.fromYarn(realProxy.getCounters(jobID));
+      return TypeConverter.fromYarn(getProxy(arg0).getCounters(jobID));
+    } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+      LOG.warn(RPCUtil.toString(yre));
+      throw yre;
     } catch(Exception e) {
       LOG.debug("Failing to contact application master", e);
-      refreshProxy();
-      return TypeConverter.fromYarn(realProxy.getCounters(jobID));
+      try {
+        return TypeConverter.fromYarn(getRefreshedProxy(arg0).getCounters(jobID));
+      } catch(YarnRemoteException yre) {
+        LOG.warn(RPCUtil.toString(yre));
+        throw yre;
+      }
     }
   }
 
@@ -149,19 +146,23 @@ public class ClientServiceDelegate {
 
   public TaskCompletionEvent[] getTaskCompletionEvents(JobID arg0, int arg1,
       int arg2) throws IOException, InterruptedException {
-    appId = TypeConverter.toYarn(arg0).appID;
-    if (realProxy == null) refreshProxy();
-    
     org.apache.hadoop.mapreduce.v2.api.JobID jobID = TypeConverter.toYarn(arg0);
     List<org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent> list = null;
     try {
-      list = realProxy.getTaskAttemptCompletionEvents(jobID,
+      list = getProxy(arg0).getTaskAttemptCompletionEvents(jobID,
           arg1, arg2);
+    } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+      LOG.warn(RPCUtil.toString(yre));
+      throw yre;
     } catch(Exception e) {
       LOG.debug("Failed to contact application master ", e);
-      refreshProxy();
-      list = realProxy.getTaskAttemptCompletionEvents(jobID,
-          arg1, arg2);
+      try {
+        list = getRefreshedProxy(arg0).getTaskAttemptCompletionEvents(jobID,
+            arg1, arg2);
+      } catch(YarnRemoteException yre) {
+        LOG.warn(RPCUtil.toString(yre));
+        throw yre;
+      }
     }
     return TypeConverter.fromYarn(
         list.toArray(new org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent[0]));
@@ -174,15 +175,19 @@ public class ClientServiceDelegate {
     
     List<CharSequence> list = null;
     org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID = TypeConverter.toYarn(arg0);
-    appId = TypeConverter.toYarn(arg0.getJobID()).appID;
-    if (realProxy == null) refreshProxy();
-  
     try {
-      list = realProxy.getDiagnostics(attemptID);
+      list = getProxy(arg0.getJobID()).getDiagnostics(attemptID);
+    } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+      LOG.warn(RPCUtil.toString(yre));
+      throw yre;
     } catch(Exception e) {
       LOG.debug("Failed to contact application master ", e);
-      refreshProxy();
-      list = realProxy.getDiagnostics(attemptID);
+      try {
+        list = getRefreshedProxy(arg0.getJobID()).getDiagnostics(attemptID);
+      } catch(YarnRemoteException yre) {
+        LOG.warn(RPCUtil.toString(yre));
+        throw yre;
+      }
     }
     String[] result = new String[list.size()];
     int i = 0;
@@ -192,95 +197,70 @@ public class ClientServiceDelegate {
     return result;
   }
 
-  //this method is here due to package restriction of 
-  //TaskReport constructor
-  public static org.apache.hadoop.mapred.TaskReport[] fromYarn(
-      List<TaskReport> reports) {
-    org.apache.hadoop.mapred.TaskReport[] result = 
-      new org.apache.hadoop.mapred.TaskReport[reports.size()];
-    int i = 0;
-    for (TaskReport report : reports) {
-      List<CharSequence> diag = report.diagnostics;
-      String[] diagnosticArr = new String[diag.size()];
-      int j = 0;
-      for (CharSequence c : diag) {
-        diagnosticArr[j++] = c.toString();
-      }
-      org.apache.hadoop.mapred.TaskReport oldReport = 
-        new org.apache.hadoop.mapred.TaskReport(
-            TypeConverter.fromYarn(report.id), report.progress, 
-            report.state.toString(),
-            diagnosticArr, TypeConverter.fromYarn(report.state), 
-          report.startTime, report.finishTime,
-          new org.apache.hadoop.mapred.Counters(
-              TypeConverter.fromYarn(report.counters)));
-      result[i++] = oldReport;
-    }
-    return result;
-  }
-
- 
-  public JobReport getJobReport(org.apache.hadoop.mapreduce.v2.api.JobID jobID)
-      throws AvroRemoteException, YarnRemoteException {
-    appId = jobID.appID;
-    if (realProxy == null) refreshProxy();
-    
-    try {
-      return realProxy.getJobReport(jobID);
-    } catch (Exception e) {
-      refreshProxy();
-      return realProxy.getJobReport(jobID);
-    }
-  }
-
-  public JobStatus getJobStatus(org.apache.hadoop.mapreduce.v2.api.JobID jobId) 
-      throws AvroRemoteException, YarnRemoteException {
-    appId = jobId.appID;
-    if (realProxy == null) refreshProxy();
-    String trackingUrl = serviceAddr;
+  public JobStatus getJobStatus(JobID oldJobID) throws YarnRemoteException,
+      AvroRemoteException {
+    org.apache.hadoop.mapreduce.v2.api.JobID jobId = 
+      TypeConverter.toYarn(oldJobID);
+    LOG.debug("Getting Job status");
     String stagingDir = conf.get("yarn.apps.stagingDir");
     String jobFile = stagingDir + "/" + jobId.toString();
-    return TypeConverter.fromYarn(getJobReport(jobId), jobFile, serviceHttpAddr);
-  }
-  
-
-  public JobStatus getJobStatus(JobID jobID) throws YarnRemoteException,
-      AvroRemoteException {
-    return getJobStatus(TypeConverter.toYarn(jobID));
+    JobReport report = null;
+    try {
+      report = getProxy(oldJobID).getJobReport(jobId);
+    } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+      LOG.warn(RPCUtil.toString(yre));
+      throw yre;
+    } catch (Exception e) {
+      try {
+        report = getRefreshedProxy(oldJobID).getJobReport(jobId);
+      } catch(YarnRemoteException yre) {
+        LOG.warn(RPCUtil.toString(yre));
+        throw yre;
+      }
+    }
+    return TypeConverter.fromYarn(report, jobFile, serviceHttpAddr);
   }
 
   public org.apache.hadoop.mapreduce.TaskReport[] getTaskReports(JobID jobID, TaskType taskType)
       throws YarnRemoteException, AvroRemoteException {
       List<TaskReport> taskReports = null;
       org.apache.hadoop.mapreduce.v2.api.JobID nJobID = TypeConverter.toYarn(jobID);
-      appId = nJobID.appID;
-      if (realProxy == null) refreshProxy();
-    
       try {
-        taskReports = realProxy.getTaskReports(nJobID, 
+        taskReports = getProxy(jobID).getTaskReports(nJobID, 
             TypeConverter.toYarn(taskType));
+      } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+        LOG.warn(RPCUtil.toString(yre));
+        throw yre;
       } catch(Exception e) {
         LOG.debug("Failed to contact application master ", e);
-        refreshProxy();
-        taskReports = realProxy.getTaskReports(nJobID, 
-            TypeConverter.toYarn(taskType));
+        try {
+          taskReports = getRefreshedProxy(jobID).getTaskReports(nJobID, 
+              TypeConverter.toYarn(taskType));
+        } catch(YarnRemoteException yre) {
+          LOG.warn(RPCUtil.toString(yre));
+          throw yre;
+        }
       }
-      return (org.apache.hadoop.mapreduce.TaskReport[])TypeConverter.fromYarn
-        (taskReports).toArray();
+      return TypeConverter.fromYarn
+        (taskReports).toArray(new org.apache.hadoop.mapreduce.TaskReport[0]);
   }
 
   public Void killJob(JobID jobID) throws YarnRemoteException,
       AvroRemoteException {
     org.apache.hadoop.mapreduce.v2.api.JobID  nJobID = TypeConverter.toYarn(jobID);
-    appId = nJobID.appID;
-    if (realProxy == null) refreshProxy();
-    
     try {
-      realProxy.killJob(nJobID);
+      getProxy(jobID).killJob(nJobID);
+    } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+      LOG.warn(RPCUtil.toString(yre));
+      throw yre;
     } catch(Exception e) {
       LOG.debug("Failed to contact application master ", e);
-      refreshProxy();
-      realProxy.killJob(nJobID);
+      try {
+        getRefreshedProxy(jobID).killJob(nJobID);
+      } catch(YarnRemoteException yre) {
+        LOG.warn(RPCUtil.toString(yre));
+        throw yre;
+      }
     }
     return null;
   }
@@ -289,15 +269,19 @@ public class ClientServiceDelegate {
       throws YarnRemoteException, AvroRemoteException {
     org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID 
       = TypeConverter.toYarn(taskAttemptID);
-    appId = attemptID.taskID.jobID.appID;
-    if (realProxy == null) refreshProxy();
-    
     try {
-      realProxy.killTaskAttempt(attemptID);
+      getProxy(taskAttemptID.getJobID()).killTaskAttempt(attemptID);
+    } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+      LOG.warn(RPCUtil.toString(yre));
+      throw yre;
     } catch(Exception e) {
       LOG.debug("Failed to contact application master ", e);
-      refreshProxy();
-      realProxy.killTaskAttempt(attemptID);
+      try {
+        getRefreshedProxy(taskAttemptID.getJobID()).killTaskAttempt(attemptID);
+      } catch(YarnRemoteException yre) {
+        LOG.warn(RPCUtil.toString(yre));
+        throw yre;
+      }
     }
     return true;
   }

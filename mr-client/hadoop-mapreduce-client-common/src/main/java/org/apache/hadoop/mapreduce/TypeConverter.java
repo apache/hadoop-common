@@ -16,19 +16,14 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.mapreduce.v2.lib;
+package org.apache.hadoop.mapreduce;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.mapred.JobPriority;
-import org.apache.hadoop.mapred.TIPStatus;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
-import org.apache.hadoop.mapreduce.TaskReport;
-import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.mapreduce.v2.api.Counter;
 import org.apache.hadoop.mapreduce.v2.api.CounterGroup;
 import org.apache.hadoop.mapreduce.v2.api.Counters;
@@ -36,11 +31,13 @@ import org.apache.hadoop.mapreduce.v2.api.JobID;
 import org.apache.hadoop.mapreduce.v2.api.JobReport;
 import org.apache.hadoop.mapreduce.v2.api.JobState;
 import org.apache.hadoop.mapreduce.v2.api.Phase;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEventStatus;
+import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 import org.apache.hadoop.mapreduce.v2.api.TaskID;
 import org.apache.hadoop.mapreduce.v2.api.TaskState;
 import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.YarnException;
 
 public class TypeConverter {
 
@@ -291,9 +288,31 @@ public class TypeConverter {
   }
   
   public static TaskReport fromYarn(org.apache.hadoop.mapreduce.v2.api.TaskReport report) {
-      return new TaskReport(fromYarn(report.id), report.progress, report.state.toString(),
-      (String[]) report.diagnostics.toArray(), fromYarn(report.state), report.startTime, report.finishTime,
+    String[] diagnostics = null;
+    if (report.diagnostics != null) {
+      diagnostics = new String[report.diagnostics.size()];
+      int i = 0;
+      for (CharSequence cs : report.diagnostics) {
+        diagnostics[i++] = cs.toString();
+      }
+    } else {
+      diagnostics = new String[0];
+    }
+    TaskReport rep = new TaskReport(fromYarn(report.id), 
+        report.progress, report.state.toString(),
+      diagnostics, fromYarn(report.state), report.startTime, report.finishTime,
       fromYarn(report.counters));
+    List<org.apache.hadoop.mapreduce.TaskAttemptID> runningAtts 
+          = new ArrayList<org.apache.hadoop.mapreduce.TaskAttemptID>();
+    for (org.apache.hadoop.mapreduce.v2.api.TaskAttemptID id 
+        : report.runningAttempts) {
+      runningAtts.add(fromYarn(id));
+    }
+    rep.setRunningTaskAttemptIds(runningAtts);
+    if (report.successfulAttempt != null) {
+      rep.setSuccessfulAttemptId(fromYarn(report.successfulAttempt));
+    }
+    return rep;
   }
   
   public static List<TaskReport> fromYarn(

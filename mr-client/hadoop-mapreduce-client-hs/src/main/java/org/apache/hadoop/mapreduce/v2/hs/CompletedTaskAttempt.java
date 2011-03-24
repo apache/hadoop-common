@@ -21,9 +21,9 @@ package org.apache.hadoop.mapreduce.v2.hs;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskAttemptInfo;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
-import org.apache.hadoop.mapreduce.v2.lib.TypeConverter;
 import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.mapreduce.v2.api.Counters;
 import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;

@@ -64,25 +64,30 @@ public class TestClientRedirect {
   private static final Log LOG = LogFactory.getLog(TestClientRedirect.class);
   private static final String RMADDRESS = "0.0.0.0:8054";
   private static final String AMHOSTADDRESS = "0.0.0.0:10020";
-  private static final String AMHOSTNAME = "0.0.0.0";
-  private static final int AMPORT = 10020;
-  private boolean firstRedirect = false; 
-  private boolean secondRedirect = false;
+  private static final String HSHOSTADDRESS = "0.0.0.0:10021";
+  private static final int HSPORT = 10020;
+  private volatile boolean amContact = false; 
+  private volatile boolean hsContact = false;
+  private volatile boolean amRunning = false;
  
   @Test
   public void testRedirect() throws Exception {
     
     Configuration conf = new YarnConfiguration();
     conf.set(YarnConfiguration.APPSMANAGER_ADDRESS, RMADDRESS);
-    conf.set(YarnMRJobConfig.HS_BIND_ADDRESS, AMHOSTADDRESS);
+    conf.set(YarnMRJobConfig.HS_BIND_ADDRESS, HSHOSTADDRESS);
     RMService rmService = new RMService("test");
     rmService.init(conf);
     rmService.start();
   
-    MRClientProtocolService clientService =
-      new MRClientProtocolService();
-    clientService.init(conf);
-    clientService.start(conf);
+    AMService amService = new AMService();
+    amService.init(conf);
+    amService.start(conf);
+    amRunning = true;
+
+    HistoryService historyService = new HistoryService();
+    historyService.init(conf);
+    historyService.start(conf);
   
     LOG.info("services started");
     YARNRunner yarnRunner = new YARNRunner(conf);
@@ -90,11 +95,17 @@ public class TestClientRedirect {
     org.apache.hadoop.mapreduce.JobID jobID =
       new org.apache.hadoop.mapred.JobID("201103121733", 1);
     yarnRunner.getJobCounters(jobID);
-    Assert.assertTrue(firstRedirect);
-    Assert.assertTrue(secondRedirect);
+    Assert.assertTrue(amContact);
+    
+    //bring down the AM service
+    amService.stop();
+    amRunning = false;
+    
+    yarnRunner.getJobCounters(jobID);
+    Assert.assertTrue(hsContact);
     
     rmService.stop();
-    clientService.stop();
+    historyService.stop();
   }
 
   class RMService extends AbstractService implements ClientRMProtocol {
@@ -143,13 +154,14 @@ public class TestClientRedirect {
       master.applicationId = applicationId;
       master.status = new ApplicationStatus();
       master.status.applicationId = applicationId;
-      if (firstRedirect == false) {
+      if (amRunning) {
         master.state = ApplicationState.RUNNING;
       } else {
         master.state = ApplicationState.COMPLETED;
       }
-      master.host = AMHOSTNAME;
-      master.rpcPort = AMPORT;
+      String[] split = AMHOSTADDRESS.split(":");
+      master.host = split[0];
+      master.rpcPort = Integer.parseInt(split[1]);
       return master;
   }
 
@@ -171,19 +183,39 @@ public class TestClientRedirect {
     }
   }
 
-  class MRClientProtocolService extends AbstractService 
+  class HistoryService extends AMService {
+    public HistoryService() {
+      super(HSHOSTADDRESS);
+    }
+
+    @Override
+    public Counters getCounters(JobID jobID) throws AvroRemoteException,
+      YarnRemoteException {
+      hsContact = true;
+      Counters counters = new Counters();
+      counters.groups = new HashMap<CharSequence, CounterGroup>();
+      return counters;
+   }
+  }
+
+  class AMService extends AbstractService 
       implements MRClientProtocol {
     private InetSocketAddress bindAddress;
     private Server server;
+    private final String hostAddress;
+    public AMService() {
+      this(AMHOSTADDRESS);
+    }
     
-    public MRClientProtocolService() {
+    public AMService(String hostAddress) {
       super("TestClientService");
+      this.hostAddress = hostAddress;
     }
 
     public void start(Configuration conf) {
       YarnRPC rpc = YarnRPC.create(conf);
       //TODO : use fixed port ??
-      InetSocketAddress address = NetUtils.createSocketAddr(AMHOSTADDRESS);
+      InetSocketAddress address = NetUtils.createSocketAddr(hostAddress);
       InetAddress hostNameResolved = null;
       try {
         address.getAddress();
@@ -210,17 +242,11 @@ public class TestClientRedirect {
     @Override
     public Counters getCounters(JobID jobID) throws AvroRemoteException,
       YarnRemoteException {
-      if (firstRedirect == false) {
-        firstRedirect = true;
-        throw RPCUtil.getRemoteException(new IOException("Fail"));
-      }
-      else {
-        secondRedirect = true;
-        Counters counters = new Counters();
-        counters.groups = new HashMap<CharSequence, CounterGroup>();
-        return counters;
-      }
- }
+      amContact = true;
+      Counters counters = new Counters();
+      counters.groups = new HashMap<CharSequence, CounterGroup>();
+      return counters;
+   }
 
     @Override
     public List<CharSequence> getDiagnostics(

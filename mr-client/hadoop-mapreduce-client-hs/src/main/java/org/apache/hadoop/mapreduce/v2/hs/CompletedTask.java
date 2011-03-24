@@ -24,11 +24,11 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskAttemptInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
-import org.apache.hadoop.mapreduce.v2.lib.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.api.Counters;
 import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 import org.apache.hadoop.mapreduce.v2.api.TaskID;

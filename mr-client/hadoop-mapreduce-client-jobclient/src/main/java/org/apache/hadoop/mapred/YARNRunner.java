@@ -94,26 +94,18 @@ public class YARNRunner implements ClientProtocol {
    * yarn
    * @param conf the configuration object for the client
    */
-  public YARNRunner(Configuration conf, ApplicationID appID)
+  public YARNRunner(Configuration conf)
       throws AvroRemoteException {
     this.conf = new YarnConfiguration(conf);
     try {
       this.resMgrDelegate = new ResourceMgrDelegate(conf);
       this.clientServiceDelegate = new ClientServiceDelegate(conf,
-          resMgrDelegate, appID);
+          resMgrDelegate);
     } catch (UnsupportedFileSystemException ufe) {
       throw new RuntimeException("Error in instantiating YarnClient", ufe);
     }
   }
 
-  /**
-   * Yarn runner incapsulates the client interface of
-   * yarn
-   * @param conf the configuration object for the client
-   */
-  public YARNRunner(Configuration conf) throws AvroRemoteException {
-    this(conf, null);
-  }
   @Override
   public void cancelDelegationToken(Token<DelegationTokenIdentifier> arg0)
       throws IOException, InterruptedException {
@@ -243,7 +235,6 @@ public class YARNRunner implements ClientProtocol {
       ApplicationState.KILLED) {
       throw new AvroRemoteException("failed to run job");
     }
-    clientServiceDelegate.instantiateProxy(applicationId, appMaster);
     return clientServiceDelegate.getJobStatus(jobId);
   }
 
@@ -490,9 +481,6 @@ public class YARNRunner implements ClientProtocol {
   public JobStatus getJobStatus(JobID jobID) throws IOException,
       InterruptedException {
     JobStatus status = clientServiceDelegate.getJobStatus(jobID);
-    if (status.isJobComplete()) {
-      // Clean up the Container running the ApplicationMaster.
-    }
     return status;
   }
   
