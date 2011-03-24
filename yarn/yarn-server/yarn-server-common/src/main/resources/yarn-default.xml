@@ -94,12 +94,14 @@
   <property>
   <name>nodemanager.auxiluary.services</name>
   <value></value>
-  <value>mapreduce.shuffle</value>
+  <!-- <value>mapreduce.shuffle</value> -->
   </property>
 
+<!--
   <property>
   <name>nodemanager.aux.service.mapreduce.shuffle.class</name>
   <value>org.apache.hadoop.mapred.ShuffleHandler</value>
   </property>
+-->
 
 </configuration>
