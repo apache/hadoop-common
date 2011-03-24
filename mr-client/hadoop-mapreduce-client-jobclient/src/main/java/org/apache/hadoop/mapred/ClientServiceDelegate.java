@@ -73,7 +73,7 @@ public class ClientServiceDelegate {
 
   private MRClientProtocol getProxy(ApplicationID appId, 
       boolean forceRefresh) throws AvroRemoteException {
-    if (currentAppId != appId || forceRefresh) {
+    if (!appId.equals(currentAppId) || forceRefresh) {
       currentAppId = appId;
       refreshProxy();
     }
