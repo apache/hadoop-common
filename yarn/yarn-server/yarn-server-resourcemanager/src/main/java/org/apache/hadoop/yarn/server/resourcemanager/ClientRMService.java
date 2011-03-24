@@ -29,18 +29,18 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.ipc.RPCUtil;
-import org.apache.hadoop.yarn.ipc.YarnRPC;
-import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
-import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTracker;
-import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.ApplicationMaster;
 import org.apache.hadoop.yarn.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.ClientRMProtocol;
 import org.apache.hadoop.yarn.YarnClusterMetrics;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
+import org.apache.hadoop.yarn.ipc.YarnRPC;
+import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ResourceContext;
+import org.apache.hadoop.yarn.service.AbstractService;
 
 /**
  * The client interface to the Resource Manager. This module handles all the rpc
@@ -48,14 +48,14 @@ import org.apache.hadoop.yarn.YarnClusterMetrics;
  */
 public class ClientRMService extends AbstractService implements ClientRMProtocol {
   private static final Log LOG = LogFactory.getLog(ClientRMService.class);
-  private RMResourceTracker clusterInfo;
+  private ResourceContext clusterInfo;
   private ApplicationsManager applicationsManager;
   private String clientServiceBindAddress;
   private Server server;
   InetSocketAddress clientBindAddress;
   
   public ClientRMService(ApplicationsManager applicationsManager, 
-        RMResourceTracker clusterInfo) {
+        ResourceContext clusterInfo) {
     super(ClientRMService.class.getName());
     this.clusterInfo = clusterInfo;
     this.applicationsManager = applicationsManager;

@@ -178,9 +178,6 @@ public class ApplicationsManagerImpl extends CompositeService
     amTracker.addMaster(user, context, clientTokenStr);
     // TODO this should happen via dispatcher. should move it out to scheudler
     // negotiator.
-    scheduler.addApplication(applicationId, user, 
-        (context.queue == null? "default" : context.queue.toString()), 
-        context.priority);
     /* schedule */    
     LOG.info("Application with id " + applicationId.id + " submitted by user " + 
         user + " with " + context);
@@ -197,7 +194,6 @@ public class ApplicationsManagerImpl extends CompositeService
   throws IOException {
     /* remove the applicaiton from the scheduler  for now. Later scheduler should
      * be a event handler of adding and cleaning up appications*/
-    scheduler.removeApplication(applicationId);
     amTracker.kill(applicationId);
   }
 

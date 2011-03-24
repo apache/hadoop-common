@@ -31,12 +31,12 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker;
 import org.apache.hadoop.yarn.Container;
 import org.apache.hadoop.yarn.Priority;
 import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 
 @Private
 @Evolving
@@ -251,8 +251,8 @@ public class ParentQueue implements Queue {
   }
 
   @Override
-  public synchronized Resource assignContainers(ClusterTracker cluster, 
-      NodeInfo node) {
+  public synchronized Resource assignContainers(
+      Resource clusterResource, NodeManager node) {
     Resource assigned = 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
 
@@ -269,14 +269,14 @@ public class ParentQueue implements Queue {
       }
       
       // Schedule
-      Resource assignedToChild = assignContainersToChildQueues(cluster, node);
+      Resource assignedToChild = assignContainersToChildQueues(clusterResource, node);
 
       // Done if no child-queue assigned anything
       if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThan(
           assignedToChild, 
           org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
         // Track resource utilization for the parent-queue
-        allocateResource(cluster.getClusterResource(), assignedToChild);
+        allocateResource(clusterResource, assignedToChild);
         
         // Track resource utilization in this pass of the scheduler
         org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
@@ -286,7 +286,7 @@ public class ParentQueue implements Queue {
             " queue=" + getQueueName() + 
             " util=" + getUtilization() + 
             " used=" + usedResources + 
-            " cluster=" + cluster.getClusterResource());
+            " cluster=" + clusterResource);
 
       } else {
         break;
@@ -317,8 +317,8 @@ public class ParentQueue implements Queue {
         minimumAllocation);
   }
   
-  synchronized Resource assignContainersToChildQueues(ClusterTracker cluster, 
-      NodeInfo node) {
+  synchronized Resource assignContainersToChildQueues(Resource cluster, 
+      NodeManager node) {
     Resource assigned = 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
     
@@ -362,24 +362,24 @@ public class ParentQueue implements Queue {
   }
   
   @Override
-  public void completedContainer(ClusterTracker cluster,
+  public void completedContainer(Resource clusterResource,
       Container container, Application application) {
     if (application != null) {
       // Careful! Locking order is important!
       // Book keeping
       synchronized (this) {
-        releaseResource(cluster.getClusterResource(), container.resource);
+        releaseResource(clusterResource, container.resource);
 
         LOG.info("completedContainer" +
             " queue=" + getQueueName() + 
             " util=" + getUtilization() + 
             " used=" + usedResources + 
-            " cluster=" + cluster.getClusterResource());
+            " cluster=" + clusterResource);
       }
 
       // Inform the parent
       if (parent != null) {
-        parent.completedContainer(cluster, container, application);
+        parent.completedContainer(clusterResource, container, application);
       }    
     }
   }

@@ -31,6 +31,11 @@ public class YarnConfiguration extends Configuration {
   public static final String AM_EXPIRY_INTERVAL = RM_PREFIX
   + "application.expiry.interval";
   
+  public static final String AM_MAX_RETRIES = RM_PREFIX 
+  + "application.max.retries";
+  
+  public static final int DEFAULT_AM_MAX_RETRIES = 3;
+  
   public static final long DEFAULT_AM_EXPIRY_INTERVAL = 60000L;
 
   public static final String NM_EXPIRY_INTERVAL = RM_PREFIX 
@@ -92,7 +97,7 @@ public class YarnConfiguration extends Configuration {
       "AppClientTokenEnv";
 
   public static final String RESOURCE_SCHEDULER = RM_PREFIX + "scheduler";
-  
+ 
   public YarnConfiguration() {
     super();
   }

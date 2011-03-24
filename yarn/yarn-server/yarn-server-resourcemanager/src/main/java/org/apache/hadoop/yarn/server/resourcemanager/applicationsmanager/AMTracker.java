@@ -59,7 +59,9 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   private long amExpiryInterval; 
   @SuppressWarnings("rawtypes")
   private EventHandler handler;
-
+  
+  private int amMaxRetries;
+  
   private final ASMContext asmContext;
   
   private final Map<ApplicationID, ApplicationMasterInfo> applications = 
@@ -93,6 +95,10 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     this.handler = asmContext.getDispatcher().getEventHandler();
     this.amExpiryInterval = conf.getLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 
     YarnConfiguration.DEFAULT_AM_EXPIRY_INTERVAL);
+    LOG.info("AM expiry interval: " + this.amExpiryInterval);
+    this.amMaxRetries =  conf.getInt(YarnConfiguration.AM_MAX_RETRIES, 
+        YarnConfiguration.DEFAULT_AM_MAX_RETRIES);
+    LOG.info("AM max retries: " + this.amMaxRetries);
     this.asmContext.getDispatcher().register(ApplicationEventType.class, this);
   }
 
@@ -161,7 +167,6 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
       synchronized (applications) {
         am = applications.get(app);
       }
-     
       handler.handle(new ASMEvent<ApplicationEventType>
           (ApplicationEventType.EXPIRE, am));
       }
@@ -208,6 +213,8 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     return masterInfo;
   }
 
+  /* As of now we dont remove applications from the RM */
+  /* TODO we need to decide on a strategy for expiring done applications */
   public void remove(ApplicationID applicationId) {
     synchronized (applications) {
       applications.remove(applicationId);
@@ -297,6 +304,11 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     public String getQueue() {
       throw notimplemented;
     }
+
+    @Override
+    public int getFailedCount() {
+     throw notimplemented;
+    }
   }
   
   public void heartBeat(ApplicationStatus status) {
@@ -345,6 +357,18 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         LOG.info("DEBUG -- adding to  expiry " + masterInfo.getStatus() + 
         " currenttime " + System.currentTimeMillis());
         amExpiryQueue.add(masterInfo.getStatus());
+      }
+    }
+    
+    /* check to see if the AM is an EXPIRED_PENDING state and start off the cycle again */
+    if (masterInfo.getState() == ApplicationState.EXPIRED_PENDING) {
+      /* check to see if the number of retries are reached or not */
+      if (masterInfo.getFailedCount() < this.amMaxRetries) {
+        handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.ALLOCATE,
+          masterInfo));
+      } else {
+        handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.
+              FAILED_MAX_RETRIES, masterInfo));
       }
     }
   }

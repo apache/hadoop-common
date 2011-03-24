@@ -27,8 +27,8 @@ import org.apache.hadoop.net.Node;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker.NodeResponse;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.Container;
@@ -71,8 +71,7 @@ public class TestRMNMRPCResponseId extends TestCase {
   
   @Before
   public void setUp() {
-    rmResourceTrackerImpl = new RMResourceTrackerImpl(containerTokenSecretManager);
-    rmResourceTrackerImpl.register(listener);
+    rmResourceTrackerImpl = new RMResourceTrackerImpl(containerTokenSecretManager, listener);
   }
   
   @After

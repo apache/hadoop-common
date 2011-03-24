@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
@@ -32,17 +34,6 @@ import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
-import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTrackerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker.NodeResponse;
-import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.Container;
 import org.apache.hadoop.yarn.ContainerToken;
@@ -50,6 +41,17 @@ import org.apache.hadoop.yarn.NodeID;
 import org.apache.hadoop.yarn.Priority;
 import org.apache.hadoop.yarn.Resource;
 import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
+import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 
 @LimitedPrivate("yarn")
 @Evolving
@@ -59,7 +61,6 @@ public class FifoScheduler implements ResourceScheduler {
   
   Configuration conf;
   private ContainerTokenSecretManager containerTokenSecretManager;
-  private final ClusterTracker clusterTracker;
   
   // TODO: The memory-block size should be site-configurable?
   public static final int MINIMUM_MEMORY = 1024;
@@ -81,20 +82,14 @@ public class FifoScheduler implements ResourceScheduler {
     }
   };
   
-  public FifoScheduler() {
-    this.clusterTracker = createClusterTracker();
-  }
+  public FifoScheduler() {}
   
   public FifoScheduler(Configuration conf,
       ContainerTokenSecretManager containerTokenSecretManager) 
   {
-    this();
     reinitialize(conf, containerTokenSecretManager);
   }
   
-  protected ClusterTracker createClusterTracker() {
-    return new ClusterTrackerImpl(); 
-  }
   
   @Override
   public void reinitialize(Configuration conf,
@@ -141,7 +136,7 @@ public class FifoScheduler implements ResourceScheduler {
   private void releaseContainers(Application application, List<Container> release) {
     application.releaseContainers(release);
     for (Container container : release) {
-      clusterTracker.releaseContainer(application.getApplicationId(), container);
+      releaseContainer(application.getApplicationId(), container);
     }
   }
   
@@ -161,7 +156,6 @@ public class FifoScheduler implements ResourceScheduler {
     return applications.get(applicationId);
   }
 
-  @Override
   public synchronized void addApplication(ApplicationID applicationId, 
       String user, String unusedQueue, Priority unusedPriority) 
   throws IOException {
@@ -171,7 +165,6 @@ public class FifoScheduler implements ResourceScheduler {
         ", currently active: " + applications.size());
   }
 
-  @Override
   public synchronized void removeApplication(ApplicationID applicationId)
   throws IOException {
     Application application = getApplication(applicationId);
@@ -184,7 +177,7 @@ public class FifoScheduler implements ResourceScheduler {
     releaseContainers(application, application.getCurrentContainers());
     
     // Let the cluster know that the applications are done
-    clusterTracker.finishedApplication(applicationId, 
+    finishedApplication(applicationId, 
         application.getAllNodesForApplication());
     
     // Remove the application
@@ -389,9 +382,8 @@ public class FifoScheduler implements ResourceScheduler {
         containers.add(container);
       }
       application.allocate(type, node, priority, request, containers);
-      clusterTracker.addAllocatedContainers(node, application.getApplicationId(), containers);
+      addAllocatedContainers(node, application.getApplicationId(), containers);
     }
-    
     return assignedContainers;
   }
 
@@ -412,7 +404,7 @@ public class FifoScheduler implements ResourceScheduler {
   public synchronized NodeResponse nodeUpdate(NodeInfo node, 
       Map<CharSequence,List<Container>> containers ) {
    
-    NodeResponse nodeResponse = clusterTracker.nodeUpdate(node, containers);
+    NodeResponse nodeResponse = nodeUpdateInternal(node, containers);
     applicationCompletedContainers(nodeResponse.getCompletedContainers());
     LOG.info("Node heartbeat " + node.getNodeID() + " resource = " + node.getAvailableResource());
     if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
@@ -426,15 +418,88 @@ public class FifoScheduler implements ResourceScheduler {
     // preemption.
     return nodeResponse;
   }  
-  
+
   @Override
-  public NodeInfo addNode(NodeID nodeId,String hostName,
-      Node node, Resource capability) {
-    return clusterTracker.addNode(nodeId, hostName, node, capability);
+  public synchronized void handle(ASMEvent<ApplicationTrackerEventType> event) {
+    switch(event.getType()) {
+    case ADD:
+      try {
+        addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getUser(),
+            event.getAppContext().getQueue(), event.getAppContext().getSubmissionContext().priority);
+      } catch(IOException ie) {
+        LOG.error("Unable to add application " + event.getAppContext().getApplicationID(), ie);
+        /** this is fatal we are not able to add applications for scheduling **/
+        //TODO handle it later.
+      }
+      break;
+    case REMOVE:
+      try {
+        
+        removeApplication(event.getAppContext().getApplicationID());
+      } catch(IOException ie) {
+        LOG.error("Unable to remove application " + event.getAppContext().getApplicationID(), ie);
+      }
+      break;  
+    }
+  }
+  
+  private Map<String, NodeManager> nodes = new HashMap<String, NodeManager>();
+  private Resource clusterResource = new Resource();
+ 
+  public synchronized Resource getClusterResource() {
+    return clusterResource;
   }
 
   @Override
-  public void removeNode(NodeInfo node) {
-    clusterTracker.removeNode(node);
+  public synchronized void removeNode(NodeInfo nodeInfo) {
+    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
+        clusterResource, nodeInfo.getTotalCapability());
+    nodes.remove(nodeInfo.getHostName());
+  }
+  
+  public synchronized boolean isTracked(NodeInfo nodeInfo) {
+    NodeManager node = nodes.get(nodeInfo.getHostName());
+    return (node == null? false: true);
+  }
+ 
+  @Override
+  public synchronized NodeInfo addNode(NodeID nodeId, 
+      String hostName, Node node, Resource capability) {
+    NodeManager nodeManager = new NodeManager(nodeId, hostName, node, capability);
+    nodes.put(nodeManager.getHostName(), nodeManager);
+    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
+        clusterResource, nodeManager.getTotalCapability());
+    return nodeManager;
+  }
+
+  public synchronized boolean releaseContainer(ApplicationID applicationId, 
+      Container container) {
+    // Reap containers
+    LOG.info("Application " + applicationId + " released container " + container);
+    NodeManager nodeManager = nodes.get(container.hostName.toString());
+    return nodeManager.releaseContainer(container);
+  }
+  
+  private synchronized NodeResponse nodeUpdateInternal(NodeInfo nodeInfo, 
+      Map<CharSequence,List<Container>> containers) {
+    NodeManager node = nodes.get(nodeInfo.getHostName());
+    LOG.debug("nodeUpdate: node=" + nodeInfo.getHostName() + 
+        " available=" + nodeInfo.getAvailableResource().memory);
+    return node.statusUpdate(containers);
+    
+  }
+
+  public synchronized void addAllocatedContainers(NodeInfo nodeInfo, 
+      ApplicationID applicationId, List<Container> containers) {
+    NodeManager node = nodes.get(nodeInfo.getHostName());
+    node.allocateContainer(applicationId, containers);
+  }
+
+  public synchronized void finishedApplication(ApplicationID applicationId,
+      List<NodeInfo> nodesToNotify) {
+    for (NodeInfo node: nodesToNotify) {
+      NodeManager nodeManager = nodes.get(node.getHostName());
+      nodeManager.notifyFinishedApplication(applicationId);
+    }
   }
 }

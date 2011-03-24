@@ -23,12 +23,12 @@ import java.util.List;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Stable;
 import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker;
 import org.apache.hadoop.yarn.Container;
 import org.apache.hadoop.yarn.Priority;
 import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 
 /**
  * Queue represents a node in the tree of 
@@ -141,19 +141,19 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
   
   /**
    * Assign containers to applications in the queue or it's children (if any).
-   * @param cluster cluster resources
+   * @param clusterResource the resource of the cluster.
    * @param node node on which resources are available
    * @return
    */
-  public Resource assignContainers(ClusterTracker cluster, NodeInfo node);
+  public Resource assignContainers(Resource clusterResource, NodeManager node);
   
   /**
    * A container assigned to the queue has completed.
-   * @param cluster cluster resources
+   * @param clusterResource the resource of the cluster
    * @param container completed container
    * @param application application to which the container was assigned
    */
-  public void completedContainer(ClusterTracker cluster, 
+  public void completedContainer(Resource clusterResource,
       Container container, Application application);
 
   /**

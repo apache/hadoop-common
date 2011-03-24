@@ -75,14 +75,6 @@ public class TestAMRMRPCResponseId extends TestCase {
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       return null;
     }
-    @Override
-    public void addApplication(ApplicationID applicationId, String user,
-        String queue, Priority priority) throws IOException {
-    }
-    @Override
-    public void removeApplication(ApplicationID applicationId)
-        throws IOException {
-    }
   }
   
   @Before

@@ -20,6 +20,8 @@ package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
 import java.util.List;
 
+import org.apache.hadoop.yarn.YarnClusterMetrics;
+
 /**
  * The read-only interface for cluster resource
  */
@@ -29,4 +31,10 @@ public interface ResourceContext {
    * @return a list of node info
    */
   List<NodeInfo> getAllNodeInfo();
+  
+  /**
+   * Get cluster metrics from the resource tracker.
+   * @return the cluster metrics for the cluster.
+   */
+  YarnClusterMetrics getClusterMetrics();
 }

@@ -39,8 +39,9 @@ import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker.NodeResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.junit.After;
@@ -71,15 +72,7 @@ public class TestSchedulerNegotiator extends TestCase {
       containers.add(container);
       return containers;
     }
-    @Override
-    public void addApplication(ApplicationID applicationId, String user,
-        String unused, Priority priority)
-        throws IOException {
-    }
-    @Override
-    public void removeApplication(ApplicationID applicationId)
-        throws IOException {
-    }
+
     @Override
     public void reinitialize(Configuration conf,
         ContainerTokenSecretManager secretManager) {
@@ -96,6 +89,10 @@ public class TestSchedulerNegotiator extends TestCase {
     }
     @Override
     public void removeNode(NodeInfo node) {
+    }
+
+    @Override
+    public void handle(ASMEvent<ApplicationTrackerEventType> event) {
     }
   }
   

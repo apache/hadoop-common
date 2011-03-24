@@ -52,6 +52,7 @@ public class ApplicationMasterEvents {
     LAUNCH,
     LAUNCHED,
     FAILED,
+    FAILED_MAX_RETRIES,
     ALLOCATED,
     CLEANUP,
     FINISH, 

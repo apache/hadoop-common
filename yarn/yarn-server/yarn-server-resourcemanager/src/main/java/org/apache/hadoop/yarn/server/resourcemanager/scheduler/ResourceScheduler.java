@@ -23,6 +23,9 @@ import java.io.IOException;
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 
 /**
@@ -32,7 +35,8 @@ import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
  */
 @LimitedPrivate("yarn")
 @Evolving
-public interface ResourceScheduler extends ResourceListener, YarnScheduler {
+public interface ResourceScheduler extends ResourceListener, YarnScheduler, 
+  EventHandler<ASMEvent<ApplicationTrackerEventType>> {
   /**
    * Re-initialize the <code>ResourceScheduler</code>.
    * @param conf configuration

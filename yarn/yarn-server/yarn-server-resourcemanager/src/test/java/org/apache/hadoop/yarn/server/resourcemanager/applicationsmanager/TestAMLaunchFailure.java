@@ -1,26 +1,27 @@
 /**
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import junit.framework.TestCase;
 
@@ -63,18 +64,8 @@ public class TestAMLaunchFailure extends TestCase {
 
     @Override
     public List<Container> allocate(ApplicationID applicationId,
-    List<ResourceRequest> ask, List<Container> release) throws IOException {
+        List<ResourceRequest> ask, List<Container> release) throws IOException {
       return Arrays.asList(container);
-    }
-
-    @Override
-    public void addApplication(ApplicationID applicationId, String user,
-    String queue, Priority priority) throws IOException {
-    }
-
-    @Override
-    public void removeApplication(ApplicationID applicationId)
-    throws IOException {
     }
   }
 
@@ -90,9 +81,9 @@ public class TestAMLaunchFailure extends TestCase {
   public class ExtApplicationsManagerImpl extends ApplicationsManagerImpl {
 
     private  class DummyApplicationMasterLauncher implements EventHandler<ASMEvent<AMLauncherEventType>> {
-      private Object notify = new Object();
+      private AtomicInteger notify = new AtomicInteger();
       private AppContext app;
-      
+
       public DummyApplicationMasterLauncher(ASMContext context) {
         context.getDispatcher().register(AMLauncherEventType.class, this);
         new TestThread().start();
@@ -101,8 +92,10 @@ public class TestAMLaunchFailure extends TestCase {
       public void handle(ASMEvent<AMLauncherEventType> appEvent) {
         switch(appEvent.getType()) {
         case LAUNCH:
+          LOG.info("LAUNCH called ");
           app = appEvent.getAppContext();
           synchronized (notify) {
+            notify.addAndGet(1);
             notify.notify();
           }
           break;
@@ -113,27 +106,29 @@ public class TestAMLaunchFailure extends TestCase {
         public void run() {
           synchronized(notify) {
             try {
-              notify.wait();
+              while (notify.get() == 0) {
+                notify.wait();
+              }
             } catch (InterruptedException e) {
               e.printStackTrace();
             }
             context.getDispatcher().getEventHandler().handle(
-            new ASMEvent<ApplicationEventType>(ApplicationEventType.LAUNCHED,
-            app));
+                new ASMEvent<ApplicationEventType>(ApplicationEventType.LAUNCHED,
+                    app));
           }
         }
       }
     }
 
     public ExtApplicationsManagerImpl(
-    ApplicationTokenSecretManager applicationTokenSecretManager,
-    YarnScheduler scheduler) {
+        ApplicationTokenSecretManager applicationTokenSecretManager,
+        YarnScheduler scheduler) {
       super(applicationTokenSecretManager, scheduler, context);
     }
 
     @Override
     protected EventHandler<ASMEvent<AMLauncherEventType>> createNewApplicationMasterLauncher(
-    ApplicationTokenSecretManager tokenSecretManager) {
+        ApplicationTokenSecretManager tokenSecretManager) {
       return new DummyApplicationMasterLauncher(context);
     }
   }
@@ -146,6 +141,7 @@ public class TestAMLaunchFailure extends TestCase {
     Configuration conf = new Configuration();
     new DummyApplicationTracker();
     conf.setLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 3000L);
+    conf.setInt(YarnConfiguration.AM_MAX_RETRIES, 1);
     asmImpl.init(conf);
     asmImpl.start();  
   }

@@ -30,6 +30,12 @@
   </property>
 
   <property>
+    <name>yarn.server.resourcemanager.application.max.retries</name>
+    <value>1</value>
+    <description>The number of times an application will be retried in case
+    of AM failure.</description>
+  </property>
+  <property>
     <name>yarn.server.resourcemanager.keytab</name>
     <value>/etc/krb5.keytab</value>
   </property>

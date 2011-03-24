@@ -48,6 +48,7 @@ protocol types {
     PENDING,
     ALLOCATING,
    	ALLOCATED,
+   	EXPIRED_PENDING,
    	LAUNCHING,
    	LAUNCHED,
     RUNNING,

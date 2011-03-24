@@ -18,6 +18,9 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
@@ -55,12 +58,18 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   private final EventHandler handler;
   private Container masterContainer;
   final private String user;
+  private int numFailed = 0;
+  /* the list of nodes that this AM was launched on */
+  List<String> hostNamesLaunched = new ArrayList<String>();
   /* this transition is too generalized, needs to be broken up as and when we 
    * keeping adding states. This will keep evolving and is not final yet.
    */
   private final  KillTransition killTransition =  new KillTransition();
   private final StatusUpdateTransition statusUpdatetransition = new StatusUpdateTransition();
-
+  private final ExpireTransition expireTransition = new ExpireTransition();
+  private final FailedTransition failedTransition = new FailedTransition();
+  private final AllocateTransition allocateTransition = new AllocateTransition();
+  
   private final StateMachine<ApplicationState, ApplicationEventType, 
   ASMEvent<ApplicationEventType>> stateMachine;
 
@@ -72,8 +81,11 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   (ApplicationState.PENDING)
 
   .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING,
-  ApplicationEventType.ALLOCATE, new AllocateTransition())
-
+  ApplicationEventType.ALLOCATE, allocateTransition)
+  
+  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.ALLOCATING, 
+  ApplicationEventType.ALLOCATE, allocateTransition)
+  
   .addTransition(ApplicationState.PENDING, ApplicationState.CLEANUP, 
   ApplicationEventType.KILL, killTransition)
 
@@ -99,14 +111,23 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   ApplicationEventType.KILL, killTransition)
   
   .addTransition(ApplicationState.LAUNCHED, ApplicationState.FAILED,
-  ApplicationEventType.EXPIRE, new ExpireTransition())
+  ApplicationEventType.EXPIRE, expireTransition)
   
   .addTransition(ApplicationState.LAUNCHED, ApplicationState.RUNNING, 
   ApplicationEventType.REGISTERED, new RegisterTransition())
-
-  .addTransition(ApplicationState.RUNNING,  ApplicationState.FAILED, 
-  ApplicationEventType.EXPIRE, new ExpireTransition())
   
+  /* for now we assume that acting on expiry is synchronous and we do not 
+   * have to wait for cleanup acks from scheduler negotiator and launcher.
+   */
+  .addTransition(ApplicationState.LAUNCHED, ApplicationState.EXPIRED_PENDING,
+      ApplicationEventType.EXPIRE, expireTransition)
+      
+  .addTransition(ApplicationState.RUNNING,  ApplicationState.EXPIRED_PENDING, 
+  ApplicationEventType.EXPIRE, expireTransition)
+  
+  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.FAILED,
+      ApplicationEventType.FAILED_MAX_RETRIES, failedTransition)
+      
   .addTransition(ApplicationState.RUNNING, ApplicationState.COMPLETED,
   ApplicationEventType.FINISH, new DoneTransition())
 
@@ -186,6 +207,11 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   }
 
   @Override
+  public synchronized int getFailedCount() {
+    return numFailed;
+  }
+  
+  @Override
   public String getName() {
     return submissionContext.applicationName.toString();
   }
@@ -218,6 +244,8 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     ASMEvent<ApplicationEventType> event) {
       masterInfo.handler.handle(new ASMEvent<SNEventType>(SNEventType.CLEANUP, masterInfo));
       masterInfo.handler.handle(new ASMEvent<AMLauncherEventType>(AMLauncherEventType.CLEANUP, masterInfo));
+      masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(ApplicationTrackerEventType.REMOVE,
+          masterInfo));
     }
   }
 
@@ -253,6 +281,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
         AMLauncherEventType.CLEANUP, masterInfo));
       masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(
       ApplicationTrackerEventType.REMOVE, masterInfo));
+      masterInfo.numFailed++;
     }
   }
 
@@ -302,16 +331,13 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
 
   /* transition to finishing state on a cleanup, for now its not used, but will need it 
    * later */
-  private static class FinishTransition implements 
+  private static class FailedTransition implements 
   SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
 
     @Override
     public void transition(ApplicationMasterInfo masterInfo,
     ASMEvent<ApplicationEventType> event) {
-      masterInfo.handler.handle(new ASMEvent<SNEventType>(
-        SNEventType.CLEANUP, masterInfo));
-      masterInfo.handler.handle(new ASMEvent<AMLauncherEventType>(
-        AMLauncherEventType.CLEANUP, masterInfo));
+      LOG.info("Failed application: " + masterInfo.getApplicationID());
     } 
   }
 

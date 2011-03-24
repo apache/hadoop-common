@@ -32,7 +32,9 @@ import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.SyncDispatcher;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.webapp.RMWebApp;
@@ -101,7 +103,8 @@ public class ResourceManager extends CompositeService {
               FifoScheduler.class, ResourceScheduler.class), 
           this.conf);
     this.scheduler.reinitialize(this.conf, this.containerTokenSecretManager);
-    
+    /* add the scheduler to be notified of events from the applications managers */
+    this.asmContext.getDispatcher().register(ApplicationTrackerEventType.class, this.scheduler);
     //TODO change this to be random
     this.appTokenSecretManager.setMasterKey(ApplicationTokenSecretManager
         .createSecretKey("Dummy".getBytes()));
@@ -109,8 +112,7 @@ public class ResourceManager extends CompositeService {
     applicationsManager = createApplicationsManagerImpl();
     addService(applicationsManager);
     
-    rmResourceTracker = createRMResourceTracker();
-    rmResourceTracker.register(this.scheduler);
+    rmResourceTracker = createRMResourceTracker(this.scheduler);
     addService(rmResourceTracker);
     
     clientRM = createClientRMService();
@@ -165,8 +167,8 @@ public class ResourceManager extends CompositeService {
     super.stop();
   }
   
-  protected RMResourceTrackerImpl createRMResourceTracker() {
-    return new RMResourceTrackerImpl(this.containerTokenSecretManager);
+  protected RMResourceTrackerImpl createRMResourceTracker(ResourceListener listener) {
+    return new RMResourceTrackerImpl(this.containerTokenSecretManager, listener);
   }
   
   protected ApplicationsManagerImpl createApplicationsManagerImpl() {

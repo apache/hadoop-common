@@ -91,4 +91,10 @@ public interface AppContext {
    * @return the queue for this application
    */
   public String getQueue();
+  
+  /**
+   * the count of number of times the AM has expired/failed.
+   * @return the count of number of times the AM has expired/failed.
+   */
+  public int getFailedCount();
 }

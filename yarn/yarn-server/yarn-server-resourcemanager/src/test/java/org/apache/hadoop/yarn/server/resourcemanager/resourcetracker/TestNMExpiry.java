@@ -33,8 +33,8 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker.NodeResponse;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.Container;
@@ -74,7 +74,7 @@ public class TestNMExpiry extends TestCase {
   private class TestRMResourceTrackerImpl extends RMResourceTrackerImpl {
     public TestRMResourceTrackerImpl(
         ContainerTokenSecretManager containerTokenSecretManager) {
-      super(containerTokenSecretManager);
+      super(containerTokenSecretManager, new VoidResourceListener());
     }
 
     @Override
@@ -99,7 +99,6 @@ public class TestNMExpiry extends TestCase {
   @Before
   public void setUp() {
     resourceTracker = new TestRMResourceTrackerImpl(containerTokenSecretManager);
-    resourceTracker.register(new VoidResourceListener());
     Configuration conf = new Configuration();
     conf.setLong(YarnConfiguration.NM_EXPIRY_INTERVAL, 1000);
     resourceTracker.init(conf);

@@ -25,7 +25,6 @@ import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker.NodeResponse;
 import org.apache.hadoop.yarn.Container;
 import org.apache.hadoop.yarn.NodeID;
 import org.apache.hadoop.yarn.Resource;

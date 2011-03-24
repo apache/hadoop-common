@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.crypto.SecretKey;
-import javax.xml.crypto.NodeSetData;
 
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.ipc.Server;
@@ -43,14 +42,6 @@ import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.security.SecurityInfo;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.ipc.YarnRPC;
-import org.apache.hadoop.yarn.server.RMNMSecurityInfoClass;
-import org.apache.hadoop.yarn.server.YarnServerConfig;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker.NodeResponse;
-import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
-import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.HeartbeatResponse;
 import org.apache.hadoop.yarn.NodeID;
 import org.apache.hadoop.yarn.NodeStatus;
@@ -58,6 +49,14 @@ import org.apache.hadoop.yarn.RegistrationResponse;
 import org.apache.hadoop.yarn.Resource;
 import org.apache.hadoop.yarn.ResourceTracker;
 import org.apache.hadoop.yarn.YarnClusterMetrics;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.ipc.YarnRPC;
+import org.apache.hadoop.yarn.server.RMNMSecurityInfoClass;
+import org.apache.hadoop.yarn.server.YarnServerConfig;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
+import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
+import org.apache.hadoop.yarn.service.AbstractService;
 
 /**
  * This class is responsible for the interaction with the NodeManagers.
@@ -65,7 +64,7 @@ import org.apache.hadoop.yarn.YarnClusterMetrics;
  *`
  */
 public class RMResourceTrackerImpl extends AbstractService implements 
-ResourceTracker, RMResourceTracker, ResourceContext {
+ResourceTracker, ResourceContext {
   private static final Log LOG = LogFactory.getLog(RMResourceTrackerImpl.class);
   /* we dont garbage collect on nodes. A node can come back up again and re register,
    * so no use garbage collecting. Though admin can break the RM by bouncing 
@@ -99,11 +98,13 @@ ResourceTracker, RMResourceTracker, ResourceContext {
   private static final HeartbeatResponse reboot = new HeartbeatResponse();
   private long nmExpiryInterval;
 
-  public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager) {
+  public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager,
+      ResourceListener listener) {
     super(RMResourceTrackerImpl.class.getName());
     reboot.reboot = true;
     this.containerTokenSecretManager = containerTokenSecretManager;
     this.heartbeatThread = new HeartBeatThread();
+    this.resourceListener = listener;
   }
 
   @Override
@@ -250,19 +251,6 @@ ResourceTracker, RMResourceTracker, ResourceContext {
       this.server.close();
     }
     super.stop();
-  }
-
-  @Override
-  public synchronized void register(ResourceListener listener) {
-    //for now there is only one resource listener, so we dont
-    //really add it to a list.
-    this.resourceListener = listener;
-  }
-
-  @Override
-  public synchronized void unregister(ResourceListener listener) {
-    //TODO make the listener so that it dumps to a void listener
-    //rather than nullifying it.
   }
 
   @Override

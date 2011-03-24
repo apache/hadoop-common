@@ -51,9 +51,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTracker.NodeResponse;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ClusterTrackerImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
@@ -69,25 +67,17 @@ public class TestApplicationCleanup extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestApplicationCleanup.class);
   private AtomicInteger waitForState = new AtomicInteger(0);
   private ResourceScheduler scheduler;
-  private ClusterTracker clusterTracker;
   private final int memoryCapability = 1024;
   private ExtASM asm;
   private static final int memoryNeeded = 100;
 
   private final ASMContext context = new ResourceManager.ASMContextImpl();
 
-  private class ExtFifoScheduler extends FifoScheduler {
-    @Override
-    protected ClusterTracker createClusterTracker()  {
-      clusterTracker = new ClusterTrackerImpl();
-      return clusterTracker;
-    }
-  }
-
   @Before
   public void setUp() {
     new DummyApplicationTracker();
-    scheduler = new ExtFifoScheduler();
+    scheduler = new FifoScheduler();
+    context.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
     asm = new ExtASM(new ApplicationTokenSecretManager(), scheduler);
     asm.init(new Configuration());
   }

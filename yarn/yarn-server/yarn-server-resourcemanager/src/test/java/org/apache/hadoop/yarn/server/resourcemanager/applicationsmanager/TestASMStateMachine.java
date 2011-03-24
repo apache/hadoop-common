@@ -211,6 +211,10 @@ private static class StatusContext implements AppContext {
   public String getQueue() {
     return null;
   }
+  @Override
+  public int getFailedCount() {
+    return 0;
+  }
 }
 
 private class ApplicationTracker implements EventHandler<ASMEvent<ApplicationTrackerEventType>> {

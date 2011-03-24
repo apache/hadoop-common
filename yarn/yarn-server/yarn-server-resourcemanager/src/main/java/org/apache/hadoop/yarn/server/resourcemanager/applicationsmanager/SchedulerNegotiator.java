@@ -282,5 +282,10 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
     public String getQueue() {
       throw notImplementedException;
     }
+
+    @Override
+    public int getFailedCount() {
+      throw notImplementedException;
+    }
   }
 }
