@@ -454,6 +454,7 @@ public class FifoScheduler implements ResourceScheduler {
   public synchronized void removeNode(NodeInfo nodeInfo) {
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
         clusterResource, nodeInfo.getTotalCapability());
+    //TODO inform the the applications that the containers are completed/failed
     nodes.remove(nodeInfo.getHostName());
   }
   

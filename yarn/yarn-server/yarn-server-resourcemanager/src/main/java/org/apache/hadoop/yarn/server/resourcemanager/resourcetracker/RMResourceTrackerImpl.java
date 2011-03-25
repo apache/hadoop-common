@@ -269,8 +269,15 @@ ResourceTracker, ResourceContext {
       nmExpiryQueue.add(status);
     }
   }
+  
   protected void expireNMs(List<NodeID> nodes) {
-    /* for now do nothing */
+    for (NodeID id: nodes) {
+      synchronized (nodeManagers) {
+        NodeInfo nInfo = nodeManagers.get(id).getNodeInfo();
+        nodeManagers.remove(id);
+        resourceListener.removeNode(nInfo);
+      }
+    }
   }
 
   /*
