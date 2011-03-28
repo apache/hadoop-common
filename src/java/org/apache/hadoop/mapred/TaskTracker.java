@@ -53,6 +53,8 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.NodeHealthCheckerService;
+import org.apache.hadoop.NodeHealthStatus;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
@@ -73,7 +75,6 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.mapred.CleanupQueue.PathDeletionContext;
 import org.apache.hadoop.mapred.TaskController.DeletionContext;
-import org.apache.hadoop.mapred.TaskTrackerStatus.TaskTrackerHealthStatus;
 import org.apache.hadoop.mapred.pipes.Submitter;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
@@ -1724,7 +1725,7 @@ public class TaskTracker
     }
     //add node health information
     
-    TaskTrackerHealthStatus healthStatus = status.getHealthStatus();
+    NodeHealthStatus healthStatus = status.getHealthStatus();
     synchronized (this) {
       if (healthChecker != null) {
         healthChecker.setHealthStatus(healthStatus);

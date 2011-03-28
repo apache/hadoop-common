@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapred;
+package org.apache.hadoop;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -27,35 +27,38 @@ import java.util.TimerTask;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapred.TaskTrackerStatus.TaskTrackerHealthStatus;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Path;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
-import junit.framework.TestCase;
-
-public class TestNodeHealthService extends TestCase {
+public class TestNodeHealthService {
 
   private static volatile Log LOG = LogFactory
       .getLog(TestNodeHealthService.class);
 
-  private static final String nodeHealthConfigPath = System.getProperty(
-      "test.build.extraconf", "build/test/extraconf");
+  protected static File testRootDir = new File("target",
+      TestNodeHealthService.class.getName() + "-localDir").getAbsoluteFile();
 
-  final static File nodeHealthConfigFile = new File(nodeHealthConfigPath,
-      "mapred-site.xml");
+  final static File nodeHealthConfigFile = new File(testRootDir,
+      "modified-mapred-site.xml");
 
-  private String testRootDir = new File(System.getProperty("test.build.data",
-      "/tmp")).getAbsolutePath();
+  private File nodeHealthscriptFile = new File(testRootDir,
+      "failingscript.sh");
 
-  private File nodeHealthscriptFile = new File(testRootDir, "failingscript.sh");
+  @Before
+  public void setup() {
+    testRootDir.mkdirs();
+  }
 
-  @Override
-  protected void tearDown() throws Exception {
-    if (nodeHealthConfigFile.exists()) {
-      nodeHealthConfigFile.delete();
+  @After
+  public void tearDown() throws Exception {
+    if (testRootDir.exists()) {
+      FileContext.getLocalFSFileContext().delete(
+          new Path(testRootDir.getAbsolutePath()), true);
     }
-    if (nodeHealthscriptFile.exists()) {
-      nodeHealthscriptFile.delete();
-    }
-    super.tearDown();
   }
 
   private Configuration getConfForNodeHealthScript() {
@@ -77,35 +80,39 @@ public class TestNodeHealthService extends TestCase {
     nodeHealthscriptFile.setExecutable(setExecutable);
   }
 
+  @Test
   public void testNodeHealthScriptShouldRun() throws IOException {
     // Node health script should not start if there is no property called
     // node health script path.
-    assertFalse("Health checker should not have started",
+    Assert.assertFalse("By default Health checker should not have started",
         NodeHealthCheckerService.shouldRun(new Configuration()));
     Configuration conf = getConfForNodeHealthScript();
     // Node health script should not start if the node health script does not
     // exists
-    assertFalse("Node health script should start", NodeHealthCheckerService
+    Assert.assertFalse("Node health script should start", NodeHealthCheckerService
         .shouldRun(conf));
     // Create script path.
     conf.writeXml(new FileOutputStream(nodeHealthConfigFile));
+    conf.addResource(nodeHealthConfigFile.getName());
     writeNodeHealthScriptFile("", false);
     // Node health script should not start if the node health script is not
     // executable.
-    assertFalse("Node health script should start", NodeHealthCheckerService
+    Assert.assertFalse("Node health script should start", NodeHealthCheckerService
         .shouldRun(conf));
     writeNodeHealthScriptFile("", true);
-    assertTrue("Node health script should start", NodeHealthCheckerService
+    Assert.assertTrue("Node health script should start", NodeHealthCheckerService
         .shouldRun(conf));
   }
 
+  @Test
   public void testNodeHealthScript() throws Exception {
-    TaskTrackerHealthStatus healthStatus = new TaskTrackerHealthStatus();
+    NodeHealthStatus healthStatus = new NodeHealthStatus();
     String errorScript = "echo ERROR\n echo \"Tracker not healthy\"";
     String normalScript = "echo \"I am all fine\"";
     String timeOutScript = "sleep 4\n echo\"I am fine\"";
     Configuration conf = getConfForNodeHealthScript();
     conf.writeXml(new FileOutputStream(nodeHealthConfigFile));
+    conf.addResource(nodeHealthConfigFile.getName());
 
     NodeHealthCheckerService nodeHealthChecker = new NodeHealthCheckerService(
         conf);
@@ -116,9 +123,9 @@ public class TestNodeHealthService extends TestCase {
     nodeHealthChecker.setHealthStatus(healthStatus);
     LOG.info("Checking initial healthy condition");
     // Check proper report conditions.
-    assertTrue("Node health status reported unhealthy", healthStatus
+    Assert.assertTrue("Node health status reported unhealthy", healthStatus
         .isNodeHealthy());
-    assertTrue("Node health status reported unhealthy", healthStatus
+    Assert.assertTrue("Node health status reported unhealthy", healthStatus
         .getHealthReport().isEmpty());
 
     // write out error file.
@@ -129,9 +136,9 @@ public class TestNodeHealthService extends TestCase {
     // update health status
     nodeHealthChecker.setHealthStatus(healthStatus);
     LOG.info("Checking Healthy--->Unhealthy");
-    assertFalse("Node health status reported healthy", healthStatus
+    Assert.assertFalse("Node health status reported healthy", healthStatus
         .isNodeHealthy());
-    assertFalse("Node health status reported healthy", healthStatus
+    Assert.assertFalse("Node health status reported healthy", healthStatus
         .getHealthReport().isEmpty());
     
     // Check unhealthy to healthy transitions.
@@ -140,9 +147,9 @@ public class TestNodeHealthService extends TestCase {
     nodeHealthChecker.setHealthStatus(healthStatus);
     LOG.info("Checking UnHealthy--->healthy");
     // Check proper report conditions.
-    assertTrue("Node health status reported unhealthy", healthStatus
+    Assert.assertTrue("Node health status reported unhealthy", healthStatus
         .isNodeHealthy());
-    assertTrue("Node health status reported unhealthy", healthStatus
+    Assert.assertTrue("Node health status reported unhealthy", healthStatus
         .getHealthReport().isEmpty());
 
     // Healthy to timeout transition.
@@ -150,9 +157,9 @@ public class TestNodeHealthService extends TestCase {
     timer.run();
     nodeHealthChecker.setHealthStatus(healthStatus);
     LOG.info("Checking Healthy--->timeout");
-    assertFalse("Node health status reported healthy even after timeout",
+    Assert.assertFalse("Node health status reported healthy even after timeout",
         healthStatus.isNodeHealthy());
-    assertEquals("Node time out message not propogated", healthStatus
+    Assert.assertEquals("Node time out message not propogated", healthStatus
         .getHealthReport(),
         NodeHealthCheckerService.NODE_HEALTH_SCRIPT_TIMED_OUT_MSG);
   }

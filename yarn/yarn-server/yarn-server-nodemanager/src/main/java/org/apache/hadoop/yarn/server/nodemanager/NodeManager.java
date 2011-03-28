@@ -27,6 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+import org.apache.hadoop.NodeHealthCheckerService;
+import org.apache.hadoop.NodeHealthStatus;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -60,11 +62,17 @@ public class NodeManager extends CompositeService {
     // NodeManager level dispatcher
     Dispatcher dispatcher = new AsyncDispatcher();
 
+    NodeHealthCheckerService healthChecker = null;
+    if (NodeHealthCheckerService.shouldRun(conf)) {
+      healthChecker = new NodeHealthCheckerService();
+      addService(healthChecker);
+    }
+
     // StatusUpdater should be added first so that it can start first. Once it
     // contacts RM, does registration and gets tokens, then only
     // ContainerManager can start.
     NodeStatusUpdater nodeStatusUpdater =
-        createNodeStatusUpdater(context, dispatcher);
+        createNodeStatusUpdater(context, dispatcher, healthChecker);
     addService(nodeStatusUpdater);
 
     NodeResourceMonitor nodeResourceMonitor = createNodeResourceMonitor();
@@ -81,8 +89,8 @@ public class NodeManager extends CompositeService {
   }
 
   protected NodeStatusUpdater createNodeStatusUpdater(Context context,
-      Dispatcher dispatcher) {
-    return new NodeStatusUpdaterImpl(context, dispatcher);
+      Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
+    return new NodeStatusUpdaterImpl(context, dispatcher, healthChecker);
   }
 
   protected NodeResourceMonitor createNodeResourceMonitor() {
@@ -146,6 +154,8 @@ public class NodeManager extends CompositeService {
             }
           });
 
+    private final NodeHealthStatus nodeHealthStatus = new NodeHealthStatus();
+
     public NMContext() {
     }
 
@@ -159,6 +169,10 @@ public class NodeManager extends CompositeService {
       return this.containers;
     }
 
+    @Override
+    public NodeHealthStatus getNodeHealthStatus() {
+      return this.nodeHealthStatus;
+    }
   }
 
   public static void main(String[] args) {

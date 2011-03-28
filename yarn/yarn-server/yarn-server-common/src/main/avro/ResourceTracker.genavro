@@ -13,6 +13,9 @@ protocol ResourceTracker {
 	int responseId;
 	long lastSeen;
     map<array<org.apache.hadoop.yarn.Container>> containers;
+    boolean isNodeHealthy;
+    union {string, null} healthReport;
+    long lastHealthReport;
   }
 
   record RegistrationResponse {

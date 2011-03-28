@@ -1,4 +1,9 @@
 <?xml version="1.0"?><project>
+
+  <properties>
+    <yarn.version>1.0-SNAPSHOT</yarn.version>
+  </properties>
+
   <parent>
     <artifactId>yarn</artifactId>
     <groupId>org.apache.hadoop</groupId>

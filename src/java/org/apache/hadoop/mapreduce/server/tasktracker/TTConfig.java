@@ -30,15 +30,6 @@ import org.apache.hadoop.mapreduce.MRConfig;
 @InterfaceStability.Evolving
 public interface TTConfig extends MRConfig {
 
-  // Task-tracker configuration properties
-  public static final String TT_HEALTH_CHECKER_INTERVAL = 
-    "mapreduce.tasktracker.healthchecker.interval";
-  public static final String TT_HEALTH_CHECKER_SCRIPT_ARGS =
-    "mapreduce.tasktracker.healthchecker.script.args";
-  public static final String TT_HEALTH_CHECKER_SCRIPT_PATH =
-    "mapreduce.tasktracker.healthchecker.script.path";
-  public static final String TT_HEALTH_CHECKER_SCRIPT_TIMEOUT =
-    "mapreduce.tasktracker.healthchecker.script.timeout";
   public static final String TT_LOCAL_DIR_MINSPACE_KILL = 
     "mapreduce.tasktracker.local.dir.minspacekill";
   public static final String TT_LOCAL_DIR_MINSPACE_START = 

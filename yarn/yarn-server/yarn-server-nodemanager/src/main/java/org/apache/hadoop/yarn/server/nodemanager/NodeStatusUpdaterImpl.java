@@ -30,6 +30,8 @@ import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.NodeHealthCheckerService;
+import org.apache.hadoop.NodeHealthStatus;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
@@ -70,8 +72,12 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
   private byte[] secretKeyBytes = new byte[0];
   private boolean isStopped;
 
-  public NodeStatusUpdaterImpl(Context context, Dispatcher dispatcher) {
+  private final NodeHealthCheckerService healthChecker;
+
+  public NodeStatusUpdaterImpl(Context context, Dispatcher dispatcher,
+      NodeHealthCheckerService healthChecker) {
     super(NodeStatusUpdaterImpl.class.getName());
+    this.healthChecker = healthChecker;
     this.context = context;
     this.dispatcher = dispatcher;
   }
@@ -195,6 +201,14 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
 
     LOG.debug(this.nodeName + " sending out status for " + numActiveContainers
         + " containers");
+
+    if (this.healthChecker != null) {
+      NodeHealthStatus nodeHealthStatus = this.context.getNodeHealthStatus();
+      this.healthChecker.setHealthStatus(nodeHealthStatus);
+      status.isNodeHealthy = nodeHealthStatus.isNodeHealthy();
+      status.healthReport = nodeHealthStatus.getHealthReport();
+      status.lastHealthReport = nodeHealthStatus.getLastReported();
+    }
 
     return status;
   }

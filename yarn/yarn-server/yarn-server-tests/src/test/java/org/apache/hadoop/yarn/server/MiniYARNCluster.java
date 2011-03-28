@@ -23,6 +23,7 @@ import java.io.IOException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.YarnException;
@@ -133,8 +134,10 @@ public class MiniYARNCluster extends CompositeService {
               org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater
               createNodeStatusUpdater(
                   org.apache.hadoop.yarn.server.nodemanager.Context context,
-                  Dispatcher dispatcher) {
-            return new NodeStatusUpdaterImpl(context, dispatcher) {
+                  Dispatcher dispatcher,
+                  NodeHealthCheckerService healthChecker) {
+            return new NodeStatusUpdaterImpl(context, dispatcher,
+                healthChecker) {
               @Override
               protected org.apache.hadoop.yarn.ResourceTracker getRMClient() {
                 // For in-process communication without RPC

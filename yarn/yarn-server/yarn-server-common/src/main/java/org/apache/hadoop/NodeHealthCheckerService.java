@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapred;
+package org.apache.hadoop;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,11 +28,10 @@ import java.util.TimerTask;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapred.TaskTrackerStatus.TaskTrackerHealthStatus;
-import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
-import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
+import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.service.AbstractService;
 
 /**
  * 
@@ -40,7 +39,7 @@ import org.apache.hadoop.util.Shell.ShellCommandExecutor;
  * reporting back to the service for which the health checker has been asked to
  * report.
  */
-class NodeHealthCheckerService {
+public class NodeHealthCheckerService extends AbstractService {
 
   private static Log LOG = LogFactory.getLog(NodeHealthCheckerService.class);
 
@@ -63,17 +62,17 @@ class NodeHealthCheckerService {
   static private final String ERROR_PATTERN = "ERROR";
 
   /* Configuration keys */
-  static final String HEALTH_CHECK_SCRIPT_PROPERTY = 
-    TTConfig.TT_HEALTH_CHECKER_SCRIPT_PATH;
+  public static final String HEALTH_CHECK_SCRIPT_PROPERTY = 
+    "yarn.server.nodemanager.healthchecker.script.path";
 
-  static final String HEALTH_CHECK_INTERVAL_PROPERTY = 
-    TTConfig.TT_HEALTH_CHECKER_INTERVAL;
+  public static final String HEALTH_CHECK_INTERVAL_PROPERTY = 
+    "yarn.server.nodemanager.healthchecker.interval";
 
-  static final String HEALTH_CHECK_FAILURE_INTERVAL_PROPERTY = 
-    TTConfig.TT_HEALTH_CHECKER_SCRIPT_TIMEOUT;
+  public static final String HEALTH_CHECK_FAILURE_INTERVAL_PROPERTY = 
+    "yarn.server.nodemanager.healthchecker.script.timeout";
 
-  static final String HEALTH_CHECK_SCRIPT_ARGUMENTS_PROPERTY = 
-    TTConfig.TT_HEALTH_CHECKER_SCRIPT_ARGS;
+  public static final String HEALTH_CHECK_SCRIPT_ARGUMENTS_PROPERTY = 
+    "yarn.server.nodemanager.healthchecker.script.args";
   
   /* end of configuration keys */
   /** Time out error message */
@@ -205,26 +204,32 @@ class NodeHealthCheckerService {
     }
   }
 
-  public NodeHealthCheckerService(Configuration conf) {
-    this.conf = conf;
+  public NodeHealthCheckerService() {
+    super(NodeHealthCheckerService.class.getName());
     this.lastReportedTime = System.currentTimeMillis();
     this.isHealthy = true;
-    this.healthReport = "";
-    initialize(conf);
+    this.healthReport = "";    
+  }
+
+  public NodeHealthCheckerService(Configuration conf) {
+    this();
+    this.conf = conf;
+    init(conf);
   }
 
   /*
    * Method which initializes the values for the script path and interval time.
    */
-  private void initialize(Configuration conf) {
+  @Override
+  public void init(Configuration conf) {
     this.nodeHealthScript = 
-        conf.get(TTConfig.TT_HEALTH_CHECKER_SCRIPT_PATH);
-    this.intervalTime = conf.getLong(TTConfig.TT_HEALTH_CHECKER_INTERVAL,
+        conf.get(HEALTH_CHECK_SCRIPT_PROPERTY);
+    this.intervalTime = conf.getLong(HEALTH_CHECK_INTERVAL_PROPERTY,
         DEFAULT_HEALTH_CHECK_INTERVAL);
     this.scriptTimeout = conf.getLong(
-        TTConfig.TT_HEALTH_CHECKER_SCRIPT_TIMEOUT,
+        HEALTH_CHECK_FAILURE_INTERVAL_PROPERTY,
         DEFAULT_HEALTH_SCRIPT_FAILURE_INTERVAL);
-    String[] args = conf.getStrings(TTConfig.TT_HEALTH_CHECKER_SCRIPT_ARGS,
+    String[] args = conf.getStrings(HEALTH_CHECK_SCRIPT_ARGUMENTS_PROPERTY,
         new String[] {});
     timer = new NodeHealthMonitorExecutor(args);
   }
@@ -233,7 +238,8 @@ class NodeHealthCheckerService {
    * Method used to start the Node health monitoring.
    * 
    */
-  void start() {
+  @Override
+  public void start() {
     // if health script path is not configured don't start the thread.
     if (!shouldRun(conf)) {
       LOG.info("Not starting node health monitor");
@@ -249,7 +255,8 @@ class NodeHealthCheckerService {
    * Method used to terminate the node health monitoring service.
    * 
    */
-  void stop() {
+  @Override
+  public void stop() {
     if (!shouldRun(conf)) {
       return;
     }
@@ -330,9 +337,9 @@ class NodeHealthCheckerService {
    * @param conf
    * @return true if node health monitoring service can be started.
    */
-  static boolean shouldRun(Configuration conf) {
+  public static boolean shouldRun(Configuration conf) {
     String nodeHealthScript = 
-      conf.get(TTConfig.TT_HEALTH_CHECKER_SCRIPT_PATH);
+      conf.get(HEALTH_CHECK_SCRIPT_PROPERTY);
     if (nodeHealthScript == null || nodeHealthScript.trim().isEmpty()) {
       return false;
     }
@@ -352,11 +359,11 @@ class NodeHealthCheckerService {
   }
   
   /**
-   * Method to populate the fields for the {@link TaskTrackerHealthStatus}
+   * Method to populate the fields for the {@link NodeHealthStatus}
    * 
    * @param healthStatus
    */
-  synchronized void setHealthStatus(TaskTrackerHealthStatus healthStatus) {
+  public synchronized void setHealthStatus(NodeHealthStatus healthStatus) {
     healthStatus.setNodeHealthy(this.isHealthy());
     healthStatus.setHealthReport(this.getHealthReport());
     healthStatus.setLastReported(this.getLastReportedTime());

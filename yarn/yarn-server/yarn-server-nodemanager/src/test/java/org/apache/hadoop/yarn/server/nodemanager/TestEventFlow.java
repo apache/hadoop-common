@@ -24,6 +24,7 @@ import java.util.HashMap;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.ContainerID;
@@ -49,8 +50,9 @@ public class TestEventFlow {
     ContainerExecutor exec = new DefaultContainerExecutor();
     DeletionService del = new DeletionService(exec);
     Dispatcher dispatcher = new AsyncDispatcher();
+    NodeHealthCheckerService healthChecker = null;
     NodeStatusUpdater nodeStatusUpdater =
-        new NodeStatusUpdaterImpl(context, dispatcher) {
+        new NodeStatusUpdaterImpl(context, dispatcher, healthChecker) {
       @Override
       protected org.apache.hadoop.yarn.ResourceTracker getRMClient() {
         return new LocalRMInterface();

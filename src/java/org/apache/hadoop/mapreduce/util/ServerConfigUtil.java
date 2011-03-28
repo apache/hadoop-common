@@ -8,6 +8,7 @@ import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.tasktracker.TTConfig;
+import org.apache.hadoop.NodeHealthCheckerService;
 
 /**
  * Place holder for deprecated keys in the framework 
@@ -105,13 +106,24 @@ public class ServerConfigUtil {
     Configuration.addDeprecation("mapred.job.tracker.retire.jobs", 
       new String[] {JTConfig.JT_RETIREJOBS});
     Configuration.addDeprecation("mapred.healthChecker.interval", 
-      new String[] {TTConfig.TT_HEALTH_CHECKER_INTERVAL});
-    Configuration.addDeprecation("mapred.healthChecker.script.args", 
-      new String[] {TTConfig.TT_HEALTH_CHECKER_SCRIPT_ARGS});
-    Configuration.addDeprecation("mapred.healthChecker.script.path", 
-      new String[] {TTConfig.TT_HEALTH_CHECKER_SCRIPT_PATH});
-    Configuration.addDeprecation("mapred.healthChecker.script.timeout", 
-      new String[] {TTConfig.TT_HEALTH_CHECKER_SCRIPT_TIMEOUT});
+      new String[] {NodeHealthCheckerService.HEALTH_CHECK_INTERVAL_PROPERTY});
+    Configuration
+        .addDeprecation(
+            "mapred.healthChecker.script.args",
+            new String[] {
+                NodeHealthCheckerService.HEALTH_CHECK_SCRIPT_ARGUMENTS_PROPERTY
+            });
+    Configuration
+        .addDeprecation(
+            "mapred.healthChecker.script.path",
+            new String[] {
+                NodeHealthCheckerService.HEALTH_CHECK_SCRIPT_PROPERTY });
+    Configuration
+        .addDeprecation(
+            "mapred.healthChecker.script.timeout",
+            new String[] {
+                NodeHealthCheckerService.HEALTH_CHECK_FAILURE_INTERVAL_PROPERTY
+            });
     Configuration.addDeprecation("mapred.local.dir.minspacekill", 
       new String[] {TTConfig.TT_LOCAL_DIR_MINSPACE_KILL});
     Configuration.addDeprecation("mapred.local.dir.minspacestart", 
@@ -148,5 +160,27 @@ public class ServerConfigUtil {
       new String[] {TTConfig.TT_LOCAL_CACHE_SIZE});
     Configuration.addDeprecation("tasktracker.contention.tracking", 
       new String[] {TTConfig.TT_CONTENTION_TRACKING});
+    Configuration
+        .addDeprecation(
+            "mapreduce.tasktracker.healthchecker.interval",
+            new String[] {
+                NodeHealthCheckerService.HEALTH_CHECK_INTERVAL_PROPERTY });
+    Configuration
+        .addDeprecation(
+            "mapreduce.tasktracker.healthchecker.script.args",
+            new String[] {
+                NodeHealthCheckerService.HEALTH_CHECK_SCRIPT_ARGUMENTS_PROPERTY
+            });
+    Configuration
+        .addDeprecation(
+            "mapreduce.tasktracker.healthchecker.script.path",
+            new String[] {
+                NodeHealthCheckerService.HEALTH_CHECK_SCRIPT_PROPERTY });
+    Configuration
+        .addDeprecation(
+            "mapreduce.tasktracker.healthchecker.script.timeout",
+            new String[] {
+                NodeHealthCheckerService.HEALTH_CHECK_FAILURE_INTERVAL_PROPERTY
+            });
   }
 }

@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.ApplicationID;
@@ -159,8 +160,9 @@ public class TestNodeStatusUpdater {
   private class MyNodeStatusUpdater extends NodeStatusUpdaterImpl {
     private Context context;
 
-    public MyNodeStatusUpdater(Context context, Dispatcher dispatcher) {
-      super(context, dispatcher);
+    public MyNodeStatusUpdater(Context context, Dispatcher dispatcher,
+        NodeHealthCheckerService healthChecker) {
+      super(context, dispatcher, healthChecker);
       this.context = context;
     }
 
@@ -186,8 +188,8 @@ public class TestNodeStatusUpdater {
     final NodeManager nm = new NodeManager() {
       @Override
       protected NodeStatusUpdater createNodeStatusUpdater(Context context,
-          Dispatcher dispatcher) {
-        return new MyNodeStatusUpdater(context, dispatcher);
+          Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
+        return new MyNodeStatusUpdater(context, dispatcher, healthChecker);
       }
     };
 

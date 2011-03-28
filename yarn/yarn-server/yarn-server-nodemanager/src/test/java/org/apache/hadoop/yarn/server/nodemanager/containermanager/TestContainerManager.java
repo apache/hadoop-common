@@ -33,6 +33,7 @@ import junit.framework.Assert;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
@@ -98,11 +99,11 @@ public class TestContainerManager {
   private ContainerExecutor exec = new DefaultContainerExecutor();
   private DeletionService delSrvc;
   private Dispatcher dispatcher = new AsyncDispatcher();
-
+  private NodeHealthCheckerService healthChecker = null;
   private String user = "nobody";
 
   private NodeStatusUpdater nodeStatusUpdater = new NodeStatusUpdaterImpl(
-      context, dispatcher) {
+      context, dispatcher, healthChecker) {
     @Override
     protected org.apache.hadoop.yarn.ResourceTracker getRMClient() {
       return new LocalRMInterface();
