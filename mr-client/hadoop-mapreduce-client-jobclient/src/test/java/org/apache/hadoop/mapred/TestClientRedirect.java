@@ -306,5 +306,12 @@ public class TestClientRedirect {
         throws AvroRemoteException, YarnRemoteException {
       return null;
     }
+
+    @Override
+    public Void failTaskAttempt(
+        org.apache.hadoop.mapreduce.v2.api.TaskAttemptID taskAttemptID)
+        throws AvroRemoteException, YarnRemoteException {
+      return null;
+    }
   }
 }

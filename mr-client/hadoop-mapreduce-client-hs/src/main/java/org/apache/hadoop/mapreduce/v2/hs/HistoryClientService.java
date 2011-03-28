@@ -172,6 +172,13 @@ public class HistoryClientService extends AbstractService {
     }
 
     @Override
+    public Void failTaskAttempt(TaskAttemptID taskAttemptID)
+        throws AvroRemoteException {
+      getJob(taskAttemptID.taskID.jobID);
+      throw RPCUtil.getRemoteException("Invalid operation on completed job");
+    }
+
+    @Override
     public List<CharSequence> getDiagnostics(TaskAttemptID taskAttemptID)
         throws AvroRemoteException {
       Job job = getJob(taskAttemptID.taskID.jobID);

@@ -265,19 +265,27 @@ public class ClientServiceDelegate {
     return null;
   }
 
-  public boolean killTask(TaskAttemptID taskAttemptID, boolean killed)
+  public boolean killTask(TaskAttemptID taskAttemptID, boolean fail)
       throws YarnRemoteException, AvroRemoteException {
     org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID 
       = TypeConverter.toYarn(taskAttemptID);
     try {
-      getProxy(taskAttemptID.getJobID()).killTaskAttempt(attemptID);
+      if (fail) {
+        getProxy(taskAttemptID.getJobID()).failTaskAttempt(attemptID);
+      } else {
+        getProxy(taskAttemptID.getJobID()).killTaskAttempt(attemptID);
+      }
     } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
       LOG.warn(RPCUtil.toString(yre));
       throw yre;
     } catch(Exception e) {
       LOG.debug("Failed to contact application master ", e);
       try {
-        getRefreshedProxy(taskAttemptID.getJobID()).killTaskAttempt(attemptID);
+        if (fail) {
+          getRefreshedProxy(taskAttemptID.getJobID()).failTaskAttempt(attemptID);
+        } else {
+          getRefreshedProxy(taskAttemptID.getJobID()).killTaskAttempt(attemptID);
+        }
       } catch(YarnRemoteException yre) {
         LOG.warn(RPCUtil.toString(yre));
         throw yre;

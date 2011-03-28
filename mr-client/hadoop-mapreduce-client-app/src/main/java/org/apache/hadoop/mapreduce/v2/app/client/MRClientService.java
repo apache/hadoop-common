@@ -208,6 +208,7 @@ public class MRClientService extends AbstractService
 
     @Override
     public Void killJob(JobID jobID) throws AvroRemoteException {
+      LOG.info("Kill Job received from client " + jobID);
       verifyAndGetJob(jobID);
       appContext.getEventHandler().handle(
           new JobEvent(jobID, JobEventType.JOB_KILL));
@@ -216,6 +217,7 @@ public class MRClientService extends AbstractService
 
     @Override
     public Void killTask(TaskID taskID) throws AvroRemoteException {
+      LOG.info("Kill task received from client " + taskID);
       verifyAndGetTask(taskID);
       appContext.getEventHandler().handle(
           new TaskEvent(taskID, TaskEventType.T_KILL));
@@ -225,10 +227,22 @@ public class MRClientService extends AbstractService
     @Override
     public Void killTaskAttempt(TaskAttemptID taskAttemptID)
         throws AvroRemoteException {
+      LOG.info("Kill task attempt received from client " + taskAttemptID);
       verifyAndGetAttempt(taskAttemptID);
       appContext.getEventHandler().handle(
           new TaskAttemptEvent(taskAttemptID, 
               TaskAttemptEventType.TA_KILL));
+      return null;
+    }
+
+    @Override
+    public Void failTaskAttempt(TaskAttemptID taskAttemptID)
+        throws AvroRemoteException {
+      LOG.info("Fail task attempt received from client " + taskAttemptID);
+      verifyAndGetAttempt(taskAttemptID);
+      appContext.getEventHandler().handle(
+          new TaskAttemptEvent(taskAttemptID, 
+              TaskAttemptEventType.TA_FAILMSG));
       return null;
     }
 

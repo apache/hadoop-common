@@ -147,5 +147,6 @@ protocol MRClientProtocol {
   void killJob(JobID jobID) throws org.apache.hadoop.yarn.YarnRemoteException;
   void killTask(TaskID taskID) throws org.apache.hadoop.yarn.YarnRemoteException;
   void killTaskAttempt(TaskAttemptID taskAttemptID) throws org.apache.hadoop.yarn.YarnRemoteException;
+  void failTaskAttempt(TaskAttemptID taskAttemptID) throws org.apache.hadoop.yarn.YarnRemoteException;
 
 }
