@@ -32,7 +32,10 @@ import org.apache.hadoop.SleepJob;
 import org.apache.hadoop.RandomTextWriterJob.RandomInputFormat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobStatus;
@@ -41,6 +44,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.TaskCompletionEvent;
 import org.apache.hadoop.mapreduce.TaskID;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -109,13 +113,27 @@ public class TestMRJobs {
     mrCluster.getConfig().set(RandomTextWriterJob.TOTAL_BYTES, "3072");
     mrCluster.getConfig().set(RandomTextWriterJob.BYTES_PER_MAP, "1024");
     Job job = randomWriterJob.createJob(mrCluster.getConfig());
-    FileOutputFormat.setOutputPath(job, new Path(mrCluster.getTestWorkDir().getAbsolutePath(),
-        "random-output"));
+    Path outputDir = new Path(mrCluster.getTestWorkDir().getAbsolutePath(),
+        "random-output");
+    FileOutputFormat.setOutputPath(job, outputDir);
     // TODO: We should not be setting MRAppJar as job.jar. It should be
     // uploaded separately by YarnRunner.
     job.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
     job.waitForCompletion(true);
     Assert.assertEquals(JobStatus.State.SUCCEEDED, job.getJobState());
+    // Make sure there are three files in the output-dir
+    RemoteIterator<FileStatus> iterator =
+        FileContext.getFileContext(mrCluster.getConfig()).listStatus(
+            outputDir);
+    int count = 0;
+    while (iterator.hasNext()) {
+      FileStatus file = iterator.next();
+      if (!file.getPath().getName()
+          .equals(FileOutputCommitter.SUCCEEDED_FILE_NAME)) {
+        count++;
+      }
+    }
+    Assert.assertEquals("Number of part files is wrong!", 3, count);
   }
 
   @Test

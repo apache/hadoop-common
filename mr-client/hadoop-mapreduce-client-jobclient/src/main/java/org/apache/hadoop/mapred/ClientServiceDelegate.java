@@ -27,6 +27,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.JobStatus;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
@@ -39,6 +40,7 @@ import org.apache.hadoop.mapreduce.v2.api.TaskReport;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.ApplicationMaster;
 import org.apache.hadoop.yarn.ApplicationState;
@@ -46,6 +48,7 @@ import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.YarnRemoteException;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
+import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.SchedulerSecurityInfo;
 
 public class ClientServiceDelegate {
@@ -92,6 +95,19 @@ public class ClientServiceDelegate {
     } else if (ApplicationState.RUNNING.equals(appMaster.state)){
       serviceAddr = appMaster.host + ":" + appMaster.rpcPort;
       serviceHttpAddr = appMaster.host + ":" + appMaster.httpPort;
+      if (UserGroupInformation.isSecurityEnabled()) {
+        String clientTokenEncoded = appMaster.clientToken.toString();
+        Token<ApplicationTokenIdentifier> clientToken =
+            new Token<ApplicationTokenIdentifier>();
+        try {
+          clientToken.decodeFromUrlString(clientTokenEncoded);
+          clientToken.setService(new Text(appMaster.host.toString() + ":"
+              + appMaster.rpcPort));
+          UserGroupInformation.getCurrentUser().addToken(clientToken);
+        } catch (IOException e) {
+          throw new YarnException(e);
+        }
+      }
     } else {
       LOG.warn("Cannot connect to Application with state " + appMaster.state);
       throw new YarnException(
