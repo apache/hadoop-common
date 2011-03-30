@@ -35,8 +35,10 @@ import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.mapreduce.v2.api.Counters;
 import org.apache.hadoop.mapreduce.v2.api.JobID;
 import org.apache.hadoop.mapreduce.v2.api.JobReport;
@@ -158,22 +160,26 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
       LOG.error("user null is not allowed");
     }
     String jobName = TypeConverter.fromYarn(jobID).toString();
-    String jobhistoryDir = conf.get("yarn.server.nodemanager.jobhistory",
-        "file:///tmp/yarn/done")
+    String defaultDoneDir = conf.get(
+        YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
+    String  jobhistoryDir =
+      conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY, defaultDoneDir)
         + "/" + user;
     FSDataInputStream in = null;
-    String jobhistoryFileName = jobName; // TODO use existing hadoop dire
-                                         // structure
-    Path historyFilePath = new Path(jobhistoryDir, jobhistoryFileName);
-
+    Path historyFile = null;
     try {
-      FileContext fc = FileContext.getFileContext(historyFilePath.toUri());
-      in = fc.open(historyFilePath);
+      Path doneDirPath = FileContext.getFileContext(conf).makeQualified(
+          new Path(jobhistoryDir));
+      FileContext fc =
+        FileContext.getFileContext(doneDirPath.toUri(),conf);
+      historyFile =
+        fc.makeQualified(new Path(doneDirPath, jobName));
+      in = fc.open(historyFile);
       JobHistoryParser parser = new JobHistoryParser(in);
       jobInfo = parser.parse();
       LOG.info("jobInfo loaded");
     } catch (IOException e) {
-      throw new YarnException("Could not load history file " + historyFilePath,
+      throw new YarnException("Could not load history file " + historyFile,
           e);
     }
     
@@ -193,8 +199,6 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     
     // TODO: populate the TaskAttemptCompletionEvent
     completionEvents = new TaskAttemptCompletionEvent[0];
-    
-    
   }
 
   @Override

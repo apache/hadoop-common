@@ -50,12 +50,13 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
 
   private static final Log LOG = LogFactory.getLog(MiniMRYarnCluster.class);
   private JobHistoryServer historyServer;
+  private JobHistoryServerWrapper historyServerWrapper;
 
   public MiniMRYarnCluster(String testName) {
     super(testName);
     //TODO: add the history server
-    //historyServer = new JobHistoryServerWrapper();
-    //addService(historyServer);
+    historyServerWrapper = new JobHistoryServerWrapper();
+    addService(historyServerWrapper);
   }
 
   @Override
@@ -70,10 +71,6 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
         "apps_staging_dir/${user.name}/").getAbsolutePath());
     conf.set(MRConfig.MASTER_ADDRESS, "test"); // The default is local because of
                                              // which shuffle doesn't happen
-    conf.set(YarnMRJobConfig.HISTORY_STAGING_DIR_KEY,
-        "file:///tmp/yarn/");
-    conf.set(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
-        "file:///tmp/yarn/done/");
     //configure the shuffle service in NM
     conf.setStrings(AuxServices.AUX_SERVICES,
         new String[] { ShuffleHandler.MAPREDUCE_SHUFFLE_SERVICEID });
@@ -110,5 +107,8 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
         throw new YarnException(t);
       }
     }
+  }
+  public JobHistoryServer getHistoryServer() {
+	  return this.historyServer;
   }
 }
