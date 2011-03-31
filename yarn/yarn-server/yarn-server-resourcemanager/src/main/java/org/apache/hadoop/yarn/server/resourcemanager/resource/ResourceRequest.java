@@ -18,48 +18,50 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resource;
 
-import org.apache.hadoop.yarn.Priority;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class ResourceRequest {
   
-  public static org.apache.hadoop.yarn.ResourceRequest create(
-      Priority priority, CharSequence hostName, 
-      org.apache.hadoop.yarn.Resource capability, int numContainers) {
-    org.apache.hadoop.yarn.ResourceRequest request = 
-      new org.apache.hadoop.yarn.ResourceRequest();
-    request.priority = priority;
-    request.hostName = hostName;
-    request.capability = capability;
-    request.numContainers = numContainers;
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
+  public static org.apache.hadoop.yarn.api.records.ResourceRequest create(
+      Priority priority, String hostName, 
+      org.apache.hadoop.yarn.api.records.Resource capability, int numContainers) {
+    org.apache.hadoop.yarn.api.records.ResourceRequest request = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.ResourceRequest.class);
+    request.setPriority(priority);
+    request.setHostName(hostName);
+    request.setCapability(capability);
+    request.setNumContainers(numContainers);
     return request;
   }
   
-  public static org.apache.hadoop.yarn.ResourceRequest create(
-      org.apache.hadoop.yarn.ResourceRequest r) {
-    org.apache.hadoop.yarn.ResourceRequest request = 
-      new org.apache.hadoop.yarn.ResourceRequest();
-    request.priority = r.priority;
-    request.hostName = r.hostName;
-    request.capability = r.capability;
-    request.numContainers = r.numContainers;
+  public static org.apache.hadoop.yarn.api.records.ResourceRequest create(
+      org.apache.hadoop.yarn.api.records.ResourceRequest r) {
+    org.apache.hadoop.yarn.api.records.ResourceRequest request = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.ResourceRequest.class);
+    request.setPriority(r.getPriority());
+    request.setHostName(r.getHostName());
+    request.setCapability(r.getCapability());
+    request.setNumContainers(r.getNumContainers());
     return request;
   }
   
   public static class Comparator 
-  implements java.util.Comparator<org.apache.hadoop.yarn.ResourceRequest> {
+  implements java.util.Comparator<org.apache.hadoop.yarn.api.records.ResourceRequest> {
     @Override
-    public int compare(org.apache.hadoop.yarn.ResourceRequest r1,
-        org.apache.hadoop.yarn.ResourceRequest r2) {
+    public int compare(org.apache.hadoop.yarn.api.records.ResourceRequest r1,
+        org.apache.hadoop.yarn.api.records.ResourceRequest r2) {
       
       // Compare priority, host and capability
-      int ret = r1.priority.compareTo(r2.priority);
+      int ret = r1.getPriority().compareTo(r2.getPriority());
       if (ret == 0) {
-        String h1 = r1.hostName.toString();
-        String h2 = r2.hostName.toString();
+        String h1 = r1.getHostName();
+        String h2 = r2.getHostName();
         ret = h1.compareTo(h2);
       }
       if (ret == 0) {
-        ret = r1.capability.compareTo(r2.capability);
+        ret = r1.getCapability().compareTo(r2.getCapability());
       }
       return ret;
     }

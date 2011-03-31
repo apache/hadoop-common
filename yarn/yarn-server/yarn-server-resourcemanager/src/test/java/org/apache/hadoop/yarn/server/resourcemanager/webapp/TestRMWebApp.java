@@ -31,6 +31,11 @@ import static org.apache.hadoop.yarn.webapp.Params.*;
 
 import org.apache.hadoop.yarn.Application;
 import org.apache.hadoop.yarn.MockApps;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.MockNodes;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.AppContext;
@@ -43,9 +48,6 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.Capacity
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacitySchedulerConfiguration;
 import org.apache.hadoop.yarn.webapp.WebApps;
 import org.apache.hadoop.yarn.webapp.test.WebAppTests;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -53,10 +55,11 @@ import static org.mockito.Mockito.*;
 
 public class TestRMWebApp {
   static final int GiB = 1024; // MiB
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   static class TestAsm implements ApplicationsManager {
     final List<Application> appsList;
-    final Map<ApplicationID, Application> appsMap = Maps.newHashMap();
+    final Map<ApplicationId, Application> appsMap = Maps.newHashMap();
 
     TestAsm(int n) {
       appsList = MockApps.genApps(n);
@@ -66,17 +69,17 @@ public class TestRMWebApp {
     }
 
     @Override
-    public ApplicationID getNewApplicationID() {
+    public ApplicationId getNewApplicationID() {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public ApplicationMaster getApplicationMaster(ApplicationID applicationId) {
+    public ApplicationMaster getApplicationMaster(ApplicationId applicationId) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public Application getApplication(ApplicationID applicationID) {
+    public Application getApplication(ApplicationId applicationID) {
       return appsMap.get(applicationID);
     }
 
@@ -86,7 +89,7 @@ public class TestRMWebApp {
     }
 
     @Override
-    public void finishApplication(ApplicationID applicationId) throws IOException {
+    public void finishApplication(ApplicationId applicationId) throws IOException {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 

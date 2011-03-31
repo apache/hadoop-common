@@ -31,8 +31,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.LocalizationProtocol;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 
 public abstract class ContainerExecutor implements Configurable {
@@ -42,8 +42,8 @@ public abstract class ContainerExecutor implements Configurable {
     FsPermission.createImmutable((short) 0700);
 
   private Configuration conf;
-  protected ConcurrentMap<ContainerID, ShellCommandExecutor> launchCommandObjs =
-      new ConcurrentHashMap<ContainerID, ShellCommandExecutor>();
+  protected ConcurrentMap<ContainerId, ShellCommandExecutor> launchCommandObjs =
+      new ConcurrentHashMap<ContainerId, ShellCommandExecutor>();
 
   @Override
   public void setConf(Configuration conf) {
@@ -149,7 +149,7 @@ public abstract class ContainerExecutor implements Configurable {
    * @return the processid of the container if it has already launched,
    *         otherwise return null
    */
-  public String getProcessId(ContainerID containerID) {
+  public String getProcessId(ContainerId containerID) {
     String pid = null;
     ShellCommandExecutor shExec = launchCommandObjs.get(containerID);
     if (shExec == null) {

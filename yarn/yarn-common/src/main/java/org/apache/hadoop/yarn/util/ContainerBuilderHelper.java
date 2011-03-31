@@ -20,7 +20,8 @@ package org.apache.hadoop.yarn.util;
 
 import java.util.regex.Pattern;
 
-import org.apache.hadoop.yarn.YarnContainerTags;
+import org.apache.hadoop.yarn.api.records.YarnContainerTags;
+
 
 // TODO: Remove this and related stuff?
 public class ContainerBuilderHelper {

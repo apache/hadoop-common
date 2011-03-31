@@ -18,18 +18,19 @@
 
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+
 
 public class TaskTAttemptEvent extends TaskEvent {
 
-  private TaskAttemptID attemptID;
+  private TaskAttemptId attemptID;
 
-  public TaskTAttemptEvent(TaskAttemptID id, TaskEventType type) {
-    super(id.taskID, type);
+  public TaskTAttemptEvent(TaskAttemptId id, TaskEventType type) {
+    super(id.getTaskId(), type);
     this.attemptID = id;
   }
 
-  public TaskAttemptID getTaskAttemptID() {
+  public TaskAttemptId getTaskAttemptID() {
     return attemptID;
   }
 

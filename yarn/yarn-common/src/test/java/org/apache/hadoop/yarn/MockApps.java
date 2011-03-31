@@ -24,6 +24,12 @@ import com.google.common.collect.Lists;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.hadoop.yarn.Application;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+
 /**
  * Utilities to generate fake test apps
  */
@@ -67,14 +73,14 @@ public class MockApps {
   }
 
   public static Application newApp(int i) {
-    final ApplicationID id = newAppID(i);
+    final ApplicationId id = newAppID(i);
     final ApplicationStatus status = newAppStatus();
     final ApplicationState state = newAppState();
     final String user = newUserName();
     final String name = newAppName();
     final String queue = newQueue();
     return new Application() {
-      @Override public ApplicationID id() { return id; }
+      @Override public ApplicationId id() { return id; }
       @Override public CharSequence user() { return user; }
       @Override public CharSequence name() { return name; }
       @Override public ApplicationStatus status() { return status; }
@@ -95,17 +101,17 @@ public class MockApps {
     };
   }
 
-  public static ApplicationID newAppID(int i) {
-    ApplicationID id = new ApplicationID();
-    id.clusterTimeStamp = TS;
-    id.id = i;
+  public static ApplicationId newAppID(int i) {
+    ApplicationId id = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+    id.setClusterTimestamp(TS);
+    id.setId(i);
     return id;
   }
 
   public static ApplicationStatus newAppStatus() {
-    ApplicationStatus status = new ApplicationStatus();
-    status.progress = (float) Math.random();
-    status.lastSeen = System.currentTimeMillis();
+    ApplicationStatus status = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationStatus.class);
+    status.setProgress((float)Math.random());
+    status.setLastSeen(System.currentTimeMillis());
     return status;
   }
 

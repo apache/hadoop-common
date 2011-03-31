@@ -36,8 +36,8 @@ import java.util.concurrent.Future;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
@@ -66,6 +66,8 @@ public class ContainersLauncher extends AbstractService
   private List<Path> logDirs;
   private List<Path> localDirs;
   private List<Path> sysDirs;
+  private final Map<ContainerId,RunningContainer> running =
+    Collections.synchronizedMap(new HashMap<ContainerId,RunningContainer>());
 
   private static final class RunningContainer {
     public RunningContainer(String string, Future<Integer> submit) {
@@ -77,8 +79,6 @@ public class ContainersLauncher extends AbstractService
     Future<Integer> runningcontainer;
   }
 
-  private final Map<ContainerID, RunningContainer> running =
-    Collections.synchronizedMap(new HashMap<ContainerID, RunningContainer>());
 
   public ContainersLauncher(Context context, Dispatcher dispatcher,
       ContainerExecutor exec) {
@@ -129,12 +129,12 @@ public class ContainersLauncher extends AbstractService
   public void handle(ContainersLauncherEvent event) {
     // TODO: ContainersLauncher launches containers one by one!!
     Container container = event.getContainer();
-    ContainerID containerId = container.getContainerID();
+    ContainerId containerId = container.getContainerID();
     String userName = container.getUser();
     switch (event.getType()) {
       case LAUNCH_CONTAINER:
         Application app =
-          context.getApplications().get(containerId.appID);
+          context.getApplications().get(containerId.getAppId());
         List<Path> appDirs = new ArrayList<Path>(localDirs.size());
         for (Path p : localDirs) {
           Path usersdir = new Path(p, ApplicationLocalizer.USERCACHE);

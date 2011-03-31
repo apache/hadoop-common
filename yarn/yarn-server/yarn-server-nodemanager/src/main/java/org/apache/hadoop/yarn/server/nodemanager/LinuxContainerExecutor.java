@@ -31,11 +31,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
+import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainerLaunch;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
-import org.apache.hadoop.yarn.LocalizationProtocol;
 
 public class LinuxContainerExecutor extends ContainerExecutor {
 
@@ -168,7 +168,7 @@ public class LinuxContainerExecutor extends ContainerExecutor {
                     appToken.toUri().getPath().toString()));
     String[] commandArray = command.toArray(new String[command.size()]);
     ShellCommandExecutor shExec = new ShellCommandExecutor(commandArray);
-    launchCommandObjs.put(container.getLaunchContext().id, shExec);
+    launchCommandObjs.put(container.getLaunchContext().getContainerId(), shExec);
     // DEBUG
     LOG.info("launchContainer: " + Arrays.toString(commandArray));
     if (LOG.isDebugEnabled()) {
@@ -191,7 +191,7 @@ public class LinuxContainerExecutor extends ContainerExecutor {
       }
       return exitCode;
     } finally {
-      launchCommandObjs.remove(container.getLaunchContext().id);
+      launchCommandObjs.remove(container.getLaunchContext().getContainerId());
     }
     if (LOG.isDebugEnabled()) {
       LOG.debug("Output from LinuxContainerExecutor's launchTask follows:");

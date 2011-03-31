@@ -86,19 +86,19 @@ import org.apache.hadoop.io.DataOutputByteBuffer;
 import org.apache.hadoop.mapreduce.security.SecureShuffleUtils;
 import org.apache.hadoop.mapreduce.task.reduce.ShuffleHeader;
 
-import org.apache.hadoop.yarn.ApplicationID;
 
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServices;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 
 // DEBUG
-import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.log4j.Level;
 
@@ -131,7 +131,7 @@ public class ShuffleHandler extends AbstractService
   }
 
   @Override
-  public void initApp(String user, ApplicationID appId, ByteBuffer secret) {
+  public void initApp(String user, ApplicationId appId, ByteBuffer secret) {
     // TODO these bytes should be versioned
     try {
       DataInputByteBuffer in = new DataInputByteBuffer();
@@ -139,7 +139,7 @@ public class ShuffleHandler extends AbstractService
       Token<JobTokenIdentifier> jt = new Token<JobTokenIdentifier>();
       jt.readFields(in);
       // TODO: Once SHuffle is out of NM, this can use MR APIs
-      JobID jobId = new JobID(Long.toString(appId.clusterTimeStamp), appId.id);
+      JobID jobId = new JobID(Long.toString(appId.getClusterTimestamp()), appId.getId());
       userRsrc.put(jobId.toString(), user);
       LOG.info("Added token for " + jobId.toString());
       secretManager.addTokenForJob(jobId.toString(), jt);
@@ -150,8 +150,8 @@ public class ShuffleHandler extends AbstractService
   }
 
   @Override
-  public void stopApp(ApplicationID appId) {
-    JobID jobId = new JobID(Long.toString(appId.clusterTimeStamp), appId.id);
+  public void stopApp(ApplicationId appId) {
+    JobID jobId = new JobID(Long.toString(appId.getClusterTimestamp()), appId.getId());
     secretManager.removeTokenForJob(jobId.toString());
   }
 
@@ -346,13 +346,13 @@ public class ShuffleHandler extends AbstractService
       // $x/$user/appcache/$appId/output/$mapId
       // TODO: Once Shuffle is out of NM, this can use MR APIs to convert between App and Job
       JobID jobID = JobID.forName(jobId);
-      ApplicationID appID = new ApplicationID();
-      appID.clusterTimeStamp = Long.parseLong(jobID.getJtIdentifier());
-      appID.id = jobID.getId();
+      ApplicationId appID = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+      appID.setClusterTimestamp(Long.parseLong(jobID.getJtIdentifier()));
+      appID.setId(jobID.getId());
       final String base =
           ApplicationLocalizer.USERCACHE + "/" + user + "/"
               + ApplicationLocalizer.APPCACHE + "/"
-              + AvroUtil.toString(appID) + "/output" + "/" + mapId;
+              + ConverterUtils.toString(appID) + "/output" + "/" + mapId;
       LOG.debug("DEBUG0 " + base);
       // Index file
       Path indexFileName = lDirAlloc.getLocalPathToRead(

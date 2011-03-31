@@ -23,24 +23,25 @@ import java.util.List;
 
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskAttemptInfo;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class CompletedTaskAttempt implements TaskAttempt {
 
   private final TaskAttemptInfo attemptInfo;
-  private final TaskAttemptID attemptId;
+  private final TaskAttemptId attemptId;
   private final Counters counters;
   private final TaskAttemptState state;
   private final TaskAttemptReport report;
-  private final List<CharSequence> diagnostics = new ArrayList<CharSequence>();
+  private final List<String> diagnostics = new ArrayList<String>();
 
-  CompletedTaskAttempt(TaskID taskID, TaskAttemptInfo attemptInfo) {
+  CompletedTaskAttempt(TaskId taskId, TaskAttemptInfo attemptInfo) {
     this.attemptInfo = attemptInfo;
     this.attemptId = TypeConverter.toYarn(attemptInfo.getAttemptId());
     this.counters = TypeConverter.toYarn(
@@ -51,20 +52,21 @@ public class CompletedTaskAttempt implements TaskAttempt {
       diagnostics.add(attemptInfo.getError());
     }
     
-    report = new TaskAttemptReport();
-    report.id = attemptId;
-    report.state = state;
-    report.progress = getProgress();
-    report.startTime = attemptInfo.getStartTime();
-    report.finishTime = attemptInfo.getFinishTime();
-    report.diagnosticInfo = attemptInfo.getError();
+    report = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskAttemptReport.class);
+    report.setTaskAttemptId(attemptId);
+    report.setTaskAttemptState(state);
+    report.setProgress(getProgress());
+    report.setStartTime(attemptInfo.getStartTime());
+    
+    report.setFinishTime(attemptInfo.getFinishTime());
+    report.setDiagnosticInfo(attemptInfo.getError());
     //result.phase = attemptInfo.get;//TODO
-    report.stateString = state.toString();
-    report.counters = getCounters();
+    report.setStateString(state.toString());
+    report.setCounters(getCounters());
   }
 
   @Override
-  public ContainerID getAssignedContainerID() {
+  public ContainerId getAssignedContainerID() {
     // TODO Auto-generated method stub
     return null;
   }
@@ -80,7 +82,7 @@ public class CompletedTaskAttempt implements TaskAttempt {
   }
 
   @Override
-  public TaskAttemptID getID() {
+  public TaskAttemptId getID() {
     return attemptId;
   }
 
@@ -105,17 +107,17 @@ public class CompletedTaskAttempt implements TaskAttempt {
   }
 
   @Override
-  public List<CharSequence> getDiagnostics() {
+  public List<String> getDiagnostics() {
     return diagnostics;
   }
 
   @Override
   public long getLaunchTime() {
-    return report.startTime;
+    return report.getStartTime();
   }
 
   @Override
   public long getFinishTime() {
-    return report.finishTime;
+    return report.getFinishTime();
   }
 }

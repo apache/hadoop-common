@@ -40,15 +40,20 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerToken;
+import org.apache.hadoop.yarn.api.ContainerManager;
+import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
@@ -68,6 +73,7 @@ public class AMLauncher implements Runnable {
 
   private final AppContext master;
   private final Configuration conf;
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private ApplicationTokenSecretManager applicationTokenSecretManager;
   private ClientToAMSecretManager clientToAMSecretManager;
   private AMLauncherEventType event;
@@ -91,51 +97,59 @@ public class AMLauncher implements Runnable {
   }
   
   private void connect() throws IOException {
-    ContainerID masterContainerID = master.getMasterContainer().id;
+    ContainerId masterContainerID = master.getMasterContainer().getId();
+    
     containerMgrProxy =
-        getContainerMgrProxy(masterContainerID.appID);
+        getContainerMgrProxy(masterContainerID.getAppId());
   }
   
   private void launch() throws IOException {
     connect();
-    ContainerID masterContainerID = master.getMasterContainer().id;
+    ContainerId masterContainerID = master.getMasterContainer().getId();
     ApplicationSubmissionContext applicationContext =
       master.getSubmissionContext();
     LOG.info("Setting up container " + master.getMasterContainer() 
         + " for AM " + master.getMaster());  
     ContainerLaunchContext launchContext =
         getLaunchSpec(applicationContext, masterContainerID);
-    containerMgrProxy.startContainer(launchContext);
+    StartContainerRequest request = recordFactory.newRecordInstance(StartContainerRequest.class);
+    request.setContainerLaunchContext(launchContext);
+    containerMgrProxy.startContainer(request);
     LOG.info("Done launching container " + master.getMasterContainer() 
         + " for AM " + master.getMaster());
   }
   
   private void cleanup() throws IOException {
     connect();
-    ContainerID containerId = master.getMasterContainer().id;
-    containerMgrProxy.stopContainer(containerId);
-    containerMgrProxy.cleanupContainer(containerId);
+    ContainerId containerId = master.getMasterContainer().getId();
+    StopContainerRequest stopRequest = recordFactory.newRecordInstance(StopContainerRequest.class);
+    stopRequest.setContainerId(containerId);
+    containerMgrProxy.stopContainer(stopRequest);
+    
+    CleanupContainerRequest cleanupRequest = recordFactory.newRecordInstance(CleanupContainerRequest.class);
+    cleanupRequest.setContainerId(containerId);
+    containerMgrProxy.cleanupContainer(cleanupRequest);
   }
 
   private ContainerManager getContainerMgrProxy(
-      final ApplicationID applicationID) throws IOException {
+      final ApplicationId applicationID) throws IOException {
 
     Container container = master.getMasterContainer();
 
-    final String containerManagerBindAddress = container.hostName.toString();
+    final String containerManagerBindAddress = container.getHostName();
 
     final YarnRPC rpc = YarnRPC.create(conf); // TODO: Don't create again and again.
 
     UserGroupInformation currentUser =
         UserGroupInformation.createRemoteUser("TODO"); // TODO
     if (UserGroupInformation.isSecurityEnabled()) {
-      ContainerToken containerToken = container.containerToken;
+      ContainerToken containerToken = container.getContainerToken();
       Token<ContainerTokenIdentifier> token =
           new Token<ContainerTokenIdentifier>(
-              containerToken.identifier.array(),
-              containerToken.password.array(), new Text(
-                  containerToken.kind.toString()), new Text(
-                  containerToken.service.toString()));
+              containerToken.getIdentifier().array(),
+              containerToken.getPassword().array(), new Text(
+                  containerToken.getKind()), new Text(
+                  containerToken.getService()));
       currentUser.addToken(token);
     }
     return currentUser.doAs(new PrivilegedAction<ContainerManager>() {
@@ -149,49 +163,49 @@ public class AMLauncher implements Runnable {
 
   private ContainerLaunchContext getLaunchSpec(
       ApplicationSubmissionContext applicationMasterContext,
-      ContainerID containerID) throws IOException {
+      ContainerId containerID) throws IOException {
 
     // Construct the actual Container
-    ContainerLaunchContext container = new ContainerLaunchContext();
-    container.command = applicationMasterContext.command;
+    ContainerLaunchContext container = recordFactory.newRecordInstance(ContainerLaunchContext.class);
+    container.addAllCommands(applicationMasterContext.getCommandList());
     StringBuilder mergedCommand = new StringBuilder();
-    for (CharSequence str : container.command) {
+    for (String str : container.getCommandList()) {
       mergedCommand.append(str).append(" ");
     }
     LOG.info("Command to launch container " + 
         containerID + " : " + mergedCommand);
-    container.env = applicationMasterContext.environment;
+    container.addAllEnv(applicationMasterContext.getAllEnvironment());
 
-    container.env.putAll(setupTokensInEnv(applicationMasterContext));
+    container.addAllEnv(setupTokensInEnv(applicationMasterContext));
 
     // Construct the actual Container
-    container.id = containerID;
-    container.user = applicationMasterContext.user;
-    container.resource = applicationMasterContext.masterCapability;
-    container.resources = applicationMasterContext.resources_todo;
-    container.containerTokens = applicationMasterContext.fsTokens_todo;
+    container.setContainerId(containerID);
+    container.setUser(applicationMasterContext.getUser());
+    container.setResource(applicationMasterContext.getMasterCapability());
+    container.addAllLocalResources(applicationMasterContext.getAllResourcesTodo());
+    container.setContainerTokens(applicationMasterContext.getFsTokensTodo());
     return container;
   }
 
-  private Map<CharSequence, CharSequence> setupTokensInEnv(
+  private Map<String, String> setupTokensInEnv(
       ApplicationSubmissionContext asc)
       throws IOException {
-    Map<CharSequence, CharSequence> env =
-      new HashMap<CharSequence, CharSequence>();
+    Map<String, String> env =
+      new HashMap<String, String>();
     if (UserGroupInformation.isSecurityEnabled()) {
       // TODO: Security enabled/disabled info should come from RM.
 
       Credentials credentials = new Credentials();
 
       DataInputByteBuffer dibb = new DataInputByteBuffer();
-      if (asc.fsTokens_todo != null) {
+      if (asc.getFsTokensTodo() != null) {
         // TODO: Don't do this kind of checks everywhere.
-        dibb.reset(asc.fsTokens_todo);
+        dibb.reset(asc.getFsTokensTodo());
         credentials.readTokenStorageStream(dibb);
       }
 
       ApplicationTokenIdentifier id =
-          new ApplicationTokenIdentifier(master.getMasterContainer().id.appID);
+          new ApplicationTokenIdentifier(master.getMasterContainer().getId().getAppId());
       Token<ApplicationTokenIdentifier> token =
           new Token<ApplicationTokenIdentifier>(id,
               this.applicationTokenSecretManager);
@@ -213,11 +227,11 @@ public class AMLauncher implements Runnable {
       credentials.addToken(new Text(resolvedAddr), token);
       DataOutputBuffer dob = new DataOutputBuffer();
       credentials.writeTokenStorageToStream(dob);
-      asc.fsTokens_todo = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
+      asc.setFsTokensTodo(ByteBuffer.wrap(dob.getData(), 0, dob.getLength()));
 
       ApplicationTokenIdentifier identifier =
           new ApplicationTokenIdentifier(
-              this.master.getMaster().applicationId);
+              this.master.getMaster().getApplicationId());
       SecretKey clientSecretKey =
           this.clientToAMSecretManager.getMasterKey(identifier);
       String encoded =

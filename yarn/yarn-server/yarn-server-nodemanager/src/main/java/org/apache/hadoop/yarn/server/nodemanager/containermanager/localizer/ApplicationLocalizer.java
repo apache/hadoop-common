@@ -60,17 +60,23 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.api.records.impl.pb.LocalResourcePBImpl;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
+import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceProto;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
+import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.FailedLocalizationRequest;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.SuccessfulLocalizationRequest;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.security.LocalizerSecurityInfo;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.security.LocalizerTokenIdentifier;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.security.LocalizerTokenSecretManager;
-import org.apache.hadoop.yarn.util.AvroUtil;
-import org.apache.hadoop.yarn.LocalResource;
-import org.apache.hadoop.yarn.LocalizationProtocol;
-import org.apache.hadoop.yarn.YarnRemoteException;
+import org.apache.hadoop.yarn.util.ConverterUtils;
+
 
 /**
  * Internal class responsible for initializing the job, not intended for users.
@@ -101,8 +107,9 @@ public class ApplicationLocalizer {
   private final Configuration conf;
   private final List<Path> localDirs;
   private final LocalDirAllocator lDirAlloc;
-  private final List<org.apache.hadoop.yarn.LocalResource> privateResources;
-  private final List<org.apache.hadoop.yarn.LocalResource> applicationResources;
+  private final List<org.apache.hadoop.yarn.api.records.LocalResource> privateResources;
+  private final List<org.apache.hadoop.yarn.api.records.LocalResource> applicationResources;
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   public ApplicationLocalizer(String user, String appId, Path logDir,
       List<Path> localDirs) throws IOException {
@@ -125,13 +132,13 @@ public class ApplicationLocalizer {
     this.conf = new Configuration();
     this.localDirs = setLocalDirs(user, conf, localDirs);
     lDirAlloc = new LocalDirAllocator(NM_LOCAL_DIR);
-    privateResources = new ArrayList<LocalResource>();
-    applicationResources = new ArrayList<LocalResource>();
+    privateResources = new ArrayList<org.apache.hadoop.yarn.api.records.LocalResource>();
+    applicationResources = new ArrayList<org.apache.hadoop.yarn.api.records.LocalResource>();
   }
 
   public static void writeLaunchEnv(OutputStream out,
-      Map<CharSequence,CharSequence> environment, Map<Path,String> resources,
-      List<CharSequence> command, List<Path> appDirs)
+      Map<String,String> environment, Map<Path,String> resources,
+      List<String> command, List<Path> appDirs)
       throws IOException {
     ShellScriptBuilder sb = new ShellScriptBuilder();
     if (System.getenv("YARN_HOME") != null) {
@@ -140,7 +147,7 @@ public class ApplicationLocalizer {
     sb.env(YARNApplicationConstants.LOCAL_DIR_ENV,
         StringUtils.join(",", appDirs));
     if (environment != null) {
-      for (Map.Entry<CharSequence,CharSequence> env : environment.entrySet()) {
+      for (Map.Entry<String,String> env : environment.entrySet()) {
         sb.env(env.getKey().toString(), env.getValue().toString());
       }
     }
@@ -154,7 +161,7 @@ public class ApplicationLocalizer {
     cmd.add("/bin/bash ");
     cmd.add("-c ");
     cmd.add("\"");
-    for (CharSequence cs : command) {
+    for (String cs : command) {
       cmd.add(cs.toString());
       cmd.add(" ");
     }
@@ -172,12 +179,11 @@ public class ApplicationLocalizer {
   }
 
   static void writeResourceDescription(OutputStream out,
-      Collection<LocalResource> rsrc) throws IOException {
+      Collection<org.apache.hadoop.yarn.api.records.LocalResource> rsrc) throws IOException {
     try {
-      BinaryEncoder encoder = new BinaryEncoder(out);
-      SpecificDatumWriter writer = new SpecificDatumWriter(LocalResource.class);
-      for (LocalResource r : rsrc) {
-        writer.write(r, encoder);
+      for (org.apache.hadoop.yarn.api.records.LocalResource r : rsrc) {
+        LocalResourcePBImpl rsrcPb = (LocalResourcePBImpl) r;
+        rsrcPb.getProto().writeDelimitedTo(out);
       }
     } finally {
       if (out != null) {
@@ -185,28 +191,62 @@ public class ApplicationLocalizer {
       }
     }
   }
+  
+  //TODO PB This part becomes dependent on the PB implementation.
+  //Add an interface which makes this independent of the serialization layer being used.
+  
+//  static void writeResourceDescription(OutputStream out,
+//      Collection<org.apache.hadoop.yarn.api.records.LocalResource> rsrc) throws IOException {
+//    try {
+//      BinaryEncoder encoder = new BinaryEncoder(out);
+//      SpecificDatumWriter writer = new SpecificDatumWriter(org.apache.hadoop.yarn.api.records.LocalResource.class);
+//      for (org.apache.hadoop.yarn.api.records.LocalResource r : rsrc) {
+//        writer.write(r, encoder);
+//      }
+//    } finally {
+//      if (out != null) {
+//        out.close();
+//      }
+//    }
+//  }
 
   private void readResourceDescription(InputStream in) throws IOException {
-    BinaryDecoder decoder =
-      DecoderFactory.defaultFactory().createBinaryDecoder(in, null);
-    SpecificDatumReader<LocalResource> reader =
-      new SpecificDatumReader<LocalResource>(LocalResource.class);
-    while (!decoder.isEnd()) {
-      LocalResource rsrc = reader.read(null, decoder);
-      switch (rsrc.state) {
+    while (in.available() != 0) {
+      org.apache.hadoop.yarn.api.records.LocalResource rsrc = new LocalResourcePBImpl(LocalResourceProto.parseDelimitedFrom(in));
+      switch (rsrc.getVisibility()) {
         case PRIVATE:
           privateResources.add(rsrc);
           break;
-        // TODO: Commented to put everything in privateResources for now?
-        //case APPLICATION:
-        //  applicationResources.add(rsrc);
-        //  break;
         default:
           privateResources.add(rsrc);
           break;
       }
     }
   }
+  
+  //TODO PB This part becomes dependent on the PB implementation.
+  //Add an interface which makes this independent of the serialization layer being used.
+//  private void readResourceDescription(InputStream in) throws IOException {
+//    BinaryDecoder decoder =
+//      DecoderFactory.defaultFactory().createBinaryDecoder(in, null);
+//    SpecificDatumReader<org.apache.hadoop.yarn.api.records.LocalResource> reader =
+//      new SpecificDatumReader<org.apache.hadoop.yarn.api.records.LocalResource>(org.apache.hadoop.yarn.api.records.LocalResource.class);
+//    while (!decoder.isEnd()) {
+//      org.apache.hadoop.yarn.api.records.LocalResource rsrc = reader.read(null, decoder);
+//      switch (rsrc.getVisibility()) {
+//        case PRIVATE:
+//          privateResources.add(rsrc);
+//          break;
+//        // TODO: Commented to put everything in privateResources for now?
+//        //case APPLICATION:
+//        //  applicationResources.add(rsrc);
+//        //  break;
+//        default:
+//          privateResources.add(rsrc);
+//          break;
+//      }
+//    }
+//  }
 
   private static List<Path> setLocalDirs(String user, Configuration conf,
       List<Path> localdirs) throws IOException {
@@ -233,7 +273,7 @@ public class ApplicationLocalizer {
     return cacheDirs;
   }
 
-  FSDownload download(LocalDirAllocator lda, LocalResource rsrc)
+  FSDownload download(LocalDirAllocator lda, org.apache.hadoop.yarn.api.records.LocalResource rsrc)
       throws IOException {
     return new FSDownload(conf, lda, rsrc);
   }
@@ -259,33 +299,38 @@ public class ApplicationLocalizer {
     pull(applicationLDA, applicationResources, nodeManager);
   }
 
-  private void pull(LocalDirAllocator lda, Collection<LocalResource> resources,
+  private void pull(LocalDirAllocator lda, Collection<org.apache.hadoop.yarn.api.records.LocalResource> resources,
       LocalizationProtocol nodeManager)
       throws IOException, InterruptedException, YarnRemoteException {
     ExecutorService exec = Executors.newSingleThreadExecutor();
-    CompletionService<Map<LocalResource,Path>> queue =
-      new ExecutorCompletionService<Map<LocalResource,Path>>(exec);
-    Map<Future<Map<LocalResource,Path>>, LocalResource> pending =
-      new HashMap<Future<Map<LocalResource,Path>>, LocalResource>();
-    for (LocalResource rsrc : resources) {
+    CompletionService<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>> queue =
+      new ExecutorCompletionService<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>>(exec);
+    Map<Future<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>>, org.apache.hadoop.yarn.api.records.LocalResource> pending =
+      new HashMap<Future<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>>, org.apache.hadoop.yarn.api.records.LocalResource>();
+    for (org.apache.hadoop.yarn.api.records.LocalResource rsrc : resources) {
       FSDownload dThread = download(lda, rsrc);
       pending.put(queue.submit(dThread), rsrc);
     }
     try {
       for (int i = 0, n = resources.size(); i < n; ++i) {
-        Future<Map<LocalResource,Path>> result = queue.take();
+        Future<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>> result = queue.take();
         try {
-          Map<LocalResource,Path> localized = result.get();
-          for (Map.Entry<LocalResource,Path> local : result.get().entrySet()) {
-            nodeManager.successfulLocalization(user, local.getKey(),
-                AvroUtil.getYarnUrlFromPath(local.getValue()));
+          Map<org.apache.hadoop.yarn.api.records.LocalResource,Path> localized = result.get();
+          for (Map.Entry<org.apache.hadoop.yarn.api.records.LocalResource,Path> local : result.get().entrySet()) {
+            SuccessfulLocalizationRequest successfulLocRequest = recordFactory.newRecordInstance(SuccessfulLocalizationRequest.class);
+            successfulLocRequest.setUser(user);
+            successfulLocRequest.setResource(local.getKey());
+            successfulLocRequest.setPath(ConverterUtils.getYarnUrlFromPath(local.getValue()));
+            nodeManager.successfulLocalization(successfulLocRequest);
             pending.remove(result);
           }
         } catch (ExecutionException e) {
           // TODO: Shouldn't we continue localizing other paths?
-          nodeManager.failedLocalization(
-              user, pending.get(result),
-              RPCUtil.getRemoteException(e.getCause()));
+          FailedLocalizationRequest failedLocRequest = recordFactory.newRecordInstance(FailedLocalizationRequest.class);
+          failedLocRequest.setUser(user);
+          failedLocRequest.setResource(pending.get(result));
+          failedLocRequest.setException(RPCUtil.getRemoteException(e.getCause()));
+          nodeManager.failedLocalization(failedLocRequest);
           throw new IOException("Failed to localize " +
                                 pending.get(result), e);
         }
@@ -293,10 +338,13 @@ public class ApplicationLocalizer {
     } finally {
       YarnRemoteException e = RPCUtil.getRemoteException("Localization failed");
       exec.shutdownNow();
-      for (LocalResource rsrc : pending.values()) {
+      for (org.apache.hadoop.yarn.api.records.LocalResource rsrc : pending.values()) {
         try {
-          nodeManager.failedLocalization(
-              user, rsrc, RPCUtil.getRemoteException(e));
+          FailedLocalizationRequest failedLocRequest = recordFactory.newRecordInstance(FailedLocalizationRequest.class);
+          failedLocRequest.setUser(user);
+          failedLocRequest.setResource(rsrc);
+          failedLocRequest.setException(RPCUtil.getRemoteException(e));
+          nodeManager.failedLocalization(failedLocRequest);
         } catch (YarnRemoteException error) {
           LOG.error("Failure cancelling localization", error);
         }
@@ -498,8 +546,8 @@ public class ApplicationLocalizer {
       out.append(sb);
     }
 
-    public void line(CharSequence... command) {
-      for (CharSequence s : command) {
+    public void line(String... command) {
+      for (String s : command) {
         sb.append(s);
       }
       sb.append("\n");

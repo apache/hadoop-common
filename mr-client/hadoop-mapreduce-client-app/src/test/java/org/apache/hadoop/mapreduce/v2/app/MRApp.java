@@ -30,6 +30,14 @@ import org.apache.hadoop.mapred.WrappedJvmID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.MRAppMaster;
@@ -52,19 +60,14 @@ import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleaner;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
 import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
+
 
 /**
  * Mock MRAppMaster. Doesn't start RPC servers.
@@ -75,11 +78,14 @@ public class MRApp extends MRAppMaster {
   int maps;
   int reduces;
 
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   //if true tasks complete automatically as soon as they are launched
   protected boolean autoComplete = false;
 
   public MRApp(int maps, int reduces, boolean autoComplete) {
-    super(new ApplicationID());
+    
+    super(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class));
     this.maps = maps;
     this.reduces = reduces;
     this.autoComplete = autoComplete;
@@ -102,49 +108,49 @@ public class MRApp extends MRAppMaster {
       TaskAttemptState finalState) throws Exception {
     int timeoutSecs = 0;
     TaskAttemptReport report = attempt.getReport();
-    while (!finalState.equals(report.state) &&
+    while (!finalState.equals(report.getTaskAttemptState()) &&
         timeoutSecs++ < 20) {
-      System.out.println("TaskAttempt State is : " + report.state +
+      System.out.println("TaskAttempt State is : " + report.getTaskAttemptState() +
           " Waiting for state : " + finalState +
-          "   progress : " + report.progress);
+          "   progress : " + report.getProgress());
       report = attempt.getReport();
       Thread.sleep(500);
     }
-    System.out.println("TaskAttempt State is : " + report.state);
+    System.out.println("TaskAttempt State is : " + report.getTaskAttemptState());
     Assert.assertEquals("TaskAttempt state is not correct (timedout)",
         finalState, 
-        report.state);
+        report.getTaskAttemptState());
   }
 
   public void waitForState(Task task, TaskState finalState) throws Exception {
     int timeoutSecs = 0;
     TaskReport report = task.getReport();
-    while (!finalState.equals(report.state) &&
+    while (!finalState.equals(report.getTaskState()) &&
         timeoutSecs++ < 20) {
-      System.out.println("Task State is : " + report.state +
+      System.out.println("Task State is : " + report.getTaskState() +
           " Waiting for state : " + finalState +
-          "   progress : " + report.progress);
+          "   progress : " + report.getProgress());
       report = task.getReport();
       Thread.sleep(500);
     }
-    System.out.println("Task State is : " + report.state);
+    System.out.println("Task State is : " + report.getTaskState());
     Assert.assertEquals("Task state is not correct (timedout)", finalState, 
-        report.state);
+        report.getTaskState());
   }
 
   public void waitForState(Job job, JobState finalState) throws Exception {
     int timeoutSecs = 0;
     JobReport report = job.getReport();
-    while (!finalState.equals(report.state) &&
+    while (!finalState.equals(report.getJobState()) &&
         timeoutSecs++ < 20) {
-      System.out.println("Job State is : " + report.state +
+      System.out.println("Job State is : " + report.getJobState() +
           " Waiting for state : " + finalState +
-          "   map progress : " + report.mapProgress + 
-          "   reduce progress : " + report.reduceProgress);
+          "   map progress : " + report.getMapProgress() + 
+          "   reduce progress : " + report.getReduceProgress());
       report = job.getReport();
       Thread.sleep(500);
     }
-    System.out.println("Job State is : " + report.state);
+    System.out.println("Job State is : " + report.getJobState());
     Assert.assertEquals("Job state is not correct (timedout)", finalState, 
         job.getState());
   }
@@ -153,17 +159,17 @@ public class MRApp extends MRAppMaster {
     for (Job job : getContext().getAllJobs().values()) {
       JobReport jobReport = job.getReport();
       Assert.assertTrue("Job start time is  not less than finish time",
-          jobReport.startTime < jobReport.finishTime);
+          jobReport.getStartTime() < jobReport.getFinishTime());
       Assert.assertTrue("Job finish time is in future",
-          jobReport.finishTime < System.currentTimeMillis());
+          jobReport.getFinishTime() < System.currentTimeMillis());
       for (Task task : job.getTasks().values()) {
         TaskReport taskReport = task.getReport();
         Assert.assertTrue("Task start time is  not less than finish time",
-            taskReport.startTime < taskReport.finishTime);
+            taskReport.getStartTime() < taskReport.getFinishTime());
         for (TaskAttempt attempt : task.getAttempts().values()) {
           TaskAttemptReport attemptReport = attempt.getReport();
           Assert.assertTrue("Attempt start time is  not less than finish time",
-              attemptReport.startTime < attemptReport.finishTime);
+              attemptReport.getStartTime() < attemptReport.getFinishTime());
         }
       }
     }
@@ -198,10 +204,10 @@ public class MRApp extends MRAppMaster {
         return null;
       }
       @Override
-      public void register(TaskAttemptID attemptID, 
+      public void register(TaskAttemptId attemptID, 
           org.apache.hadoop.mapred.Task task, WrappedJvmID jvmID) {}
       @Override
-      public void unregister(TaskAttemptID attemptID, WrappedJvmID jvmID) {
+      public void unregister(TaskAttemptId attemptID, WrappedJvmID jvmID) {
       }
     };
   }
@@ -231,7 +237,7 @@ public class MRApp extends MRAppMaster {
     }
   }
 
-  protected void attemptLaunched(TaskAttemptID attemptID) {
+  protected void attemptLaunched(TaskAttemptId attemptID) {
     if (autoComplete) {
       // send the done event
       getContext().getEventHandler().handle(
@@ -247,9 +253,9 @@ public class MRApp extends MRAppMaster {
       private int containerCount;
       @Override
       public void handle(ContainerAllocatorEvent event) {
-        ContainerID cId = new ContainerID();
-        cId.appID = getContext().getApplicationID();
-        cId.id = containerCount++;
+        ContainerId cId = recordFactory.newRecordInstance(ContainerId.class);
+        cId.setAppId(getContext().getApplicationID());
+        cId.setId(containerCount++);
         getContext().getEventHandler().handle(
             new TaskAttemptContainerAssignedEvent(event.getAttemptID(), cId,
                 "dummy", null));
@@ -304,7 +310,7 @@ public class MRApp extends MRAppMaster {
       return localStateMachine;
     }
 
-    public TestJob(ApplicationID appID, EventHandler eventHandler,
+    public TestJob(ApplicationId appID, EventHandler eventHandler,
         TaskAttemptListener taskAttemptListener) {
       super(appID, new Configuration(), eventHandler, taskAttemptListener,
           new JobTokenSecretManager(), new Credentials());
@@ -333,7 +339,7 @@ public class MRApp extends MRAppMaster {
       job.remoteJobConfFile = new Path("test");
     }
     @Override
-    protected TaskSplitMetaInfo[] createSplits(JobImpl job, JobID jobId) {
+    protected TaskSplitMetaInfo[] createSplits(JobImpl job, JobId jobId) {
       TaskSplitMetaInfo[] splits = new TaskSplitMetaInfo[maps];
       for (int i = 0; i < maps ; i++) {
         splits[i] = new TaskSplitMetaInfo();

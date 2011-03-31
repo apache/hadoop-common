@@ -21,26 +21,31 @@ package org.apache.hadoop.yarn.server.nodemanager;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.concurrent.ConcurrentMap;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.HeartbeatResponse;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.NodeStatus;
-import org.apache.hadoop.yarn.RegistrationResponse;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceTracker;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.ResourceTracker;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResponse;
+import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
+import org.apache.hadoop.yarn.server.api.records.NodeStatus;
+import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
 import org.apache.hadoop.yarn.service.Service.STATE;
@@ -54,6 +59,7 @@ public class TestNodeStatusUpdater {
   static final Log LOG = LogFactory.getLog(TestNodeStatusUpdater.class);
   static final Path basedir =
       new Path("target", TestNodeStatusUpdater.class.getName());
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   int heartBeatID = 0;
   volatile Error nmStartError = null;
@@ -67,8 +73,9 @@ public class TestNodeStatusUpdater {
     }
 
     @Override
-    public RegistrationResponse registerNodeManager(CharSequence node,
-        Resource resource) throws AvroRemoteException {
+    public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest request) throws YarnRemoteException {
+      String node = request.getNode();
+      Resource resource = request.getResource();
       LOG.info("Registering " + node);
       try {
         Assert.assertEquals(InetAddress.getLocalHost().getHostAddress()
@@ -76,84 +83,88 @@ public class TestNodeStatusUpdater {
       } catch (UnknownHostException e) {
         Assert.fail(e.getMessage());
       }
-      Assert.assertEquals(5 * 1024, resource.memory);
-      RegistrationResponse regResponse = new RegistrationResponse();
-      regResponse.nodeID = new NodeID();
-      return regResponse;
+      Assert.assertEquals(5 * 1024, resource.getMemory());
+      RegistrationResponse regResponse = recordFactory.newRecordInstance(RegistrationResponse.class);
+      regResponse.setNodeId(recordFactory.newRecordInstance(NodeId.class));
+      
+      RegisterNodeManagerResponse response = recordFactory.newRecordInstance(RegisterNodeManagerResponse.class);
+      response.setRegistrationResponse(regResponse);
+      return response;
     }
 
-    ApplicationID applicationID = new ApplicationID();
-    ContainerID firstContainerID = new ContainerID();
-    ContainerID secondContainerID = new ContainerID();
+    ApplicationId applicationID = recordFactory.newRecordInstance(ApplicationId.class);
+    ContainerId firstContainerID = recordFactory.newRecordInstance(ContainerId.class);
+    ContainerId secondContainerID = recordFactory.newRecordInstance(ContainerId.class);
 
     @Override
-    public HeartbeatResponse nodeHeartbeat(NodeStatus nodeStatus)
-        throws AvroRemoteException {
+    public NodeHeartbeatResponse nodeHeartbeat(NodeHeartbeatRequest request) throws YarnRemoteException {
+      NodeStatus nodeStatus = request.getNodeStatus();
       LOG.info("Got heartbeat number " + heartBeatID);
-      nodeStatus.responseId = heartBeatID++;
+      nodeStatus.setResponseId(heartBeatID++);
       if (heartBeatID == 1) {
-        Assert.assertEquals(0, nodeStatus.containers.size());
+        Assert.assertEquals(0, nodeStatus.getAllContainers().size());
 
         // Give a container to the NM.
-        applicationID.id = heartBeatID;
-        firstContainerID.appID = applicationID;
-        firstContainerID.id = heartBeatID;
-        ContainerLaunchContext launchContext = new ContainerLaunchContext();
-        launchContext.id = firstContainerID;
-        launchContext.resource = new Resource();
-        launchContext.resource.memory = 2; // 2GB
+        applicationID.setId(heartBeatID);
+        firstContainerID.setAppId(applicationID);
+        firstContainerID.setId(heartBeatID);
+        ContainerLaunchContext launchContext = recordFactory.newRecordInstance(ContainerLaunchContext.class);
+        launchContext.setContainerId(firstContainerID);
+        launchContext.setResource(recordFactory.newRecordInstance(Resource.class));
+        launchContext.getResource().setMemory(2);
         Container container = new ContainerImpl(null, launchContext);
         this.context.getContainers().put(firstContainerID, container);
       } else if (heartBeatID == 2) {
         // Checks on the RM end
         Assert.assertEquals("Number of applications should only be one!", 1,
-            nodeStatus.containers.size());
+            nodeStatus.getAllContainers().size());
         Assert.assertEquals("Number of container for the app should be one!",
-            1, nodeStatus.containers.get(String.valueOf(applicationID.id))
+            1, nodeStatus.getContainers(String.valueOf(applicationID.getId()))
                 .size());
         Assert.assertEquals(2,
-            nodeStatus.containers.get(String.valueOf(applicationID.id))
-                .get(0).resource.memory);
+            nodeStatus.getContainers(String.valueOf(applicationID.getId()))
+                .get(0).getResource().getMemory());
 
         // Checks on the NM end
-        ConcurrentMap<ContainerID, Container> activeContainers =
+        ConcurrentMap<ContainerId, Container> activeContainers =
             this.context.getContainers();
         Assert.assertEquals(1, activeContainers.size());
 
         // Give another container to the NM.
-        applicationID.id = heartBeatID;
-        secondContainerID.appID = applicationID;
-        secondContainerID.id = heartBeatID;
-        ContainerLaunchContext launchContext = new ContainerLaunchContext();
-        launchContext.id = secondContainerID;
-        launchContext.resource = new Resource();
-        launchContext.resource.memory = 3; // 3GB
+        applicationID.setId(heartBeatID);
+        secondContainerID.setAppId(applicationID);
+        secondContainerID.setId(heartBeatID);
+        ContainerLaunchContext launchContext = recordFactory.newRecordInstance(ContainerLaunchContext.class);
+        launchContext.setContainerId(secondContainerID);
+        launchContext.setResource(recordFactory.newRecordInstance(Resource.class));
+        launchContext.getResource().setMemory(3);
         Container container = new ContainerImpl(null, launchContext);
         this.context.getContainers().put(secondContainerID, container);
       } else if (heartBeatID == 3) {
         // Checks on the RM end
         Assert.assertEquals("Number of applications should only be one!", 1,
-            nodeStatus.containers.size());
+            nodeStatus.getAllContainers().size());
         Assert.assertEquals("Number of container for the app should be two!",
-            2, nodeStatus.containers.get(String.valueOf(applicationID.id))
+            2, nodeStatus.getContainers(String.valueOf(applicationID.getId()))
                 .size());
         Assert.assertEquals(2,
-            nodeStatus.containers.get(String.valueOf(applicationID.id))
-                .get(0).resource.memory);
+            nodeStatus.getContainers(String.valueOf(applicationID.getId()))
+                .get(0).getResource().getMemory());
         Assert.assertEquals(3,
-            nodeStatus.containers.get(String.valueOf(applicationID.id))
-                .get(1).resource.memory);
+            nodeStatus.getContainers(String.valueOf(applicationID.getId()))
+                .get(1).getResource().getMemory());
 
         // Checks on the NM end
-        ConcurrentMap<ContainerID, Container> activeContainers =
+        ConcurrentMap<ContainerId, Container> activeContainers =
             this.context.getContainers();
         Assert.assertEquals(2, activeContainers.size());
       }
-      HeartbeatResponse response = new HeartbeatResponse();
-      response.responseId = heartBeatID;
-      response.containersToCleanup = new ArrayList<org.apache.hadoop.yarn.Container>();
-      response.appplicationsToCleanup = new ArrayList<ApplicationID>();
-      return response;
+      HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
+      response.setResponseId(heartBeatID);
+      
+      NodeHeartbeatResponse nhResponse = recordFactory.newRecordInstance(NodeHeartbeatResponse.class);
+      nhResponse.setHeartbeatResponse(response);
+      return nhResponse;
     }
   }
 

@@ -19,10 +19,10 @@
 package org.apache.hadoop.mapreduce.v2.app.speculate;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 
 
 /*
@@ -36,7 +36,7 @@ public class NullTaskRuntimesEngine implements TaskRuntimeEstimator {
   }
 
   @Override
-  public long attemptEnrolledTime(TaskAttemptID attemptID) {
+  public long attemptEnrolledTime(TaskAttemptId attemptID) {
     return Long.MAX_VALUE;
   }
 
@@ -51,21 +51,21 @@ public class NullTaskRuntimesEngine implements TaskRuntimeEstimator {
   }
 
   @Override
-  public long thresholdRuntime(TaskID id) {
+  public long thresholdRuntime(TaskId id) {
     return Long.MAX_VALUE;
   }
 
   @Override
-  public long estimatedRuntime(TaskAttemptID id) {
+  public long estimatedRuntime(TaskAttemptId id) {
     return -1L;
   }
   @Override
-  public long estimatedNewAttemptRuntime(TaskID id) {
+  public long estimatedNewAttemptRuntime(TaskId id) {
     return -1L;
   }
 
   @Override
-  public long runtimeEstimateVariance(TaskAttemptID id) {
+  public long runtimeEstimateVariance(TaskAttemptId id) {
     return -1L;
   }
 

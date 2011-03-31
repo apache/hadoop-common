@@ -18,32 +18,33 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resource;
 
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+
 public class ApplicationID {
   
-  public static org.apache.hadoop.yarn.ApplicationID create(long clusterTimeStamp,
+  public static org.apache.hadoop.yarn.api.records.ApplicationId create(long clusterTimeStamp,
       int id) {
-    org.apache.hadoop.yarn.ApplicationID applicationId =
-        new org.apache.hadoop.yarn.ApplicationID();
-    applicationId.id = id;
-    applicationId.clusterTimeStamp = clusterTimeStamp;
+    org.apache.hadoop.yarn.api.records.ApplicationId applicationId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.yarn.api.records.ApplicationId.class);
+    applicationId.setId(id);
+    applicationId.setClusterTimestamp(clusterTimeStamp);
     return applicationId;
   }
   
-  public static org.apache.hadoop.yarn.ApplicationID convert(long clustertimestamp,
+  public static org.apache.hadoop.yarn.api.records.ApplicationId convert(long clustertimestamp,
       CharSequence id) {
-    org.apache.hadoop.yarn.ApplicationID applicationId =
-        new org.apache.hadoop.yarn.ApplicationID();
-    applicationId.id = Integer.valueOf(id.toString());
-    applicationId.clusterTimeStamp = clustertimestamp;
+    org.apache.hadoop.yarn.api.records.ApplicationId applicationId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.yarn.api.records.ApplicationId.class);
+    applicationId.setId(Integer.valueOf(id.toString()));
+    applicationId.setClusterTimestamp(clustertimestamp);
     return applicationId;
   }
   
   public static class Comparator 
-  implements java.util.Comparator<org.apache.hadoop.yarn.ApplicationID> {
+  implements java.util.Comparator<org.apache.hadoop.yarn.api.records.ApplicationId> {
 
+    
     @Override
-    public int compare(org.apache.hadoop.yarn.ApplicationID a1,
-        org.apache.hadoop.yarn.ApplicationID a2) {
+    public int compare(org.apache.hadoop.yarn.api.records.ApplicationId a1,
+        org.apache.hadoop.yarn.api.records.ApplicationId a2) {
       return a1.compareTo(a2);
     }
     

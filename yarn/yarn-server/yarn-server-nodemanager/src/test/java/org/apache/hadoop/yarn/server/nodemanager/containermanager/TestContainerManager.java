@@ -23,14 +23,10 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 
 import junit.framework.Assert;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
@@ -39,18 +35,25 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerState;
-import org.apache.hadoop.yarn.ContainerStatus;
-import org.apache.hadoop.yarn.LocalResource;
-import org.apache.hadoop.yarn.LocalResourceType;
-import org.apache.hadoop.yarn.LocalResourceVisibility;
-import org.apache.hadoop.yarn.URL;
+import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.nodemanager.CMgrCompletedAppsEvent;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
@@ -69,13 +72,14 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Ap
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.service.Service.STATE;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestContainerManager {
 
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   static {
     DefaultMetricsSystem.setMiniClusterMode(true);
   }
@@ -105,13 +109,13 @@ public class TestContainerManager {
   private NodeStatusUpdater nodeStatusUpdater = new NodeStatusUpdaterImpl(
       context, dispatcher, healthChecker) {
     @Override
-    protected org.apache.hadoop.yarn.ResourceTracker getRMClient() {
+    protected ResourceTracker getRMClient() {
       return new LocalRMInterface();
     };
 
     @Override
     protected void startStatusUpdater() throws InterruptedException,
-        AvroRemoteException {
+        YarnRemoteException {
       return; // Don't start any updating thread.
     }
   };
@@ -167,8 +171,10 @@ public class TestContainerManager {
     // Just do a query for a non-existing container.
     boolean throwsException = false;
     try {
-      containerManager.getContainerStatus(new ContainerID());
-    } catch (AvroRemoteException e) {
+      GetContainerStatusRequest request = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
+      request.setContainerId(recordFactory.newRecordInstance(ContainerId.class));
+      containerManager.getContainerStatus(request);
+    } catch (YarnRemoteException e) {
       throwsException = true;
     }
     Assert.assertTrue(throwsException);
@@ -187,45 +193,46 @@ public class TestContainerManager {
     fileWriter.write("Hello World!");
     fileWriter.close();
 
-    ContainerLaunchContext container = new ContainerLaunchContext();
+    ContainerLaunchContext container = recordFactory.newRecordInstance(ContainerLaunchContext.class);
 
     // ////// Construct the Container-id
-    ApplicationID appId = new ApplicationID();
-    ContainerID cId = new ContainerID();
-    cId.appID = appId;
-    container.id = cId;
+    ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
+    ContainerId cId = recordFactory.newRecordInstance(ContainerId.class);
+    cId.setAppId(appId);
+    container.setContainerId(cId);
 
-    container.user = user;
+    container.setUser(user);
 
     // ////// Construct the container-spec.
-    ContainerLaunchContext containerLaunchContext =
-        new ContainerLaunchContext();
-    containerLaunchContext.resources =
-        new HashMap<CharSequence, LocalResource>();
+    ContainerLaunchContext containerLaunchContext = recordFactory.newRecordInstance(ContainerLaunchContext.class);
+//    containerLaunchContext.resources = new HashMap<CharSequence, LocalResource>();
     URL resource_alpha =
-        AvroUtil.getYarnUrlFromPath(localFS
+        ConverterUtils.getYarnUrlFromPath(localFS
             .makeQualified(new Path(file.getAbsolutePath())));
-    LocalResource rsrc_alpha = new LocalResource();
-    rsrc_alpha.resource = resource_alpha;
-    rsrc_alpha.size= -1;
-    rsrc_alpha.state = LocalResourceVisibility.APPLICATION;
-    rsrc_alpha.type = LocalResourceType.FILE;
-    rsrc_alpha.timestamp = file.lastModified();
+    LocalResource rsrc_alpha = recordFactory.newRecordInstance(LocalResource.class);    
+    rsrc_alpha.setResource(resource_alpha);
+    rsrc_alpha.setSize(-1);
+    rsrc_alpha.setVisibility(LocalResourceVisibility.APPLICATION);
+    rsrc_alpha.setType(LocalResourceType.FILE);
+    rsrc_alpha.setTimestamp(file.lastModified());
     String destinationFile = "dest_file";
-    containerLaunchContext.resources.put(destinationFile, rsrc_alpha);
-    containerLaunchContext.user = container.user;
-    containerLaunchContext.id = container.id;
-    containerLaunchContext.command = new ArrayList<CharSequence>();
+    containerLaunchContext.setLocalResource(destinationFile, rsrc_alpha);
+    containerLaunchContext.setUser(container.getUser());
+    containerLaunchContext.setContainerId(container.getContainerId());
+//    containerLaunchContext.command = new ArrayList<CharSequence>();
 
-    containerManager.startContainer(containerLaunchContext);
+    StartContainerRequest startRequest = recordFactory.newRecordInstance(StartContainerRequest.class);
+    startRequest.setContainerLaunchContext(containerLaunchContext);
+    
+    containerManager.startContainer(startRequest);
 
     DummyContainerManager.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE);
 
     // Now ascertain that the resources are localised correctly.
     // TODO: Don't we need clusterStamp in localDir?
-    String appIDStr = AvroUtil.toString(appId);
-    String containerIDStr = AvroUtil.toString(cId);
+    String appIDStr = ConverterUtils.toString(appId);
+    String containerIDStr = ConverterUtils.toString(cId);
     File userCacheDir = new File(localDir, ApplicationLocalizer.USERCACHE);
     File userDir = new File(userCacheDir, user);
     File appCache = new File(userDir, ApplicationLocalizer.APPCACHE);
@@ -269,36 +276,34 @@ public class TestContainerManager {
     fileWriter.write("\nsleep 100");
     fileWriter.close();
 
-    ContainerLaunchContext containerLaunchContext =
-        new ContainerLaunchContext();
+    ContainerLaunchContext containerLaunchContext = recordFactory.newRecordInstance(ContainerLaunchContext.class);
 
     // ////// Construct the Container-id
-    ApplicationID appId = new ApplicationID();
-    ContainerID cId = new ContainerID();
-    cId.appID = appId;
-    containerLaunchContext.id = cId;
+    ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
+    ContainerId cId = recordFactory.newRecordInstance(ContainerId.class);
+    cId.setAppId(appId);
+    containerLaunchContext.setContainerId(cId);
 
-    containerLaunchContext.user = user;
+    containerLaunchContext.setUser(user);
 
-    containerLaunchContext.resources =
-        new HashMap<CharSequence, LocalResource>();
+//    containerLaunchContext.resources =new HashMap<CharSequence, LocalResource>();
     URL resource_alpha =
-        AvroUtil.getYarnUrlFromPath(localFS
+        ConverterUtils.getYarnUrlFromPath(localFS
             .makeQualified(new Path(scriptFile.getAbsolutePath())));
-    LocalResource rsrc_alpha = new LocalResource();
-    rsrc_alpha.resource = resource_alpha;
-    rsrc_alpha.size= -1;
-    rsrc_alpha.state = LocalResourceVisibility.APPLICATION;
-    rsrc_alpha.type = LocalResourceType.FILE;
-    rsrc_alpha.timestamp = scriptFile.lastModified();
+    LocalResource rsrc_alpha = recordFactory.newRecordInstance(LocalResource.class);
+    rsrc_alpha.setResource(resource_alpha);
+    rsrc_alpha.setSize(-1);
+    rsrc_alpha.setVisibility(LocalResourceVisibility.APPLICATION);
+    rsrc_alpha.setType(LocalResourceType.FILE);
+    rsrc_alpha.setTimestamp(scriptFile.lastModified());
     String destinationFile = "dest_file";
-    containerLaunchContext.resources.put(destinationFile, rsrc_alpha);
-    containerLaunchContext.user = containerLaunchContext.user;
-    List<CharSequence> commandArgs = new ArrayList<CharSequence>();
-    commandArgs.add("/bin/bash");
-    commandArgs.add(scriptFile.getAbsolutePath());
-    containerLaunchContext.command = commandArgs;
-    containerManager.startContainer(containerLaunchContext);
+    containerLaunchContext.setLocalResource(destinationFile, rsrc_alpha);
+    containerLaunchContext.setUser(containerLaunchContext.getUser());
+    containerLaunchContext.addCommand("/bin/bash");
+    containerLaunchContext.addCommand(scriptFile.getAbsolutePath());
+    StartContainerRequest startRequest = recordFactory.newRecordInstance(StartContainerRequest.class);
+    startRequest.setContainerLaunchContext(containerLaunchContext);
+    containerManager.startContainer(startRequest);
  
     int timeoutSecs = 0;
     while (!processStartFile.exists() && timeoutSecs++ < 20) {
@@ -328,13 +333,18 @@ public class TestContainerManager {
         exec.signalContainer(user,
             pid, Signal.NULL));
 
-    containerManager.stopContainer(cId);
+    StopContainerRequest stopRequest = recordFactory.newRecordInstance(StopContainerRequest.class);
+    stopRequest.setContainerId(cId);
+    containerManager.stopContainer(stopRequest);
 
     DummyContainerManager.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE);
-    ContainerStatus containerStatus = containerManager.getContainerStatus(cId);
+    
+    GetContainerStatusRequest gcsRequest = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
+    gcsRequest.setContainerId(cId);
+    ContainerStatus containerStatus = containerManager.getContainerStatus(gcsRequest).getStatus();
     Assert.assertEquals(ExitCode.KILLED.getExitCode(),
-        containerStatus.exitStatus);
+        containerStatus.getExitStatus());
 
     // Assert that the process is not alive anymore
     Assert.assertFalse("Process is still alive!",
@@ -360,47 +370,48 @@ public class TestContainerManager {
     fileWriter.write("Hello World!");
     fileWriter.close();
 
-    ContainerLaunchContext container = new ContainerLaunchContext();
+    ContainerLaunchContext container = recordFactory.newRecordInstance(ContainerLaunchContext.class);
 
     // ////// Construct the Container-id
-    ApplicationID appId = new ApplicationID();
-    ContainerID cId = new ContainerID();
-    cId.appID = appId;
-    container.id = cId;
+    ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
+    ContainerId cId = recordFactory.newRecordInstance(ContainerId.class);
+    cId.setAppId(appId);
+    container.setContainerId(cId);
 
-    container.user = user;
+    container.setUser(user);
 
     // ////// Construct the container-spec.
-    ContainerLaunchContext containerLaunchContext =
-        new ContainerLaunchContext();
-    containerLaunchContext.resources =
-        new HashMap<CharSequence, LocalResource>();
+    ContainerLaunchContext containerLaunchContext = recordFactory.newRecordInstance(ContainerLaunchContext.class);
+//    containerLaunchContext.resources =
+//        new HashMap<CharSequence, LocalResource>();
     URL resource_alpha =
-        AvroUtil.getYarnUrlFromPath(FileContext.getLocalFSFileContext()
+        ConverterUtils.getYarnUrlFromPath(FileContext.getLocalFSFileContext()
             .makeQualified(new Path(file.getAbsolutePath())));
-    LocalResource rsrc_alpha = new LocalResource();
-    rsrc_alpha.resource = resource_alpha;
-    rsrc_alpha.size = -1;
-    rsrc_alpha.state = LocalResourceVisibility.APPLICATION;
-    rsrc_alpha.type = LocalResourceType.FILE;
-    rsrc_alpha.timestamp = file.lastModified();
+    LocalResource rsrc_alpha = recordFactory.newRecordInstance(LocalResource.class);
+    rsrc_alpha.setResource(resource_alpha);
+    rsrc_alpha.setSize(-1);
+    rsrc_alpha.setVisibility(LocalResourceVisibility.APPLICATION);
+    rsrc_alpha.setType(LocalResourceType.FILE);
+    rsrc_alpha.setTimestamp(file.lastModified());
     String destinationFile = "dest_file";
-    containerLaunchContext.resources.put(destinationFile, rsrc_alpha);
-    containerLaunchContext.user = container.user;
-    containerLaunchContext.id = container.id;
-    containerLaunchContext.command = new ArrayList<CharSequence>();
+    containerLaunchContext.setLocalResource(destinationFile, rsrc_alpha);
+    containerLaunchContext.setUser(container.getUser());
+    containerLaunchContext.setContainerId(container.getContainerId());
+//    containerLaunchContext.command = new ArrayList<CharSequence>();
 
-    containerManager.startContainer(containerLaunchContext);
+    StartContainerRequest request = recordFactory.newRecordInstance(StartContainerRequest.class);
+    request.setContainerLaunchContext(containerLaunchContext);
+    containerManager.startContainer(request);
 
     DummyContainerManager.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE);
 
-    waitForApplicationState(containerManager, cId.appID,
+    waitForApplicationState(containerManager, cId.getAppId(),
         ApplicationState.RUNNING);
 
     // Now ascertain that the resources are localised correctly.
-    String appIDStr = AvroUtil.toString(appId);
-    String containerIDStr = AvroUtil.toString(cId);
+    String appIDStr = ConverterUtils.toString(appId);
+    String containerIDStr = ConverterUtils.toString(cId);
     File userCacheDir = new File(localDir, ApplicationLocalizer.USERCACHE);
     File userDir = new File(userCacheDir, user);
     File appCache = new File(userDir, ApplicationLocalizer.APPCACHE);
@@ -425,9 +436,9 @@ public class TestContainerManager {
 
     // Simulate RM sending an AppFinish event.
     containerManager.handle(new CMgrCompletedAppsEvent(Arrays
-        .asList(new ApplicationID[] { appId })));
+        .asList(new ApplicationId[] { appId })));
 
-    waitForApplicationState(containerManager, cId.appID,
+    waitForApplicationState(containerManager, cId.getAppId(),
         ApplicationState.FINISHED);
 
     // Now ascertain that the resources are localised correctly.
@@ -546,7 +557,7 @@ public class TestContainerManager {
 //  }
 
   static void waitForApplicationState(ContainerManagerImpl containerManager,
-      ApplicationID appID, ApplicationState finalState)
+      ApplicationId appID, ApplicationState finalState)
       throws InterruptedException {
     // Wait for app-finish
     Application app =

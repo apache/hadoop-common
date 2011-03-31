@@ -20,13 +20,13 @@ package org.apache.hadoop.mapreduce.v2.app.webapp;
 
 import com.google.inject.Inject;
 
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
 import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
 
 import static org.apache.hadoop.yarn.util.StringHelper.*;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
@@ -57,16 +57,16 @@ public class JobsBlock extends HtmlBlock {
     for (Job job : appContext.getAllJobs().values()) {
       String jobID = MRApps.toString(job.getID());
       JobReport report = job.getReport();
-      String mapPct = percent(report.mapProgress);
+      String mapPct = percent(report.getMapProgress());
       String mapsTotal = String.valueOf(job.getTotalMaps());
       String mapsCompleted = String.valueOf(job.getCompletedMaps());
-      String reducePct = percent(report.reduceProgress);
+      String reducePct = percent(report.getReduceProgress());
       String reduceTotal = String.valueOf(job.getTotalReduces());
       String reduceCompleted = String.valueOf(job.getCompletedReduces());
       tbody.
         tr().
           td().
-            span().$title(String.valueOf(job.getID().id))._(). // for sorting
+            span().$title(String.valueOf(job.getID().getId()))._(). // for sorting
             a(url("job", jobID), jobID)._().
           td(job.getName().toString()).
           td(job.getState().toString()).

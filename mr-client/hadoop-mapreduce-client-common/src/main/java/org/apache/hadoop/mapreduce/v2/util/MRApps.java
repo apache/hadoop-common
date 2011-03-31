@@ -27,12 +27,13 @@ import java.util.Map;
 
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.util.Apps;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 
 import static org.apache.hadoop.yarn.util.StringHelper.*;
 
@@ -44,60 +45,60 @@ public class MRApps extends Apps {
   public static final String TASK = "task";
   public static final String ATTEMPT = "attempt";
 
-  public static String toString(JobID jid) {
-    return _join(JOB, jid.appID.clusterTimeStamp, jid.appID.id, jid.id);
+  public static String toString(JobId jid) {
+    return _join(JOB, jid.getAppId().getClusterTimestamp(), jid.getAppId().getId(), jid.getId());
   }
 
-  public static JobID toJobID(String jid) {
+  public static JobId toJobID(String jid) {
     Iterator<String> it = _split(jid).iterator();
     return toJobID(JOB, jid, it);
   }
 
   // mostly useful for parsing task/attempt id like strings
-  public static JobID toJobID(String prefix, String s, Iterator<String> it) {
-    ApplicationID appID = toAppID(prefix, s, it);
+  public static JobId toJobID(String prefix, String s, Iterator<String> it) {
+    ApplicationId appId = toAppID(prefix, s, it);
     shouldHaveNext(prefix, s, it);
-    JobID jobID = new JobID();
-    jobID.appID = appID;
-    jobID.id = Integer.parseInt(it.next());
-    return jobID;
+    JobId jobId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(JobId.class);
+    jobId.setAppId(appId);
+    jobId.setId(Integer.parseInt(it.next()));
+    return jobId;
   }
 
-  public static String toString(TaskID tid) {
-    return _join("task", tid.jobID.appID.clusterTimeStamp, tid.jobID.appID.id,
-                 tid.jobID.id, taskSymbol(tid.taskType), tid.id);
+  public static String toString(TaskId tid) {
+    return _join("task", tid.getJobId().getAppId().getClusterTimestamp(), tid.getJobId().getAppId().getId(),
+                 tid.getJobId().getId(), taskSymbol(tid.getTaskType()), tid.getId());
   }
 
-  public static TaskID toTaskID(String tid) {
+  public static TaskId toTaskID(String tid) {
     Iterator<String> it = _split(tid).iterator();
     return toTaskID(TASK, tid, it);
   }
 
-  public static TaskID toTaskID(String prefix, String s, Iterator<String> it) {
-    JobID jid = toJobID(prefix, s, it);
+  public static TaskId toTaskID(String prefix, String s, Iterator<String> it) {
+    JobId jid = toJobID(prefix, s, it);
     shouldHaveNext(prefix, s, it);
-    TaskID tid = new TaskID();
-    tid.jobID = jid;
-    tid.taskType = taskType(it.next());
+    TaskId tid = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class);
+    tid.setJobId(jid);
+    tid.setTaskType(taskType(it.next()));
     shouldHaveNext(prefix, s, it);
-    tid.id = Integer.parseInt(it.next());
+    tid.setId(Integer.parseInt(it.next()));
     return tid;
   }
 
-  public static String toString(TaskAttemptID taid) {
-    return _join("attempt", taid.taskID.jobID.appID.clusterTimeStamp,
-                 taid.taskID.jobID.appID.id, taid.taskID.jobID.id,
-                 taskSymbol(taid.taskID.taskType), taid.taskID.id, taid.id);
+  public static String toString(TaskAttemptId taid) {
+    return _join("attempt", taid.getTaskId().getJobId().getAppId().getClusterTimestamp(),
+                 taid.getTaskId().getJobId().getAppId().getId(), taid.getTaskId().getJobId().getId(),
+                 taskSymbol(taid.getTaskId().getTaskType()), taid.getTaskId().getId(), taid.getId());
   }
 
-  public static TaskAttemptID toTaskAttemptID(String taid) {
+  public static TaskAttemptId toTaskAttemptID(String taid) {
     Iterator<String> it = _split(taid).iterator();
-    TaskID tid = toTaskID(ATTEMPT, taid, it);
+    TaskId tid = toTaskID(ATTEMPT, taid, it);
     shouldHaveNext(ATTEMPT, taid, it);
-    TaskAttemptID taID = new TaskAttemptID();
-    taID.taskID = tid;
-    taID.id = Integer.parseInt(it.next());
-    return taID;
+    TaskAttemptId taId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskAttemptId.class);
+    taId.setTaskId(tid);
+    taId.setId(Integer.parseInt(it.next()));
+    return taId;
   }
 
   public static String taskSymbol(TaskType type) {
@@ -116,7 +117,7 @@ public class MRApps extends Apps {
   }
 
   public static void setInitialClasspath(
-      Map<CharSequence, CharSequence> environment) throws IOException {
+      Map<String, String> environment) throws IOException {
 
     // Get yarn mapreduce-app classpath from generated classpath
     // Works if compile time env is same as runtime. For e.g. tests.
@@ -151,8 +152,8 @@ public class MRApps extends Apps {
   }
 
   public static void addToClassPath(
-      Map<CharSequence, CharSequence> environment, String fileName) {
-    CharSequence classpath = environment.get(CLASSPATH);
+      Map<String, String> environment, String fileName) {
+    String classpath = environment.get(CLASSPATH);
     if (classpath == null) {
       classpath = fileName;
     } else {

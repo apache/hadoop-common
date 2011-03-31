@@ -20,8 +20,8 @@ package org.apache.hadoop.mapreduce.v2.app.speculate;
 
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 
 public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
 
@@ -29,7 +29,7 @@ public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
   private TaskAttemptStatus reportedStatus;
 
   // valid for TASK_CONTAINER_NEED_UPDATE
-  private TaskID taskID;
+  private TaskId taskID;
   private int containersNeededChange;
 
 
@@ -39,7 +39,7 @@ public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
     this.reportedStatus = reportedStatus;
   }
 
-  public SpeculatorEvent(TaskAttemptID attemptID, boolean flag, long timestamp) {
+  public SpeculatorEvent(TaskAttemptId attemptID, boolean flag, long timestamp) {
     super(Speculator.EventType.ATTEMPT_START, timestamp);
     this.reportedStatus = new TaskAttemptStatus();
     this.reportedStatus.id = attemptID;
@@ -54,7 +54,7 @@ public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
    *  speculation wouldn't compete for containers with tasks which need
    *  to be run.
    */
-  public SpeculatorEvent(TaskID taskID, int containersNeededChange) {
+  public SpeculatorEvent(TaskId taskID, int containersNeededChange) {
     super(Speculator.EventType.TASK_CONTAINER_NEED_UPDATE);
     this.taskID = taskID;
     this.containersNeededChange = containersNeededChange;
@@ -68,7 +68,7 @@ public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
     return containersNeededChange;
   }
 
-  public TaskID getTaskID() {
+  public TaskId getTaskID() {
     return taskID;
   }
 }

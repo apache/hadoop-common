@@ -24,6 +24,7 @@ import java.util.Date;
 
 import org.apache.hadoop.util.VersionInfo;
 import org.apache.hadoop.yarn.Application;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
@@ -31,7 +32,6 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.Capacity
 import org.apache.hadoop.yarn.util.Apps;
 import org.apache.hadoop.yarn.webapp.Controller;
 import org.apache.hadoop.yarn.webapp.ResponseInfo;
-import org.apache.hadoop.yarn.ApplicationID;
 
 import static org.apache.hadoop.yarn.server.resourcemanager.webapp.RMWebApp.*;
 import static org.apache.hadoop.yarn.util.StringHelper.*;
@@ -65,7 +65,7 @@ public class RmController extends Controller {
       setTitle("Bad request: requires application ID");
       return;
     }
-    ApplicationID appID = Apps.toAppID(aid);
+    ApplicationId appID = Apps.toAppID(aid);
     ApplicationsManager asm = injector().getInstance(ApplicationsManager.class);
     Application app = asm.getApplication(appID);
     if (app == null) {

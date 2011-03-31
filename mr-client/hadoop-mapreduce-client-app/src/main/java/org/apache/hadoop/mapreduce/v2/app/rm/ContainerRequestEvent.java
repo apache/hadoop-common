@@ -18,9 +18,11 @@
 
 package org.apache.hadoop.mapreduce.v2.app.rm;
 
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+
 
 public class ContainerRequestEvent extends ContainerAllocatorEvent {
   
@@ -29,13 +31,13 @@ public class ContainerRequestEvent extends ContainerAllocatorEvent {
   private String[] hosts;
   private String[] racks;
 
-  public ContainerRequestEvent(TaskAttemptID attemptID, 
+  public ContainerRequestEvent(TaskAttemptId attemptID, 
       Resource capability, int priority,
       String[] hosts, String[] racks) {
     super(attemptID, ContainerAllocator.EventType.CONTAINER_REQ);
     this.capability = capability;
-    this.priority = new Priority();
-    this.priority.priority = priority;
+    this.priority = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Priority.class);
+    this.priority.setPriority(priority);
     this.hosts = hosts;
     this.racks = racks;
   }

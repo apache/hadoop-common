@@ -18,15 +18,16 @@
 
 package org.apache.hadoop.yarn;
 
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
+
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 
 /**
  * A read-only application interface
  */
 public interface Application {
-  ApplicationID id();
+  ApplicationId id();
   CharSequence user();
   CharSequence queue();
   CharSequence name();

@@ -27,9 +27,10 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class ContainerTokenIdentifier extends TokenIdentifier {
 
@@ -38,12 +39,12 @@ public class ContainerTokenIdentifier extends TokenIdentifier {
 
   public static final Text KIND = new Text("ContainerToken");
 
-  private ContainerID containerID;
+  private ContainerId containerId;
   private String nmHostName;
   private Resource resource;
 
-  public ContainerTokenIdentifier(ContainerID containerID, String hostName, Resource r) {
-    this.containerID = containerID;
+  public ContainerTokenIdentifier(ContainerId containerID, String hostName, Resource r) {
+    this.containerId = containerID;
     this.nmHostName = hostName;
     this.resource = r;
   }
@@ -51,8 +52,8 @@ public class ContainerTokenIdentifier extends TokenIdentifier {
   public ContainerTokenIdentifier() {
   }
 
-  public ContainerID getContainerID() {
-    return containerID;
+  public ContainerId getContainerID() {
+    return containerId;
   }
 
   public String getNmHostName() {
@@ -66,21 +67,21 @@ public class ContainerTokenIdentifier extends TokenIdentifier {
   @Override
   public void write(DataOutput out) throws IOException {
     LOG.info("Writing ContainerTokenIdentifier to RPC layer");
-    out.writeInt(this.containerID.appID.id);
-    out.writeInt(this.containerID.id);
+    out.writeInt(this.containerId.getAppId().getId());
+    out.writeInt(this.containerId.getId());
     out.writeUTF(this.nmHostName);
-    out.writeInt(this.resource.memory); // TODO: more resources.
+    out.writeInt(this.resource.getMemory()); // TODO: more resources.
   }
 
   @Override
   public void readFields(DataInput in) throws IOException {
-    this.containerID = new ContainerID();
-    this.containerID.appID = new ApplicationID();
-    this.containerID.appID.id = in.readInt();
-    this.containerID.id = in.readInt();
+    this.containerId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerId.class);
+    this.containerId.setAppId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class));
+    this.containerId.getAppId().setId(in.readInt());
+    this.containerId.setId(in.readInt());
     this.nmHostName = in.readUTF();
-    this.resource = new Resource();
-    this.resource.memory = in.readInt(); // TODO: more resources.
+    this.resource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Resource.class);
+    this.resource.setMemory(in.readInt()); // TODO: more resources.
   }
 
   @Override
@@ -90,7 +91,7 @@ public class ContainerTokenIdentifier extends TokenIdentifier {
 
   @Override
   public UserGroupInformation getUser() {
-    return UserGroupInformation.createRemoteUser(this.containerID.toString());
+    return UserGroupInformation.createRemoteUser(this.containerId.toString());
   }
 
 }

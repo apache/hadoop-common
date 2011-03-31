@@ -26,31 +26,32 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.URL;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.URL;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 /**
  * This class contains a set of utilities which help converting data structures
- * from/to avro to/from hadoop/nativejava data structures.
+ * from/to 'serializableFormat' to/from hadoop/nativejava data structures.
  *
  */
-public class AvroUtil {
+public class ConverterUtils {
 
   /**
-   * return a hadoop path from a given avro url
+   * return a hadoop path from a given url
    * 
    * @param url
-   *          avro url to convert
+   *          url to convert
    * @return
    * @throws URISyntaxException
    */
   public static Path getPathFromYarnURL(URL url) throws URISyntaxException {
-    String scheme = url.scheme == null ? "" : url.scheme.toString();
-    String authority = url.host != null ? url.host.toString() + ":" + url.port
+    String scheme = url.getScheme() == null ? "" : url.getScheme();
+    String authority = url.getHost() != null ? url.getHost() + ":" + url.getPort()
         : "";
     return new Path(
-        (new URI(scheme, authority, url.file.toString(), null, null))
+        (new URI(scheme, authority, url.getFile(), null, null))
             .normalize());
   }
   
@@ -74,13 +75,13 @@ public class AvroUtil {
   }
   
   public static URL getYarnUrlFromURI(URI uri) {
-    URL url = new URL();
+    URL url = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(URL.class);
     if (uri.getHost() != null) {
-      url.host = uri.getHost();
+      url.setHost(uri.getHost());
     }
-    url.port = uri.getPort();
-    url.scheme = uri.getScheme();
-    url.file = uri.getPath();
+    url.setPort(uri.getPort());
+    url.setScheme(uri.getScheme());
+    url.setFile(uri.getPath());
     return url;
   }
 
@@ -108,19 +109,19 @@ public class AvroUtil {
         }
       };
 
-  public static String toString(ApplicationID appId) {
+  public static String toString(ApplicationId appId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("application_").append(appId.clusterTimeStamp).append("_");
-    sb.append(appIdFormat.get().format(appId.id));
+    sb.append("application_").append(appId.getClusterTimestamp()).append("_");
+    sb.append(appIdFormat.get().format(appId.getId()));
     return sb.toString();
   }
 
-  public static String toString(ContainerID cId) {
+  public static String toString(ContainerId cId) {
     StringBuilder sb = new StringBuilder();
-    ApplicationID appId = cId.appID;
-    sb.append("container_").append(appId.clusterTimeStamp).append("_");
-    sb.append(appIdFormat.get().format(appId.id)).append("_");
-    sb.append(containerIdFormat.get().format(cId.id));
+    ApplicationId appId = cId.getAppId();
+    sb.append("container_").append(appId.getClusterTimestamp()).append("_");
+    sb.append(appIdFormat.get().format(appId.getId())).append("_");
+    sb.append(containerIdFormat.get().format(cId.getId()));
     return sb.toString();
   }
 }

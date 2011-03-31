@@ -31,15 +31,17 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
@@ -59,25 +61,25 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   private long amExpiryInterval; 
   @SuppressWarnings("rawtypes")
   private EventHandler handler;
-  
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private int amMaxRetries;
   
   private final ASMContext asmContext;
   
-  private final Map<ApplicationID, ApplicationMasterInfo> applications = 
-    new ConcurrentHashMap<ApplicationID, ApplicationMasterInfo>();
+  private final Map<ApplicationId, ApplicationMasterInfo> applications = 
+    new ConcurrentHashMap<ApplicationId, ApplicationMasterInfo>();
 
   private TreeSet<ApplicationStatus> amExpiryQueue =
     new TreeSet<ApplicationStatus>(
         new Comparator<ApplicationStatus>() {
           public int compare(ApplicationStatus p1, ApplicationStatus p2) {
-            if (p1.lastSeen < p2.lastSeen) {
+            if (p1.getLastSeen() < p2.getLastSeen()) {
               return -1;
-            } else if (p1.lastSeen > p2.lastSeen) {
+            } else if (p1.getLastSeen() > p2.getLastSeen()) {
               return 1;
             } else {
-              return (p1.applicationId.id -
-                  p2.applicationId.id);
+              return (p1.getApplicationId().getId() -
+                  p2.getApplicationId().getId());
             }
           }
         }
@@ -126,7 +128,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
        * its alright. We do not want to hold a hold on applications while going
        * through the expiry queue.
        */
-      List<ApplicationID> expired = new ArrayList<ApplicationID>();
+      List<ApplicationId> expired = new ArrayList<ApplicationId>();
       while (!stop) {
         ApplicationStatus leastRecent;
         long now = System.currentTimeMillis();
@@ -134,19 +136,19 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         synchronized(amExpiryQueue) {
           while ((amExpiryQueue.size() > 0) &&
               (leastRecent = amExpiryQueue.first()) != null &&
-              ((now - leastRecent.lastSeen) > 
+              ((now - leastRecent.getLastSeen()) > 
               amExpiryInterval)) {
             amExpiryQueue.remove(leastRecent);
             ApplicationMasterInfo info;
             synchronized(applications) {
-              info = applications.get(leastRecent.applicationId);
+              info = applications.get(leastRecent.getApplicationId());
             }
             if (info == null) {
               continue;
             }
             ApplicationStatus status = info.getStatus();
-            if ((now - status.lastSeen) > amExpiryInterval) {
-              expired.add(status.applicationId);
+            if ((now - status.getLastSeen()) > amExpiryInterval) {
+              expired.add(status.getApplicationId());
             } else {
               amExpiryQueue.add(status);
             }
@@ -161,8 +163,8 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     }
   }
 
-  protected void expireAMs(List<ApplicationID> toExpire) {
-    for (ApplicationID app: toExpire) {
+  protected void expireAMs(List<ApplicationId> toExpire) {
+    for (ApplicationId app: toExpire) {
       ApplicationMasterInfo am = null;
       synchronized (applications) {
         am = applications.get(app);
@@ -196,7 +198,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         ApplicationEventType.ALLOCATE, applicationMaster));
   }
   
-  public void finish(ApplicationID application) {
+  public void finish(ApplicationId application) {
     ApplicationMasterInfo masterInfo = null;
     synchronized(applications) {
       masterInfo = applications.get(application);
@@ -205,7 +207,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         masterInfo));
   }
 
-  public ApplicationMasterInfo get(ApplicationID applicationId) {
+  public ApplicationMasterInfo get(ApplicationId applicationId) {
     ApplicationMasterInfo masterInfo = null;
     synchronized (applications) {
       masterInfo = applications.get(applicationId);
@@ -215,7 +217,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 
   /* As of now we dont remove applications from the RM */
   /* TODO we need to decide on a strategy for expiring done applications */
-  public void remove(ApplicationID applicationId) {
+  public void remove(ApplicationId applicationId) {
     synchronized (applications) {
       applications.remove(applicationId);
     }
@@ -238,7 +240,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     }
   }
 
-  public void kill(ApplicationID applicationID) {
+  public void kill(ApplicationId applicationID) {
     ApplicationMasterInfo masterInfo = null;
     
     synchronized(applications) {
@@ -253,12 +255,12 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
    * machine.
    */
   private static class TrackerAppContext implements AppContext {
-    private final ApplicationID appID;
+    private final ApplicationId appID;
     private final ApplicationMaster master;
     private final UnsupportedOperationException notimplemented;
   
     public TrackerAppContext(
-         ApplicationID appId, ApplicationMaster master) {
+         ApplicationId appId, ApplicationMaster master) {
       this.appID = appId;
       this.master = master;
       this.notimplemented = new NotImplementedException();
@@ -273,12 +275,12 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
       throw notimplemented;
     }
     @Override
-    public ApplicationID getApplicationID() {
+    public ApplicationId getApplicationID() {
       return appID;
     }
     @Override
     public ApplicationStatus getStatus() {
-      return master.status;
+      return master.getStatus();
     }
     @Override
     public ApplicationMaster getMaster() {
@@ -294,7 +296,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     }
     @Override
     public long getLastSeen() {
-      return master.status.lastSeen;
+      return master.getStatus().getLastSeen();
     }
     @Override
     public String getName() {
@@ -312,19 +314,19 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   }
   
   public void heartBeat(ApplicationStatus status) {
-    ApplicationMaster master = new ApplicationMaster();
-    master.status = status;
-    master.applicationId = status.applicationId;
-    TrackerAppContext context = new TrackerAppContext(status.applicationId, master);
+    ApplicationMaster master = recordFactory.newRecordInstance(ApplicationMaster.class);
+    master.setStatus(status);
+    master.setApplicationId(status.getApplicationId());
+    TrackerAppContext context = new TrackerAppContext(status.getApplicationId(), master);
     handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.STATUSUPDATE, 
         context));
   }
   
   public void registerMaster(ApplicationMaster applicationMaster) {
-    applicationMaster.status.lastSeen = System.currentTimeMillis();
+    applicationMaster.getStatus().setLastSeen(System.currentTimeMillis());
     ApplicationMasterInfo master = null;
     synchronized(applications) {
-      master = applications.get(applicationMaster.applicationId);
+      master = applications.get(applicationMaster.getApplicationId());
     }
     LOG.info("AM registration " + master.getMaster());
     TrackerAppContext registrationContext = new TrackerAppContext(
@@ -335,7 +337,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   
   @Override
   public void handle(ASMEvent<ApplicationEventType> event) {
-    ApplicationID appID = event.getAppContext().getApplicationID();
+    ApplicationId appID = event.getAppContext().getApplicationID();
     ApplicationMasterInfo masterInfo = null;
     synchronized(applications) {
       masterInfo = applications.get(appID);

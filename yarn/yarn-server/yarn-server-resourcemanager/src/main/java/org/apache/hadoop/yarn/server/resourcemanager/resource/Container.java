@@ -18,57 +18,60 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resource;
 
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerState;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class Container {
   
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
-  private static ContainerID getNewContainerId(ApplicationID applicationId, 
+  private static ContainerId getNewContainerId(ApplicationId applicationId, 
       int containerId) {
-    ContainerID id = new ContainerID();
-    id.appID = applicationId;
-    id.id = containerId;
+    ContainerId id = recordFactory.newRecordInstance(ContainerId.class);
+    id.setAppId(applicationId);
+    id.setId(containerId);
     return id;
   }
   
-  public static org.apache.hadoop.yarn.Container create(
-      org.apache.hadoop.yarn.Container c) {
-    org.apache.hadoop.yarn.Container container = new org.apache.hadoop.yarn.Container();
-    container.id = c.id;
-    container.hostName = c.hostName;
-    container.resource = c.resource;
-    container.state = c.state;
+  public static org.apache.hadoop.yarn.api.records.Container create(
+      org.apache.hadoop.yarn.api.records.Container c) {
+    org.apache.hadoop.yarn.api.records.Container container = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
+    container.setId(c.getId());
+    container.setHostName(c.getHostName());
+    container.setResource(c.getResource());
+    container.setState(c.getState());
     return container;
   }
 
-  public static org.apache.hadoop.yarn.Container create(
-      ApplicationID applicationId, int containerId, 
+  public static org.apache.hadoop.yarn.api.records.Container create(
+      ApplicationId applicationId, int containerId, 
       String hostName, Resource resource) {
-    ContainerID containerID = getNewContainerId(applicationId, containerId);
+    ContainerId containerID = getNewContainerId(applicationId, containerId);
     return create(containerID, hostName, resource);
   }
 
-  public static org.apache.hadoop.yarn.Container create(
-      ContainerID containerId,
+  public static org.apache.hadoop.yarn.api.records.Container create(
+      ContainerId containerId,
       String hostName, Resource resource) {
-    org.apache.hadoop.yarn.Container container = new org.apache.hadoop.yarn.Container();
-    container.id = containerId;
-    container.hostName = hostName;
-    container.resource = resource;
-    container.state = ContainerState.INTIALIZING;
+    org.apache.hadoop.yarn.api.records.Container container = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
+    container.setId(containerId);
+    container.setHostName(hostName);
+    container.setResource(resource);
+    container.setState(ContainerState.INITIALIZING);
     return container;
   }
   
   public static class Comparator 
-  implements java.util.Comparator<org.apache.hadoop.yarn.Container> {
+  implements java.util.Comparator<org.apache.hadoop.yarn.api.records.Container> {
 
     @Override
-    public int compare(org.apache.hadoop.yarn.Container c1,
-        org.apache.hadoop.yarn.Container c2) {
-      return c1.id.compareTo(c2.id);
+    public int compare(org.apache.hadoop.yarn.api.records.Container c1,
+        org.apache.hadoop.yarn.api.records.Container c2) {
+      return c1.compareTo(c2);
     }
   }
 }

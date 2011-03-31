@@ -20,7 +20,8 @@ package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
 import java.util.List;
 
-import org.apache.hadoop.yarn.YarnClusterMetrics;
+import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
+
 
 /**
  * The read-only interface for cluster resource

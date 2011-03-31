@@ -25,14 +25,16 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Unstable;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
@@ -66,6 +68,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
    */
   private final  KillTransition killTransition =  new KillTransition();
   private final StatusUpdateTransition statusUpdatetransition = new StatusUpdateTransition();
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private final ExpireTransition expireTransition = new ExpireTransition();
   private final FailedTransition failedTransition = new FailedTransition();
   private final AllocateTransition allocateTransition = new AllocateTransition();
@@ -146,14 +149,14 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     this.user = user;
     this.handler = handler;
     this.submissionContext = submissionContext;
-    master = new ApplicationMaster();
-    master.applicationId = submissionContext.applicationId;
-    master.status = new ApplicationStatus();
-    master.status.applicationId = submissionContext.applicationId;
-    master.status.progress = -1.0f;
+    master = recordFactory.newRecordInstance(ApplicationMaster.class);
+    master.setApplicationId(submissionContext.getApplicationId());
+    master.setStatus(recordFactory.newRecordInstance(ApplicationStatus.class));
+    master.getStatus().setApplicationId(submissionContext.getApplicationId());
+    master.getStatus().setProgress(-1.0f);
     stateMachine = stateMachineFactory.make(this);
-    master.state = ApplicationState.PENDING;
-    master.clientToken = clientToken;
+    master.setState(ApplicationState.PENDING);
+    master.setClientToken(clientToken);
   }
 
   @Override
@@ -163,21 +166,21 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
 
   @Override
   public Resource getResource() {
-    return submissionContext.masterCapability;
+    return submissionContext.getMasterCapability();
   }
 
   @Override
-  public synchronized ApplicationID getApplicationID() {
-    return this.master.applicationId;
+  public synchronized ApplicationId getApplicationID() {
+    return this.master.getApplicationId();
   }
 
   @Override
   public synchronized ApplicationStatus getStatus() {
-    return master.status;
+    return master.getStatus();
   }
 
   public synchronized void updateStatus(ApplicationStatus status) {
-    this.master.status = status;
+    this.master.setStatus(status);
   }
 
   @Override
@@ -187,7 +190,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
 
   /* make sure the master state is in sync with statemachine state */
   public synchronized ApplicationState getState() {
-    return master.state;
+    return master.getState();
   }
 
   @Override
@@ -203,7 +206,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
 
   @Override
   public synchronized long getLastSeen() {
-    return this.master.status.lastSeen;
+    return this.master.getStatus().getLastSeen();
   }
 
   @Override
@@ -213,12 +216,12 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   
   @Override
   public String getName() {
-    return submissionContext.applicationName.toString();
+    return submissionContext.getApplicationName();
   }
 
   @Override
   public String getQueue() {
-    return submissionContext.queue.toString();
+    return submissionContext.getQueue();
   }
   
   /* the applicaiton master completed successfully */
@@ -265,7 +268,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     public void transition(ApplicationMasterInfo masterInfo,
     ASMEvent<ApplicationEventType> event) {
       /* make sure the time stamp is update else expiry thread will expire this */
-      masterInfo.master.status.lastSeen = System.currentTimeMillis();
+      masterInfo.master.getStatus().setLastSeen(System.currentTimeMillis());
     }
   }
 
@@ -320,12 +323,12 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     public void transition(ApplicationMasterInfo masterInfo,
     ASMEvent<ApplicationEventType> event) {
       ApplicationMaster registeredMaster = event.getAppContext().getMaster();
-      masterInfo.master.host = registeredMaster.host;
-      masterInfo.master.httpPort = registeredMaster.httpPort;
-      masterInfo.master.rpcPort = registeredMaster.rpcPort;
-      masterInfo.master.status = registeredMaster.status;
-      masterInfo.master.status.progress = 0.0f;
-      masterInfo.master.status.lastSeen = System.currentTimeMillis();
+      masterInfo.master.setHost(registeredMaster.getHost());
+      masterInfo.master.setHttpPort(registeredMaster.getHttpPort());
+      masterInfo.master.setRpcPort(registeredMaster.getRpcPort());
+      masterInfo.master.setStatus(registeredMaster.getStatus());
+      masterInfo.master.getStatus().setProgress(0.0f);
+      masterInfo.master.getStatus().setLastSeen(System.currentTimeMillis());
     }
   }
 
@@ -349,20 +352,20 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     @Override
     public void transition(ApplicationMasterInfo masterInfo,
     ASMEvent<ApplicationEventType> event) {
-      masterInfo.master.status = event.getAppContext().getStatus();
-      masterInfo.master.status.lastSeen = System.currentTimeMillis();
+      masterInfo.master.setStatus(event.getAppContext().getStatus());
+      masterInfo.master.getStatus().setLastSeen(System.currentTimeMillis());
     }
   }
 
   @Override
   public synchronized void handle(ASMEvent<ApplicationEventType> event) {
-    ApplicationID appID =  event.getAppContext().getApplicationID();
+    ApplicationId appID =  event.getAppContext().getApplicationID();
     LOG.info("Processing event for " + appID +  " of type " + event.getType());
     final ApplicationState oldState = getState();
     try {
       /* keep the master in sync with the state machine */
       stateMachine.doTransition(event.getType(), event);
-      master.state = stateMachine.getCurrentState();
+      master.setState(stateMachine.getCurrentState());
       LOG.info("State is " +  stateMachine.getCurrentState());
     } catch (InvalidStateTransitonException e) {
       LOG.error("Can't handle this event at current state", e);

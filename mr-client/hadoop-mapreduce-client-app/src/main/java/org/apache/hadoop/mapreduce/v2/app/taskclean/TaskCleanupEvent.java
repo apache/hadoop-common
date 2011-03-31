@@ -20,8 +20,8 @@ package org.apache.hadoop.mapreduce.v2.app.taskclean;
 
 import org.apache.hadoop.mapreduce.OutputCommitter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 
 /**
  * This class encapsulates task cleanup event.
@@ -29,11 +29,11 @@ import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
  */
 public class TaskCleanupEvent extends AbstractEvent<TaskCleaner.EventType> {
 
-  private final TaskAttemptID attemptID;
+  private final TaskAttemptId attemptID;
   private final OutputCommitter committer;
   private final TaskAttemptContext attemptContext;
 
-  public TaskCleanupEvent(TaskAttemptID attemptID, OutputCommitter committer, 
+  public TaskCleanupEvent(TaskAttemptId attemptID, OutputCommitter committer, 
       TaskAttemptContext attemptContext) {
     super(TaskCleaner.EventType.TASK_CLEAN);
     this.attemptID = attemptID;
@@ -41,7 +41,7 @@ public class TaskCleanupEvent extends AbstractEvent<TaskCleaner.EventType> {
     this.attemptContext = attemptContext;
   }
 
-  public TaskAttemptID getAttemptID() {
+  public TaskAttemptId getAttemptID() {
     return attemptID;
   }
 

@@ -29,11 +29,11 @@ import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 
 abstract class StartEndTimesBase implements TaskRuntimeEstimator {
   static final float MINIMUM_COMPLETE_PROPORTION_TO_SPECULATE
@@ -44,8 +44,8 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
   protected Configuration conf = null;
   protected AppContext context = null;
 
-  protected final Map<TaskAttemptID, Long> startTimes
-      = new ConcurrentHashMap<TaskAttemptID, Long>();
+  protected final Map<TaskAttemptId, Long> startTimes
+      = new ConcurrentHashMap<TaskAttemptId, Long>();
 
   // XXXX This class design assumes that the contents of AppContext.getAllJobs
   //   never changes.  Is that right?
@@ -71,7 +71,7 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
   }
 
   @Override
-  public long attemptEnrolledTime(TaskAttemptID attemptID) {
+  public long attemptEnrolledTime(TaskAttemptId attemptID) {
     Long result = startTimes.get(attemptID);
 
     return result == null ? Long.MAX_VALUE : result;
@@ -83,9 +83,9 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
     this.conf = conf;
     this.context = context;
 
-    Map<JobID, Job> allJobs = context.getAllJobs();
+    Map<JobId, Job> allJobs = context.getAllJobs();
 
-    for (JobID jobID : allJobs.keySet()) {
+    for (JobId jobID : allJobs.keySet()) {
       final Job job = allJobs.get(jobID);
       mapperStatistics.put(job, new DataStatistics());
       reducerStatistics.put(job, new DataStatistics());
@@ -94,8 +94,8 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
     }
   }
 
-  protected DataStatistics dataStatisticsForTask(TaskID taskID) {
-    JobID jobID = taskID.jobID;
+  protected DataStatistics dataStatisticsForTask(TaskId taskID) {
+    JobId jobID = taskID.getJobId();
     Job job = context.getJob(jobID);
 
     if (job == null) {
@@ -116,11 +116,11 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
   }
 
   @Override
-  public long thresholdRuntime(TaskID taskID) {
-    JobID jobID = taskID.jobID;
+  public long thresholdRuntime(TaskId taskID) {
+    JobId jobID = taskID.getJobId();
     Job job = context.getJob(jobID);
 
-    TaskType type = taskID.taskType;
+    TaskType type = taskID.getTaskType();
 
     DataStatistics statistics
         = dataStatisticsForTask(taskID);
@@ -147,7 +147,7 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
   }
 
   @Override
-  public long estimatedNewAttemptRuntime(TaskID id) {
+  public long estimatedNewAttemptRuntime(TaskId id) {
     DataStatistics statistics = dataStatisticsForTask(id);
 
     if (statistics == null) {
@@ -161,9 +161,9 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
   public void updateAttempt(TaskAttemptStatus status, long timestamp) {
     String stateString = status.stateString.toString();
 
-    TaskAttemptID attemptID = status.id;
-    TaskID taskID = attemptID.taskID;
-    JobID jobID = taskID.jobID;
+    TaskAttemptId attemptID = status.id;
+    TaskId taskID = attemptID.getTaskId();
+    JobId jobID = taskID.getJobId();
     Job job = context.getJob(jobID);
 
     if (job == null) {

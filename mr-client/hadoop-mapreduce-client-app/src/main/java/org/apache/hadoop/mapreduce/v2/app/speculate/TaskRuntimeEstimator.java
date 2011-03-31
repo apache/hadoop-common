@@ -19,17 +19,17 @@
 package org.apache.hadoop.mapreduce.v2.app.speculate;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
 
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 
 
 public interface TaskRuntimeEstimator {
   public void enrollAttempt(TaskAttemptStatus reportedStatus, long timestamp);
 
-  public long attemptEnrolledTime(TaskAttemptID attemptID);
+  public long attemptEnrolledTime(TaskAttemptId attemptID);
 
   public void updateAttempt(TaskAttemptStatus reportedStatus, long timestamp);
 
@@ -50,7 +50,7 @@ public interface TaskRuntimeEstimator {
    *         however long.
    *
    */
-  public long thresholdRuntime(TaskID id);
+  public long thresholdRuntime(TaskId id);
 
   /**
    *
@@ -62,7 +62,7 @@ public interface TaskRuntimeEstimator {
    *         we don't have enough information yet to produce an estimate.
    *
    */
-  public long estimatedRuntime(TaskAttemptID id);
+  public long estimatedRuntime(TaskAttemptId id);
 
   /**
    *
@@ -74,7 +74,7 @@ public interface TaskRuntimeEstimator {
    *         we don't have enough information yet to produce an estimate.
    *
    */
-  public long estimatedNewAttemptRuntime(TaskID id);
+  public long estimatedNewAttemptRuntime(TaskId id);
 
   /**
    *
@@ -86,5 +86,5 @@ public interface TaskRuntimeEstimator {
    *         we don't have enough information yet to produce an estimate.
    *
    */
-  public long runtimeEstimateVariance(TaskAttemptID id);
+  public long runtimeEstimateVariance(TaskAttemptId id);
 }

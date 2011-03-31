@@ -69,7 +69,7 @@ public class MapReduceChildJVM {
         jobConf.get(jobConf.MAPRED_TASK_ENV));
   }
 
-  public static void setVMEnv(Map<CharSequence,CharSequence> env,
+  public static void setVMEnv(Map<String,String> env,
       List<String> classPaths, String pwd, String nmLdLibraryPath, Task task,
       CharSequence applicationTokensFile) {
 
@@ -162,7 +162,7 @@ public class MapReduceChildJVM {
             JobConf.DEFAULT_MAPRED_TASK_JAVA_OPTS));
   }
 
-  private static void setupLog4jProperties(Vector<CharSequence> vargs,
+  private static void setupLog4jProperties(Vector<String> vargs,
       long logSize, String hadoopLogDir, Task task) {
     vargs.add("-Dhadoop.log.dir=" + hadoopLogDir);
     vargs.add("-Dhadoop.root.logger=DEBUG,TLA");
@@ -171,14 +171,14 @@ public class MapReduceChildJVM {
     vargs.add("-Dhadoop.tasklog.totalLogFileSize=" + logSize);
   }
 
-  public static List<CharSequence> getVMCommand(
+  public static List<String> getVMCommand(
       InetSocketAddress taskAttemptListenerAddr, Task task, String javaHome,
       String workDir, String logDir, String childTmpDir, ID jvmID) {
 
     TaskAttemptID attemptID = task.getTaskID();
     JobConf conf = task.conf;
 
-    Vector<CharSequence> vargs = new Vector<CharSequence>(8);
+    Vector<String> vargs = new Vector<String>(8);
 
     vargs.add(javaHome + "/bin/java");
 
@@ -280,7 +280,7 @@ public class MapReduceChildJVM {
     for (CharSequence str : vargs) {
       mergedCommand.append(str).append(" ");
     }
-    Vector<CharSequence> vargsFinal = new Vector<CharSequence>(8);
+    Vector<String> vargsFinal = new Vector<String>(8);
     vargsFinal.add("mkdir work; mkdir -p " + attemptLogDir + "; "
         + mergedCommand.toString());
     return vargsFinal;

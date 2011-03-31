@@ -22,28 +22,29 @@ import java.net.URISyntaxException;
 import java.util.Random;
 
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResource;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
-import org.apache.hadoop.yarn.LocalResourceType;
-import org.apache.hadoop.yarn.LocalResourceVisibility;
-import static org.apache.hadoop.yarn.LocalResourceType.*;
-import static org.apache.hadoop.yarn.LocalResourceVisibility.*;
+import static org.apache.hadoop.yarn.api.records.LocalResourceType.*;
+import static org.apache.hadoop.yarn.api.records.LocalResourceVisibility.*;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class TestLocalResource {
 
-  static org.apache.hadoop.yarn.LocalResource getYarnResource(Path p, long size,
+  static org.apache.hadoop.yarn.api.records.LocalResource getYarnResource(Path p, long size,
       long timestamp, LocalResourceType type, LocalResourceVisibility state)
       throws URISyntaxException {
-    org.apache.hadoop.yarn.LocalResource ret = new org.apache.hadoop.yarn.LocalResource();
-    ret.resource = AvroUtil.getYarnUrlFromURI(p.toUri());
-    ret.size = size;
-    ret.timestamp = timestamp;
-    ret.type = type;
-    ret.state = state;
+    org.apache.hadoop.yarn.api.records.LocalResource ret = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.yarn.api.records.LocalResource.class);
+    ret.setResource(ConverterUtils.getYarnUrlFromURI(p.toUri()));
+    ret.setSize(size);
+    ret.setTimestamp(timestamp);
+    ret.setType(type);
+    ret.setVisibility(state);
     return ret;
   }
 
@@ -70,9 +71,9 @@ public class TestLocalResource {
     System.out.println("SEED: " + seed);
 
     long basetime = r.nextLong() >>> 2;
-    org.apache.hadoop.yarn.LocalResource yA = getYarnResource(
+    org.apache.hadoop.yarn.api.records.LocalResource yA = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime, FILE, PUBLIC);
-    org.apache.hadoop.yarn.LocalResource yB = getYarnResource(
+    org.apache.hadoop.yarn.api.records.LocalResource yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime, FILE, PUBLIC);
     final LocalResource a = new LocalResource(yA);
     LocalResource b = new LocalResource(yA);
@@ -118,12 +119,12 @@ public class TestLocalResource {
     r.setSeed(seed);
     System.out.println("SEED: " + seed);
     long basetime = r.nextLong() >>> 2;
-    org.apache.hadoop.yarn.LocalResource yA = getYarnResource(
+    org.apache.hadoop.yarn.api.records.LocalResource yA = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime, FILE, PUBLIC);
     final LocalResource a = new LocalResource(yA);
 
     // Path primary
-    org.apache.hadoop.yarn.LocalResource yB = getYarnResource(
+    org.apache.hadoop.yarn.api.records.LocalResource yB = getYarnResource(
         new Path("http://yak.org:80/foobaz"), -1, basetime, FILE, PUBLIC);
     LocalResource b = new LocalResource(yB);
     assertTrue(0 > a.compareTo(b));

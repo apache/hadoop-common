@@ -23,7 +23,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.StringUtils;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.Resource;
 
 public class CapacitySchedulerConfiguration extends Configuration {
 

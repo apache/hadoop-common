@@ -22,9 +22,9 @@ import com.google.inject.Inject;
 import java.util.Date;
 import java.util.Map;
 
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
@@ -54,7 +54,7 @@ public class JobBlock extends HtmlBlock {
         p()._("Sorry, can't do anything without a JobID.")._();
       return;
     }
-    JobID jobID = MRApps.toJobID(jid);
+    JobId jobID = MRApps.toJobID(jid);
     Job job = appContext.getJob(jobID);
     if (job == null) {
       html.
@@ -62,8 +62,8 @@ public class JobBlock extends HtmlBlock {
       return;
     }
     JobReport jobReport = job.getReport();
-    String mapPct = percent(jobReport.mapProgress);
-    String reducePct = percent(jobReport.reduceProgress);
+    String mapPct = percent(jobReport.getMapProgress());
+    String reducePct = percent(jobReport.getReduceProgress());
     int maps = job.getTotalMaps();
     int mapsComplete = job.getCompletedMaps();
     int reduces = job.getTotalReduces();
@@ -72,9 +72,9 @@ public class JobBlock extends HtmlBlock {
     info("Job Overview").
         _("Job Name:", job.getName()).
         _("State:", job.getState()).
-        _("Started:", new Date(jobReport.startTime)).
+        _("Started:", new Date(jobReport.getStartTime())).
         _("Elapsed:", StringUtils.formatTime(System.currentTimeMillis()
-                                             - jobReport.startTime));
+                                             - jobReport.getStartTime()));
     html.
       _(InfoBlock.class).
       div(_INFO_WRAP).
@@ -113,7 +113,7 @@ public class JobBlock extends HtmlBlock {
   }
 
   private void countTasks(Job job) {
-    Map<TaskID, Task> tasks = job.getTasks();
+    Map<TaskId, Task> tasks = job.getTasks();
     for (Task task : tasks.values()) {
       switch (task.getType()) {
         case MAP: switch (task.getState()) {

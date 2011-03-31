@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -62,18 +61,23 @@ import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.util.AvroUtil;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.LocalResource;
-import org.apache.hadoop.yarn.LocalResourceType;
-import org.apache.hadoop.yarn.LocalResourceVisibility;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.URL;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
+
 
 /**
  * This class enables the current JobClient (0.22 hadoop) to run on YARN.
@@ -85,6 +89,7 @@ public class YARNRunner implements ClientProtocol {
   public static final String YARN_AM_RESOURCE_KEY = "yarn.am.mapreduce.resource.mb";
   private static final int DEFAULT_YARN_AM_RESOURCE = 1024;
   
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private ResourceMgrDelegate resMgrDelegate;
   private ClientServiceDelegate clientServiceDelegate;
   private YarnConfiguration conf;
@@ -95,7 +100,7 @@ public class YARNRunner implements ClientProtocol {
    * @param conf the configuration object for the client
    */
   public YARNRunner(Configuration conf)
-      throws AvroRemoteException {
+      throws YarnRemoteException {
     this.conf = new YarnConfiguration(conf);
     try {
       this.resMgrDelegate = new ResourceMgrDelegate(conf);
@@ -227,90 +232,86 @@ public class YARNRunner implements ClientProtocol {
     // ---
     
     // Submit to ResourceManager
-    ApplicationID applicationId = resMgrDelegate.submitApplication(appContext);
+    ApplicationId applicationId = resMgrDelegate.submitApplication(appContext);
     
     ApplicationMaster appMaster = 
       resMgrDelegate.getApplicationMaster(applicationId);
-    if (appMaster.state == ApplicationState.FAILED || appMaster.state ==
+    if (appMaster.getState() == ApplicationState.FAILED || appMaster.getState() ==
       ApplicationState.KILLED) {
-      throw new AvroRemoteException("failed to run job");
+      throw RPCUtil.getRemoteException("failed to run job");
     }
     return clientServiceDelegate.getJobStatus(jobId);
   }
 
   private LocalResource createApplicationResource(FileContext fs, Path p)
       throws IOException {
-    LocalResource rsrc = new LocalResource();
+    LocalResource rsrc = recordFactory.newRecordInstance(LocalResource.class);
     FileStatus rsrcStat = fs.getFileStatus(p);
-    rsrc.resource = AvroUtil.getYarnUrlFromPath(rsrcStat.getPath());
-    rsrc.size = rsrcStat.getLen();
-    rsrc.timestamp = rsrcStat.getModificationTime();
-    rsrc.type = LocalResourceType.FILE;
-    rsrc.state = LocalResourceVisibility.APPLICATION;
+    rsrc.setResource(ConverterUtils.getYarnUrlFromPath(rsrcStat.getPath()));
+    rsrc.setSize(rsrcStat.getLen());
+    rsrc.setTimestamp(rsrcStat.getModificationTime());
+    rsrc.setType(LocalResourceType.FILE);
+    rsrc.setVisibility(LocalResourceVisibility.APPLICATION);
     return rsrc;
   }
 
   private ApplicationSubmissionContext getApplicationSubmissionContext(
       Configuration jobConf,
       String jobSubmitDir, Credentials ts) throws IOException {
-    ApplicationSubmissionContext appContext =
-        new ApplicationSubmissionContext();
-    ApplicationID applicationId = resMgrDelegate.getApplicationId();
-    appContext.applicationId = applicationId;
-    Resource capability = new Resource();
-    capability.memory =
-        conf.getInt(YARN_AM_RESOURCE_KEY, DEFAULT_YARN_AM_RESOURCE);
+    ApplicationSubmissionContext appContext = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    ApplicationId applicationId = resMgrDelegate.getApplicationId();
+    appContext.setApplicationId(applicationId);
+    Resource capability = recordFactory.newRecordInstance(Resource.class);
+    capability.setMemory(conf.getInt(YARN_AM_RESOURCE_KEY, DEFAULT_YARN_AM_RESOURCE));
     LOG.info("Master capability = " + capability);
-    appContext.masterCapability = capability;
+    appContext.setMasterCapability(capability);
 
     FileContext defaultFS = FileContext.getFileContext(conf);
     Path jobConfPath = new Path(jobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
     
     URL yarnUrlForJobSubmitDir =
-        AvroUtil.getYarnUrlFromPath(defaultFS.makeQualified(new Path(
+        ConverterUtils.getYarnUrlFromPath(defaultFS.makeQualified(new Path(
             jobSubmitDir)));
-    appContext.resources = new HashMap<CharSequence, URL>();
+//    appContext.resources = new HashMap<CharSequence, URL>();
     LOG.debug("Creating setup context, jobSubmitDir url is "
         + yarnUrlForJobSubmitDir);
 
-    appContext.resources.put(YARNApplicationConstants.JOB_SUBMIT_DIR,
+    appContext.setResource(YARNApplicationConstants.JOB_SUBMIT_DIR,
         yarnUrlForJobSubmitDir);
 
-    appContext.resources_todo = new HashMap<CharSequence,LocalResource>();
-    appContext.resources_todo.put(YARNApplicationConstants.JOB_CONF_FILE,
-          createApplicationResource(defaultFS,
-          jobConfPath));
-    appContext.resources_todo.put(YARNApplicationConstants.JOB_JAR,
+//    appContext.resources_todo = new HashMap<CharSequence,LocalResource>();
+    appContext.setResourceTodo(YARNApplicationConstants.JOB_CONF_FILE,
+        createApplicationResource(defaultFS,
+            jobConfPath));
+    appContext.setResourceTodo(YARNApplicationConstants.JOB_JAR,
           createApplicationResource(defaultFS,
             new Path(jobSubmitDir, YARNApplicationConstants.JOB_JAR)));
+    
     // TODO gross hack
     for (String s : new String[] { "job.split", "job.splitmetainfo",
         YarnConfiguration.APPLICATION_TOKENS_FILE }) {
-      appContext.resources_todo.put(
-          YARNApplicationConstants.JOB_SUBMIT_DIR + "/" + s,
+      appContext.setResourceTodo(YARNApplicationConstants.JOB_SUBMIT_DIR + "/" + s,
           createApplicationResource(defaultFS,
-            new Path(jobSubmitDir, s)));
+              new Path(jobSubmitDir, s)));
     }
 
     // TODO: Only if security is on.
-    List<CharSequence> fsTokens = new ArrayList<CharSequence>();
+    List<String> fsTokens = new ArrayList<String>();
     for (Token<? extends TokenIdentifier> token : ts.getAllTokens()) {
       fsTokens.add(token.encodeToUrlString());
     }
     
     // TODO - Remove this!
-    appContext.fsTokens = fsTokens;
+    appContext.addAllFsTokens(fsTokens);
     DataOutputBuffer dob = new DataOutputBuffer();
     ts.writeTokenStorageToStream(dob);
-    appContext.fsTokens_todo =
-      ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
+    appContext.setFsTokensTodo(ByteBuffer.wrap(dob.getData(), 0, dob.getLength()));
 
     // Add queue information
-    appContext.queue = 
-      jobConf.get(JobContext.QUEUE_NAME, JobConf.DEFAULT_QUEUE_NAME);
+    appContext.setQueue(jobConf.get(JobContext.QUEUE_NAME, JobConf.DEFAULT_QUEUE_NAME));
     
     // Add job name
-    appContext.applicationName = jobConf.get(JobContext.JOB_NAME, "N/A");
+    appContext.setApplicationName(jobConf.get(JobContext.JOB_NAME, "N/A"));
     
     // Add the command line
     String javaHome = "$JAVA_HOME";
@@ -320,19 +321,21 @@ public class YARNRunner implements ClientProtocol {
         "-Dhadoop.root.logger=DEBUG,console -Xmx1024m"));
 
     // Add { job jar, MR app jar } to classpath.
-    appContext.environment = new HashMap<CharSequence, CharSequence>();
-    MRApps.setInitialClasspath(appContext.environment);
-    MRApps.addToClassPath(appContext.environment,
+    Map<String, String> environment = new HashMap<String, String>();
+//    appContext.environment = new HashMap<CharSequence, CharSequence>();
+    MRApps.setInitialClasspath(environment);
+    MRApps.addToClassPath(environment,
         YARNApplicationConstants.JOB_JAR);
-    MRApps.addToClassPath(appContext.environment,
+    MRApps.addToClassPath(environment,
         YARNApplicationConstants.YARN_MAPREDUCE_APP_JAR_PATH);
+    appContext.addAllEnvironment(environment);
     vargs.add("org.apache.hadoop.mapreduce.v2.app.MRAppMaster");
-    vargs.add(String.valueOf(applicationId.clusterTimeStamp));
-    vargs.add(String.valueOf(applicationId.id));
+    vargs.add(String.valueOf(applicationId.getClusterTimestamp()));
+    vargs.add(String.valueOf(applicationId.getId()));
     vargs.add("1>logs/stderr");
     vargs.add("2>logs/stdout");
 
-    Vector<CharSequence> vargsFinal = new Vector<CharSequence>(8);
+    Vector<String> vargsFinal = new Vector<String>(8);
     // Final commmand
     StringBuilder mergedCommand = new StringBuilder();
     for (CharSequence str : vargs) {
@@ -343,9 +346,9 @@ public class YARNRunner implements ClientProtocol {
     LOG.info("Command to launch container for ApplicationMaster is : "
         + mergedCommand);
 
-    appContext.command = vargsFinal;
+    appContext.addAllCommands(vargsFinal);
     // TODO: RM should get this from RPC.
-    appContext.user = UserGroupInformation.getCurrentUser().getShortUserName();
+    appContext.setUser(UserGroupInformation.getCurrentUser().getShortUserName());
     return appContext;
   }
   
@@ -407,7 +410,7 @@ public class YARNRunner implements ClientProtocol {
         if (name.isAbsolute()) {
           throw new IllegalArgumentException("Resource name must be relative");
         }
-        container.resources_todo.put(
+        container.setResourceTodo(
             name.toUri().getPath(),
             getLocalResource(
                 uris[i], type, 
@@ -417,7 +420,9 @@ public class YARNRunner implements ClientProtocol {
                 sizes[i], timestamps[i])
         );
         if (classPaths.containsKey(u.getPath())) {
-          MRApps.addToClassPath(container.environment, name.toUri().getPath());
+          Map<String, String> environment = container.getAllEnvironment();
+          MRApps.addToClassPath(environment, name.toUri().getPath());
+          container.addAllEnvironment(environment);
         }
       }
     }
@@ -439,12 +444,12 @@ public class YARNRunner implements ClientProtocol {
   private static LocalResource getLocalResource(URI uri, 
       LocalResourceType type, LocalResourceVisibility visibility, 
       long size, long timestamp) {
-    LocalResource resource = new LocalResource();
-    resource.resource = AvroUtil.getYarnUrlFromURI(uri);
-    resource.type = type;
-    resource.state = visibility;
-    resource.size = size;
-    resource.timestamp = timestamp;
+    LocalResource resource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(LocalResource.class);
+    resource.setResource(ConverterUtils.getYarnUrlFromURI(uri));
+    resource.setType(type);
+    resource.setVisibility(visibility);
+    resource.setSize(size);
+    resource.setTimestamp(timestamp);
     return resource;
   }
   

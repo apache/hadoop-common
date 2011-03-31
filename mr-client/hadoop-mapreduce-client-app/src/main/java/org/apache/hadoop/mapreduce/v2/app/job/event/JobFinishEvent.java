@@ -18,8 +18,8 @@
 
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
 
 public class JobFinishEvent 
           extends AbstractEvent<JobFinishEvent.Type> {
@@ -28,14 +28,14 @@ public class JobFinishEvent
     STATE_CHANGED
   }
 
-  private JobID jobID;
+  private JobId jobID;
 
-  public JobFinishEvent(JobID jobID) {
+  public JobFinishEvent(JobId jobID) {
     super(Type.STATE_CHANGED);
     this.jobID = jobID;
   }
 
-  public JobID getJobId() {
+  public JobId getJobId() {
     return jobID;
   }
 

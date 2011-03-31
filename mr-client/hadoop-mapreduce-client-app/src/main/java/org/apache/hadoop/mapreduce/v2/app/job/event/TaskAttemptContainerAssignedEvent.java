@@ -18,18 +18,20 @@
 
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerToken;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
+
+
 
 public class TaskAttemptContainerAssignedEvent extends TaskAttemptEvent {
 
-  private ContainerID containerID;
+  private ContainerId containerID;
   private String containerManagerAddress;
   private ContainerToken containerToken;
 
-  public TaskAttemptContainerAssignedEvent(TaskAttemptID id,
-      ContainerID containerID, String containerManagerAddress,
+  public TaskAttemptContainerAssignedEvent(TaskAttemptId id,
+      ContainerId containerID, String containerManagerAddress,
       ContainerToken containerToken) {
     super(id, TaskAttemptEventType.TA_ASSIGNED);
     this.containerID = containerID;
@@ -37,7 +39,7 @@ public class TaskAttemptContainerAssignedEvent extends TaskAttemptEvent {
     this.containerToken = containerToken;
   }
 
-  public ContainerID getContainerID() {
+  public ContainerId getContainerID() {
     return this.containerID;
   }
 

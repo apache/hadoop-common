@@ -36,16 +36,18 @@ import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+
 
 /**
  * Loads the basic job level data upfront.
@@ -56,20 +58,20 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   static final Log LOG = LogFactory.getLog(CompletedJob.class);
   private final Counters counters;
   private final Configuration conf;
-  private final JobID jobID;
+  private final JobId jobId;
   private final List<String> diagnostics = new ArrayList<String>();
   private final JobReport report;
-  private final Map<TaskID, Task> tasks = new HashMap<TaskID, Task>();
-  private final Map<TaskID, Task> mapTasks = new HashMap<TaskID, Task>();
-  private final Map<TaskID, Task> reduceTasks = new HashMap<TaskID, Task>();
+  private final Map<TaskId, Task> tasks = new HashMap<TaskId, Task>();
+  private final Map<TaskId, Task> mapTasks = new HashMap<TaskId, Task>();
+  private final Map<TaskId, Task> reduceTasks = new HashMap<TaskId, Task>();
   
   private TaskAttemptCompletionEvent[] completionEvents;
   private JobInfo jobInfo;
 
 
-  public CompletedJob(Configuration conf, JobID jobID) throws IOException {
+  public CompletedJob(Configuration conf, JobId jobId) throws IOException {
     this.conf = conf;
-    this.jobID = jobID;
+    this.jobId = jobId;
     //TODO fix
     /*
     String  doneLocation =
@@ -97,11 +99,11 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
 
     counters = TypeConverter.toYarn(jobInfo.getTotalCounters());
     diagnostics.add(jobInfo.getErrorInfo());
-    report = new JobReport();
-    report.id = jobID;
-    report.state = JobState.valueOf(jobInfo.getJobStatus());
-    report.startTime = jobInfo.getLaunchTime();
-    report.finishTime = jobInfo.getFinishTime();
+    report = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(JobReport.class);
+    report.setJobId(jobId);
+    report.setJobState(JobState.valueOf(jobInfo.getJobStatus()));
+    report.setStartTime(jobInfo.getLaunchTime());
+    report.setFinishTime(jobInfo.getFinishTime());
   }
 
   @Override
@@ -120,8 +122,8 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   @Override
-  public JobID getID() {
-    return jobID;
+  public JobId getID() {
+    return jobId;
   }
 
   @Override
@@ -131,12 +133,12 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
 
   @Override
   public JobState getState() {
-    return report.state;
+    return report.getJobState();
   }
 
   @Override
-  public Task getTask(TaskID taskID) {
-    return tasks.get(taskID);
+  public Task getTask(TaskId taskId) {
+    return tasks.get(taskId);
   }
 
   @Override
@@ -146,7 +148,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   @Override
-  public Map<TaskID, Task> getTasks() {
+  public Map<TaskId, Task> getTasks() {
     return tasks;
   }
 
@@ -159,7 +161,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     if (user == null) {
       LOG.error("user null is not allowed");
     }
-    String jobName = TypeConverter.fromYarn(jobID).toString();
+    String jobName = TypeConverter.fromYarn(jobId).toString();
     String defaultDoneDir = conf.get(
         YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
     String  jobhistoryDir =
@@ -186,7 +188,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     // populate the tasks
     for (Map.Entry<org.apache.hadoop.mapreduce.TaskID, TaskInfo> entry : jobInfo
         .getAllTasks().entrySet()) {
-      TaskID yarnTaskID = TypeConverter.toYarn(entry.getKey());
+      TaskId yarnTaskID = TypeConverter.toYarn(entry.getKey());
       TaskInfo taskInfo = entry.getValue();
       Task task = new CompletedTask(yarnTaskID, taskInfo);
       tasks.put(yarnTaskID, task);
@@ -207,7 +209,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   @Override
-  public CharSequence getName() {
+  public String getName() {
     return jobInfo.getJobname();
   }
 
@@ -222,7 +224,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   @Override
-  public Map<TaskID, Task> getTasks(TaskType taskType) {
+  public Map<TaskId, Task> getTasks(TaskType taskType) {
     if (TaskType.MAP.equals(taskType)) {
       return mapTasks;
     } else {//we have only two type of tasks

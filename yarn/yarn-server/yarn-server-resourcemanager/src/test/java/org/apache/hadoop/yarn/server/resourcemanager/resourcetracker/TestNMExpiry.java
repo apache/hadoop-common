@@ -29,25 +29,30 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
+import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
+import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.HeartbeatResponse;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.RegistrationResponse;
-import org.apache.hadoop.yarn.Resource;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestNMExpiry extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestNMExpiry.class);
-
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   RMResourceTrackerImpl resourceTracker;
   ContainerTokenSecretManager containerTokenSecretManager = 
     new ContainerTokenSecretManager();
@@ -56,7 +61,7 @@ public class TestNMExpiry extends TestCase {
 
   private static class VoidResourceListener implements ResourceListener {
     @Override
-    public NodeInfo addNode(NodeID nodeId, String hostName, Node node,
+    public NodeInfo addNode(NodeId nodeId, String hostName, Node node,
         Resource capability) {
       return new NodeManager(nodeId, hostName, node, capability);
     }
@@ -65,8 +70,8 @@ public class TestNMExpiry extends TestCase {
     }
     @Override
     public NodeResponse nodeUpdate(NodeInfo nodeInfo,
-        Map<CharSequence, List<Container>> containers) {
-      return new NodeResponse(new ArrayList<ApplicationID>(),
+        Map<String, List<Container>> containers) {
+      return new NodeResponse(new ArrayList<ApplicationId>(),
           new ArrayList<Container>(), new ArrayList<Container>());
     }
   }
@@ -78,8 +83,8 @@ public class TestNMExpiry extends TestCase {
     }
 
     @Override
-    protected void expireNMs(List<NodeID> ids) {
-      for (NodeID id: ids) {
+    protected void expireNMs(List<NodeId> ids) {
+      for (NodeId id: ids) {
         LOG.info("Expired  " + id);
         if (test.addAndGet(1) == 2) {
           try {
@@ -108,13 +113,15 @@ public class TestNMExpiry extends TestCase {
 
   private class TestThread extends Thread {
     public void run() {
-      HeartbeatResponse res = new HeartbeatResponse();
+      HeartbeatResponse res = recordFactory.newRecordInstance(HeartbeatResponse.class);
       while (!stopT) {
         try {
-          org.apache.hadoop.yarn.NodeStatus nodeStatus = new org.apache.hadoop.yarn.NodeStatus();
-          nodeStatus.nodeId = response.nodeID;
-          nodeStatus.responseId = res.responseId;
-          res = resourceTracker.nodeHeartbeat(nodeStatus);
+          org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
+          nodeStatus.setNodeId(response.getNodeId());
+          nodeStatus.setResponseId(res.getResponseId());
+          NodeHeartbeatRequest request = recordFactory.newRecordInstance(NodeHeartbeatRequest.class);
+          request.setNodeStatus(nodeStatus);
+          res = resourceTracker.nodeHeartbeat(request).getHeartbeatResponse();
         } catch(Exception e) {
           LOG.info("failed to heartbeat ", e);
         }
@@ -130,10 +137,19 @@ public class TestNMExpiry extends TestCase {
     String hostname1 = "localhost:1";
     String hostname2 = "localhost:2";
     String hostname3 = "localhost:3";
-    Resource capability = new Resource();
-    resourceTracker.registerNodeManager(hostname1, capability);
-    resourceTracker.registerNodeManager(hostname2, capability);
-    response = resourceTracker.registerNodeManager(hostname3, capability);
+    Resource capability = recordFactory.newRecordInstance(Resource.class);
+    RegisterNodeManagerRequest request1 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
+    request1.setNode(hostname1);
+    request1.setResource(capability);
+    RegisterNodeManagerRequest request2 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
+    request2.setNode(hostname2);
+    request2.setResource(capability);
+    RegisterNodeManagerRequest request3 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
+    request3.setNode(hostname3);
+    request3.setResource(capability);
+    resourceTracker.registerNodeManager(request1);
+    resourceTracker.registerNodeManager(request2);
+    response = resourceTracker.registerNodeManager(request3).getRegistrationResponse();
     /* test to see if hostanme 3 does not expire */
     stopT = false;
     new TestThread().start();

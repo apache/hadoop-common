@@ -18,20 +18,20 @@
 
 package org.apache.hadoop.mapreduce.v2.app.webapp;
 
-import java.util.Locale;
-import org.apache.commons.lang.StringUtils;
-import com.google.inject.Inject;
+import static org.apache.hadoop.yarn.util.StringHelper.join;
 
+import java.util.Locale;
+
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.util.Apps;
 import org.apache.hadoop.yarn.webapp.Controller;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
 
-import static org.apache.hadoop.mapreduce.v2.app.webapp.AMWebApp.*;
-import static org.apache.hadoop.yarn.util.StringHelper.*;
+import com.google.inject.Inject;
 
 public class AppController extends Controller implements AMParams {
   final App app;
@@ -109,7 +109,7 @@ public class AppController extends Controller implements AMParams {
       if ($(JOB_ID).isEmpty()) {
         throw new RuntimeException("missing job ID");
       }
-      JobID jobID = MRApps.toJobID($(JOB_ID));
+      JobId jobID = MRApps.toJobID($(JOB_ID));
       app.job = app.context.getJob(jobID);
       if (app.job == null) {
         notFound($(JOB_ID));
@@ -124,10 +124,10 @@ public class AppController extends Controller implements AMParams {
       if ($(TASK_ID).isEmpty()) {
         throw new RuntimeException("missing task ID");
       }
-      TaskID taskID = MRApps.toTaskID($(TASK_ID));
-      app.job = app.context.getJob(taskID.jobID);
+      TaskId taskID = MRApps.toTaskID($(TASK_ID));
+      app.job = app.context.getJob(taskID.getJobId());
       if (app.job == null) {
-        notFound(MRApps.toString(taskID.jobID));
+        notFound(MRApps.toString(taskID.getJobId()));
       } else {
         app.task = app.job.getTask(taskID);
         if (app.task == null) {

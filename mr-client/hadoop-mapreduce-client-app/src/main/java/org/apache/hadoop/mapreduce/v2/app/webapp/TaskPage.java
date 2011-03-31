@@ -21,13 +21,13 @@ package org.apache.hadoop.mapreduce.v2.app.webapp;
 import com.google.common.base.Joiner;
 import com.google.inject.Inject;
 
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
 import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
 
 import static org.apache.hadoop.yarn.util.StringHelper.*;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
@@ -67,15 +67,15 @@ class TaskPage extends AppView {
         String progress = percent(ta.getProgress());
         String node = ta.getAssignedContainerMgrAddress();
         TaskAttemptReport report = ta.getReport();
-        long elapsed = Times.elapsed(report.startTime, report.finishTime);
+        long elapsed = Times.elapsed(report.getStartTime(), report.getFinishTime());
         tbody.
           tr().
             td(".id", taid).
             td(".progress", progress).
             td(".state", ta.getState().toString()).
             td(".node", node).
-            td(".ts", String.valueOf(report.startTime)).
-            td(".ts", String.valueOf(report.finishTime)).
+            td(".ts", String.valueOf(report.getStartTime())).
+            td(".ts", String.valueOf(report.getFinishTime())).
             td(".dt", String.valueOf(elapsed)).
             td(".note", Joiner.on('\n').join(ta.getDiagnostics()))._();
       }

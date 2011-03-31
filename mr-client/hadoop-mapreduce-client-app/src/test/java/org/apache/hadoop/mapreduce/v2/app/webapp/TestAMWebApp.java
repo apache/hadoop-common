@@ -18,36 +18,30 @@
 
 package org.apache.hadoop.mapreduce.v2.app.webapp;
 
-import com.google.inject.Injector;
+import static org.apache.hadoop.mapreduce.v2.app.webapp.AMParams.APP_ID;
+import static org.junit.Assert.assertEquals;
+
 import java.util.Map;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
-
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.MockJobs;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
-import org.apache.hadoop.mapreduce.v2.app.webapp.AMWebApp;
-import org.apache.hadoop.mapreduce.v2.app.webapp.AppController;
-import org.apache.hadoop.mapreduce.v2.app.webapp.AppView;
-import org.apache.hadoop.mapreduce.v2.app.webapp.JobPage;
-import org.apache.hadoop.mapreduce.v2.app.webapp.TaskPage;
-import org.apache.hadoop.mapreduce.v2.app.webapp.TasksPage;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.util.Apps;
 import org.apache.hadoop.yarn.webapp.WebApps;
 import org.apache.hadoop.yarn.webapp.test.WebAppTests;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
+import org.junit.Test;
 
-import static org.apache.hadoop.mapreduce.v2.app.webapp.AMWebApp.*;
+import com.google.inject.Injector;
 
 public class TestAMWebApp {
 
   static class TestAppContext implements AppContext {
-    final ApplicationID appID;
+    final ApplicationId appID;
     final String user = MockJobs.newUserName();
-    final Map<JobID, Job> jobs;
+    final Map<JobId, Job> jobs;
 
     TestAppContext(int appid, int numJobs, int numTasks, int numAttempts) {
       appID = MockJobs.newAppID(appid);
@@ -59,7 +53,7 @@ public class TestAMWebApp {
     }
 
     @Override
-    public ApplicationID getApplicationID() {
+    public ApplicationId getApplicationID() {
       return appID;
     }
 
@@ -69,12 +63,12 @@ public class TestAMWebApp {
     }
 
     @Override
-    public Job getJob(JobID jobID) {
+    public Job getJob(JobId jobID) {
       return jobs.get(jobID);
     }
 
     @Override
-    public Map<JobID, Job> getAllJobs() {
+    public Map<JobId, Job> getAllJobs() {
       return jobs; // OK
     }
 

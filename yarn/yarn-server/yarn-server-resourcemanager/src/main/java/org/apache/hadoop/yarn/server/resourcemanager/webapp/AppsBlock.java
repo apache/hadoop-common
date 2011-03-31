@@ -56,11 +56,11 @@ class AppsBlock extends HtmlBlock {
       CharSequence master = app.master();
       String am = master == null ? "UNASSIGNED"
                                  : join(master, ':', app.httpPort());
-      String percent = String.format("%.1f", app.status().progress * 100);
+      String percent = String.format("%.1f", app.status().getProgress() * 100);
       tbody.
         tr().
           td().
-            br().$title(String.valueOf(app.id().id))._(). // for sorting
+            br().$title(String.valueOf(app.id().getId()))._(). // for sorting
             a(url("app", appId), appId)._().
           td(app.user().toString()).
           td(app.name().toString()).

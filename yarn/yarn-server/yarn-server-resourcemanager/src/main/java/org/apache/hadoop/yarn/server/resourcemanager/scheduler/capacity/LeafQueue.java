@@ -33,11 +33,12 @@ import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Unstable;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerToken;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
@@ -299,15 +300,15 @@ public class LeafQueue implements Queue {
           // Are we going over limits by allocating to this application?
           ResourceRequest required = 
             application.getResourceRequest(priority, NodeManager.ANY);
-          if (required != null && required.numContainers > 0) {
+          if (required != null && required.getNumContainers() > 0) {
             
             // Maximum Capacity of the queue
-            if (!assignToQueue(clusterResource, required.capability)) {
+            if (!assignToQueue(clusterResource, required.getCapability())) {
               return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
             }
             
             // User limits
-            if (!assignToUser(application.getUser(), clusterResource, required.capability)) {
+            if (!assignToUser(application.getUser(), clusterResource, required.getCapability())) {
               return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
             }
             
@@ -320,7 +321,7 @@ public class LeafQueue implements Queue {
                 assigned, 
                 org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
             Resource assignedResource = 
-              application.getResourceRequest(priority, NodeManager.ANY).capability;
+              application.getResourceRequest(priority, NodeManager.ANY).getCapability();
             
             // Book-keeping
             allocateResource(clusterResource, 
@@ -345,12 +346,12 @@ public class LeafQueue implements Queue {
   private synchronized boolean assignToQueue(Resource clusterResource, 
       Resource required) {
     float newUtilization = 
-      (float)(usedResources.memory + required.memory) / 
-        (clusterResource.memory * absoluteCapacity);
+      (float)(usedResources.getMemory() + required.getMemory()) / 
+        (clusterResource.getMemory() * absoluteCapacity);
     if (newUtilization > absoluteMaxCapacity) {
       LOG.info(getQueueName() + 
           " current-capacity (" + getUtilization() + ") +" +
-          " required (" + required.memory + ")" +
+          " required (" + required.getMemory() + ")" +
           " > max-capacity (" + absoluteMaxCapacity + ")");
       return false;
     }
@@ -369,13 +370,13 @@ public class LeafQueue implements Queue {
     // Allow progress for queues with miniscule capacity
     final int queueCapacity = 
       Math.max(
-          divideAndCeil((int)(absoluteCapacity * clusterResource.memory), 
-              minimumAllocation.memory), 
-          required.memory);
+          divideAndCeil((int)(absoluteCapacity * clusterResource.getMemory()), 
+              minimumAllocation.getMemory()), 
+          required.getMemory());
     
-    final int consumed = usedResources.memory;
+    final int consumed = usedResources.getMemory();
     final int currentCapacity = 
-      (consumed < queueCapacity) ? queueCapacity : (consumed + required.memory);
+      (consumed < queueCapacity) ? queueCapacity : (consumed + required.getMemory());
     
     // Never allow a single user to take more than the 
     // queue's configured capacity * user-limit-factor.
@@ -394,7 +395,7 @@ public class LeafQueue implements Queue {
 
     // Note: We aren't considering the current request since there is a fixed
     // overhead of the AM, so... 
-    if ((user.getConsumedResources().memory) > limit) {
+    if ((user.getConsumedResources().getMemory()) > limit) {
       LOG.info("User " + userName + " in queue " + getQueueName() + 
           " will exceed limit, required: " + required + 
           " consumed: " + user.getConsumedResources() + " limit: " + limit +
@@ -421,7 +422,7 @@ public class LeafQueue implements Queue {
     ResourceRequest offSwitchRequest = 
       application.getResourceRequest(priority, NodeManager.ANY);
 
-    return (offSwitchRequest.numContainers > 0);
+    return (offSwitchRequest.getNumContainers() > 0);
   }
 
   Resource assignContainersOnNode(Resource clusterResource, NodeManager node, 
@@ -498,12 +499,12 @@ public class LeafQueue implements Queue {
     ResourceRequest offSwitchRequest = 
       application.getResourceRequest(priority, NodeManager.ANY);
     
-    if (offSwitchRequest.numContainers == 0) {
+    if (offSwitchRequest.getNumContainers() == 0) {
       return false;
     }
     
     if (type == NodeType.OFF_SWITCH) {
-      return offSwitchRequest.numContainers > 0;
+      return offSwitchRequest.getNumContainers() > 0;
     }
     
     if (type == NodeType.RACK_LOCAL) {
@@ -511,9 +512,9 @@ public class LeafQueue implements Queue {
         application.getResourceRequest(priority, node.getRackName());
       if (rackLocalRequest == null) {
         // No point waiting for rack-locality if we don't need this rack
-        return offSwitchRequest.numContainers > 0;
+        return offSwitchRequest.getNumContainers() > 0;
       } else {
-        return rackLocalRequest.numContainers > 0;
+        return rackLocalRequest.getNumContainers() > 0;
       }
     }
     
@@ -521,7 +522,7 @@ public class LeafQueue implements Queue {
       ResourceRequest nodeLocalRequest = 
         application.getResourceRequest(priority, node.getHostName());
       if (nodeLocalRequest != null) {
-        return nodeLocalRequest.numContainers > 0;
+        return nodeLocalRequest.getNumContainers() > 0;
       }
     }
     
@@ -533,13 +534,13 @@ public class LeafQueue implements Queue {
       Priority priority, ResourceRequest request, NodeType type) {
     LOG.info("DEBUG --- assignContainers:" +
         " node=" + node.getHostName() + 
-        " application=" + application.getApplicationId().id + 
-        " priority=" + priority.priority + 
+        " application=" + application.getApplicationId().getId() + 
+        " priority=" + priority.getPriority() + 
         " request=" + request + " type=" + type);
-    Resource capability = request.capability;
+    Resource capability = request.getCapability();
     
     int availableContainers = 
-        node.getAvailableResource().memory / capability.memory; // TODO: A buggy
+        node.getAvailableResource().getMemory() / capability.getMemory(); // TODO: A buggy
                                                                 // application
                                                                 // with this
                                                                 // zero would
@@ -557,18 +558,16 @@ public class LeafQueue implements Queue {
       
       // If security is enabled, send the container-tokens too.
       if (UserGroupInformation.isSecurityEnabled()) {
-        ContainerToken containerToken = new ContainerToken();
+        ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
         ContainerTokenIdentifier tokenidentifier =
-          new ContainerTokenIdentifier(container.id,
-              container.hostName.toString(), container.resource);
-        containerToken.identifier =
-          ByteBuffer.wrap(tokenidentifier.getBytes());
-        containerToken.kind = ContainerTokenIdentifier.KIND.toString();
-        containerToken.password =
-          ByteBuffer.wrap(containerTokenSecretManager
-              .createPassword(tokenidentifier));
-        containerToken.service = container.hostName; // TODO: port
-        container.containerToken = containerToken;
+          new ContainerTokenIdentifier(container.getId(),
+              container.getHostName(), container.getResource());
+        containerToken.setIdentifier(ByteBuffer.wrap(tokenidentifier.getBytes()));
+        containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
+        containerToken.setPassword(ByteBuffer.wrap(containerTokenSecretManager
+              .createPassword(tokenidentifier)));
+        containerToken.setService(container.getHostName()); // TODO: port
+        container.setContainerToken(containerToken);
       }
       
       containers.add(container);
@@ -585,7 +584,7 @@ public class LeafQueue implements Queue {
           " used=" + usedResources + 
           " cluster=" + clusterResource);
 
-      return container.resource;
+      return container.getResource();
     }
     
     return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
@@ -602,7 +601,7 @@ public class LeafQueue implements Queue {
         
         // Book-keeping
         releaseResource(clusterResource, 
-            application.getUser(), container.resource);
+            application.getUser(), container.getResource());
         
         LOG.info("completedContainer" +
             " container=" + container +
@@ -640,8 +639,8 @@ public class LeafQueue implements Queue {
   }
 
   private synchronized void update(Resource clusterResource) {
-    setUtilization(usedResources.memory / (clusterResource.memory * absoluteCapacity));
-    setUsedCapacity(usedResources.memory / (clusterResource.memory * capacity));
+    setUtilization(usedResources.getMemory() / (clusterResource.getMemory() * absoluteCapacity));
+    setUsedCapacity(usedResources.getMemory() / (clusterResource.getMemory() * capacity));
   }
   
   static class User {

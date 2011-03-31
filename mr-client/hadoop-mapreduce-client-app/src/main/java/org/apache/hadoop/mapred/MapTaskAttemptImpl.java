@@ -27,18 +27,18 @@ import org.apache.hadoop.mapreduce.OutputCommitter;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.impl.TaskAttemptImpl;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
 
 public class MapTaskAttemptImpl extends TaskAttemptImpl {
 
   private final TaskSplitMetaInfo splitInfo;
 
-  public MapTaskAttemptImpl(TaskID taskId, int attempt, 
+  public MapTaskAttemptImpl(TaskId taskId, int attempt, 
       EventHandler eventHandler, Path jobFile, 
       int partition, TaskSplitMetaInfo splitInfo, Configuration conf,
       TaskAttemptListener taskAttemptListener, 

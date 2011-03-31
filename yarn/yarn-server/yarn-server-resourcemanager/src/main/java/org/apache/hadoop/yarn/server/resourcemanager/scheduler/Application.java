@@ -33,12 +33,14 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
 
 /**
  * This class keeps track of all the consumption of an application.
@@ -52,17 +54,18 @@ public class Application {
 
   private AtomicInteger containerCtr = new AtomicInteger(0);
 
-  final ApplicationID applicationId;
+  final ApplicationId applicationId;
   final Queue queue;
   final String user;
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   final Set<Priority> priorities = 
     new TreeSet<Priority>(
         new org.apache.hadoop.yarn.server.resourcemanager.resource.Priority.Comparator());
   final Map<Priority, Map<String, ResourceRequest>> requests = 
     new HashMap<Priority, Map<String, ResourceRequest>>();
-  final Resource currentConsumption = new Resource();
-  final Resource overallConsumption = new Resource();
+  final Resource currentConsumption = recordFactory.newRecordInstance(Resource.class);
+  final Resource overallConsumption = recordFactory.newRecordInstance(Resource.class);
 
   /* Current consumption */
   List<Container> acquired = new ArrayList<Container>();
@@ -71,13 +74,13 @@ public class Application {
   List<Container> allocated = new ArrayList<Container>(); 
   Set<NodeInfo> applicationOnNodes = new HashSet<NodeInfo>();
   
-  public Application(ApplicationID applicationId, Queue queue, String user) {
+  public Application(ApplicationId applicationId, Queue queue, String user) {
     this.applicationId = applicationId;
     this.queue = queue;
     this.user = user; 
   }
 
-  public ApplicationID getApplicationId() {
+  public ApplicationId getApplicationId() {
     return applicationId;
   }
 
@@ -120,7 +123,7 @@ public class Application {
     // Metrics
     for (Container container : heartbeatContainers) {
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-          overallConsumption, container.resource);
+          overallConsumption, container.getResource());
     }
 
     LOG.debug("acquire:" +
@@ -144,8 +147,8 @@ public class Application {
   synchronized public void updateResourceRequests(List<ResourceRequest> requests) {
     // Update resource requests
     for (ResourceRequest request : requests) {
-      Priority priority = request.priority;
-      String hostName = request.hostName.toString();
+      Priority priority = request.getPriority();
+      String hostName = request.getHostName();
 
       Map<String, ResourceRequest> asks = this.requests.get(priority);
 
@@ -171,12 +174,12 @@ public class Application {
       LOG.debug("update: " +
           "application=" + applicationId + " released=" + container);
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-          currentConsumption, container.resource);
+          currentConsumption, container.getResource());
       for (Iterator<Container> i=acquired.iterator(); i.hasNext();) {
         Container c = i.next();
-        if (c.id.equals(container.id)) {
+        if (c.getId().equals(container.getId())) {
           i.remove();
-          LOG.info("Removed acquired container: " + container.id);
+          LOG.info("Removed acquired container: " + container.getId());
         }
       }
     }
@@ -239,13 +242,13 @@ public class Application {
     allocate(containers);
 
     // Update future requirements
-    nodeLocalRequest.numContainers -= containers.size();
+    nodeLocalRequest.setNumContainers(nodeLocalRequest.getNumContainers() - containers.size());
     ResourceRequest rackLocalRequest = 
       requests.get(priority).get(node.getRackName());
-    rackLocalRequest.numContainers -= containers.size();
+    rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers() - containers.size());
     ResourceRequest offSwitchRequest = 
       requests.get(priority).get(NodeManager.ANY);
-    offSwitchRequest.numContainers -= containers.size();
+    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
   }
 
   /**
@@ -261,10 +264,10 @@ public class Application {
     allocate(containers);
 
     // Update future requirements
-    rackLocalRequest.numContainers -= containers.size();
+    rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers() - containers.size());
     ResourceRequest offSwitchRequest = 
       requests.get(priority).get(NodeManager.ANY);
-    offSwitchRequest.numContainers -= containers.size();
+    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
   } 
 
   /**
@@ -280,19 +283,19 @@ public class Application {
     allocate(containers);
 
     // Update future requirements
-    offSwitchRequest.numContainers -= containers.size();
+    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
   }
 
   synchronized private void allocate(List<Container> containers) {
     // Update consumption and track allocations
     for (Container container : containers) {
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-          currentConsumption, container.resource);
+          currentConsumption, container.getResource());
 
       allocated.add(container);
 
       LOG.debug("allocate: applicationId=" + applicationId + 
-          " container=" + container.id + " host=" + container.hostName);
+          " container=" + container.getId() + " host=" + container.getHostName());
     }
   }
 

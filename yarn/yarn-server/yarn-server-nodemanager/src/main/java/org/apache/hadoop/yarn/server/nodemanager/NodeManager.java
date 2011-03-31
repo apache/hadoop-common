@@ -32,9 +32,9 @@ import org.apache.hadoop.NodeHealthStatus;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.ReflectionUtils;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
@@ -136,17 +136,17 @@ public class NodeManager extends CompositeService {
 
   public static class NMContext implements Context {
 
-    private final ConcurrentMap<ApplicationID, Application> applications =
-        new ConcurrentHashMap<ApplicationID, Application>();
-    private final ConcurrentMap<ContainerID, Container> containers =
-      new ConcurrentSkipListMap<ContainerID,Container>(
-          new Comparator<ContainerID>() {
+    private final ConcurrentMap<ApplicationId, Application> applications =
+        new ConcurrentHashMap<ApplicationId, Application>();
+    private final ConcurrentMap<ContainerId, Container> containers =
+      new ConcurrentSkipListMap<ContainerId,Container>(
+          new Comparator<ContainerId>() {
             @Override
-            public int compare(ContainerID a, ContainerID b) {
-              if (a.appID.id == b.appID.id) {
-                return a.id - b.id;
+            public int compare(ContainerId a, ContainerId b) {
+              if (a.getAppId().getId() == b.getAppId().getId()) {
+                return a.getId() - b.getId();
               }
-              return a.appID.id - b.appID.id;
+              return a.getAppId().getId() - b.getAppId().getId();
             }
             @Override
             public boolean equals(Object other) {
@@ -160,12 +160,12 @@ public class NodeManager extends CompositeService {
     }
 
     @Override
-    public ConcurrentMap<ApplicationID, Application> getApplications() {
+    public ConcurrentMap<ApplicationId, Application> getApplications() {
       return this.applications;
     }
 
     @Override
-    public ConcurrentMap<ContainerID, Container> getContainers() {
+    public ConcurrentMap<ContainerId, Container> getContainers() {
       return this.containers;
     }
 

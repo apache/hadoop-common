@@ -25,16 +25,18 @@ import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.Node;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
@@ -52,6 +54,7 @@ import junit.framework.Assert;
 import junit.framework.TestCase;
 
 public class TestSchedulerNegotiator extends TestCase {
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private SchedulerNegotiator schedulerNegotiator;
   private DummyScheduler scheduler;
   private final int testNum = 99999;
@@ -62,29 +65,28 @@ public class TestSchedulerNegotiator extends TestCase {
   
   private class DummyScheduler implements ResourceScheduler {
     @Override
-    public List<Container> allocate(ApplicationID applicationId,
+    public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       ArrayList<Container> containers = new ArrayList<Container>();
-      Container container = new Container();
-      container.id = new ContainerID();
-      container.id.appID = applicationId;
-      container.id.id = testNum;
+      Container container = recordFactory.newRecordInstance(Container.class);
+      container.setId(recordFactory.newRecordInstance(ContainerId.class));
+      container.getId().setAppId(applicationId);
+      container.getId().setId(testNum);
       containers.add(container);
       return containers;
     }
-
     @Override
     public void reinitialize(Configuration conf,
         ContainerTokenSecretManager secretManager) {
     }
     @Override
-    public NodeInfo addNode(NodeID nodeId, String hostName, Node node,
+    public NodeInfo addNode(NodeId nodeId, String hostName, Node node,
         Resource capability) {
       return null;
     }
     @Override
     public NodeResponse nodeUpdate(NodeInfo nodeInfo,
-        Map<CharSequence, List<Container>> containers) {
+        Map<String, List<Container>> containers) {
       return null;
     }
     @Override
@@ -125,10 +127,11 @@ public class TestSchedulerNegotiator extends TestCase {
   
   @Test
   public void testSchedulerNegotiator() throws Exception {
-    ApplicationSubmissionContext submissionContext = new ApplicationSubmissionContext();
-    submissionContext.applicationId = new ApplicationID();
-    submissionContext.applicationId.clusterTimeStamp = System.currentTimeMillis();
-    submissionContext.applicationId.id = 1;
+    ApplicationSubmissionContext submissionContext = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    submissionContext.setApplicationId(recordFactory.newRecordInstance(ApplicationId.class));
+    submissionContext.getApplicationId().setClusterTimestamp(System.currentTimeMillis());
+    submissionContext.getApplicationId().setId(1);
+    
     masterInfo =
       new ApplicationMasterInfo(this.context.getDispatcher().getEventHandler(),
           "dummy", submissionContext, "dummyClientToken");
@@ -137,6 +140,6 @@ public class TestSchedulerNegotiator extends TestCase {
     ALLOCATE, masterInfo));
     waitForState(ApplicationState.ALLOCATED, masterInfo);
     Container container = masterInfo.getMasterContainer();
-    assertTrue(container.id.id == testNum);
+    assertTrue(container.getId().getId() == testNum);
   }
 }

@@ -21,9 +21,11 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 import java.io.IOException;
 import java.util.List;
 
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ResourceRequest;
+
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 
 /**
  * This interface is used by the components to talk to the
@@ -39,7 +41,7 @@ public interface YarnScheduler {
    * @return
    * @throws IOException
    */
-  List<Container> allocate(ApplicationID applicationId,
+  List<Container> allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release)
       throws IOException;
 }

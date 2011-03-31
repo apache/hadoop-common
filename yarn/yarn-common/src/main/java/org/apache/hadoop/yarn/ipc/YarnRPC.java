@@ -36,7 +36,7 @@ public abstract class YarnRPC {
 
   //use the default as Hadoop RPC
   public static final String DEFAULT_RPC 
-      = "org.apache.hadoop.yarn.ipc.HadoopYarnRPC";
+      = "org.apache.hadoop.yarn.ipc.HadoopYarnProtoRPC";
 
   public abstract Object getProxy(Class protocol, InetSocketAddress addr,
       Configuration conf);

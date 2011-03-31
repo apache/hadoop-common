@@ -22,15 +22,15 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
+
 
 
 
@@ -48,9 +48,9 @@ public class LegacyTaskRuntimeEstimator extends StartEndTimesBase {
 
     String stateString = status.stateString.toString();
 
-    TaskAttemptID attemptID = status.id;
-    TaskID taskID = attemptID.taskID;
-    JobID jobID = taskID.jobID;
+    TaskAttemptId attemptID = status.id;
+    TaskId taskID = attemptID.getTaskId();
+    JobId jobID = taskID.getJobId();
     Job job = context.getJob(jobID);
 
     if (job == null) {
@@ -121,9 +121,9 @@ public class LegacyTaskRuntimeEstimator extends StartEndTimesBase {
   }
 
   private long storedPerAttemptValue
-       (Map<TaskAttempt, AtomicLong> data, TaskAttemptID attemptID) {
-    TaskID taskID = attemptID.taskID;
-    JobID jobID = taskID.jobID;
+       (Map<TaskAttempt, AtomicLong> data, TaskAttemptId attemptID) {
+    TaskId taskID = attemptID.getTaskId();
+    JobId jobID = taskID.getJobId();
     Job job = context.getJob(jobID);
 
     Task task = job.getTask(taskID);
@@ -145,12 +145,12 @@ public class LegacyTaskRuntimeEstimator extends StartEndTimesBase {
   }
 
   @Override
-  public long estimatedRuntime(TaskAttemptID attemptID) {
+  public long estimatedRuntime(TaskAttemptId attemptID) {
     return storedPerAttemptValue(attemptRuntimeEstimates, attemptID);
   }
 
   @Override
-  public long runtimeEstimateVariance(TaskAttemptID attemptID) {
+  public long runtimeEstimateVariance(TaskAttemptId attemptID) {
     return storedPerAttemptValue(attemptRuntimeEstimateVariances, attemptID);
   }
 }

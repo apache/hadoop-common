@@ -21,13 +21,13 @@ package org.apache.hadoop.mapreduce.v2.hs;
 import java.util.Map;
 
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 
 public interface HistoryContext {
 
-  Job getJob(JobID id);
+  Job getJob(JobId id);
 
-  Map<JobID, Job> getAllJobs(ApplicationID appID);
+  Map<JobId, Job> getAllJobs(ApplicationId appID);
 
 }

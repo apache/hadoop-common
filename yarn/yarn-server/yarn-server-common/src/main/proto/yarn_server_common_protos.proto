@@ -1,0 +1,42 @@
+option java_package = "org.apache.hadoop.yarn.proto";
+option java_outer_classname = "YarnServerCommonProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+
+import "yarn_protos.proto";
+
+message NodeIdProto {
+  optional int32 id = 1;
+}
+
+message NodeStatusProto {
+  optional NodeIdProto node_id = 1;
+  optional int32 response_id = 2;
+  optional int64 last_seen = 3;
+  repeated StringContainerListMapProto containers = 4;
+  optional bool is_node_healthy = 5;
+  optional string health_report = 6;
+  optional int64 last_health_report = 7;
+}
+
+message RegistrationResponseProto {
+  optional NodeIdProto node_id = 1;
+  optional bytes secret_key = 2;
+}
+
+message HeartbeatResponseProto {
+  optional int32 response_id = 1;
+  optional bool reboot = 2;
+  repeated ContainerProto containers_to_cleanup = 3;
+  repeated ApplicationIdProto applications_to_cleanup = 4;
+}
+
+message ContainerListProto {
+  repeated ContainerProto container = 1;
+}
+
+message StringContainerListMapProto {
+  optional string key = 1;
+  optional ContainerListProto value = 2;
+}
+

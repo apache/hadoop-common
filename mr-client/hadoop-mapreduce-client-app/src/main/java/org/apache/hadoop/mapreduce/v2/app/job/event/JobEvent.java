@@ -19,7 +19,7 @@
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 
 /**
  * This class encapsulates job related events.
@@ -27,14 +27,14 @@ import org.apache.hadoop.mapreduce.v2.api.JobID;
  */
 public class JobEvent extends AbstractEvent<JobEventType> {
 
-  private JobID jobID;
+  private JobId jobID;
 
-  public JobEvent(JobID jobID, JobEventType type) {
+  public JobEvent(JobId jobID, JobEventType type) {
     super(type);
     this.jobID = jobID;
   }
 
-  public JobID getJobId() {
+  public JobId getJobId() {
     return jobID;
   }
 

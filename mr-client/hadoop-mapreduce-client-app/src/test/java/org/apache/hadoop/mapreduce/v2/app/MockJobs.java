@@ -28,27 +28,30 @@ import java.util.Map;
 import org.apache.hadoop.mapreduce.FileSystemCounter;
 import org.apache.hadoop.mapreduce.JobCounter;
 import org.apache.hadoop.mapreduce.TaskCounter;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.Phase;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.app.job.impl.JobImpl;
 import org.apache.hadoop.yarn.MockApps;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.Phase;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+
 
 public class MockJobs extends MockApps {
   static final Iterator<JobState> JOB_STATES = Iterators.cycle(
@@ -76,15 +79,16 @@ public class MockJobs extends MockApps {
   static final Iterator<String> DIAGS = Iterators.cycle(
       "Error: java.lang.OutOfMemoryError: Java heap space",
       "Lost task tracker: tasktracker.domain/127.0.0.1:40879");
+  static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   public static String newJobName() {
     return newAppName();
   }
 
-  public static Map<JobID, Job> newJobs(ApplicationID appID, int numJobsPerApp,
+  public static Map<JobId, Job> newJobs(ApplicationId appID, int numJobsPerApp,
                                         int numTasksPerJob,
                                         int numAttemptsPerTask) {
-    Map<JobID, Job> map = Maps.newHashMap();
+    Map<JobId, Job> map = Maps.newHashMap();
     for (int j = 0; j < numJobsPerApp; ++j) {
       Job job = newJob(appID, j, numTasksPerJob, numAttemptsPerTask);
       map.put(job.getID(), job);
@@ -92,50 +96,44 @@ public class MockJobs extends MockApps {
     return map;
   }
 
-  public static JobID newJobID(ApplicationID appID, int i) {
-    JobID id = new JobID();
-    id.appID = appID;
-    id.id = i;
+  public static JobId newJobID(ApplicationId appID, int i) {
+    JobId id = recordFactory.newRecordInstance(JobId.class);
+    id.setAppId(appID);
+    id.setId(i);
     return id;
   }
 
-  public static JobReport newJobReport(JobID id) {
-    JobReport report = new JobReport();
-    report.id = id;
-    report.startTime = System.currentTimeMillis()
-        - (int)(Math.random() * 1000000);
-    report.finishTime = System.currentTimeMillis()
-        + (int)(Math.random() * 1000000) + 1;
-    report.mapProgress = (float)Math.random();
-    report.reduceProgress = (float)Math.random();
-    report.state = JOB_STATES.next();
+  public static JobReport newJobReport(JobId id) {
+    JobReport report = recordFactory.newRecordInstance(JobReport.class);
+    report.setJobId(id);
+    report.setStartTime(System.currentTimeMillis() - (int)(Math.random() * 1000000));
+    report.setFinishTime(System.currentTimeMillis() + (int)(Math.random() * 1000000) + 1);
+    report.setMapProgress((float)Math.random());
+    report.setReduceProgress((float)Math.random());
+    report.setJobState(JOB_STATES.next());
     return report;
   }
 
-  public static TaskReport newTaskReport(TaskID id) {
-    TaskReport report = new TaskReport();
-    report.id = id;
-    report.startTime = System.currentTimeMillis()
-        - (int)(Math.random() * 1000000);
-    report.finishTime = System.currentTimeMillis()
-        + (int)(Math.random() * 1000000) + 1;
-    report.progress = (float)Math.random();
-    report.counters = newCounters();
-    report.state = TASK_STATES.next();
+  public static TaskReport newTaskReport(TaskId id) {
+    TaskReport report = recordFactory.newRecordInstance(TaskReport.class);
+    report.setTaskId(id);
+    report.setStartTime(System.currentTimeMillis() - (int)(Math.random() * 1000000));
+    report.setFinishTime(System.currentTimeMillis() + (int)(Math.random() * 1000000) + 1);
+    report.setProgress((float)Math.random());
+    report.setCounters(newCounters());
+    report.setTaskState(TASK_STATES.next());
     return report;
   }
 
-  public static TaskAttemptReport newTaskAttemptReport(TaskAttemptID id) {
-    TaskAttemptReport report = new TaskAttemptReport();
-    report.id = id;
-    report.startTime = System.currentTimeMillis()
-        - (int)(Math.random() * 1000000);
-    report.finishTime = System.currentTimeMillis()
-        + (int)(Math.random() * 1000000) + 1;
-    report.phase = PHASES.next();
-    report.state = TASK_ATTEMPT_STATES.next();
-    report.progress = (float)Math.random();
-    report.counters = newCounters();
+  public static TaskAttemptReport newTaskAttemptReport(TaskAttemptId id) {
+    TaskAttemptReport report = recordFactory.newRecordInstance(TaskAttemptReport.class);
+    report.setTaskAttemptId(id);
+    report.setStartTime(System.currentTimeMillis() - (int)(Math.random() * 1000000));
+    report.setFinishTime(System.currentTimeMillis() + (int)(Math.random() * 1000000) + 1);
+    report.setPhase(PHASES.next());
+    report.setTaskAttemptState(TASK_ATTEMPT_STATES.next());
+    report.setProgress((float)Math.random());
+    report.setCounters(newCounters());
     return report;
   }
 
@@ -163,9 +161,9 @@ public class MockJobs extends MockApps {
     return TypeConverter.toYarn(hc);
   }
 
-  public static Map<TaskAttemptID, TaskAttempt> newTaskAttempts(TaskID tid,
+  public static Map<TaskAttemptId, TaskAttempt> newTaskAttempts(TaskId tid,
                                                                 int m) {
-    Map<TaskAttemptID, TaskAttempt> map = Maps.newHashMap();
+    Map<TaskAttemptId, TaskAttempt> map = Maps.newHashMap();
     for (int i = 0; i < m; ++i) {
       TaskAttempt ta = newTaskAttempt(tid, i);
       map.put(ta.getID(), ta);
@@ -173,16 +171,16 @@ public class MockJobs extends MockApps {
     return map;
   }
 
-  public static TaskAttempt newTaskAttempt(TaskID tid, int i) {
-    final TaskAttemptID taid = new TaskAttemptID();
-    taid.taskID = tid;
-    taid.id = i;
+  public static TaskAttempt newTaskAttempt(TaskId tid, int i) {
+    final TaskAttemptId taid = recordFactory.newRecordInstance(TaskAttemptId.class);
+    taid.setTaskId(tid);
+    taid.setId(i);
     final TaskAttemptReport report = newTaskAttemptReport(taid);
-    final List<CharSequence> diags = Lists.newArrayList();
+    final List<String> diags = Lists.newArrayList();
     diags.add(DIAGS.next());
     return new TaskAttempt() {
       @Override
-      public TaskAttemptID getID() {
+      public TaskAttemptId getID() {
         return taid;
       }
 
@@ -203,22 +201,22 @@ public class MockJobs extends MockApps {
 
       @Override
       public Counters getCounters() {
-        return report.counters;
+        return report.getCounters();
       }
 
       @Override
       public float getProgress() {
-        return report.progress;
+        return report.getProgress();
       }
 
       @Override
       public TaskAttemptState getState() {
-        return report.state;
+        return report.getTaskAttemptState();
       }
 
       @Override
       public boolean isFinished() {
-        switch (report.state) {
+        switch (report.getTaskAttemptState()) {
           case SUCCEEDED:
           case FAILED:
           case KILLED: return true;
@@ -227,9 +225,9 @@ public class MockJobs extends MockApps {
       }
 
       @Override
-      public ContainerID getAssignedContainerID() {
-        ContainerID id = new ContainerID();
-        id.appID = taid.taskID.jobID.appID;
+      public ContainerId getAssignedContainerID() {
+        ContainerId id = recordFactory.newRecordInstance(ContainerId.class);
+        id.setAppId(taid.getTaskId().getJobId().getAppId());
         return id;
       }
 
@@ -239,14 +237,14 @@ public class MockJobs extends MockApps {
       }
 
       @Override
-      public List<CharSequence> getDiagnostics() {
+      public List<String> getDiagnostics() {
         return diags;
       }
     };
   }
 
-  public static Map<TaskID, Task> newTasks(JobID jid, int n, int m) {
-    Map<TaskID, Task> map = Maps.newHashMap();
+  public static Map<TaskId, Task> newTasks(JobId jid, int n, int m) {
+    Map<TaskId, Task> map = Maps.newHashMap();
     for (int i = 0; i < n; ++i) {
       Task task = newTask(jid, i, m);
       map.put(task.getID(), task);
@@ -254,16 +252,16 @@ public class MockJobs extends MockApps {
     return map;
   }
 
-  public static Task newTask(JobID jid, int i, int m) {
-    final TaskID tid = new TaskID();
-    tid.jobID = jid;
-    tid.id = i;
-    tid.taskType = TASK_TYPES.next();
+  public static Task newTask(JobId jid, int i, int m) {
+    final TaskId tid = recordFactory.newRecordInstance(TaskId.class);
+    tid.setJobId(jid);
+    tid.setId(i);
+    tid.setTaskType(TASK_TYPES.next());
     final TaskReport report = newTaskReport(tid);
-    final Map<TaskAttemptID, TaskAttempt> attempts = newTaskAttempts(tid, m);
+    final Map<TaskAttemptId, TaskAttempt> attempts = newTaskAttempts(tid, m);
     return new Task() {
       @Override
-      public TaskID getID() {
+      public TaskId getID() {
         return tid;
       }
 
@@ -274,32 +272,32 @@ public class MockJobs extends MockApps {
 
       @Override
       public Counters getCounters() {
-        return report.counters;
+        return report.getCounters();
       }
 
       @Override
       public float getProgress() {
-        return report.progress;
+        return report.getProgress();
       }
 
       @Override
       public TaskType getType() {
-        return tid.taskType;
+        return tid.getTaskType();
       }
 
       @Override
-      public Map<TaskAttemptID, TaskAttempt> getAttempts() {
+      public Map<TaskAttemptId, TaskAttempt> getAttempts() {
         return attempts;
       }
 
       @Override
-      public TaskAttempt getAttempt(TaskAttemptID attemptID) {
+      public TaskAttempt getAttempt(TaskAttemptId attemptID) {
         return attempts.get(attemptID);
       }
 
       @Override
       public boolean isFinished() {
-        switch (report.state) {
+        switch (report.getTaskState()) {
           case SUCCEEDED:
           case KILLED:
           case FAILED: return true;
@@ -308,13 +306,13 @@ public class MockJobs extends MockApps {
       }
 
       @Override
-      public boolean canCommit(TaskAttemptID taskAttemptID) {
+      public boolean canCommit(TaskAttemptId taskAttemptID) {
         return false;
       }
 
       @Override
       public TaskState getState() {
-        return report.state;
+        return report.getTaskState();
       }
     };
   }
@@ -355,27 +353,27 @@ public class MockJobs extends MockApps {
     return tc;
   }
 
-  public static Job newJob(ApplicationID appID, int i, int n, int m) {
-    final JobID id = newJobID(appID, i);
+  public static Job newJob(ApplicationId appID, int i, int n, int m) {
+    final JobId id = newJobID(appID, i);
     final String name = newJobName();
     final JobReport report = newJobReport(id);
-    final Map<TaskID, Task> tasks = newTasks(id, n, m);
+    final Map<TaskId, Task> tasks = newTasks(id, n, m);
     final TaskCount taskCount = getTaskCount(tasks.values());
     final Counters counters = getCounters(tasks.values());
     return new Job() {
       @Override
-      public JobID getID() {
+      public JobId getID() {
         return id;
       }
 
       @Override
-      public CharSequence getName() {
+      public String getName() {
         return name;
       }
 
       @Override
       public JobState getState() {
-        return report.state;
+        return report.getJobState();
       }
 
       @Override
@@ -389,12 +387,12 @@ public class MockJobs extends MockApps {
       }
 
       @Override
-      public Map<TaskID, Task> getTasks() {
+      public Map<TaskId, Task> getTasks() {
         return tasks;
       }
 
       @Override
-      public Task getTask(TaskID taskID) {
+      public Task getTask(TaskId taskID) {
         return tasks.get(taskID);
       }
 
@@ -425,7 +423,7 @@ public class MockJobs extends MockApps {
       }
 
       @Override
-      public Map<TaskID, Task> getTasks(TaskType taskType) {
+      public Map<TaskId, Task> getTasks(TaskType taskType) {
         throw new UnsupportedOperationException("Not supported yet.");
       }
 

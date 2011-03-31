@@ -43,7 +43,6 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.Fake
 
 import static org.apache.hadoop.fs.CreateFlag.*;
 
-import org.apache.hadoop.yarn.LocalizationProtocol;
 
 import org.junit.AfterClass;
 import org.junit.Test;

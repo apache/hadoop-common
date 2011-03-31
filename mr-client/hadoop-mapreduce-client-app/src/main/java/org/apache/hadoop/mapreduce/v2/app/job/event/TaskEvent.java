@@ -19,7 +19,7 @@
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 
 /**
  * this class encapsulates task related events.
@@ -27,14 +27,14 @@ import org.apache.hadoop.mapreduce.v2.api.TaskID;
  */
 public class TaskEvent extends AbstractEvent<TaskEventType> {
 
-  private TaskID taskID;
+  private TaskId taskID;
 
-  public TaskEvent(TaskID taskID, TaskEventType type) {
+  public TaskEvent(TaskId taskID, TaskEventType type) {
     super(type);
     this.taskID = taskID;
   }
 
-  public TaskID getTaskID() {
+  public TaskId getTaskID() {
     return taskID;
   }
 }

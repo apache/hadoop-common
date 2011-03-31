@@ -18,13 +18,14 @@
 
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+
 
 public class TaskAttemptDiagnosticsUpdateEvent extends TaskAttemptEvent {
 
   private String diagnosticInfo;
 
-  public TaskAttemptDiagnosticsUpdateEvent(TaskAttemptID attemptID,
+  public TaskAttemptDiagnosticsUpdateEvent(TaskAttemptId attemptID,
       String diagnosticInfo) {
     super(attemptID, TaskAttemptEventType.TA_DIAGNOSTICS_UPDATE);
     this.diagnosticInfo = diagnosticInfo;

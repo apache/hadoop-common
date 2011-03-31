@@ -33,14 +33,24 @@ import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerStatus;
-import org.apache.hadoop.yarn.YarnRemoteException;
+import org.apache.hadoop.yarn.api.ContainerManager;
+import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerResponse;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ContainerManagerSecurityInfo;
@@ -87,6 +97,8 @@ public class ContainerManagerImpl extends CompositeService implements
   private final NodeStatusUpdater nodeStatusUpdater;
   private ContainerTokenSecretManager containerTokenSecretManager;
 
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   protected AsyncDispatcher dispatcher;
 
   private DeletionService deletionService;
@@ -187,18 +199,19 @@ public class ContainerManagerImpl extends CompositeService implements
   }
 
   @Override
-  public Void cleanupContainer(ContainerID containerID)
-      throws YarnRemoteException {
-    // TODO Is this necessary?
-    return null;
+  public CleanupContainerResponse cleanupContainer(CleanupContainerRequest request) throws YarnRemoteException {
+ // TODO Is this necessary?
+    CleanupContainerResponse response = recordFactory.newRecordInstance(CleanupContainerResponse.class);
+    return response;
   }
-
+  
   @Override
-  public Void startContainer(ContainerLaunchContext launchContext)
-      throws YarnRemoteException {
+  public StartContainerResponse startContainer(StartContainerRequest request) throws YarnRemoteException {
+    ContainerLaunchContext launchContext = request.getContainerLaunchContext();
+  
     Container container = new ContainerImpl(this.dispatcher, launchContext);
-    ContainerID containerID = launchContext.id;
-    ApplicationID applicationID = containerID.appID;
+    ContainerId containerID = launchContext.getContainerId();
+    ApplicationId applicationID = containerID.getAppId();
     if (this.context.getContainers().putIfAbsent(containerID, container) != null) {
       throw RPCUtil.getRemoteException("Container " + containerID
           + " already is running on this node!!");
@@ -209,9 +222,9 @@ public class ContainerManagerImpl extends CompositeService implements
 
     // Create the application
     Application application = new ApplicationImpl(this.dispatcher,
-        launchContext.user, launchContext.id.appID,
-        launchContext.env, launchContext.resources,
-        launchContext.containerTokens);
+        launchContext.getUser(), launchContext.getContainerId().getAppId(),
+        launchContext.getAllEnv(), launchContext.getAllLocalResources(),
+        launchContext.getContainerTokens());
     if (this.context.getApplications().putIfAbsent(applicationID, application) == null) {
       LOG.info("Creating a new application reference for app "
           + applicationID);
@@ -219,12 +232,13 @@ public class ContainerManagerImpl extends CompositeService implements
 
     // TODO: Validate the request
     dispatcher.getEventHandler().handle(new ApplicationInitEvent(container));
-    return null;
+    StartContainerResponse response = recordFactory.newRecordInstance(StartContainerResponse.class);
+    return response;
   }
 
   @Override
-  public Void stopContainer(ContainerID containerID)
-      throws YarnRemoteException {
+  public StopContainerResponse stopContainer(StopContainerRequest request) throws YarnRemoteException {
+    ContainerId containerID = request.getContainerId();
     Container container = this.context.getContainers().get(containerID);
     if (container == null) {
       LOG.warn("Trying to stop unknown container " + containerID);
@@ -239,18 +253,21 @@ public class ContainerManagerImpl extends CompositeService implements
     // implemented.
     nodeStatusUpdater.sendOutofBandHeartBeat();
 
-    return null;
+    StopContainerResponse response = recordFactory.newRecordInstance(StopContainerResponse.class);
+    return response;
   }
 
   @Override
-  public ContainerStatus getContainerStatus(ContainerID containerID)
-      throws YarnRemoteException {
+  public GetContainerStatusResponse getContainerStatus(GetContainerStatusRequest request) throws YarnRemoteException {
+    ContainerId containerID = request.getContainerId();
     LOG.info("Getting container-status for " + containerID);
     Container container = this.context.getContainers().get(containerID);
     if (container != null) {
       ContainerStatus containerStatus = container.cloneAndGetContainerStatus();
       LOG.info("Returning " + containerStatus);
-      return containerStatus;
+      GetContainerStatusResponse response = recordFactory.newRecordInstance(GetContainerStatusResponse.class);
+      response.setStatus(containerStatus);
+      return response;
     } else {
       throw RPCUtil.getRemoteException("Container " + containerID
           + " is not handled by this NodeManager");
@@ -260,7 +277,7 @@ public class ContainerManagerImpl extends CompositeService implements
   class ContainerEventDispatcher implements EventHandler<ContainerEvent> {
     @Override
     public void handle(ContainerEvent event) {
-      Map<ContainerID,Container> containers =
+      Map<ContainerId,Container> containers =
         ContainerManagerImpl.this.context.getContainers();
       Container c = containers.get(event.getContainerID());
       if (c != null) {
@@ -295,7 +312,7 @@ public class ContainerManagerImpl extends CompositeService implements
     case FINISH_APPS:
       CMgrCompletedAppsEvent appsFinishedEvent =
           (CMgrCompletedAppsEvent) event;
-      for (ApplicationID appID : appsFinishedEvent.getAppsToCleanup()) {
+      for (ApplicationId appID : appsFinishedEvent.getAppsToCleanup()) {
         this.dispatcher.getEventHandler().handle(
             new ApplicationEvent(appID,
                 ApplicationEventType.FINISH_APPLICATION));
@@ -304,10 +321,10 @@ public class ContainerManagerImpl extends CompositeService implements
     case FINISH_CONTAINERS:
       CMgrCompletedContainersEvent containersFinishedEvent =
           (CMgrCompletedContainersEvent) event;
-      for (org.apache.hadoop.yarn.Container container : containersFinishedEvent
+      for (org.apache.hadoop.yarn.api.records.Container container : containersFinishedEvent
           .getContainersToCleanup()) {
         this.dispatcher.getEventHandler().handle(
-            new ContainerEvent(container.id,
+            new ContainerEvent(container.getId(),
                 ContainerEventType.KILL_CONTAINER));
       }
       break;

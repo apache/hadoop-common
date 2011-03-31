@@ -20,8 +20,8 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
 import static org.apache.hadoop.fs.CreateFlag.CREATE;
 import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
-import static org.apache.hadoop.yarn.LocalResourceVisibility.PRIVATE;
-import static org.apache.hadoop.yarn.LocalResourceVisibility.PUBLIC;
+import static org.apache.hadoop.yarn.api.records.LocalResourceVisibility.PRIVATE;
+import static org.apache.hadoop.yarn.api.records.LocalResourceVisibility.PUBLIC;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -45,11 +45,11 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
+import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationInitedEvent;
-import org.apache.hadoop.yarn.LocalizationProtocol;
 
 /**
  * A thread that takes care of localization of a single application. This is
@@ -110,10 +110,10 @@ public class AppLocalizationRunnerImpl implements AppLocalizationRunner {
   }
 
   private Map<LocalResource,String> invertMap(
-        Map<String,org.apache.hadoop.yarn.LocalResource> yrsrc)
+        Map<String,org.apache.hadoop.yarn.api.records.LocalResource> yrsrc)
       throws URISyntaxException {
     Map<LocalResource,String> ret = new HashMap<LocalResource,String>();
-    for (Map.Entry<String,org.apache.hadoop.yarn.LocalResource> y : yrsrc.entrySet()) {
+    for (Map.Entry<String,org.apache.hadoop.yarn.api.records.LocalResource> y : yrsrc.entrySet()) {
       ret.put(new LocalResource(y.getValue()), y.getKey());
     }
     return ret;
@@ -124,7 +124,7 @@ public class AppLocalizationRunnerImpl implements AppLocalizationRunner {
   }
 
   private void writeApplicationLocalizationControlFiles(
-      Collection<org.apache.hadoop.yarn.LocalResource> todo) throws IOException {
+      Collection<org.apache.hadoop.yarn.api.records.LocalResource> todo) throws IOException {
     DataOutputStream filesOut = null;
     DataOutputStream tokenOut = null;
     try {
@@ -149,20 +149,20 @@ public class AppLocalizationRunnerImpl implements AppLocalizationRunner {
   @Override
   public void run() {
     // 0) queue public cache
-    Map<String,org.apache.hadoop.yarn.LocalResource> pub = app.getResources(PUBLIC);
+    Map<String,org.apache.hadoop.yarn.api.records.LocalResource> pub = app.getResources(PUBLIC);
     // 1) wait for completion
     // 1.1) if any failures, do *not* cancel remaining (other jobs may req) but
     //      decr reference counts
     // 3) queue private cache
     // XXX no need to copy w/ working public cache
-    Map<String,org.apache.hadoop.yarn.LocalResource> priv =
+    Map<String,org.apache.hadoop.yarn.api.records.LocalResource> priv =
       new HashMap(app.getResources(PRIVATE));
 
     Path workdir = null;
     Map<Path,String> links = new HashMap<Path,String>();
     // TODO avoid sync and wait for all rsrc. This is a high impacting bug.
     synchronized (privateRsrsTracker) {
-    Collection<org.apache.hadoop.yarn.LocalResource> todo;
+    Collection<org.apache.hadoop.yarn.api.records.LocalResource> todo;
     try {
       // TODO public rsrc separate
       priv.putAll(pub);

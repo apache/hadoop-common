@@ -33,54 +33,55 @@ import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.SecurityInfo;
+import org.apache.hadoop.yarn.api.ContainerManager;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ContainerManagerSecurityInfo;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.LocalResource;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.URL;
-import org.apache.hadoop.yarn.YarnRemoteException;
-import static org.apache.hadoop.yarn.LocalResourceType.*;
-import static org.apache.hadoop.yarn.LocalResourceVisibility.*;
+import static org.apache.hadoop.yarn.api.records.LocalResourceType.*;
+import static org.apache.hadoop.yarn.api.records.LocalResourceVisibility.*;
 
 public class SyntheticContainerLaunch {
 
   static final long clusterTimeStamp = System.nanoTime();
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   static ContainerLaunchContext getContainer(Configuration conf,
       int appId, int cId, String user, Path tokens)
       throws IOException, URISyntaxException {
-    ContainerLaunchContext container = new ContainerLaunchContext();
+    ContainerLaunchContext container = recordFactory.newRecordInstance(ContainerLaunchContext.class);
     // id
-    ApplicationID appID = new ApplicationID();
-    appID.id = appId;
-    appID.clusterTimeStamp = clusterTimeStamp;
-    container.id = new ContainerID();
-    container.id.appID = appID;
-    container.id.id = cId;
+    ApplicationId appID = recordFactory.newRecordInstance(ApplicationId.class);
+    appID.setId(appId);
+    appID.setClusterTimestamp(clusterTimeStamp);
+    container.setContainerId(recordFactory.newRecordInstance(ContainerId.class));
+    container.getContainerId().setAppId(appID);
+    container.getContainerId().setId(cId);
 
     // user
-    container.user = user;
+    container.setUser(user);
 
     // Resource resource
-    container.resource = new Resource();
-    container.resource.memory = 1024;
+    container.setResource(recordFactory.newRecordInstance(Resource.class));
+    container.getResource().setMemory(1024);
 
     // union {null, map<LocalResource>} resources_todo;
-    container.resources = new HashMap<CharSequence,LocalResource>();
-    LocalResource resource = new LocalResource();
-    resource.resource = AvroUtil.getYarnUrlFromPath(
-        new Path("file:///home/chrisdo/work/hadoop/mapred/CHANGES.txt"));
-    resource.size = -1;
-    resource.timestamp = 1294684255000L;
-    resource.type = FILE;
-    resource.state = PRIVATE;
-    container.resources.put("dingos", resource);
+    LocalResource resource = recordFactory.newRecordInstance(LocalResource.class);
+    resource.setResource(ConverterUtils.getYarnUrlFromPath(
+        new Path("file:///home/chrisdo/work/hadoop/mapred/CHANGES.txt")));
+    resource.setSize(-1);
+    resource.setTimestamp(1294684255000L);
+    resource.setType(FILE);
+    resource.setVisibility(PRIVATE);
+    container.setLocalResource("dingos", resource);
 
     //union {null, bytes} fsTokens_todo;
     Credentials creds = new Credentials();
@@ -89,22 +90,22 @@ public class SyntheticContainerLaunch {
     }
     DataOutputBuffer buf = new DataOutputBuffer();
     creds.writeTokenStorageToStream(buf);
-    container.containerTokens =
-      ByteBuffer.wrap(buf.getData(), 0, buf.getLength());
+    container.setContainerTokens(
+      ByteBuffer.wrap(buf.getData(), 0, buf.getLength()));
 
     //union {null, map<bytes>} serviceData;
-    container.serviceData = new HashMap<CharSequence,ByteBuffer>();
+//    container.serviceData = new HashMap<CharSequence,ByteBuffer>();
 
     // map<string> env;
-    container.env = new HashMap<CharSequence,CharSequence>();
-    container.env.put("MY_OUTPUT_FILE", "yak.txt");
+//    container.env = new HashMap<CharSequence,CharSequence>();
+    container.setEnv("MY_OUTPUT_FILE", "yak.txt");
 
     // array<string> command;
-    container.command = new ArrayList<CharSequence>();
-    container.command.add("cat");
-    container.command.add("dingos");
-    container.command.add(">");
-    container.command.add("${MY_OUTPUT_FILE}");
+//    container.command = new ArrayList<CharSequence>();
+    container.addCommand("cat");
+    container.addCommand("dingos");
+    container.addCommand(">");
+    container.addCommand("${MY_OUTPUT_FILE}");
     return container;
   }
 
@@ -122,7 +123,9 @@ public class SyntheticContainerLaunch {
     ContainerManager client = getClient(conf, nmAddr);
     Path tokens = (argv.length > 2) ? new Path(argv[2]) : null;
     ContainerLaunchContext ctxt = getContainer(conf, 0, 0, argv[1], tokens);
-    client.startContainer(ctxt);
+    StartContainerRequest request = recordFactory.newRecordInstance(StartContainerRequest.class);
+    request.setContainerLaunchContext(ctxt);
+    client.startContainer(request);
     System.out.println("START: " + ctxt);
   }
 

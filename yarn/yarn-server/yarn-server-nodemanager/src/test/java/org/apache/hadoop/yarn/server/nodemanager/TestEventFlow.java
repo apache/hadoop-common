@@ -18,32 +18,35 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerState;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
 import org.junit.Test;
 
 public class TestEventFlow {
 
   private static final Log LOG = LogFactory.getLog(TestEventFlow.class);
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   @Test
   public void testSuccessfulContainerLaunch() throws InterruptedException,
-      AvroRemoteException {
+      YarnRemoteException {
     Context context = new NMContext();
 
     YarnConfiguration conf = new YarnConfiguration();
@@ -54,13 +57,13 @@ public class TestEventFlow {
     NodeStatusUpdater nodeStatusUpdater =
         new NodeStatusUpdaterImpl(context, dispatcher, healthChecker) {
       @Override
-      protected org.apache.hadoop.yarn.ResourceTracker getRMClient() {
+      protected ResourceTracker getRMClient() {
         return new LocalRMInterface();
       };
 
       @Override
       protected void startStatusUpdater() throws InterruptedException,
-          AvroRemoteException {
+          YarnRemoteException {
         return; // Don't start any updating thread.
       }
     };
@@ -70,20 +73,22 @@ public class TestEventFlow {
     containerManager.init(new Configuration());
     containerManager.start();
 
-    ContainerLaunchContext launchContext = new ContainerLaunchContext();
-    ContainerID cID = new ContainerID();
-    cID.appID = new ApplicationID();
-    launchContext.id = cID;
-    launchContext.user = "testing";
-    launchContext.resource = new Resource();
-    launchContext.env = new HashMap<CharSequence, CharSequence>();
-    launchContext.command = new ArrayList<CharSequence>();
-    containerManager.startContainer(launchContext);
+    ContainerLaunchContext launchContext = recordFactory.newRecordInstance(ContainerLaunchContext.class);
+    ContainerId cID = recordFactory.newRecordInstance(ContainerId.class);
+    cID.setAppId(recordFactory.newRecordInstance(ApplicationId.class));
+    launchContext.setContainerId(cID);
+    launchContext.setUser("testing");
+    launchContext.setResource(recordFactory.newRecordInstance(Resource.class));
+    StartContainerRequest request = recordFactory.newRecordInstance(StartContainerRequest.class);
+    request.setContainerLaunchContext(launchContext);
+    containerManager.startContainer(request);
 
     DummyContainerManager.waitForContainerState(containerManager, cID,
         ContainerState.RUNNING);
 
-    containerManager.stopContainer(cID);
+    StopContainerRequest stopRequest = recordFactory.newRecordInstance(StopContainerRequest.class);
+    stopRequest.setContainerId(cID);
+    containerManager.stopContainer(stopRequest);
     DummyContainerManager.waitForContainerState(containerManager, cID,
         ContainerState.COMPLETE);
 

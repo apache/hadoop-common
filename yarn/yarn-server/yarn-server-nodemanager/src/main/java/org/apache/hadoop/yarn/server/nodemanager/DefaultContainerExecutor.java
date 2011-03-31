@@ -32,12 +32,12 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainerLaunch;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.LocalizationProtocol;
+
 
 public class DefaultContainerExecutor extends ContainerExecutor {
 
@@ -121,7 +121,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
           new String[] { "bash", "-c", launchDst.toUri().getPath().toString() };
       shExec = new ShellCommandExecutor(command,
           new File(appWorkDir.toUri().getPath()));
-      launchCommandObjs.put(container.getLaunchContext().id, shExec);
+      launchCommandObjs.put(container.getLaunchContext().getContainerId(), shExec);
       shExec.execute();
     } catch (Exception e) {
       if (null == shExec) {
@@ -132,7 +132,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
       logOutput(shExec.getOutput());
       return exitCode;
     } finally {
-      launchCommandObjs.remove(container.getLaunchContext().id);
+      launchCommandObjs.remove(container.getLaunchContext().getContainerId());
     }
     return 0;
   }

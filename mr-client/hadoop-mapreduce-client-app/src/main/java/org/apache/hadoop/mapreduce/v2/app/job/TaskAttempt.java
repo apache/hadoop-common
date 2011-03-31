@@ -20,19 +20,20 @@ package org.apache.hadoop.mapreduce.v2.app.job;
 
 import java.util.List;
 
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+
 
 /**
  * Read only view of TaskAttempt.
  */
 public interface TaskAttempt {
-  TaskAttemptID getID();
+  TaskAttemptId getID();
   TaskAttemptReport getReport();
-  List<CharSequence> getDiagnostics();
+  List<String> getDiagnostics();
   Counters getCounters();
   float getProgress();
   TaskAttemptState getState();
@@ -43,7 +44,7 @@ public interface TaskAttempt {
 
   /**If container Assigned then return container ID, otherwise null.
    */
-  ContainerID getAssignedContainerID();
+  ContainerId getAssignedContainerID();
 
   /**If container Assigned then return container mgr address, otherwise null.
    */

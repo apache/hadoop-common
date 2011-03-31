@@ -22,14 +22,14 @@ import java.net.InetSocketAddress;
 
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.WrappedJvmID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 
 public interface TaskAttemptListener {
 
   InetSocketAddress getAddress();
 
-  void register(TaskAttemptID attemptID, Task task, WrappedJvmID jvmID);
+  void register(TaskAttemptId attemptID, Task task, WrappedJvmID jvmID);
 
-  void unregister(TaskAttemptID attemptID, WrappedJvmID jvmID);
+  void unregister(TaskAttemptId attemptID, WrappedJvmID jvmID);
 
 }

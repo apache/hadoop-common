@@ -26,24 +26,24 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.Priority;
 
 public class Task {
   private static final Log LOG = LogFactory.getLog(Task.class);
   
   public enum State {PENDING, ALLOCATED, RUNNING, COMPLETE};
   
-  final private ApplicationID applicationId;
+  final private ApplicationId applicationId;
   final private int taskId;
   final private Priority priority;
   
   final private Set<String> hosts = new HashSet<String>();
   final private Set<String> racks = new HashSet<String>();
   
-  private ContainerID containerId;
+  private ContainerId containerId;
   private org.apache.hadoop.yarn.server.resourcemanager.NodeManager nodeManager;
   
   private State state;
@@ -80,11 +80,11 @@ public class Task {
     return nodeManager;
   }
   
-  public ContainerID getContainerId() {
+  public ContainerId getContainerId() {
     return containerId;
   }
   
-  public ApplicationID getApplicationID() {
+  public ApplicationId getApplicationID() {
     return applicationId;
   }
 
@@ -106,7 +106,7 @@ public class Task {
     return true;
   }
   
-  public void start(NodeManager nodeManager, ContainerID containerId) {
+  public void start(NodeManager nodeManager, ContainerId containerId) {
     this.nodeManager = nodeManager;
     this.containerId = containerId;
     setState(State.RUNNING);

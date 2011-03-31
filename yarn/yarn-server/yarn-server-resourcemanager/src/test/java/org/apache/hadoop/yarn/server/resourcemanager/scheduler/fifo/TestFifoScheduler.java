@@ -24,12 +24,14 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetworkTopology;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.Task;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,6 +41,7 @@ import junit.framework.TestCase;
 
 public class TestFifoScheduler extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestFifoScheduler.class);
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
   private ResourceManager resourceManager = null;
   
@@ -272,12 +275,12 @@ public class TestFifoScheduler extends TestCase {
   
   private void checkApplicationResourceUsage(int expected, 
       Application application) {
-    Assert.assertEquals(expected, application.getUsedResources().memory);
+    Assert.assertEquals(expected, application.getUsedResources().getMemory());
   }
   
   private void checkNodeResourceUsage(int expected,
       org.apache.hadoop.yarn.server.resourcemanager.NodeManager node) {
-    Assert.assertEquals(expected, node.getUsed().memory);
+    Assert.assertEquals(expected, node.getUsed().getMemory());
     node.checkResourceUsage();
   }
 

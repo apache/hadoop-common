@@ -18,58 +18,85 @@
 
 package org.apache.hadoop.mapred;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.List;
 
 import junit.framework.Assert;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.ipc.Server;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapred.YARNRunner;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetCountersRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetCountersResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetDiagnosticsRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetDiagnosticsResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetJobReportRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetJobReportResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptCompletionEventsRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptCompletionEventsResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptReportRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptReportResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportsRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportsResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillJobRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillJobResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskAttemptRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskAttemptResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskResponse;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.ClientRMProtocol;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationResponse;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.ipc.RPCUtil;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.factory.providers.YarnRemoteExceptionFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.ClientRMProtocol;
-import org.apache.hadoop.yarn.YarnClusterMetrics;
-import org.apache.hadoop.yarn.YarnRemoteException;
-import org.apache.hadoop.mapreduce.v2.api.CounterGroup;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.junit.Test;
 
 public class TestClientRedirect {
 
   private static final Log LOG = LogFactory.getLog(TestClientRedirect.class);
   private static final String RMADDRESS = "0.0.0.0:8054";
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   private static final String AMHOSTADDRESS = "0.0.0.0:10020";
   private static final String HSHOSTADDRESS = "0.0.0.0:10021";
   private static final int HSPORT = 10020;
   private volatile boolean amContact = false; 
   private volatile boolean hsContact = false;
   private volatile boolean amRunning = false;
- 
+
   @Test
   public void testRedirect() throws Exception {
     
@@ -143,42 +170,42 @@ public class TestClientRedirect {
     }
 
     @Override
-    public ApplicationID getNewApplicationId() throws AvroRemoteException {
+    public GetNewApplicationIdResponse getNewApplicationId(GetNewApplicationIdRequest request) throws YarnRemoteException {
       return null;
     }
-
+    
     @Override
-    public ApplicationMaster getApplicationMaster(ApplicationID applicationId)
-        throws AvroRemoteException {
-      ApplicationMaster master = new ApplicationMaster();
-      master.applicationId = applicationId;
-      master.status = new ApplicationStatus();
-      master.status.applicationId = applicationId;
+    public GetApplicationMasterResponse getApplicationMaster(GetApplicationMasterRequest request) throws YarnRemoteException {
+      ApplicationId applicationId = request.getApplicationId();
+      ApplicationMaster master = recordFactory.newRecordInstance(ApplicationMaster.class);
+      master.setApplicationId(applicationId);
+      master.setStatus(recordFactory.newRecordInstance(ApplicationStatus.class));
+      master.getStatus().setApplicationId(applicationId);
       if (amRunning) {
-        master.state = ApplicationState.RUNNING;
+        master.setState(ApplicationState.RUNNING);
       } else {
-        master.state = ApplicationState.COMPLETED;
+        master.setState(ApplicationState.COMPLETED);
       }
       String[] split = AMHOSTADDRESS.split(":");
-      master.host = split[0];
-      master.rpcPort = Integer.parseInt(split[1]);
-      return master;
-  }
-
-    @Override
-    public Void submitApplication(ApplicationSubmissionContext context)
-        throws AvroRemoteException {
-      throw new AvroRemoteException("Test");
+      master.setHost(split[0]);
+      master.setRpcPort(Integer.parseInt(split[1]));
+      GetApplicationMasterResponse response = recordFactory.newRecordInstance(GetApplicationMasterResponse.class);
+      response.setApplicationMaster(master);
+      return response;
     }
 
     @Override
-    public Void finishApplication(ApplicationID applicationId)
-        throws AvroRemoteException {
+    public SubmitApplicationResponse submitApplication(SubmitApplicationRequest request) throws YarnRemoteException {
+      throw YarnRemoteExceptionFactoryProvider.getYarnRemoteExceptionFactory(null).createYarnRemoteException("Test");
+    }
+    
+    @Override
+    public FinishApplicationResponse finishApplication(FinishApplicationRequest request) throws YarnRemoteException {
       return null;
     }
-
+    
     @Override
-    public YarnClusterMetrics getClusterMetrics() throws AvroRemoteException {
+    public GetClusterMetricsResponse getClusterMetrics(GetClusterMetricsRequest request) throws YarnRemoteException {
       return null;
     }
   }
@@ -189,12 +216,14 @@ public class TestClientRedirect {
     }
 
     @Override
-    public Counters getCounters(JobID jobID) throws AvroRemoteException,
-      YarnRemoteException {
+    public GetCountersResponse getCounters(GetCountersRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
       hsContact = true;
-      Counters counters = new Counters();
-      counters.groups = new HashMap<CharSequence, CounterGroup>();
-      return counters;
+      Counters counters = recordFactory.newRecordInstance(Counters.class);
+//      counters.groups = new HashMap<CharSequence, CounterGroup>();
+      GetCountersResponse response = recordFactory.newRecordInstance(GetCountersResponse.class);
+      response.setCounters(counters);
+      return response;
    }
   }
 
@@ -240,77 +269,78 @@ public class TestClientRedirect {
     }
 
     @Override
-    public Counters getCounters(JobID jobID) throws AvroRemoteException,
-      YarnRemoteException {
+    public GetCountersResponse getCounters(GetCountersRequest request) throws YarnRemoteException {
+      JobId jobID = request.getJobId();
+    
       amContact = true;
-      Counters counters = new Counters();
-      counters.groups = new HashMap<CharSequence, CounterGroup>();
-      return counters;
-   }
+      Counters counters = recordFactory.newRecordInstance(Counters.class);
+//      counters.groups = new HashMap<CharSequence, CounterGroup>();
+        GetCountersResponse response = recordFactory.newRecordInstance(GetCountersResponse.class);
+        response.setCounters(counters);
+        return response;
+      }
 
     @Override
-    public List<CharSequence> getDiagnostics(
-        org.apache.hadoop.mapreduce.v2.api.TaskAttemptID taskAttemptID)
-        throws AvroRemoteException, YarnRemoteException {
+    public GetJobReportResponse getJobReport(GetJobReportRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
       return null;
     }
 
     @Override
-    public JobReport getJobReport(JobID jobID) throws AvroRemoteException,
-        YarnRemoteException {
+    public GetTaskReportResponse getTaskReport(GetTaskReportRequest request) throws YarnRemoteException {
+      TaskId taskID = request.getTaskId();
+      return null;
+    }
+
+
+    @Override
+    public GetTaskAttemptReportResponse getTaskAttemptReport(GetTaskAttemptReportRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptID = request.getTaskAttemptId();
       return null;
     }
 
     @Override
-    public List<TaskAttemptCompletionEvent> getTaskAttemptCompletionEvents(
-        JobID jobID, int fromEventId, int maxEvents)
-        throws AvroRemoteException, YarnRemoteException {
+    public GetTaskAttemptCompletionEventsResponse getTaskAttemptCompletionEvents(GetTaskAttemptCompletionEventsRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
+      int fromEventId = request.getFromEventId();
+      int maxEvents = request.getMaxEvents();
       return null;
     }
 
     @Override
-    public TaskAttemptReport getTaskAttemptReport(
-        org.apache.hadoop.mapreduce.v2.api.TaskAttemptID taskAttemptID)
-        throws AvroRemoteException, YarnRemoteException {
+    public GetTaskReportsResponse getTaskReports(GetTaskReportsRequest request) throws YarnRemoteException {
+      JobId jobID = request.getJobId();
+      TaskType taskType = request.getTaskType();
       return null;
     }
 
     @Override
-    public TaskReport getTaskReport(org.apache.hadoop.mapreduce.v2.api.TaskID taskID)
-        throws AvroRemoteException, YarnRemoteException {
+    public GetDiagnosticsResponse getDiagnostics(GetDiagnosticsRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptID = request.getTaskAttemptId();
       return null;
     }
 
     @Override
-    public List<TaskReport> getTaskReports(JobID jobID,
-        org.apache.hadoop.mapreduce.v2.api.TaskType taskType)
-        throws AvroRemoteException, YarnRemoteException {
+    public KillJobResponse killJob(KillJobRequest request) throws YarnRemoteException {
+      JobId jobID = request.getJobId();
       return null;
     }
 
     @Override
-    public Void killJob(JobID jobID) throws AvroRemoteException,
-        YarnRemoteException {
+    public KillTaskResponse killTask(KillTaskRequest request) throws YarnRemoteException {
+      TaskId taskID = request.getTaskId();
       return null;
     }
 
     @Override
-    public Void killTask(org.apache.hadoop.mapreduce.v2.api.TaskID taskID)
-        throws AvroRemoteException, YarnRemoteException {
+    public KillTaskAttemptResponse killTaskAttempt(KillTaskAttemptRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptID = request.getTaskAttemptId();
       return null;
     }
 
     @Override
-    public Void killTaskAttempt(
-        org.apache.hadoop.mapreduce.v2.api.TaskAttemptID taskAttemptID)
-        throws AvroRemoteException, YarnRemoteException {
-      return null;
-    }
-
-    @Override
-    public Void failTaskAttempt(
-        org.apache.hadoop.mapreduce.v2.api.TaskAttemptID taskAttemptID)
-        throws AvroRemoteException, YarnRemoteException {
+    public FailTaskAttemptResponse failTaskAttempt(FailTaskAttemptRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptID = request.getTaskAttemptId();
       return null;
     }
   }

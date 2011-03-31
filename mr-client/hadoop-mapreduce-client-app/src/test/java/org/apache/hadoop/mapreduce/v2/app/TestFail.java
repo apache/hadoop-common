@@ -26,6 +26,11 @@ import junit.framework.Assert;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.TaskAttemptListenerImpl;
 import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -33,11 +38,6 @@ import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
 import org.junit.Test;
 
 /**
@@ -53,13 +53,13 @@ public class TestFail {
     MRApp app = new MockFirstFailingAttemptMRApp(1, 0);
     Job job = app.submit(new Configuration());
     app.waitForState(job, JobState.SUCCEEDED);
-    Map<TaskID,Task> tasks = job.getTasks();
+    Map<TaskId,Task> tasks = job.getTasks();
     Assert.assertEquals("No of tasks is not correct", 1, 
         tasks.size());
     Task task = tasks.values().iterator().next();
     Assert.assertEquals("Task state not correct", TaskState.SUCCEEDED, 
-        task.getReport().state);
-    Map<TaskAttemptID, TaskAttempt> attempts = 
+        task.getReport().getTaskState());
+    Map<TaskAttemptId, TaskAttempt> attempts = 
       tasks.values().iterator().next().getAttempts();
     Assert.assertEquals("No of attempts is not correct", 2, 
         attempts.size());
@@ -67,9 +67,9 @@ public class TestFail {
     //and another must have succeeded
     Iterator<TaskAttempt> it = attempts.values().iterator();
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.FAILED, 
-          it.next().getReport().state);
+          it.next().getReport().getTaskAttemptState());
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.SUCCEEDED, 
-        it.next().getReport().state);
+        it.next().getReport().getTaskAttemptState());
   }
 
   @Test
@@ -143,19 +143,19 @@ public class TestFail {
     conf.setInt(MRJobConfig.MAP_MAX_ATTEMPTS, maxAttempts);
     Job job = app.submit(conf);
     app.waitForState(job, JobState.FAILED);
-    Map<TaskID,Task> tasks = job.getTasks();
+    Map<TaskId,Task> tasks = job.getTasks();
     Assert.assertEquals("No of tasks is not correct", 1, 
         tasks.size());
     Task task = tasks.values().iterator().next();
     Assert.assertEquals("Task state not correct", TaskState.FAILED, 
-        task.getReport().state);
-    Map<TaskAttemptID, TaskAttempt> attempts = 
+        task.getReport().getTaskState());
+    Map<TaskAttemptId, TaskAttempt> attempts = 
       tasks.values().iterator().next().getAttempts();
     Assert.assertEquals("No of attempts is not correct", maxAttempts, 
         attempts.size());
     for (TaskAttempt attempt : attempts.values()) {
       Assert.assertEquals("Attempt state not correct", TaskAttemptState.FAILED, 
-          attempt.getReport().state);
+          attempt.getReport().getTaskAttemptState());
     }
   }
 
@@ -189,8 +189,8 @@ public class TestFail {
     }
 
     @Override
-    protected void attemptLaunched(TaskAttemptID attemptID) {
-      if (attemptID.taskID.id == 0) {//check if it is first task
+    protected void attemptLaunched(TaskAttemptId attemptID) {
+      if (attemptID.getTaskId().getId() == 0) {//check if it is first task
         // send the Fail event
         getContext().getEventHandler().handle(
             new TaskAttemptEvent(attemptID, 
@@ -210,8 +210,8 @@ public class TestFail {
     }
 
     @Override
-    protected void attemptLaunched(TaskAttemptID attemptID) {
-      if (attemptID.taskID.id == 0 && attemptID.id == 0) {
+    protected void attemptLaunched(TaskAttemptId attemptID) {
+      if (attemptID.getTaskId().getId() == 0 && attemptID.getId() == 0) {
         //check if it is first task's first attempt
         // send the Fail event
         getContext().getEventHandler().handle(

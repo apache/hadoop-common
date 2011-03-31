@@ -18,13 +18,14 @@
 
 package org.apache.hadoop.mapreduce.v2.util;
 
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -32,42 +33,48 @@ import static org.junit.Assert.*;
 public class TestMRApps {
 
   @Test public void testJobIDtoString() {
-    JobID jid = new JobID();
-    jid.appID = new ApplicationID();
+    JobId jid = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(JobId.class);
+    jid.setAppId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class));
     assertEquals("job_0_0_0", MRApps.toString(jid));
   }
 
   @Test public void testToJobID() {
-    JobID jid = MRApps.toJobID("job_1_1_1");
-    assertEquals(1, jid.appID.clusterTimeStamp);
-    assertEquals(1, jid.appID.id);
-    assertEquals(1, jid.id);
+    JobId jid = MRApps.toJobID("job_1_1_1");
+    assertEquals(1, jid.getAppId().getClusterTimestamp());
+    assertEquals(1, jid.getAppId().getId());
+    assertEquals(1, jid.getId());
   }
 
   @Test(expected=YarnException.class) public void testJobIDShort() {
     MRApps.toJobID("job_0_0");
   }
 
+  //TODO_get.set
   @Test public void testTaskIDtoString() {
-    TaskID tid = new TaskID();
-    tid.jobID = new JobID();
-    tid.jobID.appID = new ApplicationID();
-    tid.taskType = TaskType.MAP;
+    TaskId tid = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class);
+    tid.setJobId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(JobId.class));
+    tid.getJobId().setAppId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class));
+    tid.setTaskType(TaskType.MAP);
+    TaskType type = tid.getTaskType();
+    System.err.println(type);
+    type = TaskType.REDUCE;
+    System.err.println(type);
+    System.err.println(tid.getTaskType());
     assertEquals("task_0_0_0_m_0", MRApps.toString(tid));
-    tid.taskType = TaskType.REDUCE;
+    tid.setTaskType(TaskType.REDUCE);
     assertEquals("task_0_0_0_r_0", MRApps.toString(tid));
   }
 
   @Test public void testToTaskID() {
-    TaskID tid = MRApps.toTaskID("task_1_2_3_r_4");
-    assertEquals(1, tid.jobID.appID.clusterTimeStamp);
-    assertEquals(2, tid.jobID.appID.id);
-    assertEquals(3, tid.jobID.id);
-    assertEquals(TaskType.REDUCE, tid.taskType);
-    assertEquals(4, tid.id);
+    TaskId tid = MRApps.toTaskID("task_1_2_3_r_4");
+    assertEquals(1, tid.getJobId().getAppId().getClusterTimestamp());
+    assertEquals(2, tid.getJobId().getAppId().getId());
+    assertEquals(3, tid.getJobId().getId());
+    assertEquals(TaskType.REDUCE, tid.getTaskType());
+    assertEquals(4, tid.getId());
 
     tid = MRApps.toTaskID("task_1_2_3_m_4");
-    assertEquals(TaskType.MAP, tid.taskType);
+    assertEquals(TaskType.MAP, tid.getTaskType());
   }
 
   @Test(expected=YarnException.class) public void testTaskIDShort() {
@@ -78,22 +85,23 @@ public class TestMRApps {
     MRApps.toTaskID("task_0_0_0_x_0");
   }
 
+  //TODO_get.set
   @Test public void testTaskAttemptIDtoString() {
-    TaskAttemptID taid = new TaskAttemptID();
-    taid.taskID = new TaskID();
-    taid.taskID.taskType = TaskType.MAP;
-    taid.taskID.jobID = new JobID();
-    taid.taskID.jobID.appID = new ApplicationID();
+    TaskAttemptId taid = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskAttemptId.class);
+    taid.setTaskId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class));
+    taid.getTaskId().setTaskType(TaskType.MAP);
+    taid.getTaskId().setJobId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(JobId.class));
+    taid.getTaskId().getJobId().setAppId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class));
     assertEquals("attempt_0_0_0_m_0_0", MRApps.toString(taid));
   }
 
   @Test public void testToTaskAttemptID() {
-    TaskAttemptID taid = MRApps.toTaskAttemptID("attempt_0_1_2_m_3_4");
-    assertEquals(0, taid.taskID.jobID.appID.clusterTimeStamp);
-    assertEquals(1, taid.taskID.jobID.appID.id);
-    assertEquals(2, taid.taskID.jobID.id);
-    assertEquals(3, taid.taskID.id);
-    assertEquals(4, taid.id);
+    TaskAttemptId taid = MRApps.toTaskAttemptID("attempt_0_1_2_m_3_4");
+    assertEquals(0, taid.getTaskId().getJobId().getAppId().getClusterTimestamp());
+    assertEquals(1, taid.getTaskId().getJobId().getAppId().getId());
+    assertEquals(2, taid.getTaskId().getJobId().getId());
+    assertEquals(3, taid.getTaskId().getId());
+    assertEquals(4, taid.getId());
   }
 
   @Test(expected=YarnException.class) public void testTaskAttemptIDShort() {

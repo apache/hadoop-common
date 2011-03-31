@@ -22,14 +22,17 @@ import java.util.HashMap;
 
 import junit.framework.Assert;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerState;
-import org.apache.hadoop.yarn.ContainerStatus;
+import org.apache.hadoop.yarn.api.ContainerManager;
+import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEvent;
@@ -51,6 +54,8 @@ public class DummyContainerManager extends ContainerManagerImpl {
   private static final Log LOG = LogFactory
       .getLog(DummyContainerManager.class);
 
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   public DummyContainerManager(Context context, ContainerExecutor exec,
       DeletionService deletionContext, NodeStatusUpdater nodeStatusUpdater) {
     super(context, exec, deletionContext, nodeStatusUpdater);
@@ -101,7 +106,7 @@ public class DummyContainerManager extends ContainerManagerImpl {
       @Override
       public void handle(ContainersLauncherEvent event) {
         Container container = event.getContainer();
-        ContainerID containerId = container.getContainerID();
+        ContainerId containerId = container.getContainerID();
         switch (event.getType()) {
         case LAUNCH_CONTAINER:
           dispatcher.getEventHandler().handle(
@@ -119,19 +124,21 @@ public class DummyContainerManager extends ContainerManagerImpl {
   }
 
   public static void waitForContainerState(ContainerManager containerManager,
-        ContainerID containerID, ContainerState finalState)
-        throws InterruptedException, AvroRemoteException {
+        ContainerId containerID, ContainerState finalState)
+        throws InterruptedException, YarnRemoteException {
+      GetContainerStatusRequest request = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
+      request.setContainerId(containerID);
       ContainerStatus containerStatus =
-          containerManager.getContainerStatus(containerID);
+          containerManager.getContainerStatus(request).getStatus();
       int timeoutSecs = 0;
-      while (!containerStatus.state.equals(finalState) && timeoutSecs++ < 20) {
+      while (!containerStatus.getState().equals(finalState) && timeoutSecs++ < 20) {
         Thread.sleep(1000);
         LOG.info("Waiting for container to get into state " + finalState
-            + ". Current state is " + containerStatus.state);
-        containerStatus = containerManager.getContainerStatus(containerID);
+            + ". Current state is " + containerStatus.getState());
+        containerStatus = containerManager.getContainerStatus(request).getStatus();
       }
-      LOG.info("Container state is " + containerStatus.state);
+      LOG.info("Container state is " + containerStatus.getState());
       Assert.assertEquals("ContainerState is not correct (timedout)",
-          finalState, containerStatus.state);
+          finalState, containerStatus.getState());
     }
 }

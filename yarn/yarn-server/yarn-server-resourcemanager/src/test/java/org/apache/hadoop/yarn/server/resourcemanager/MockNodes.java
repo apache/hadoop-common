@@ -23,15 +23,18 @@ import com.google.common.collect.Lists;
 import java.util.List;
 
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Resource;
 
 /**
  * Test helper to generate mock nodes
  */
 public class MockNodes {
   private static int NODE_ID = 0;
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   public static List<NodeInfo> newNodes(int racks, int nodesPerRack,
                                         Resource perNode) {
@@ -44,41 +47,41 @@ public class MockNodes {
     return list;
   }
 
-  public static NodeID newNodeID(int id) {
-    NodeID nid = new NodeID();
-    nid.id = id;
+  public static NodeId newNodeID(int id) {
+    NodeId nid = recordFactory.newRecordInstance(NodeId.class);
+    nid.setId(id);
     return nid;
   }
 
   public static Resource newResource(int mem) {
-    Resource rs = new Resource();
-    rs.memory = mem;
+    Resource rs = recordFactory.newRecordInstance(Resource.class);
+    rs.setMemory(mem);
     return rs;
   }
 
   public static Resource newUsedResource(Resource total) {
-    Resource rs = new Resource();
-    rs.memory = (int)(Math.random() * total.memory);
+    Resource rs = recordFactory.newRecordInstance(Resource.class);
+    rs.setMemory((int)(Math.random() * total.getMemory()));
     return rs;
   }
 
   public static Resource newAvailResource(Resource total, Resource used) {
-    Resource rs = new Resource();
-    rs.memory = total.memory - used.memory;
+    Resource rs = recordFactory.newRecordInstance(Resource.class);
+    rs.setMemory(total.getMemory() - used.getMemory());
     return rs;
   }
 
   public static NodeInfo newNodeInfo(int rack, final Resource perNode) {
     final String rackName = "rack"+ rack;
     final int nid = NODE_ID++;
-    final NodeID nodeID = newNodeID(nid);
+    final NodeId nodeID = newNodeID(nid);
     final String hostName = "host"+ nid;
     final Resource used = newUsedResource(perNode);
     final Resource avail = newAvailResource(perNode, used);
     final int containers = (int)(Math.random() * 8);
     return new NodeInfo() {
       @Override
-      public NodeID getNodeID() {
+      public NodeId getNodeID() {
         return nodeID;
       }
 

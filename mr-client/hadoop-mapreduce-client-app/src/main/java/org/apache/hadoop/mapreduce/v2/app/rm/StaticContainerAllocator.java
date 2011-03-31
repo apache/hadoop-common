@@ -33,9 +33,10 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.ContainerID;
 
 /**
  * Reads the static list of NodeManager from config file and allocate 
@@ -137,7 +138,7 @@ public class StaticContainerAllocator extends AbstractService
       if (event.getType() == ContainerAllocator.EventType.CONTAINER_REQ) {
         if (nextIndex < containerMgrList.size()) {
           String containerMgr = containerMgrList.get(nextIndex);
-          ContainerID containerID = generateContainerID();
+          ContainerId containerID = generateContainerID();
 
         context.getEventHandler().handle(
             new TaskAttemptContainerAssignedEvent(
@@ -147,10 +148,10 @@ public class StaticContainerAllocator extends AbstractService
       }
     }
 
-    private ContainerID generateContainerID() {
-      ContainerID cId = new ContainerID();
-      cId.appID = context.getApplicationID();
-      cId.id = containerCount++;
+    private ContainerId generateContainerID() {
+      ContainerId cId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerId.class);
+      cId.setAppId(context.getApplicationID());
+      cId.setId(containerCount++);
       return cId;
     }
   }

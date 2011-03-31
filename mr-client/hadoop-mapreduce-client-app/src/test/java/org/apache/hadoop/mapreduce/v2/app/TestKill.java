@@ -25,6 +25,11 @@ import java.util.concurrent.CountDownLatch;
 import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
@@ -34,11 +39,6 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEventType;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
 import org.junit.Test;
 
 /**
@@ -68,19 +68,19 @@ public class TestKill {
 
     //wait and validate for Job to be KILLED
     app.waitForState(job, JobState.KILLED);
-    Map<TaskID,Task> tasks = job.getTasks();
+    Map<TaskId,Task> tasks = job.getTasks();
     Assert.assertEquals("No of tasks is not correct", 1, 
         tasks.size());
     Task task = tasks.values().iterator().next();
     Assert.assertEquals("Task state not correct", TaskState.KILLED, 
-        task.getReport().state);
-    Map<TaskAttemptID, TaskAttempt> attempts = 
+        task.getReport().getTaskState());
+    Map<TaskAttemptId, TaskAttempt> attempts = 
       tasks.values().iterator().next().getAttempts();
     Assert.assertEquals("No of attempts is not correct", 1, 
         attempts.size());
     Iterator<TaskAttempt> it = attempts.values().iterator();
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.KILLED, 
-          it.next().getReport().state);
+          it.next().getReport().getTaskAttemptState());
   }
 
   @Test
@@ -92,7 +92,7 @@ public class TestKill {
     
     //wait and vailidate for Job to become RUNNING
     app.waitForState(job, JobState.RUNNING);
-    Map<TaskID,Task> tasks = job.getTasks();
+    Map<TaskId,Task> tasks = job.getTasks();
     Assert.assertEquals("No of tasks is not correct", 2, 
         tasks.size());
     Iterator<Task> it = tasks.values().iterator();
@@ -113,22 +113,22 @@ public class TestKill {
     //Job is succeeded
     
     Assert.assertEquals("Task state not correct", TaskState.KILLED, 
-        task1.getReport().state);
+        task1.getReport().getTaskState());
     Assert.assertEquals("Task state not correct", TaskState.SUCCEEDED, 
-        task2.getReport().state);
-    Map<TaskAttemptID, TaskAttempt> attempts = task1.getAttempts();
+        task2.getReport().getTaskState());
+    Map<TaskAttemptId, TaskAttempt> attempts = task1.getAttempts();
     Assert.assertEquals("No of attempts is not correct", 1, 
         attempts.size());
     Iterator<TaskAttempt> iter = attempts.values().iterator();
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.KILLED, 
-          iter.next().getReport().state);
+          iter.next().getReport().getTaskAttemptState());
 
     attempts = task2.getAttempts();
     Assert.assertEquals("No of attempts is not correct", 1, 
         attempts.size());
     iter = attempts.values().iterator();
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.SUCCEEDED, 
-          iter.next().getReport().state);
+          iter.next().getReport().getTaskAttemptState());
   }
 
   @Test
@@ -140,7 +140,7 @@ public class TestKill {
     
     //wait and vailidate for Job to become RUNNING
     app.waitForState(job, JobState.RUNNING);
-    Map<TaskID,Task> tasks = job.getTasks();
+    Map<TaskId,Task> tasks = job.getTasks();
     Assert.assertEquals("No of tasks is not correct", 2, 
         tasks.size());
     Iterator<Task> it = tasks.values().iterator();
@@ -166,25 +166,25 @@ public class TestKill {
     //first Task will have two attempts 1st is killed, 2nd Succeeds
     //both Tasks and Job succeeds
     Assert.assertEquals("Task state not correct", TaskState.SUCCEEDED, 
-        task1.getReport().state);
+        task1.getReport().getTaskState());
     Assert.assertEquals("Task state not correct", TaskState.SUCCEEDED, 
-        task2.getReport().state);
+        task2.getReport().getTaskState());
  
-    Map<TaskAttemptID, TaskAttempt> attempts = task1.getAttempts();
+    Map<TaskAttemptId, TaskAttempt> attempts = task1.getAttempts();
     Assert.assertEquals("No of attempts is not correct", 2, 
         attempts.size());
     Iterator<TaskAttempt> iter = attempts.values().iterator();
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.KILLED, 
-          iter.next().getReport().state);
+          iter.next().getReport().getTaskAttemptState());
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.SUCCEEDED, 
-        iter.next().getReport().state);
+        iter.next().getReport().getTaskAttemptState());
     
     attempts = task2.getAttempts();
     Assert.assertEquals("No of attempts is not correct", 1, 
         attempts.size());
     iter = attempts.values().iterator();
     Assert.assertEquals("Attempt state not correct", TaskAttemptState.SUCCEEDED, 
-          iter.next().getReport().state);
+          iter.next().getReport().getTaskAttemptState());
   }
 
   static class BlockingMRApp extends MRApp {
@@ -195,8 +195,8 @@ public class TestKill {
     }
 
     @Override
-    protected void attemptLaunched(TaskAttemptID attemptID) {
-      if (attemptID.taskID.id == 0 && attemptID.id == 0) {
+    protected void attemptLaunched(TaskAttemptId attemptID) {
+      if (attemptID.getTaskId().getId() == 0 && attemptID.getId() == 0) {
         //this blocks the first task's first attempt
         //the subsequent ones are completed
         try {

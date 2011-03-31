@@ -20,23 +20,24 @@ package org.apache.hadoop.mapreduce.v2.app;
 
 import java.util.Map;
 
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
+
 
 /**
  * Context interface for sharing information across components in YARN App.
  */
 public interface AppContext {
 
-  ApplicationID getApplicationID();
+  ApplicationId getApplicationID();
 
   CharSequence getUser();
 
-  Job getJob(JobID jobID);
+  Job getJob(JobId jobID);
 
-  Map<JobID, Job> getAllJobs();
+  Map<JobId, Job> getAllJobs();
 
   EventHandler getEventHandler();
 

@@ -20,14 +20,14 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 
 public class ApplicationInitedEvent extends ApplicationEvent {
 
   private final Path workdir;
   private final Map<Path,String> localizedResources;
 
-  public ApplicationInitedEvent(ApplicationID appID,
+  public ApplicationInitedEvent(ApplicationId appID,
       Map<Path,String> localizedResources, Path workdir) {
     super(appID, ApplicationEventType.APPLICATION_INITED);
     this.workdir = workdir;

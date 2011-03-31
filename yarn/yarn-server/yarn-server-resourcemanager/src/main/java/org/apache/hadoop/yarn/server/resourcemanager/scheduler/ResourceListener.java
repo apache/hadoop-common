@@ -24,10 +24,10 @@ import java.util.Map;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Resource;
 
 /**
  * This interface is implemented by services which want to get notified
@@ -45,7 +45,7 @@ public interface ResourceListener {
    * @param capability the resource  capability of the node.
    * @return the {@link NodeInfo} object that tracks this nodemanager.
    */
-  public NodeInfo addNode(NodeID nodeId,String hostName,
+  public NodeInfo addNode(NodeId nodeId,String hostName,
       Node node, Resource capability);
   
   /**
@@ -62,5 +62,5 @@ public interface ResourceListener {
    * applications to clean.
    */
   public NodeResponse nodeUpdate(NodeInfo nodeInfo, 
-      Map<CharSequence,List<Container>> containers);
+      Map<String,List<Container>> containers);
 }

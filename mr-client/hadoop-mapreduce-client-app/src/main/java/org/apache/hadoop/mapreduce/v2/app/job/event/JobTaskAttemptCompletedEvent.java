@@ -18,7 +18,7 @@
 
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
 
 
 public class JobTaskAttemptCompletedEvent extends JobEvent {
@@ -26,7 +26,7 @@ public class JobTaskAttemptCompletedEvent extends JobEvent {
   private TaskAttemptCompletionEvent completionEvent;
 
   public JobTaskAttemptCompletedEvent(TaskAttemptCompletionEvent completionEvent) {
-    super(completionEvent.attemptId.taskID.jobID, 
+    super(completionEvent.getAttemptId().getTaskId().getJobId(), 
         JobEventType.JOB_TASK_ATTEMPT_COMPLETED_EVENT);
     this.completionEvent = completionEvent;
   }

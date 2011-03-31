@@ -18,21 +18,21 @@
 
 package org.apache.hadoop.mapreduce.v2.app.launcher;
 
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerToken;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 
 public class ContainerLauncherEvent 
     extends AbstractEvent<ContainerLauncher.EventType> {
 
-  private TaskAttemptID taskAttemptID;
-  private ContainerID containerID;
+  private TaskAttemptId taskAttemptID;
+  private ContainerId containerID;
   private String containerMgrAddress;
   private ContainerToken containerToken;
 
-  public ContainerLauncherEvent(TaskAttemptID taskAttemptID, 
-      ContainerID containerID,
+  public ContainerLauncherEvent(TaskAttemptId taskAttemptID, 
+      ContainerId containerID,
       String containerMgrAddress,
       ContainerToken containerToken,
       ContainerLauncher.EventType type) {
@@ -43,11 +43,11 @@ public class ContainerLauncherEvent
     this.containerToken = containerToken;
   }
 
-  public TaskAttemptID getTaskAttemptID() {
+  public TaskAttemptId getTaskAttemptID() {
     return this.taskAttemptID;
   }
 
-  public ContainerID getContainerID() {
+  public ContainerId getContainerID() {
     return containerID;
   }
 

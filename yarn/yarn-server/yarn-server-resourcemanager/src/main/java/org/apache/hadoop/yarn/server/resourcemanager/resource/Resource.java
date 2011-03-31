@@ -20,51 +20,54 @@ package org.apache.hadoop.yarn.server.resourcemanager.resource;
 
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 @Private
 @Evolving
 public class Resource {
-  
-  public static final org.apache.hadoop.yarn.Resource NONE = createResource(0);
+  public static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);  
+  public static final org.apache.hadoop.yarn.api.records.Resource NONE = createResource(0);
 
-  public static org.apache.hadoop.yarn.Resource createResource(int memory) {
-    org.apache.hadoop.yarn.Resource resource = new org.apache.hadoop.yarn.Resource();
-    resource.memory = memory;
+
+  public static org.apache.hadoop.yarn.api.records.Resource createResource(int memory) {
+    org.apache.hadoop.yarn.api.records.Resource resource = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Resource.class);
+    resource.setMemory(memory);
     return resource;
   }
   
-  public static void addResource(org.apache.hadoop.yarn.Resource lhs, 
-      org.apache.hadoop.yarn.Resource rhs) {
-    lhs.memory += rhs.memory;
+  public static void addResource(org.apache.hadoop.yarn.api.records.Resource lhs, 
+      org.apache.hadoop.yarn.api.records.Resource rhs) {
+    lhs.setMemory(lhs.getMemory() + rhs.getMemory());
   }
   
-  public static void subtractResource(org.apache.hadoop.yarn.Resource lhs, 
-      org.apache.hadoop.yarn.Resource rhs) {
-    lhs.memory -= rhs.memory;
+  public static void subtractResource(org.apache.hadoop.yarn.api.records.Resource lhs, 
+      org.apache.hadoop.yarn.api.records.Resource rhs) {
+    lhs.setMemory(lhs.getMemory() - rhs.getMemory());
   }
   
-  public static boolean equals(org.apache.hadoop.yarn.Resource lhs,
-      org.apache.hadoop.yarn.Resource rhs) {
-    return lhs.memory == rhs.memory;
+  public static boolean equals(org.apache.hadoop.yarn.api.records.Resource lhs,
+      org.apache.hadoop.yarn.api.records.Resource rhs) {
+    return lhs.getMemory() == rhs.getMemory();
   }
 
-  public static boolean lessThan(org.apache.hadoop.yarn.Resource lhs,
-      org.apache.hadoop.yarn.Resource rhs) {
-    return lhs.memory < rhs.memory;
+  public static boolean lessThan(org.apache.hadoop.yarn.api.records.Resource lhs,
+      org.apache.hadoop.yarn.api.records.Resource rhs) {
+    return lhs.getMemory() < rhs.getMemory();
   }
 
-  public static boolean lessThanOrEqual(org.apache.hadoop.yarn.Resource lhs,
-      org.apache.hadoop.yarn.Resource rhs) {
-    return lhs.memory <= rhs.memory;
+  public static boolean lessThanOrEqual(org.apache.hadoop.yarn.api.records.Resource lhs,
+      org.apache.hadoop.yarn.api.records.Resource rhs) {
+    return lhs.getMemory() <= rhs.getMemory();
   }
 
-  public static boolean greaterThan(org.apache.hadoop.yarn.Resource lhs,
-      org.apache.hadoop.yarn.Resource rhs) {
-    return lhs.memory > rhs.memory;
+  public static boolean greaterThan(org.apache.hadoop.yarn.api.records.Resource lhs,
+      org.apache.hadoop.yarn.api.records.Resource rhs) {
+    return lhs.getMemory() > rhs.getMemory();
   }
 
-  public static boolean greaterThanOrEqual(org.apache.hadoop.yarn.Resource lhs,
-      org.apache.hadoop.yarn.Resource rhs) {
-    return lhs.memory >= rhs.memory;
+  public static boolean greaterThanOrEqual(org.apache.hadoop.yarn.api.records.Resource lhs,
+      org.apache.hadoop.yarn.api.records.Resource rhs) {
+    return lhs.getMemory() >= rhs.getMemory();
   }
 }

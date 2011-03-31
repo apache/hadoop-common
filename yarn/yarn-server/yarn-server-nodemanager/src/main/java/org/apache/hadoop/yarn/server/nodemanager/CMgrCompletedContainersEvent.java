@@ -20,7 +20,8 @@ package org.apache.hadoop.yarn.server.nodemanager;
 
 import java.util.List;
 
-import org.apache.hadoop.yarn.Container;
+import org.apache.hadoop.yarn.api.records.Container;
+
 
 public class CMgrCompletedContainersEvent extends ContainerManagerEvent {
 

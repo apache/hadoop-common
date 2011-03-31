@@ -41,14 +41,18 @@ import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.ContainerManager;
+import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ContainerManagerSecurityInfo;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerToken;
 
 /**
  * This class is responsible for launching of containers.
@@ -117,7 +121,7 @@ public class ContainerLauncherImpl extends AbstractService implements
     super.stop();
   }
 
-  protected ContainerManager getCMProxy(ContainerID containerID,
+  protected ContainerManager getCMProxy(ContainerId containerID,
       final String containerManagerBindAddr, ContainerToken containerToken)
       throws IOException {
 
@@ -125,10 +129,10 @@ public class ContainerLauncherImpl extends AbstractService implements
     if (UserGroupInformation.isSecurityEnabled()) {
       Token<ContainerTokenIdentifier> token =
           new Token<ContainerTokenIdentifier>(
-              containerToken.identifier.array(),
-              containerToken.password.array(), new Text(
-                  containerToken.kind.toString()), new Text(
-                  containerToken.service.toString()));
+              containerToken.getIdentifier().array(),
+              containerToken.getPassword().array(), new Text(
+                  containerToken.getKind()), new Text(
+                  containerToken.getService()));
       user.addToken(token);
     }
     ContainerManager proxy =
@@ -161,7 +165,7 @@ public class ContainerLauncherImpl extends AbstractService implements
       // Load ContainerManager tokens before creating a connection.
       // TODO: Do it only once per NodeManager.
       final String containerManagerBindAddr = event.getContainerMgrAddress();
-      ContainerID containerID = event.getContainerID();
+      ContainerId containerID = event.getContainerID();
       ContainerToken containerToken = event.getContainerToken();
 
       switch(event.getType()) {
@@ -181,7 +185,9 @@ public class ContainerLauncherImpl extends AbstractService implements
           // TODO: Make sure that child's mapred-local-dir is set correctly.
 
           // Now launch the actual container
-          proxy.startContainer(containerLaunchContext);
+          StartContainerRequest startRequest = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(StartContainerRequest.class);
+          startRequest.setContainerLaunchContext(containerLaunchContext);
+          proxy.startContainer(startRequest);
 
           // after launching send launched event to taskattempt
           context.getEventHandler().handle(
@@ -201,7 +207,7 @@ public class ContainerLauncherImpl extends AbstractService implements
         // and not yet processed
         if (eventQueue.contains(event)) {
           eventQueue.remove(event); // TODO: Any synchro needed?
-          // TODO: raise any event?
+          // k: raise any event?
         } else {
           try {
             ContainerManager proxy = 
@@ -209,8 +215,13 @@ public class ContainerLauncherImpl extends AbstractService implements
             // TODO:check whether container is launched
 
             // kill the remote container if already launched
-            proxy.stopContainer(event.getContainerID());
-            proxy.cleanupContainer(event.getContainerID());
+            StopContainerRequest stopRequest = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(StopContainerRequest.class);
+            stopRequest.setContainerId(event.getContainerID());
+            proxy.stopContainer(stopRequest);
+            
+            CleanupContainerRequest cleanupRequest = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CleanupContainerRequest.class);
+            cleanupRequest.setContainerId(event.getContainerID());
+            proxy.cleanupContainer(cleanupRequest);
           } catch (Exception e) {
             //ignore the cleanup failure
             LOG.warn("cleanup failed for container " + event.getContainerID() ,

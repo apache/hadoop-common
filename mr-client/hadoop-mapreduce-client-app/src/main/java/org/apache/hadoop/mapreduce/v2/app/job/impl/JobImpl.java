@@ -60,6 +60,18 @@ import org.apache.hadoop.mapreduce.split.SplitMetaInfoReader;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
+import org.apache.hadoop.mapreduce.v2.api.records.Counter;
+import org.apache.hadoop.mapreduce.v2.api.records.CounterGroup;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEventStatus;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobDiagnosticsUpdateEvent;
@@ -79,27 +91,17 @@ import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.Counter;
-import org.apache.hadoop.mapreduce.v2.api.CounterGroup;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEventStatus;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
 
 /** Implementation of Job interface. Maintains the state machines of Job.
  * The read and write calls use ReadWriteLock for concurrency.
@@ -117,17 +119,19 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   // Maximum no. of fetch-failure notifications after which map task is failed
   private static final int MAX_FETCH_FAILURES_NOTIFICATIONS = 3;
 
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   //final fields
   private final Lock readLock;
   private final Lock writeLock;
-  private final JobID jobId;
+  private final JobId jobId;
   private final org.apache.hadoop.mapreduce.JobID oldJobId;
   private final TaskAttemptListener taskAttemptListener;
   private boolean lazyTasksCopyNeeded = false;
   private final Object tasksSyncHandle = new Object();
-  private volatile Map<TaskID, Task> tasks = new LinkedHashMap<TaskID, Task>();
-  private final Set<TaskID> mapTasks = new LinkedHashSet<TaskID>();
-  private final Set<TaskID> reduceTasks = new LinkedHashSet<TaskID>();
+  private volatile Map<TaskId, Task> tasks = new LinkedHashMap<TaskId, Task>();
+  private final Set<TaskId> mapTasks = new LinkedHashSet<TaskId>();
+  private final Set<TaskId> reduceTasks = new LinkedHashSet<TaskId>();
   private final EventHandler eventHandler;
   public Configuration conf;
   
@@ -144,10 +148,10 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private final List<String> diagnostics = new ArrayList<String>();
   
   //task/attempt related datastructures
-  private final Map<TaskID, Integer> successAttemptCompletionEventNoMap = 
-    new HashMap<TaskID, Integer>();
-  private final Map<TaskAttemptID, Integer> fetchFailuresMapping = 
-    new HashMap<TaskAttemptID, Integer>();
+  private final Map<TaskId, Integer> successAttemptCompletionEventNoMap = 
+    new HashMap<TaskId, Integer>();
+  private final Map<TaskAttemptId, Integer> fetchFailuresMapping = 
+    new HashMap<TaskAttemptId, Integer>();
 
   private static final TaskAttemptCompletedEventTransition TASK_ATTEMPT_COMPLETED_EVENT_TRANSITION =
       new TaskAttemptCompletedEventTransition();
@@ -301,15 +305,15 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private Token<JobTokenIdentifier> jobToken;
   private JobTokenSecretManager jobTokenSecretManager;
 
-  public JobImpl(ApplicationID appID, Configuration conf,
+  public JobImpl(ApplicationId appID, Configuration conf,
       EventHandler eventHandler, TaskAttemptListener taskAttemptListener,
       JobTokenSecretManager jobTokenSecretManager,
       Credentials fsTokenCredentials) {
 
-    this.jobId = new JobID();
+    this.jobId = recordFactory.newRecordInstance(JobId.class);
     this.conf = conf;
-    this.jobId.appID = appID;
-    this.jobId.id = appID.id;
+    jobId.setAppId(appID);
+    jobId.setId(appID.getId());
     oldJobId = TypeConverter.fromYarn(jobId);
     LOG.info("Job created" +
     		" appId=" + appID + 
@@ -335,12 +339,12 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   }
 
   @Override
-  public JobID getID() {
+  public JobId getID() {
     return jobId;
   }
 
   @Override
-  public Task getTask(TaskID taskID) {
+  public Task getTask(TaskId taskID) {
     readLock.lock();
     try {
       return tasks.get(taskID);
@@ -383,8 +387,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   }
 
   public static Counters newCounters() {
-    Counters counters = new Counters();
-    counters.groups = new HashMap<CharSequence, CounterGroup>();
+    Counters counters = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counters.class);
+//    counters.groups = new HashMap<String, CounterGroup>();
     return counters;
   }
 
@@ -398,24 +402,24 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
   public static void incrAllCounters(Counters counters, Counters other) {
     if (other != null) {
-      for (CounterGroup otherGroup: other.groups.values()) {
-        CounterGroup group = counters.groups.get(otherGroup.name);
+      for (CounterGroup otherGroup: other.getAllCounterGroups().values()) {
+        CounterGroup group = counters.getCounterGroup(otherGroup.getName());
         if (group == null) {
-          group = new CounterGroup();
-          group.counters = new HashMap<CharSequence, Counter>();
-          group.name = otherGroup.name;
-          counters.groups.put(group.name, group);
+          group = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CounterGroup.class);
+//          group.counters = new HashMap<CharSequence, Counter>();
+          group.setName(otherGroup.getName());
+          counters.setCounterGroup(group.getName(), group);
         }
-        group.displayname = otherGroup.displayname;
-        for (Counter otherCounter : otherGroup.counters.values()) {
-          Counter counter = group.counters.get(otherCounter.name);
+        group.setDisplayName(otherGroup.getDisplayName());
+        for (Counter otherCounter : otherGroup.getAllCounters().values()) {
+          Counter counter = group.getCounter(otherCounter.getName());
           if (counter == null) {
-            counter = new Counter();
-            counter.name = otherCounter.name;
-            group.counters.put(counter.name, counter);
+            counter = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counter.class);
+            counter.setName(otherCounter.getName());
+            group.setCounter(counter.getName(), counter);
           }
-          counter.displayName = otherCounter.displayName;
-          counter.value += otherCounter.value;
+          counter.setDisplayName(otherCounter.getDisplayName());
+          counter.setValue(counter.getValue() + otherCounter.getValue());
         }
       }
     }
@@ -453,32 +457,33 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   public JobReport getReport() {
     readLock.lock();
     try {
-      JobReport report = new JobReport();
-      report.id = jobId;
-      report.state = getState();
+      JobReport report = recordFactory.newRecordInstance(JobReport.class);
+      report.setJobId(jobId);
+      report.setJobState(getState());
       
       // TODO - Fix to correctly setup report and to check state
-      if (report.state == JobState.NEW) {
+      if (report.getJobState() == JobState.NEW) {
         return report;
       }
       
-      report.startTime = startTime;
-      report.finishTime = finishTime;
-      report.setupProgress = setupProgress;
-      report.cleanupProgress = cleanupProgress;
-      report.mapProgress = computeProgress(mapTasks);
-      report.reduceProgress = computeProgress(reduceTasks);
+      report.setStartTime(startTime);
+      report.setFinishTime(finishTime);
+      report.setSetupProgress(setupProgress);
+      report.setCleanupProgress(cleanupProgress);
+      report.setMapProgress(computeProgress(mapTasks));
+      report.setReduceProgress(computeProgress(reduceTasks));
+
       return report;
     } finally {
       readLock.unlock();
     }
   }
 
-  private float computeProgress(Set<TaskID> taskIds) {
+  private float computeProgress(Set<TaskId> taskIds) {
     readLock.lock();
     try {
       float progress = 0;
-      for (TaskID taskId : taskIds) {
+      for (TaskId taskId : taskIds) {
         Task task = tasks.get(taskId);
         progress += task.getProgress();
       }
@@ -493,7 +498,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   }
 
   @Override
-  public Map<TaskID, Task> getTasks() {
+  public Map<TaskId, Task> getTasks() {
     synchronized (tasksSyncHandle) {
       lazyTasksCopyNeeded = true;
       return Collections.unmodifiableMap(tasks);
@@ -501,10 +506,10 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   }
 
   @Override
-  public Map<TaskID,Task> getTasks(TaskType taskType) {
-    Map<TaskID, Task> localTasksCopy = tasks;
-    Map<TaskID, Task> result = new HashMap<TaskID, Task>();
-    Set<TaskID> tasksOfGivenType = null;
+  public Map<TaskId,Task> getTasks(TaskType taskType) {
+    Map<TaskId, Task> localTasksCopy = tasks;
+    Map<TaskId, Task> result = new HashMap<TaskId, Task>();
+    Set<TaskId> tasksOfGivenType = null;
     readLock.lock();
     try {
       if (TaskType.MAP == taskType) {
@@ -512,7 +517,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       } else if (TaskType.REDUCE == taskType) {
         tasksOfGivenType = reduceTasks;
       }
-      for (TaskID taskID : tasksOfGivenType)
+      for (TaskId taskID : tasksOfGivenType)
       result.put(taskID, localTasksCopy.get(taskID));
       return result;
     } finally {
@@ -530,8 +535,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     }
   }
 
-  protected void scheduleTasks(Set<TaskID> taskIDs) {
-    for (TaskID taskID : taskIDs) {
+  protected void scheduleTasks(Set<TaskId> taskIDs) {
+    for (TaskId taskID : taskIDs) {
       eventHandler.handle(new TaskEvent(taskID, 
           TaskEventType.T_SCHEDULE));
     }
@@ -571,7 +576,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   protected void addTask(Task task) {
     synchronized (tasksSyncHandle) {
       if (lazyTasksCopyNeeded) {
-        Map<TaskID, Task> newTasks = new LinkedHashMap<TaskID, Task>();
+        Map<TaskId, Task> newTasks = new LinkedHashMap<TaskId, Task>();
         newTasks.putAll(tasks);
         tasks = newTasks;
         lazyTasksCopyNeeded = false;
@@ -591,7 +596,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   }
 
   @Override
-  public CharSequence getName() {
+  public String getName() {
     return "FIXME! job name";
   }
 
@@ -616,11 +621,13 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
             job.oldJobId);
         job.fs = FileSystem.get(job.conf);
 
-        org.apache.hadoop.mapreduce.v2.api.TaskAttemptID 
-            attemptID = new org.apache.hadoop.mapreduce.v2.api.TaskAttemptID();
-        attemptID.taskID = new TaskID();
-        attemptID.taskID.jobID = job.jobId;
-        attemptID.taskID.taskType = TaskType.MAP; //TODO:fix task type ??
+        org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId 
+            attemptID = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId.class);
+        //TODO_get.set
+        attemptID.setTaskId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class));
+        attemptID.getTaskId().setJobId(job.jobId);
+        attemptID.getTaskId().setTaskType(TaskType.MAP);//TODO:fix task type ??
+        
         TaskAttemptContext taskContext =
             new TaskAttemptContextImpl(job.conf,
                 TypeConverter.fromYarn(attemptID));
@@ -771,7 +778,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
           jobId + " = " + job.numReduceTasks);
     }
 
-    protected TaskSplitMetaInfo[] createSplits(JobImpl job, JobID jobId) {
+    protected TaskSplitMetaInfo[] createSplits(JobImpl job, JobId jobId) {
       TaskSplitMetaInfo[] allTaskSplitMetaInfo;
       try {
         allTaskSplitMetaInfo = SplitMetaInfoReader.readSplitMetaInfo(
@@ -845,21 +852,21 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         ((JobTaskAttemptCompletedEvent) event).getCompletionEvent();
       // Add the TaskAttemptCompletionEvent
       //eventId is equal to index in the arraylist
-      tce.eventId = job.taskAttemptCompletionEvents.size();
+      tce.setEventId(job.taskAttemptCompletionEvents.size());
       job.taskAttemptCompletionEvents.add(tce);
       
       //make the previous completion event as obsolete if it exists
       Object successEventNo = 
-        job.successAttemptCompletionEventNoMap.remove(tce.attemptId.taskID);
+        job.successAttemptCompletionEventNoMap.remove(tce.getAttemptId().getTaskId());
       if (successEventNo != null) {
         TaskAttemptCompletionEvent successEvent = 
           job.taskAttemptCompletionEvents.get((Integer) successEventNo);
-        successEvent.status = TaskAttemptCompletionEventStatus.OBSOLETE;
+        successEvent.setStatus(TaskAttemptCompletionEventStatus.OBSOLETE);
       }
 
-      if (TaskAttemptCompletionEventStatus.SUCCEEDED.equals(tce.status)) {
-        job.successAttemptCompletionEventNoMap.put(tce.attemptId.taskID, 
-            tce.eventId);
+      if (TaskAttemptCompletionEventStatus.SUCCEEDED.equals(tce.getStatus())) {
+        job.successAttemptCompletionEventNoMap.put(tce.getAttemptId().getTaskId(), 
+            tce.getEventId());
       }
     }
   }
@@ -870,7 +877,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     public void transition(JobImpl job, JobEvent event) {
       JobTaskAttemptFetchFailureEvent fetchfailureEvent = 
         (JobTaskAttemptFetchFailureEvent) event;
-      for (org.apache.hadoop.mapreduce.v2.api.TaskAttemptID mapId : 
+      for (org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId mapId : 
             fetchfailureEvent.getMaps()) {
         Integer fetchFailures = job.fetchFailuresMapping.get(mapId);
         fetchFailures = (fetchFailures == null) ? 1 : (fetchFailures+1);
@@ -878,7 +885,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         
         //get number of running reduces
         int runningReduceTasks = 0;
-        for (TaskID taskId : job.reduceTasks) {
+        for (TaskId taskId : job.reduceTasks) {
           if (TaskState.RUNNING.equals(job.tasks.get(taskId).getState())) {
             runningReduceTasks++;
           }

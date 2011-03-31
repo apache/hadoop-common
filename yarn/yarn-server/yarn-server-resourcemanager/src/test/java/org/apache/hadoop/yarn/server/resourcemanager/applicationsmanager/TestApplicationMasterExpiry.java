@@ -24,13 +24,12 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
@@ -48,6 +47,7 @@ import org.junit.Test;
  */
 public class TestApplicationMasterExpiry extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestApplicationMasterExpiry.class);
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   AMTracker tracker;
   
   private final ASMContext context = new ResourceManager.ASMContextImpl();
@@ -119,15 +119,15 @@ public class TestApplicationMasterExpiry extends TestCase {
   
   @Test
   public void testAMExpiry() throws Exception {
-    ApplicationSubmissionContext context = new ApplicationSubmissionContext();
-    context.applicationId = new ApplicationID();
-    context.applicationId.clusterTimeStamp = System.currentTimeMillis();
-    context.applicationId.id = 1;
+    ApplicationSubmissionContext context = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    context.setApplicationId(recordFactory.newRecordInstance(ApplicationId.class));
+    context.getApplicationId().setClusterTimestamp(System.currentTimeMillis());
+    context.getApplicationId().setId(1);
     
     tracker.addMaster(
         "dummy", 
         context, "dummytoken");
-    ApplicationMasterInfo masterInfo = tracker.get(context.applicationId);
+    ApplicationMasterInfo masterInfo = tracker.get(context.getApplicationId());
     this.context.getDispatcher().getEventHandler().handle(
         new ASMEvent<ApplicationEventType>(ApplicationEventType.ALLOCATED, masterInfo));
     this.context.getDispatcher().getEventHandler().handle(

@@ -38,11 +38,11 @@ import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.RunJar;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 import static org.apache.hadoop.fs.Options.*;
 
-import org.apache.hadoop.yarn.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResource;
 
 /**
  * Download a single URL to the local disk.
@@ -81,9 +81,9 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
   private Path copy(Path sCopy, Path dstdir) throws IOException {
     Path dCopy = new Path(dstdir, sCopy.getName() + ".tmp");
     FileStatus sStat = files.getFileStatus(sCopy);
-    if (sStat.getModificationTime() != resource.timestamp) {
+    if (sStat.getModificationTime() != resource.getTimestamp()) {
       throw new IOException("Resource " + sCopy +
-          " changed on src filesystem (expected " + resource.timestamp +
+          " changed on src filesystem (expected " + resource.getTimestamp() +
           ", was " + sStat.getModificationTime());
     }
     files.util().copy(sCopy, dCopy);
@@ -92,7 +92,7 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
 
   private long unpack(File localrsrc, File dst) throws IOException {
     File destDir = new File(localrsrc.getParent());
-    switch (resource.type) {
+    switch (resource.getType()) {
     case ARCHIVE:
       String lowerDst = dst.getName().toLowerCase();
       if (lowerDst.endsWith(".jar")) {
@@ -120,7 +120,7 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
   public Map<LocalResource,Path> call() throws IOException {
     Path sCopy;
     try {
-      sCopy = AvroUtil.getPathFromYarnURL(resource.resource);
+      sCopy = ConverterUtils.getPathFromYarnURL(resource.getResource());
     } catch (URISyntaxException e) {
       throw new IOException("Invalid resource", e);
     }
@@ -140,8 +140,7 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
     Path dFinal = files.makeQualified(new Path(dst_work, sCopy.getName()));
     try {
       Path dTmp = files.makeQualified(copy(sCopy, dst_work));
-      resource.size =
-        unpack(new File(dTmp.toUri()), new File(dFinal.toUri()));
+      resource.setSize(unpack(new File(dTmp.toUri()), new File(dFinal.toUri())));
       files.rename(dst_work, dst, Rename.OVERWRITE);
     } catch (IOException e) {
       try { files.delete(dst, true); } catch (IOException ignore) { }
@@ -162,15 +161,15 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
   }
 
   private static long getEstimatedSize(LocalResource rsrc) {
-    if (rsrc.size < 0) {
+    if (rsrc.getSize() < 0) {
       return -1;
     }
-    switch (rsrc.type) {
+    switch (rsrc.getType()) {
       case ARCHIVE:
-        return 5 * rsrc.size;
+        return 5 * rsrc.getSize();
       case FILE:
       default:
-        return rsrc.size;
+        return rsrc.getSize();
     }
   }
 

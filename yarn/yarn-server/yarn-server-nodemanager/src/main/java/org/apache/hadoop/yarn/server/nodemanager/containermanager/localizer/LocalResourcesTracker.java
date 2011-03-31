@@ -22,13 +22,13 @@ import java.net.URISyntaxException;
 import java.util.Collection;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 
 public interface LocalResourcesTracker {
 
-  Collection<org.apache.hadoop.yarn.LocalResource> register(
+  Collection<org.apache.hadoop.yarn.api.records.LocalResource> register(
       AppLocalizationRunnerImpl appLocalizationRunner,
-      Collection<org.apache.hadoop.yarn.LocalResource> values)
+      Collection<org.apache.hadoop.yarn.api.records.LocalResource> values)
       throws URISyntaxException;
 
   void setSuccess(LocalResource localRsrc, long size, Path pathFromYarnURL)

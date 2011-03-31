@@ -22,6 +22,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -29,13 +31,12 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssigned
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 
 public class MRAppBenchmark {
 
@@ -47,7 +48,7 @@ public class MRAppBenchmark {
     rootLogger.setLevel(Level.WARN);
     long startTime = System.currentTimeMillis();
     Job job = app.submit(new Configuration());
-    while (!job.getReport().state.equals(JobState.SUCCEEDED)) {
+    while (!job.getReport().getJobState().equals(JobState.SUCCEEDED)) {
       printStat(job, startTime);
       Thread.sleep(2000);
     }
@@ -80,7 +81,7 @@ public class MRAppBenchmark {
     }
     
     @Override
-    protected void attemptLaunched(TaskAttemptID attemptID) {
+    protected void attemptLaunched(TaskAttemptId attemptID) {
       super.attemptLaunched(attemptID);
       //the task is launched and sends done immediately
       concurrentRunningTasks--;
@@ -119,9 +120,9 @@ public class MRAppBenchmark {
               try {
                 if (concurrentRunningTasks < maxConcurrentRunningTasks) {
                   event = eventQueue.take();
-                  ContainerID cId = new ContainerID();
-                  cId.appID = getContext().getApplicationID();
-                  cId.id = containerCount++;
+                  ContainerId cId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerId.class);
+                  cId.setAppId(getContext().getApplicationID());
+                  cId.setId(containerCount++);
                   //System.out.println("Allocating " + containerCount);
                   getContext().getEventHandler().handle(
                       new TaskAttemptContainerAssignedEvent(event

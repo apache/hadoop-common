@@ -29,15 +29,17 @@ import java.util.List;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
@@ -52,10 +54,11 @@ import org.apache.hadoop.yarn.service.AbstractService;
 class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEvent<SNEventType>> {
 
   private static final Log LOG = LogFactory.getLog(SchedulerNegotiator.class);
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
-  final static Priority AM_CONTAINER_PRIORITY = new Priority();
+  final static Priority AM_CONTAINER_PRIORITY = recordFactory.newRecordInstance(Priority.class);
   static {
-    AM_CONTAINER_PRIORITY.priority = 0;
+    AM_CONTAINER_PRIORITY.setPriority(0);
   }
   static final List<ResourceRequest> EMPTY_ASK =
     new ArrayList<ResourceRequest>();
@@ -129,7 +132,7 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
               // in the first call to allocate
               LOG.debug("About to request resources for AM of " + 
                   masterInfo.getMaster() + " required " + request);
-              scheduler.allocate(masterInfo.getMaster().applicationId, 
+              scheduler.allocate(masterInfo.getMaster().getApplicationId(), 
                   Collections.singletonList(request), 
                   EMPTY_RELEASE);
             }
@@ -141,7 +144,7 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
           for (Iterator<AppContext> it=submittedApplications.iterator(); 
           it.hasNext();) {
             AppContext masterInfo = it.next();
-            ApplicationID appId = masterInfo.getMaster().applicationId;
+            ApplicationId appId = masterInfo.getMaster().getApplicationId();
             containers = scheduler.allocate(appId, 
                 EMPTY_ASK, EMPTY_RELEASE);
             if (!containers.isEmpty()) {
@@ -218,16 +221,16 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
     //TODO we should release the container but looks like we just 
     // wait for update from NodeManager
     Container[] containers = new Container[] {masterInfo.getMasterContainer()};
-    scheduler.allocate(masterInfo.getMaster().applicationId, 
+    scheduler.allocate(masterInfo.getMaster().getApplicationId(), 
         EMPTY_ASK, Arrays.asList(containers));
   }
   
   private static class SNAppContext implements AppContext {
-    private final ApplicationID appID;
+    private final ApplicationId appID;
     private final Container container;
     private final UnsupportedOperationException notImplementedException;
     
-    public SNAppContext(ApplicationID appID, Container container) {
+    public SNAppContext(ApplicationId appID, Container container) {
       this.appID = appID;
       this.container = container;
       this.notImplementedException = new UnsupportedOperationException("Not Implemented");
@@ -244,7 +247,7 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
     }
 
     @Override
-    public ApplicationID getApplicationID() {
+    public ApplicationId getApplicationID() {
       return appID;
     }
 

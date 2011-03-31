@@ -20,13 +20,16 @@ package org.apache.hadoop.mapreduce.v2.app.job.event;
 
 import java.util.List;
 
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.Phase;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+
 
 public class TaskAttemptStatusUpdateEvent extends TaskAttemptEvent {
 
   private TaskAttemptStatus reportedTaskAttemptStatus;
 
-  public TaskAttemptStatusUpdateEvent(TaskAttemptID id,
+  public TaskAttemptStatusUpdateEvent(TaskAttemptId id,
       TaskAttemptStatus taskAttemptStatus) {
     super(id, TaskAttemptEventType.TA_UPDATE);
     this.reportedTaskAttemptStatus = taskAttemptStatus;
@@ -41,13 +44,13 @@ public class TaskAttemptStatusUpdateEvent extends TaskAttemptEvent {
    * 
    */
   public static class TaskAttemptStatus {
-    public org.apache.hadoop.mapreduce.v2.api.TaskAttemptID id;
+    public TaskAttemptId id;
     public float progress;
-    public org.apache.hadoop.mapreduce.v2.api.Counters counters;
-    public java.lang.CharSequence diagnosticInfo;
-    public java.lang.CharSequence stateString;
-    public org.apache.hadoop.mapreduce.v2.api.Phase phase;
+    public Counters counters;
+    public String diagnosticInfo;
+    public String stateString;
+    public Phase phase;
     public long outputSize;
-    public List<TaskAttemptID> fetchFailedMaps;
+    public List<TaskAttemptId> fetchFailedMaps;
   }
 }

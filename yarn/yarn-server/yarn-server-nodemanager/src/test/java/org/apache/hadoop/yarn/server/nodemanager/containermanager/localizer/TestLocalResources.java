@@ -34,14 +34,15 @@ import static java.util.concurrent.TimeUnit.*;
 
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.AppLocalizationRunnerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResource;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourcesTrackerImpl;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
-import static org.apache.hadoop.yarn.LocalResourceType.*;
-import static org.apache.hadoop.yarn.LocalResourceVisibility.*;
+import static org.apache.hadoop.yarn.api.records.LocalResourceType.*;
+import static org.apache.hadoop.yarn.api.records.LocalResourceVisibility.*;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -53,24 +54,24 @@ import static org.mockito.Mockito.*;
 
 public class TestLocalResources {
 
-  private static List<org.apache.hadoop.yarn.LocalResource>
+  private static List<org.apache.hadoop.yarn.api.records.LocalResource>
       randResources(Random r, int nRsrc) throws URISyntaxException {
-    final List<org.apache.hadoop.yarn.LocalResource> ret =
-      new ArrayList<org.apache.hadoop.yarn.LocalResource>(nRsrc);
+    final List<org.apache.hadoop.yarn.api.records.LocalResource> ret =
+      new ArrayList<org.apache.hadoop.yarn.api.records.LocalResource>(nRsrc);
     Path base = new Path("file:///foo/bar");
     long basetime = r.nextLong() >>> 2;
     for (int i = 0; i < nRsrc; ++i) {
-      org.apache.hadoop.yarn.LocalResource rsrc = new org.apache.hadoop.yarn.LocalResource();
-      rsrc.timestamp = basetime + i;
-      r.setSeed(rsrc.timestamp);
+      org.apache.hadoop.yarn.api.records.LocalResource rsrc = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.yarn.api.records.LocalResource.class);
+      rsrc.setTimestamp(basetime + i);
+      r.setSeed(rsrc.getTimestamp());
       Path p = new Path(base, String.valueOf(r.nextInt(Integer.MAX_VALUE)));
       while (r.nextInt(2) == 1) {
         p = new Path(p, String.valueOf(r.nextInt(Integer.MAX_VALUE)));
       }
-      rsrc.resource = AvroUtil.getYarnUrlFromPath(p);
-      rsrc.size = -1;
-      rsrc.type = r.nextInt(2) == 1 ? FILE : ARCHIVE;
-      rsrc.state = PRIVATE;
+      rsrc.setResource(ConverterUtils.getYarnUrlFromPath(p));
+      rsrc.setSize(-1);
+      rsrc.setType(r.nextInt(2) == 1 ? FILE : ARCHIVE);
+      rsrc.setVisibility(PRIVATE);
 
       System.out.println("RSRC: " + rsrc);
       ret.add(rsrc);
@@ -80,7 +81,7 @@ public class TestLocalResources {
 
   private static void verify(
       BlockingQueue<Future<Map<LocalResource,Path>>> doneQueue,
-      Collection<org.apache.hadoop.yarn.LocalResource> files)
+      Collection<org.apache.hadoop.yarn.api.records.LocalResource> files)
       throws ExecutionException, InterruptedException, URISyntaxException {
     for (Future<Map<LocalResource,Path>> f = doneQueue.poll(); f != null;
          f = doneQueue.poll()) {
@@ -88,7 +89,7 @@ public class TestLocalResources {
       assertEquals(1, q.size());
       for (Map.Entry<LocalResource,Path> loc : q.entrySet()) {
         boolean found = false;
-        for (org.apache.hadoop.yarn.LocalResource yrsrc : files) {
+        for (org.apache.hadoop.yarn.api.records.LocalResource yrsrc : files) {
           LocalResource rsrc = new LocalResource(yrsrc);
           found |= rsrc.equals(loc.getKey());
         }
@@ -117,13 +118,13 @@ public class TestLocalResources {
   }
 
   static void successfulLoc(LocalResourcesTrackerImpl rsrcMap,
-      List<org.apache.hadoop.yarn.LocalResource> rsrc)
+      List<org.apache.hadoop.yarn.api.records.LocalResource> rsrc)
       throws InterruptedException, URISyntaxException {
     long i = 0;
-    for (org.apache.hadoop.yarn.LocalResource yRsrc : rsrc) {
-      yRsrc.size = ++i;
-      rsrcMap.setSuccess(new LocalResource(yRsrc), yRsrc.size,
-          new Path("file:///yak/" + yRsrc.timestamp));
+    for (org.apache.hadoop.yarn.api.records.LocalResource yRsrc : rsrc) {
+      yRsrc.setSize(++i);
+      rsrcMap.setSuccess(new LocalResource(yRsrc), yRsrc.getSize(),
+          new Path("file:///yak/" + yRsrc.getTimestamp()));
     }
   }
 
@@ -151,7 +152,7 @@ public class TestLocalResources {
     System.out.println("SEED: " + seed);
     // shared resource map
     LocalResourcesTrackerImpl rsrcMap = new LocalResourcesTrackerImpl();
-    List<org.apache.hadoop.yarn.LocalResource> resourcesA = randResources(r, NUM_URIS);
+    List<org.apache.hadoop.yarn.api.records.LocalResource> resourcesA = randResources(r, NUM_URIS);
 
     // set up application A mocks
     final BlockingQueue<Future<Map<LocalResource,Path>>> doneQueueA =
@@ -163,7 +164,7 @@ public class TestLocalResources {
       new LinkedBlockingQueue<Future<Map<LocalResource,Path>>>();
     AppLocalizationRunnerImpl mockAppLocB = getMockAppLoc(doneQueueB, "B");
 
-    Collection<org.apache.hadoop.yarn.LocalResource> todoA =
+    Collection<org.apache.hadoop.yarn.api.records.LocalResource> todoA =
       rsrcMap.register(mockAppLocA, resourcesA);
     // ensure no rsrc added until reported back
     assertEquals(NUM_URIS, todoA.size());
@@ -181,11 +182,11 @@ public class TestLocalResources {
     long seed2 = r.nextLong();
     r.setSeed(seed2);
     System.out.println("SEED: " + seed2);
-    List<org.apache.hadoop.yarn.LocalResource> resourcesB =
+    List<org.apache.hadoop.yarn.api.records.LocalResource> resourcesB =
       randResources(r, NUM_URIS >>> 1);
     resourcesB.addAll(resourcesA.subList(NUM_URIS >>> 2,
                                          NUM_URIS - (NUM_URIS >>> 2)));
-    Collection<org.apache.hadoop.yarn.LocalResource> todoB =
+    Collection<org.apache.hadoop.yarn.api.records.LocalResource> todoB =
       rsrcMap.register(mockAppLocB, resourcesB);
     // all completed A rsrc
     assertEquals(NUM_URIS >>> 2, doneQueueB.size());
@@ -211,7 +212,7 @@ public class TestLocalResources {
     failedLoc(doneQueueB);
 
     // verify cleared
-    Collection<org.apache.hadoop.yarn.LocalResource> todoA2 =
+    Collection<org.apache.hadoop.yarn.api.records.LocalResource> todoA2 =
       rsrcMap.register(mockAppLocA, Collections.singletonList(
             resourcesA.get(NUM_URIS >>> 1)));
     assertEquals(1, todoA2.size());

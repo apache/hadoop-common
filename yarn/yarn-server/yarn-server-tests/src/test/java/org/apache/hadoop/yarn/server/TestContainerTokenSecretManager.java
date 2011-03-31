@@ -24,13 +24,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 import junit.framework.Assert;
 
 import org.apache.avro.AvroRuntimeException;
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -45,8 +43,26 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.Application;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.AMRMProtocol;
+import org.apache.hadoop.yarn.api.ContainerManager;
+import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
@@ -56,31 +72,19 @@ import org.apache.hadoop.yarn.security.SchedulerSecurityInfo;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
-import org.apache.hadoop.yarn.util.AvroUtil;
-import org.apache.hadoop.yarn.AMRMProtocol;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerToken;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
-import org.apache.hadoop.yarn.URL;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.junit.Test;
 
 public class TestContainerTokenSecretManager {
 
   private static Log LOG = LogFactory
       .getLog(TestContainerTokenSecretManager.class);
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   @Test
   public void test() throws IOException, InterruptedException {
-    final ContainerID containerID = new ContainerID();
-    containerID.appID = new ApplicationID();
+    final ContainerId containerID = recordFactory.newRecordInstance(ContainerId.class);
+    containerID.setAppId(recordFactory.newRecordInstance(ApplicationId.class));
     ContainerTokenSecretManager secretManager =
         new ContainerTokenSecretManager();
     final Configuration conf = new Configuration();
@@ -100,21 +104,20 @@ public class TestContainerTokenSecretManager {
     final YarnRPC yarnRPC = YarnRPC.create(conf);
 
     // Submit an application
-    ApplicationSubmissionContext appSubmissionContext =
-        new ApplicationSubmissionContext();
-    appSubmissionContext.applicationId = containerID.appID;
-    appSubmissionContext.masterCapability = new Resource();
-    appSubmissionContext.masterCapability.memory = 1024;
-    appSubmissionContext.resources = new HashMap<CharSequence, URL>();
-    appSubmissionContext.user = "testUser";
-    appSubmissionContext.environment = new HashMap<CharSequence, CharSequence>();
-    appSubmissionContext.command = new ArrayList<CharSequence>();
-    appSubmissionContext.command.add("sleep");
-    appSubmissionContext.command.add("100");
+    ApplicationSubmissionContext appSubmissionContext = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    appSubmissionContext.setApplicationId(containerID.getAppId());
+    appSubmissionContext.setMasterCapability(recordFactory.newRecordInstance(Resource.class));
+    appSubmissionContext.getMasterCapability().setMemory(1024);
+//    appSubmissionContext.resources = new HashMap<String, URL>();
+    appSubmissionContext.setUser("testUser");
+//    appSubmissionContext.environment = new HashMap<String, String>();
+//    appSubmissionContext.command = new ArrayList<String>();
+    appSubmissionContext.addCommand("sleep");
+    appSubmissionContext.addCommand("100");
     URL yarnUrlForJobSubmitDir =
-        AvroUtil.getYarnUrlFromPath(FileContext.getFileContext()
+        ConverterUtils.getYarnUrlFromPath(FileContext.getFileContext()
             .makeQualified(new Path("testPath")));
-    appSubmissionContext.resources.put(
+    appSubmissionContext.setResource(
         YARNApplicationConstants.JOB_SUBMIT_DIR, yarnUrlForJobSubmitDir);
     resourceManager.getApplicationsManager().submitApplication(
         appSubmissionContext);
@@ -123,14 +126,14 @@ public class TestContainerTokenSecretManager {
     int waitCounter = 0;
     Application app =
         resourceManager.getApplicationsManager().getApplication(
-            containerID.appID);
+            containerID.getAppId());
     while (app.state() != ApplicationState.LAUNCHED && waitCounter <= 20) {
       Thread.sleep(1000);
       LOG.info("Waiting for AM to be allocated a container. Current state is "
           + app.state());
       app =
           resourceManager.getApplicationsManager().getApplication(
-              containerID.appID);
+              containerID.getAppId());
     }
 
     Assert.assertTrue(ApplicationState.PENDING != app.state());
@@ -144,7 +147,7 @@ public class TestContainerTokenSecretManager {
     final InetSocketAddress schedulerAddr =
         NetUtils.createSocketAddr(schedulerAddressString);
     ApplicationTokenIdentifier appTokenIdentifier =
-        new ApplicationTokenIdentifier(containerID.appID);
+        new ApplicationTokenIdentifier(containerID.getAppId());
     ApplicationTokenSecretManager appTokenSecretManager =
         new ApplicationTokenSecretManager();
     appTokenSecretManager.setMasterKey(ApplicationTokenSecretManager
@@ -168,18 +171,23 @@ public class TestContainerTokenSecretManager {
           }
         });       
     List<ResourceRequest> ask = new ArrayList<ResourceRequest>();
-    ResourceRequest rr = new ResourceRequest();
-    rr.capability = new Resource();
-    rr.capability.memory = 1024;
-    rr.hostName = "*";
-    rr.numContainers = 1;
-    rr.priority = new Priority();
+    ResourceRequest rr = recordFactory.newRecordInstance(ResourceRequest.class);
+    rr.setCapability(recordFactory.newRecordInstance(Resource.class));
+    rr.getCapability().setMemory(1024);
+    rr.setHostName("*");
+    rr.setNumContainers(1);
+    rr.setPriority(recordFactory.newRecordInstance(Priority.class));
     ask.add(rr);
     ArrayList<Container> release = new ArrayList<Container>();
-    ApplicationStatus status = new ApplicationStatus();
-    status.applicationId = containerID.appID;
+    ApplicationStatus status = recordFactory.newRecordInstance(ApplicationStatus.class);
+    status.setApplicationId(containerID.getAppId());
+    
+    AllocateRequest allocateRequest = recordFactory.newRecordInstance(AllocateRequest.class);
+    allocateRequest.setApplicationStatus(status);
+    allocateRequest.addAllAsks(ask);
+    allocateRequest.addAllReleases(release);
     List<Container> allocatedContainers =
-        scheduler.allocate(status, ask, release).containers;
+        scheduler.allocate(allocateRequest).getAMResponse().getContainerList();
     ask.clear();
 
     waitCounter = 0;
@@ -187,9 +195,10 @@ public class TestContainerTokenSecretManager {
         && waitCounter++ != 20) {
       LOG.info("Waiting for container to be allocated..");
       Thread.sleep(1000);
-      status.responseID++;
+      status.setResponseId(status.getResponseId() + 1);
+      allocateRequest.setApplicationStatus(status);
       allocatedContainers =
-          scheduler.allocate(status, ask, release).containers;
+          scheduler.allocate(allocateRequest).getAMResponse().getContainerList();
     }
 
     Assert.assertNotNull("Container is not allocted!", allocatedContainers);
@@ -198,13 +207,13 @@ public class TestContainerTokenSecretManager {
 
     // Now talk to the NM for launching the container.
     final Container allocatedContainer = allocatedContainers.get(0);
-    ContainerToken containerToken = allocatedContainer.containerToken;
+    ContainerToken containerToken = allocatedContainer.getContainerToken();
     Token<ContainerTokenIdentifier> token =
         new Token<ContainerTokenIdentifier>(
-            containerToken.identifier.array(),
-            containerToken.password.array(), new Text(
-                containerToken.kind.toString()), new Text(
-                containerToken.service.toString()));
+            containerToken.getIdentifier().array(),
+            containerToken.getPassword().array(), new Text(
+                containerToken.getKind()), new Text(
+                containerToken.getService()));
     currentUser.addToken(token);
     conf.setClass(
         CommonConfigurationKeysPublic.HADOOP_SECURITY_INFO_CLASS_NAME,
@@ -214,11 +223,13 @@ public class TestContainerTokenSecretManager {
       public Void run() {
         ContainerManager client =
             (ContainerManager) yarnRPC.getProxy(ContainerManager.class,
-                NetUtils.createSocketAddr(allocatedContainer.hostName
-                    .toString()), conf);
+                NetUtils.createSocketAddr(allocatedContainer.getHostName()
+                    ), conf);
         try {
-          client.getContainerStatus(containerID);
-        } catch (AvroRemoteException e) {
+          GetContainerStatusRequest request = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
+          request.setContainerId(containerID);
+          client.getContainerStatus(request);
+        } catch (YarnRemoteException e) {
           LOG.info("Error", e);
         } catch (AvroRuntimeException e) {
           LOG.info("Got the expected exception");
@@ -229,29 +240,29 @@ public class TestContainerTokenSecretManager {
 
     UserGroupInformation maliceUser =
         UserGroupInformation.createRemoteUser(currentUser.getShortUserName());
-    byte[] identifierBytes = containerToken.identifier.array();
+    byte[] identifierBytes = containerToken.getIdentifier().array();
     DataInputBuffer di = new DataInputBuffer();
     di.reset(identifierBytes, identifierBytes.length);
     ContainerTokenIdentifier dummyIdentifier = new ContainerTokenIdentifier();
     dummyIdentifier.readFields(di);
-    Resource modifiedResource = new Resource();
-    modifiedResource.memory = 2048;
+    Resource modifiedResource = recordFactory.newRecordInstance(Resource.class);
+    modifiedResource.setMemory(2048);
     ContainerTokenIdentifier modifiedIdentifier =
         new ContainerTokenIdentifier(dummyIdentifier.getContainerID(),
             dummyIdentifier.getNmHostName(), modifiedResource);
     // Malice user modifies the resource amount
     Token<ContainerTokenIdentifier> modifiedToken =
         new Token<ContainerTokenIdentifier>(modifiedIdentifier.getBytes(),
-            containerToken.password.array(), new Text(
-                containerToken.kind.toString()), new Text(
-                containerToken.service.toString()));
+            containerToken.getPassword().array(), new Text(
+                containerToken.getKind()), new Text(
+                containerToken.getService()));
     maliceUser.addToken(modifiedToken);
     maliceUser.doAs(new PrivilegedAction<Void>() {
       @Override
       public Void run() {
         try {
           yarnRPC.getProxy(ContainerManager.class, NetUtils
-              .createSocketAddr(allocatedContainer.hostName.toString()), conf);
+              .createSocketAddr(allocatedContainer.getHostName()), conf);
           fail("Connection initiation with illegally modified tokens is expected to fail.");
         } catch (YarnException e) {
           LOG.info("Error", e);

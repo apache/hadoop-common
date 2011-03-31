@@ -20,11 +20,11 @@ package org.apache.hadoop.yarn.server.nodemanager;
 
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
 
 /**
  * Context interface for sharing information across components in the
@@ -32,9 +32,9 @@ import org.apache.hadoop.yarn.ContainerID;
  */
 public interface Context {
 
-  public ConcurrentMap<ApplicationID, Application> getApplications();
+  public ConcurrentMap<ApplicationId, Application> getApplications();
 
-  public ConcurrentMap<ContainerID, Container> getContainers();
+  public ConcurrentMap<ContainerId, Container> getContainers();
 
   public NodeHealthStatus getNodeHealthStatus();
 }

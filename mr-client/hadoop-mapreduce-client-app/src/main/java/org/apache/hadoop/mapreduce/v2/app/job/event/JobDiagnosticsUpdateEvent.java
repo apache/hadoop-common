@@ -18,13 +18,14 @@
 
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
-import org.apache.hadoop.mapreduce.v2.api.JobID;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+
 
 public class JobDiagnosticsUpdateEvent extends JobEvent {
 
   private String diagnosticUpdate;
 
-  public JobDiagnosticsUpdateEvent(JobID jobID, String diagnostic) {
+  public JobDiagnosticsUpdateEvent(JobId jobID, String diagnostic) {
     super(jobID, JobEventType.JOB_DIAGNOSTIC_UPDATE);
     this.diagnosticUpdate = diagnostic;
   }

@@ -40,6 +40,16 @@ import org.apache.hadoop.mapreduce.jobhistory.TaskFailedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskFinishedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskStartedEvent;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
+import org.apache.hadoop.mapreduce.v2.api.records.CounterGroup;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEventStatus;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
@@ -57,21 +67,13 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskTAttemptEvent;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
-import org.apache.hadoop.mapreduce.v2.api.CounterGroup;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEventStatus;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
 
 /**
  * Implementation of Task interface.
@@ -86,11 +88,14 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   protected final int partition;
   protected final TaskAttemptListener taskAttemptListener;
   protected final EventHandler eventHandler;
-  private final TaskID taskId;
-  private Map<TaskAttemptID, TaskAttempt> attempts;
+  private final TaskId taskId;
+  private Map<TaskAttemptId, TaskAttempt> attempts;
   private final int maxAttempts;
   private final Lock readLock;
   private final Lock writeLock;
+  
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   protected Collection<Token<? extends TokenIdentifier>> fsTokens;
   protected Token<JobTokenIdentifier> jobToken;
   
@@ -198,9 +203,9 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
 
   //should be set to one which comes first
   //saying COMMIT_PENDING
-  private TaskAttemptID commitAttempt;
+  private TaskAttemptId commitAttempt;
 
-  private TaskAttemptID successfulAttempt;
+  private TaskAttemptId successfulAttempt;
 
   private int failedAttempts;
   private int finishedAttempts;//finish are total of success, failed and killed
@@ -210,7 +215,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     return stateMachine.getCurrentState();
   }
 
-  public TaskImpl(JobID jobId, TaskType taskType, int partition,
+  public TaskImpl(JobId jobId, TaskType taskType, int partition,
       EventHandler eventHandler, Path remoteJobConfFile, Configuration conf,
       TaskAttemptListener taskAttemptListener, OutputCommitter committer,
       Token<JobTokenIdentifier> jobToken,
@@ -225,10 +230,10 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     //  have a convention that none of the overrides depends on any
     //  fields that need initialization.
     maxAttempts = getMaxAttempts();
-    taskId = new TaskID();
-    taskId.jobID = jobId;
-    taskId.id = partition;
-    taskId.taskType = taskType;
+    taskId = recordFactory.newRecordInstance(TaskId.class);
+    taskId.setJobId(jobId);
+    taskId.setId(partition);
+    taskId.setTaskType(taskType);
     this.partition = partition;
     this.taskAttemptListener = taskAttemptListener;
     this.eventHandler = eventHandler;
@@ -242,7 +247,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   }
 
   @Override
-  public Map<TaskAttemptID, TaskAttempt> getAttempts() {
+  public Map<TaskAttemptId, TaskAttempt> getAttempts() {
     readLock.lock();
 
     try {
@@ -250,8 +255,8 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
         return attempts;
       }
       
-      Map<TaskAttemptID, TaskAttempt> result
-          = new LinkedHashMap<TaskAttemptID, TaskAttempt>();
+      Map<TaskAttemptId, TaskAttempt> result
+          = new LinkedHashMap<TaskAttemptId, TaskAttempt>();
       result.putAll(attempts);
 
       return result;
@@ -261,7 +266,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   }
 
   @Override
-  public TaskAttempt getAttempt(TaskAttemptID attemptID) {
+  public TaskAttempt getAttempt(TaskAttemptId attemptID) {
     readLock.lock();
     try {
       return attempts.get(attemptID);
@@ -271,7 +276,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   }
 
   @Override
-  public TaskID getID() {
+  public TaskId getID() {
     return taskId;
   }
 
@@ -290,24 +295,24 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
 
   @Override
   public TaskReport getReport() {
-    TaskReport report = new TaskReport();
+    TaskReport report = recordFactory.newRecordInstance(TaskReport.class);
     readLock.lock();
     try {
-      report.id = taskId;
-      report.startTime = getLaunchTime();
-      report.finishTime = getFinishTime();
-      report.state = getState();
-      report.progress = getProgress();
-      report.counters = getCounters();
-      report.runningAttempts = new ArrayList<TaskAttemptID>();
-      report.runningAttempts.addAll(attempts.keySet());
-      report.successfulAttempt = successfulAttempt;
+      report.setTaskId(taskId);
+      report.setStartTime(getLaunchTime());
+      report.setFinishTime(getFinishTime());
+      report.setTaskState(getState());
+      report.setProgress(getProgress());
+      report.setCounters(getCounters());
       
-      report.diagnostics = new ArrayList<CharSequence>();
+      report.addAllRunningAttempts(new ArrayList<TaskAttemptId>(attempts.keySet()));
+      report.setSuccessfulAttempt(successfulAttempt);
+      
       for (TaskAttempt att : attempts.values()) {
         String prefix = "AttemptID:" + att.getID() + " Info:";
         for (CharSequence cs : att.getDiagnostics()) {
-          report.diagnostics.add(prefix + cs);
+          report.addDiagnostics(prefix + cs);
+          
         }
       }
       return report;
@@ -325,8 +330,8 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       if (bestAttempt != null) {
         counters = bestAttempt.getCounters();
       } else {
-        counters = new Counters();
-        counters.groups = new HashMap<CharSequence, CounterGroup>();
+        counters = recordFactory.newRecordInstance(Counters.class);
+//        counters.groups = new HashMap<CharSequence, CounterGroup>();
       }
       return counters;
     } finally {
@@ -395,7 +400,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   }
 
   @Override
-  public boolean canCommit(TaskAttemptID taskAttemptID) {
+  public boolean canCommit(TaskAttemptId taskAttemptID) {
     readLock.lock();
     boolean canCommit = false;
     try {
@@ -437,7 +442,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
         
       case 1:
         Map newAttempts
-            = new LinkedHashMap<TaskAttemptID, TaskAttempt>(maxAttempts);
+            = new LinkedHashMap<TaskAttemptId, TaskAttempt>(maxAttempts);
         newAttempts.putAll(attempts);
         attempts = newAttempts;
         attempts.put(attempt.getID(), attempt);
@@ -478,29 +483,27 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
 
   private void internalError(TaskEventType type) {
     eventHandler.handle(new JobDiagnosticsUpdateEvent(
-        this.taskId.jobID, "Invalid event " + type + 
+        this.taskId.getJobId(), "Invalid event " + type + 
         " on Task " + this.taskId));
-    eventHandler.handle(new JobEvent(this.taskId.jobID,
+    eventHandler.handle(new JobEvent(this.taskId.getJobId(),
         JobEventType.INTERNAL_ERROR));
   }
 
   // always called inside a transition, in turn inside the Write Lock
-  private void handleTaskAttemptCompletion(TaskAttemptID attemptId,
+  private void handleTaskAttemptCompletion(TaskAttemptId attemptId,
       TaskAttemptCompletionEventStatus status) {
     finishedAttempts++;
     TaskAttempt attempt = attempts.get(attemptId);
     //raise the completion event only if the container is assigned
     // to nextAttemptNumber
     if (attempt.getAssignedContainerMgrAddress() != null) {
-      TaskAttemptCompletionEvent tce = new TaskAttemptCompletionEvent();
-      tce.eventId = -1;
+      TaskAttemptCompletionEvent tce = recordFactory.newRecordInstance(TaskAttemptCompletionEvent.class);
+      tce.setEventId(-1);
       //TODO: XXXXXX  hardcoded port
-      tce.mapOutputServerAddress =
-        "http://" + attempt.getAssignedContainerMgrAddress().split(":")[0]
-                                                              + ":8080";
-      tce.status = status;
-      tce.attemptId = attempt.getID();
-      tce.attemptRunTime = 0; // TODO: set the exact run time of the task.
+      tce.setMapOutputServerAddress("http://" + attempt.getAssignedContainerMgrAddress().split(":")[0] + ":8080");
+      tce.setStatus(status);
+      tce.setAttemptId(attempt.getID());
+      tce.setAttemptRunTime(0); // TODO: set the exact run time of the task.
       
       //raise the event to job so that it adds the completion event to its
       //data structures
@@ -515,8 +518,8 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     public void transition(TaskImpl task, TaskEvent event) {
       TaskStartedEvent tse = new TaskStartedEvent(TypeConverter
           .fromYarn(task.taskId), task.getLaunchTime(), TypeConverter
-          .fromYarn(task.taskId.taskType), TaskState.RUNNING.toString());
-      task.eventHandler.handle(new JobHistoryEvent(task.taskId.jobID, tse));
+          .fromYarn(task.taskId.getTaskType()), TaskState.RUNNING.toString());
+      task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tse));
 
       task.addAndScheduleAttempt();
     }
@@ -543,7 +546,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     public void transition(TaskImpl task, TaskEvent event) {
       TaskTAttemptEvent ev = (TaskTAttemptEvent) event;
       // The nextAttemptNumber is commit pending, decide on set the commitAttempt
-      TaskAttemptID attemptID = ev.getTaskAttemptID();
+      TaskAttemptId attemptID = ev.getTaskAttemptID();
       if (task.commitAttempt == null) {
         // TODO: validate attemptID
         task.commitAttempt = attemptID;
@@ -576,10 +579,10 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       TaskFinishedEvent tfe =
           new TaskFinishedEvent(TypeConverter.fromYarn(task.taskId),
             task.getFinishTime(),
-            TypeConverter.fromYarn(task.taskId.taskType),
+            TypeConverter.fromYarn(task.taskId.getTaskType()),
             TaskState.SUCCEEDED.toString(),
             TypeConverter.fromYarn(task.getCounters()));
-      task.eventHandler.handle(new JobHistoryEvent(task.taskId.jobID, tfe));
+      task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfe));
       for (TaskAttempt attempt : task.attempts.values()) {
         if (attempt.getID() != task.successfulAttempt &&
             // This is okay because it can only talk us out of sending a
@@ -654,10 +657,10 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
         TaskFinishedEvent tfi =
             new TaskFinishedEvent(TypeConverter.fromYarn(task.taskId),
                 task.getFinishTime(),
-            TypeConverter.fromYarn(task.taskId.taskType),
+            TypeConverter.fromYarn(task.taskId.getTaskType()),
                 TaskState.FAILED.toString(),
                 TypeConverter.fromYarn(task.getCounters()));
-        task.eventHandler.handle(new JobHistoryEvent(task.taskId.jobID, tfi));
+        task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfi));
         task.eventHandler.handle(
             new JobTaskEvent(task.taskId, TaskState.FAILED));
         return TaskState.FAILED;
@@ -710,10 +713,10 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     public void transition(TaskImpl task, TaskEvent event) {
       TaskFinishedEvent tfe =
           new TaskFinishedEvent(TypeConverter.fromYarn(task.taskId),
-              task.getFinishTime(), TypeConverter.fromYarn(task.taskId.taskType),
+              task.getFinishTime(), TypeConverter.fromYarn(task.taskId.getTaskType()),
               TaskState.KILLED.toString(), TypeConverter.fromYarn(task
                   .getCounters()));
-      task.eventHandler.handle(new JobHistoryEvent(task.taskId.jobID, tfe));
+      task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfe));
       task.eventHandler.handle(
           new JobTaskEvent(task.taskId, TaskState.KILLED));
     }

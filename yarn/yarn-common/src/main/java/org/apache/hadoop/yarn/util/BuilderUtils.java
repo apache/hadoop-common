@@ -20,9 +20,10 @@ package org.apache.hadoop.yarn.util;
 
 import java.net.URI;
 
-import org.apache.hadoop.yarn.LocalResource;
-import org.apache.hadoop.yarn.LocalResourceType;
-import org.apache.hadoop.yarn.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 /**
  * Builder utilities to construct various objects.
@@ -33,12 +34,12 @@ public class BuilderUtils {
   public static LocalResource newLocalResource(URI uri, 
       LocalResourceType type, LocalResourceVisibility visibility, 
       long size, long timestamp) {
-    LocalResource resource = new LocalResource();
-    resource.resource = AvroUtil.getYarnUrlFromURI(uri);
-    resource.type = type;
-    resource.state = visibility;
-    resource.size = size;
-    resource.timestamp = timestamp;
+    LocalResource resource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(LocalResource.class);
+    resource.setResource(ConverterUtils.getYarnUrlFromURI(uri));
+    resource.setType(type);
+    resource.setVisibility(visibility);
+    resource.setSize(size);
+    resource.setTimestamp(timestamp);
     return resource;
   }
 

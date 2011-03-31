@@ -28,40 +28,48 @@ import java.util.Set;
 
 import junit.framework.Assert;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.v2.app.AppContext;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerRequestEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator;
 import org.apache.hadoop.net.NetworkTopology;
+import org.apache.hadoop.yarn.api.AMRMProtocol;
+import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse;
+import org.apache.hadoop.yarn.api.records.AMResponse;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.event.Event;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
-import org.apache.hadoop.yarn.AMRMProtocol;
-import org.apache.hadoop.yarn.AMResponse;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
 import org.junit.Test;
 
 public class TestRMContainerAllocator {
   private static final Log LOG = LogFactory.getLog(TestRMContainerAllocator.class);
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   @Test
   public void testSimple() throws Exception {
@@ -194,32 +202,33 @@ public class TestRMContainerAllocator {
 
   private NodeInfo addNode(FifoScheduler scheduler, 
       String nodeName, int memory) {
-    NodeID nodeId = new NodeID();
-    nodeId.id = 0;
-    Resource resource = new Resource();
-    resource.memory = memory;
+    NodeId nodeId = recordFactory.newRecordInstance(NodeId.class);
+    nodeId.setId(0);
+    Resource resource = recordFactory.newRecordInstance(Resource.class);
+    resource.setMemory(memory);
     NodeInfo nodeManager = scheduler.addNode(nodeId, nodeName,
         RMResourceTrackerImpl.resolve(nodeName), resource); // Node registration
     return nodeManager;
   }
 
-  private FifoScheduler createScheduler() throws AvroRemoteException {
+  private FifoScheduler createScheduler() throws YarnRemoteException {
     FifoScheduler fsc = new FifoScheduler(new Configuration(),
         new ContainerTokenSecretManager()) {
       //override this to copy the objects
       //otherwise FifoScheduler updates the numContainers in same objects as kept by
       //RMContainerAllocator
+      
       @Override
-      public synchronized List<Container> allocate(ApplicationID applicationId,
+      public synchronized List<Container> allocate(ApplicationId applicationId,
           List<ResourceRequest> ask, List<Container> release) 
           throws IOException {
         List<ResourceRequest> askCopy = new ArrayList<ResourceRequest>();
         for (ResourceRequest req : ask) {
-          ResourceRequest reqCopy = new ResourceRequest();
-          reqCopy.priority = req.priority;
-          reqCopy.hostName = req.hostName;
-          reqCopy.capability = req.capability;
-          reqCopy.numContainers = req.numContainers;
+          ResourceRequest reqCopy = recordFactory.newRecordInstance(ResourceRequest.class);
+          reqCopy.setPriority(req.getPriority());
+          reqCopy.setHostName(req.getHostName());
+          reqCopy.setCapability(req.getCapability());
+          reqCopy.setNumContainers(req.getNumContainers());
           askCopy.add(reqCopy);
         }
         //no need to copy release
@@ -227,7 +236,7 @@ public class TestRMContainerAllocator {
       }
     };
     try {
-      fsc.addApplication(new ApplicationID(), "test", null, null);
+      fsc.addApplication(recordFactory.newRecordInstance(ApplicationId.class), "test", null, null);
     } catch(IOException ie) {
       LOG.info("add application failed with ", ie);
       assert(false);
@@ -237,10 +246,10 @@ public class TestRMContainerAllocator {
 
   private ContainerRequestEvent createReq(
       int attemptid, int memory, int priority, String[] hosts) {
-    TaskAttemptID attemptId = new TaskAttemptID();
-    attemptId.id = attemptid;
-    Resource containerNeed = new Resource();
-    containerNeed.memory = memory;
+    TaskAttemptId attemptId = recordFactory.newRecordInstance(TaskAttemptId.class);
+    attemptId.setId(attemptid);
+    Resource containerNeed = recordFactory.newRecordInstance(Resource.class);
+    containerNeed.setMemory(memory);
     return new ContainerRequestEvent(attemptId, 
         containerNeed, priority,
         hosts, new String[] {NetworkTopology.DEFAULT_RACK});
@@ -254,7 +263,7 @@ public class TestRMContainerAllocator {
         requests.length, assignments.size());
 
     //check for uniqueness of containerIDs
-    Set<ContainerID> containerIds = new HashSet<ContainerID>();
+    Set<ContainerId> containerIds = new HashSet<ContainerId>();
     for (TaskAttemptContainerAssignedEvent assigned : assignments) {
       containerIds.add(assigned.getContainerID());
     }
@@ -302,29 +311,32 @@ public class TestRMContainerAllocator {
       }
 
       @Override
-      public Void registerApplicationMaster(
-          ApplicationMaster applicationMaster) throws AvroRemoteException {
+      public RegisterApplicationMasterResponse registerApplicationMaster(RegisterApplicationMasterRequest request) throws YarnRemoteException {
+        ApplicationMaster applicationMaster = request.getApplicationMaster();
+        RegisterApplicationMasterResponse response = recordFactory.newRecordInstance(RegisterApplicationMasterResponse.class);
         return null;
       }
 
-      @Override
-      public AMResponse allocate(ApplicationStatus status,
-          List<ResourceRequest> ask, List<Container> release)
-          throws AvroRemoteException {
+      public AllocateResponse allocate(AllocateRequest request) throws YarnRemoteException {
+        ApplicationStatus status = request.getApplicationStatus();
+        List<ResourceRequest> ask = request.getAskList();
+        List<Container> release = request.getReleaseList();
         try {
-          AMResponse response = new AMResponse();
-          response.containers = resourceScheduler.allocate(status.applicationId, ask, release);
-          return response;
+          AMResponse response = recordFactory.newRecordInstance(AMResponse.class);
+          response.addAllContainers(resourceScheduler.allocate(status.getApplicationId(), ask, release));
+          AllocateResponse allocateResponse = recordFactory.newRecordInstance(AllocateResponse.class);
+          allocateResponse.setAMResponse(response);
+          return allocateResponse;
         } catch(IOException ie) {
           throw RPCUtil.getRemoteException(ie);
         }
       }
 
       @Override
-      public Void finishApplicationMaster(ApplicationMaster applicationMaster)
-      throws AvroRemoteException {
-        // TODO Auto-generated method stub
-        return null;
+      public FinishApplicationMasterResponse finishApplicationMaster(FinishApplicationMasterRequest request) throws YarnRemoteException {
+        ApplicationMaster applicationMaster = request.getApplicationMaster();
+        FinishApplicationMasterResponse response = recordFactory.newRecordInstance(FinishApplicationMasterResponse.class);
+        return response;
       }
 
     }
@@ -380,12 +392,12 @@ public class TestRMContainerAllocator {
         this.events = events;
       }
       @Override
-      public Map<JobID, Job> getAllJobs() {
+      public Map<JobId, Job> getAllJobs() {
         return null;
       }
       @Override
-      public ApplicationID getApplicationID() {
-        return new ApplicationID();
+      public ApplicationId getApplicationID() {
+        return recordFactory.newRecordInstance(ApplicationId.class);
       }
       @Override
       public EventHandler getEventHandler() {
@@ -397,12 +409,12 @@ public class TestRMContainerAllocator {
         };
       }
       @Override
-      public Job getJob(JobID jobID) {
+      public Job getJob(JobId jobID) {
         return null;
       }
 
       @Override
-      public CharSequence getUser() {
+      public String getUser() {
         return null;
       }
     }

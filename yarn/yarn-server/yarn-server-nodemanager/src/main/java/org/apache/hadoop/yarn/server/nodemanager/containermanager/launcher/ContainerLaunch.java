@@ -37,7 +37,7 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.util.Shell.ExitCodeException;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
@@ -75,9 +75,9 @@ public class ContainerLaunch implements Callable<Integer> {
   public Integer call() {
     final ContainerLaunchContext launchContext = container.getLaunchContext();
     final Map<Path,String> localizedResources = app.getLocalizedResources();
-    final String user = launchContext.user.toString();
-    final Map<CharSequence,CharSequence> env = launchContext.env;
-    final List<CharSequence> command = launchContext.command;
+    final String user = launchContext.getUser();
+    final Map<String,String> env = launchContext.getAllEnv();
+    final List<String> command = launchContext.getCommandList();
     int ret = -1;
     try {
       FileContext lfs = FileContext.getLocalFSFileContext();
@@ -96,11 +96,11 @@ public class ContainerLaunch implements Callable<Integer> {
         
         tokensOut = lfs.create(tokensPath, EnumSet.of(CREATE, OVERWRITE));
         Credentials creds = new Credentials();
-        if (launchContext.containerTokens != null) {
+        if (container.getLaunchContext().getContainerTokens() != null) {
           // TODO: Is the conditional the correct way of checking?
           DataInputByteBuffer buf = new DataInputByteBuffer();
-          launchContext.containerTokens.rewind();
-          buf.reset(launchContext.containerTokens);
+          container.getLaunchContext().getContainerTokens().rewind();
+          buf.reset(container.getLaunchContext().getContainerTokens());
           creds.readTokenStorageStream(buf);
           for (Token<? extends TokenIdentifier> tk : creds.getAllTokens()) {
             LOG.debug(tk.getService() + " = " + tk.toString());
@@ -123,7 +123,7 @@ public class ContainerLaunch implements Callable<Integer> {
         // If the process was killed, Send container_cleanedup_after_kill and
         // just break out of this method.
         dispatcher.getEventHandler().handle(
-            new ContainerExitEvent(launchContext.id,
+            new ContainerExitEvent(launchContext.getContainerId(),
                 ContainerEventType.CONTAINER_KILLED_ON_REQUEST, ret));
         return ret;
       }
@@ -134,13 +134,13 @@ public class ContainerLaunch implements Callable<Integer> {
     } catch (Throwable e) {
       LOG.warn("Failed to launch container", e);
       dispatcher.getEventHandler().handle(new ContainerExitEvent(
-            launchContext.id,
+            launchContext.getContainerId(),
             ContainerEventType.CONTAINER_EXITED_WITH_FAILURE, ret));
       return ret;
     }
-    LOG.info("Container " + container + " succeeded " + launchContext.id);
+    LOG.info("Container " + container + " succeeded " + launchContext.getContainerId());
     dispatcher.getEventHandler().handle(new ContainerEvent(
-          launchContext.id, ContainerEventType.CONTAINER_EXITED_WITH_SUCCESS));
+          launchContext.getContainerId(), ContainerEventType.CONTAINER_EXITED_WITH_SUCCESS));
     return 0;
   }
 

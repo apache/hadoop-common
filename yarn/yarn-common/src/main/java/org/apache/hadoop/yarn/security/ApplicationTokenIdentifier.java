@@ -25,7 +25,7 @@ import java.io.IOException;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 
 // TODO: Make it avro-ish. TokenIdentifier really isn't serialized
 // as writable but simply uses readFields method in SaslRpcServer
@@ -39,8 +39,8 @@ public class ApplicationTokenIdentifier extends TokenIdentifier {
   // TODO: Add more information in the tokenID such that it is not
   // transferrable, more secure etc.
 
-  public ApplicationTokenIdentifier(ApplicationID id) {
-    this.appId = new Text(Integer.toString(id.id));
+  public ApplicationTokenIdentifier(ApplicationId id) {
+    this.appId = new Text(Integer.toString(id.getId()));
   }
 
   public ApplicationTokenIdentifier() {

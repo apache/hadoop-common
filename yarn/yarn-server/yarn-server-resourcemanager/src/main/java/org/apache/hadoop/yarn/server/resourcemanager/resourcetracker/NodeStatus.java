@@ -21,16 +21,17 @@ package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.NodeID;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 
 
 public class NodeStatus {
-  public static org.apache.hadoop.yarn.NodeStatus createNodeStatus(
-      NodeID nodeId, Map<CharSequence, List<Container>> containers) {
-    org.apache.hadoop.yarn.NodeStatus nodeStatus = new org.apache.hadoop.yarn.NodeStatus();
-    nodeStatus.nodeId = nodeId;
-    nodeStatus.containers = containers;
+  public static org.apache.hadoop.yarn.server.api.records.NodeStatus createNodeStatus(
+      NodeId nodeId, Map<String, List<Container>> containers) {
+    org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
+    nodeStatus.setNodeId(nodeId);
+    nodeStatus.addAllContainers(containers);
     return nodeStatus;
   }
 }

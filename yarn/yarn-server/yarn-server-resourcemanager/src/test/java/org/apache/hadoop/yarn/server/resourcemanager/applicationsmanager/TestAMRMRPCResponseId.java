@@ -24,24 +24,29 @@ import java.util.List;
 import junit.framework.TestCase;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.records.AMResponse;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ApplicationMasterService;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
-import org.apache.hadoop.yarn.AMResponse;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.ResourceRequest;
 import org.junit.After;
 import org.junit.Before;
 
 public class TestAMRMRPCResponseId extends TestCase {
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   ApplicationMasterService amService = null;
   ApplicationTokenSecretManager appTokenManager = new ApplicationTokenSecretManager();
   DummyApplicationsManager applicationsManager;
@@ -71,7 +76,7 @@ public class TestAMRMRPCResponseId extends TestCase {
   
   private class DummyScheduler implements YarnScheduler {
     @Override
-    public List<Container> allocate(ApplicationID applicationId,
+    public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       return null;
     }
@@ -96,29 +101,37 @@ public class TestAMRMRPCResponseId extends TestCase {
   }
   
   public void testARRMResponseId() throws Exception {
-    ApplicationID applicationID = applicationsManager.getNewApplicationID();
-    ApplicationSubmissionContext context = new ApplicationSubmissionContext();
-    context.applicationId = applicationID;
+    ApplicationId applicationID = applicationsManager.getNewApplicationID();
+    ApplicationSubmissionContext context = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    context.setApplicationId(applicationID);
     applicationsManager.submitApplication(context);
-    ApplicationMaster applicationMaster = new ApplicationMaster();
-    applicationMaster.applicationId = applicationID;
-    applicationMaster.status = new ApplicationStatus();
-    amService.registerApplicationMaster(applicationMaster);
-    ApplicationStatus status = new ApplicationStatus();
-    status.applicationId = applicationID;
-    AMResponse response = amService.allocate(status, null, null);
-    assertTrue(response.responseId == 1);
-    assertFalse(response.reboot);
-    status.responseID = response.responseId;
-    response = amService.allocate(status, null, null);
-    assertTrue(response.responseId == 2);
+    ApplicationMaster applicationMaster = recordFactory.newRecordInstance(ApplicationMaster.class);
+    applicationMaster.setApplicationId(applicationID);
+    applicationMaster.setStatus(recordFactory.newRecordInstance(ApplicationStatus.class));
+    RegisterApplicationMasterRequest request = recordFactory.newRecordInstance(RegisterApplicationMasterRequest.class);
+    request.setApplicationMaster(applicationMaster);
+    amService.registerApplicationMaster(request);
+    ApplicationStatus status = recordFactory.newRecordInstance(ApplicationStatus.class);
+    status.setApplicationId(applicationID);
+    
+    AllocateRequest allocateRequest = recordFactory.newRecordInstance(AllocateRequest.class);
+    allocateRequest.setApplicationStatus(status);
+    AMResponse response = amService.allocate(allocateRequest).getAMResponse();
+    assertTrue(response.getResponseId() == 1);
+    assertFalse(response.getReboot());
+    status.setResponseId(response.getResponseId());
+    
+    allocateRequest.setApplicationStatus(status);
+    response = amService.allocate(allocateRequest).getAMResponse();
+    assertTrue(response.getResponseId() == 2);
     /* try resending */
-    response = amService.allocate(status, null, null);
-    assertTrue(response.responseId == 2);
+    response = amService.allocate(allocateRequest).getAMResponse();
+    assertTrue(response.getResponseId() == 2);
     
     /** try sending old **/
-    status.responseID = 0;
-    response = amService.allocate(status, null, null);
-    assertTrue(response.reboot);
+    status.setResponseId(0);
+    allocateRequest.setApplicationStatus(status);
+    response = amService.allocate(allocateRequest).getAMResponse();
+    assertTrue(response.getReboot());
   }
 }

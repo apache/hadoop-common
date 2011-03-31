@@ -24,9 +24,9 @@ import java.util.List;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.yarn.Application;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 
 /**
  * This interface defines the interface for ApplicationsManager.
@@ -34,11 +34,11 @@ import org.apache.hadoop.yarn.ApplicationSubmissionContext;
 @Private
 @Evolving
 public interface ApplicationsManager {
-   ApplicationID getNewApplicationID();
-   ApplicationMaster getApplicationMaster(ApplicationID applicationId);
-   Application getApplication(ApplicationID applicationID);
+   ApplicationId getNewApplicationID();
+   ApplicationMaster getApplicationMaster(ApplicationId applicationId);
+   Application getApplication(ApplicationId applicationID);
    void submitApplication(ApplicationSubmissionContext context) throws IOException;
-   void finishApplication(ApplicationID applicationId) throws IOException;
+   void finishApplication(ApplicationId applicationId) throws IOException;
    List<AppContext> getAllApplications();
    List<Application> getApplications();
 }

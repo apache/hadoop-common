@@ -1,0 +1,110 @@
+option java_package = "org.apache.hadoop.yarn.proto";
+option java_outer_classname = "YarnServiceProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+
+import "yarn_protos.proto";
+
+//////////////////////////////////////////////////////
+/////// AM_RM_Protocol ///////////////////////////////
+//////////////////////////////////////////////////////
+message RegisterApplicationMasterRequestProto {
+  optional ApplicationMasterProto application_master = 1;
+}
+
+message RegisterApplicationMasterResponseProto {
+}
+
+message FinishApplicationMasterRequestProto {
+  optional ApplicationMasterProto application_master = 1;
+}
+
+message FinishApplicationMasterResponseProto {
+}
+
+message AllocateRequestProto {
+  optional ApplicationStatusProto application_status = 1;
+  repeated ResourceRequestProto ask = 2;
+  repeated ContainerProto release = 3;
+}
+
+message AllocateResponseProto {
+  optional AMResponseProto AM_response = 1;
+}
+
+
+
+//////////////////////////////////////////////////////
+/////// client_RM_Protocol ///////////////////////////
+//////////////////////////////////////////////////////
+
+message GetNewApplicationIdRequestProto {
+}
+
+message GetNewApplicationIdResponseProto {
+  optional ApplicationIdProto application_id = 1;
+}
+
+message GetApplicationMasterRequestProto {
+  optional ApplicationIdProto application_id = 1;
+}
+
+message GetApplicationMasterResponseProto {
+  optional ApplicationMasterProto application_master = 1;
+}
+
+message SubmitApplicationRequestProto {
+  optional ApplicationSubmissionContextProto application_submission_context= 1;
+}
+
+message SubmitApplicationResponseProto {
+}
+
+message FinishApplicationRequestProto {
+  optional ApplicationIdProto application_id = 1;
+}
+
+message FinishApplicationResponseProto {
+}
+
+message GetClusterMetricsRequestProto {
+}
+
+message GetClusterMetricsResponseProto {
+  optional YarnClusterMetricsProto cluster_metrics = 1;
+}
+
+
+
+//////////////////////////////////////////////////////
+/////// client_RM_Protocol ///////////////////////////
+//////////////////////////////////////////////////////
+
+message StartContainerRequestProto {
+  optional ContainerLaunchContextProto container_launch_context = 1;
+}
+
+message StartContainerResponseProto {
+}
+
+message StopContainerRequestProto {
+  optional ContainerIdProto container_id = 1;
+}
+
+message StopContainerResponseProto {
+}
+
+message CleanupContainerRequestProto {
+  optional ContainerIdProto container_id = 1;
+}
+
+message CleanupContainerResponseProto {
+}
+
+message GetContainerStatusRequestProto {
+  optional ContainerIdProto container_id = 1;
+}
+
+message GetContainerStatusResponseProto {
+  optional ContainerStatusProto status = 1;
+}

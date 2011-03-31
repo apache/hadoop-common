@@ -55,11 +55,11 @@ class NodesPage extends RmView {
       for (NodeInfo ni : resource.getAllNodeInfo()) {
         tbody.tr().
             td(ni.getRackName()).
-            td(String.valueOf(ni.getNodeID().id)).
+            td(String.valueOf(ni.getNodeID().getId())).
             td(ni.getHostName()).
             td(String.valueOf(ni.getNumContainers())).
-            td(String.valueOf(ni.getUsedResource().memory)).
-            td(String.valueOf(ni.getAvailableResource().memory))._();
+            td(String.valueOf(ni.getUsedResource().getMemory())).
+            td(String.valueOf(ni.getAvailableResource().getMemory()))._();
       }
       tbody._()._();
     }

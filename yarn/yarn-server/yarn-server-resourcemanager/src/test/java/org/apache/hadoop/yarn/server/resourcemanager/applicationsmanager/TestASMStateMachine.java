@@ -25,14 +25,16 @@ import junit.framework.TestCase;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
@@ -46,6 +48,7 @@ import org.junit.Test;
 
 public class TestASMStateMachine extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestASMStateMachine.class);
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   ASMContext context = new ResourceManager.ASMContextImpl();
   EventHandler handler;
   private boolean snreceivedCleanUp = false;
@@ -178,13 +181,13 @@ private static class StatusContext implements AppContext {
     return null;
   }
   @Override
-  public ApplicationID getApplicationID() {
+  public ApplicationId getApplicationID() {
     return null;
   }
   @Override
   public ApplicationStatus getStatus() {
-    ApplicationStatus status = new ApplicationStatus();
-    status.lastSeen = -99;
+    ApplicationStatus status = recordFactory.newRecordInstance(ApplicationStatus.class);
+    status.setLastSeen(-99);
     return status;
   }
   @Override
@@ -264,10 +267,10 @@ public void waitForState(ApplicationState state, ApplicationMasterInfo info) {
  */
 @Test
 public void testStateMachine() {
-  ApplicationSubmissionContext submissioncontext = new ApplicationSubmissionContext();
-  submissioncontext.applicationId = new ApplicationID();
-  submissioncontext.applicationId.id = 1;
-  submissioncontext.applicationId.clusterTimeStamp = System.currentTimeMillis();
+  ApplicationSubmissionContext submissioncontext = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+  submissioncontext.setApplicationId(recordFactory.newRecordInstance(ApplicationId.class));
+  submissioncontext.getApplicationId().setId(1);
+  submissioncontext.getApplicationId().setClusterTimestamp(System.currentTimeMillis());
 
   ApplicationMasterInfo masterInfo 
   = new ApplicationMasterInfo(handler, "dummyuser", submissioncontext, "dummyToken");

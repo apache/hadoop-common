@@ -27,39 +27,51 @@ import java.util.Map;
 
 import junit.framework.Assert;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
+import org.apache.hadoop.yarn.api.ContainerManager;
+import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StartContainerResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.StopContainerResponse;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
+import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
+import org.apache.hadoop.yarn.server.api.records.NodeStatus;
+import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerManager;
-import org.apache.hadoop.yarn.ContainerState;
-import org.apache.hadoop.yarn.ContainerStatus;
-import org.apache.hadoop.yarn.HeartbeatResponse;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.NodeStatus;
-import org.apache.hadoop.yarn.RegistrationResponse;
-import org.apache.hadoop.yarn.Resource;
 
 @Private
 public class NodeManager implements ContainerManager {
   private static final Log LOG = LogFactory.getLog(NodeManager.class);
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
   final private String hostName;
   final private String rackName;
-  final private NodeID nodeId;
+  final private NodeId nodeId;
   final private Resource capability;
-  Resource available = new Resource();
-  Resource used = new Resource();
+  Resource available = recordFactory.newRecordInstance(Resource.class);
+  Resource used = recordFactory.newRecordInstance(Resource.class);
 
   final RMResourceTrackerImpl resourceTracker;
   final NodeInfo nodeInfo;
-  final Map<CharSequence, List<Container>> containers = 
-    new HashMap<CharSequence, List<Container>>();
+  final Map<String, List<Container>> containers = 
+    new HashMap<String, List<Container>>();
   
   public NodeManager(String hostName, String rackName, int memory, 
       RMResourceTrackerImpl resourceTracker) throws IOException {
@@ -72,14 +84,17 @@ public class NodeManager implements ContainerManager {
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
         available, capability);
 
+    RegisterNodeManagerRequest request = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
+    request.setNode(hostName);
+    request.setResource(capability);
     RegistrationResponse response =
-        resourceTracker.registerNodeManager(hostName, capability);
-    this.nodeId = response.nodeID;
+        resourceTracker.registerNodeManager(request).getRegistrationResponse();
+    this.nodeId = response.getNodeId();
     this.nodeInfo = resourceTracker.getNodeManager(nodeId);
    
     // Sanity check
     Assert.assertEquals(memory, 
-       nodeInfo.getAvailableResource().memory);
+       nodeInfo.getAvailableResource().getMemory());
   }
   
   public String getHostName() {
@@ -90,7 +105,7 @@ public class NodeManager implements ContainerManager {
     return rackName;
   }
 
-  public NodeID getNodeId() {
+  public NodeId getNodeId() {
     return nodeId;
   }
 
@@ -108,26 +123,29 @@ public class NodeManager implements ContainerManager {
   
   int responseID = 0;
   
-  public void heartbeat() throws AvroRemoteException {
+  public void heartbeat() throws YarnRemoteException {
     NodeStatus nodeStatus = 
       org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeStatus.createNodeStatus(
           nodeId, containers);
-    nodeStatus.responseId = responseID;
-    HeartbeatResponse response = resourceTracker.nodeHeartbeat(nodeStatus);
-    responseID = response.responseId;
+    nodeStatus.setResponseId(responseID);
+    NodeHeartbeatRequest request = recordFactory.newRecordInstance(NodeHeartbeatRequest.class);
+    request.setNodeStatus(nodeStatus);
+    HeartbeatResponse response = resourceTracker.nodeHeartbeat(request).getHeartbeatResponse();
+    responseID = response.getResponseId();
   }
 
   @Override
-  synchronized public Void cleanupContainer(ContainerID containerID)
-      throws AvroRemoteException {
-    // TODO Auto-generated method stub
-    return null;
+  synchronized public CleanupContainerResponse cleanupContainer(CleanupContainerRequest request) throws YarnRemoteException {
+    ContainerId containerID = request.getContainerId();
+    CleanupContainerResponse response = recordFactory.newRecordInstance(CleanupContainerResponse.class);
+    return response;
   }
 
   @Override
-  synchronized public Void startContainer(ContainerLaunchContext containerLaunchContext)
-      throws AvroRemoteException {
-    String applicationId = String.valueOf(containerLaunchContext.id.appID.id);
+  synchronized public StartContainerResponse startContainer(StartContainerRequest request) throws YarnRemoteException {
+    ContainerLaunchContext containerLaunchContext = request.getContainerLaunchContext();
+    
+    String applicationId = String.valueOf(containerLaunchContext.getContainerId().getAppId().getId());
 
     List<Container> applicationContainers = containers.get(applicationId);
     if (applicationContainers == null) {
@@ -137,23 +155,23 @@ public class NodeManager implements ContainerManager {
     
     // Sanity check
     for (Container container : applicationContainers) {
-      if (container.id.compareTo(containerLaunchContext.id) == 0) {
+      if (container.getId().compareTo(containerLaunchContext.getContainerId()) == 0) {
         throw new IllegalStateException(
-            "Container " + containerLaunchContext.id + 
+            "Container " + containerLaunchContext.getContainerId() + 
             " already setup on node " + hostName);
       }
     }
 
     Container container = 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Container.create(
-          containerLaunchContext.id, 
-          hostName, containerLaunchContext.resource);
+          containerLaunchContext.getContainerId(), 
+          hostName, containerLaunchContext.getResource());
     applicationContainers.add(container);
     
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        available, containerLaunchContext.resource);
+        available, containerLaunchContext.getResource());
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        used, containerLaunchContext.resource);
+        used, containerLaunchContext.getResource());
     
     LOG.info("DEBUG --- startContainer:" +
         " node=" + hostName +
@@ -162,26 +180,28 @@ public class NodeManager implements ContainerManager {
         " available=" + available +
         " used=" + used);
 
-    return null;
+    StartContainerResponse response = recordFactory.newRecordInstance(StartContainerResponse.class);
+    return response;
   }
 
   synchronized public void checkResourceUsage() {
     LOG.info("Checking resource usage for " + hostName);
-    Assert.assertEquals(available.memory, 
-        nodeInfo.getAvailableResource().memory);
-    Assert.assertEquals(used.memory, 
-        nodeInfo.getUsedResource().memory);
+    Assert.assertEquals(available.getMemory(), 
+        nodeInfo.getAvailableResource().getMemory());
+    Assert.assertEquals(used.getMemory(), 
+        nodeInfo.getUsedResource().getMemory());
   }
   
   @Override
-  synchronized public Void stopContainer(ContainerID containerID) throws AvroRemoteException {
-    String applicationId = String.valueOf(containerID.appID.id);
+  synchronized public StopContainerResponse stopContainer(StopContainerRequest request) throws YarnRemoteException {
+    ContainerId containerID = request.getContainerId();
+    String applicationId = String.valueOf(containerID.getAppId().getId());
     
     // Mark the container as COMPLETE
     List<Container> applicationContainers = containers.get(applicationId);
     for (Container c : applicationContainers) {
-      if (c.id.compareTo(containerID) == 0) {
-        c.state = ContainerState.COMPLETE;
+      if (c.getId().compareTo(containerID) == 0) {
+        c.setState(ContainerState.COMPLETE);
       }
     }
     
@@ -193,7 +213,7 @@ public class NodeManager implements ContainerManager {
     Container container = null;
     for (Iterator<Container> i=applicationContainers.iterator(); i.hasNext();) {
       container = i.next();
-      if (container.id.compareTo(containerID) == 0) {
+      if (container.getId().compareTo(containerID) == 0) {
         i.remove();
         ++ctr;
       }
@@ -205,9 +225,9 @@ public class NodeManager implements ContainerManager {
     }
     
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        available, container.resource);
+        available, container.getResource());
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        used, container.resource);
+        used, container.getResource());
 
     LOG.info("DEBUG --- stopContainer:" +
         " node=" + hostName +
@@ -216,13 +236,14 @@ public class NodeManager implements ContainerManager {
         " available=" + available +
         " used=" + used);
 
-    return null;
+    StopContainerResponse response = recordFactory.newRecordInstance(StopContainerResponse.class);
+    return response;
   }
 
   @Override
-  synchronized public ContainerStatus getContainerStatus(ContainerID containerID)
-      throws AvroRemoteException {
-    // TODO Auto-generated method stub
-    return null;
+  synchronized public GetContainerStatusResponse getContainerStatus(GetContainerStatusRequest request) throws YarnRemoteException {
+    ContainerId containerID = request.getContainerId();
+    GetContainerStatusResponse response = recordFactory.newRecordInstance(GetContainerStatusResponse.class);
+    return response;
   }
 }

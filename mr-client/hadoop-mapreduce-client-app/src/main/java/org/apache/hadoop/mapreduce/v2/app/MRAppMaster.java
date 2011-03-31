@@ -37,7 +37,7 @@ import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.client.MRClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -64,13 +64,14 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.yarn.ApplicationID;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
 
@@ -98,7 +99,7 @@ public class MRAppMaster extends CompositeService {
 
   private final Clock clock;
 
-  private ApplicationID appID;
+  private ApplicationId appID;
   private AppContext context;
   private Dispatcher dispatcher;
   private ClientService clientService;
@@ -110,11 +111,11 @@ public class MRAppMaster extends CompositeService {
   private JobTokenSecretManager jobTokenSecretManager =
       new JobTokenSecretManager();
 
-  public MRAppMaster(ApplicationID applicationId) {
+  public MRAppMaster(ApplicationId applicationId) {
     this(applicationId, null);
   }
 
-  public MRAppMaster(ApplicationID applicationId, Clock clock) {
+  public MRAppMaster(ApplicationId applicationId, Clock clock) {
     super(MRAppMaster.class.getName());
     if (clock == null) {
       clock = new Clock();
@@ -259,7 +260,7 @@ public class MRAppMaster extends CompositeService {
     return new MRClientService(context);
   }
 
-  public ApplicationID getAppID() {
+  public ApplicationId getAppID() {
     return appID;
   }
 
@@ -290,20 +291,20 @@ public class MRAppMaster extends CompositeService {
 
   class RunningAppContext implements AppContext {
 
-    private Map<JobID, Job> jobs = new ConcurrentHashMap<JobID, Job>();
+    private Map<JobId, Job> jobs = new ConcurrentHashMap<JobId, Job>();
    
     @Override
-    public ApplicationID getApplicationID() {
+    public ApplicationId getApplicationID() {
       return appID;
     }
 
     @Override
-    public Job getJob(JobID jobID) {
+    public Job getJob(JobId jobID) {
       return jobs.get(jobID);
     }
 
     @Override
-    public Map<JobID, Job> getAllJobs() {
+    public Map<JobId, Job> getAllJobs() {
       return jobs;
     }
 
@@ -414,7 +415,7 @@ public class MRAppMaster extends CompositeService {
   private class TaskEventDispatcher implements EventHandler<TaskEvent> {
     @Override
     public void handle(TaskEvent event) {
-      Task task = context.getJob(event.getTaskID().jobID).getTask(
+      Task task = context.getJob(event.getTaskID().getJobId()).getTask(
           event.getTaskID());
       ((EventHandler<TaskEvent>)task).handle(event);
     }
@@ -424,8 +425,8 @@ public class MRAppMaster extends CompositeService {
           implements EventHandler<TaskAttemptEvent> {
     @Override
     public void handle(TaskAttemptEvent event) {
-      Job job = context.getJob(event.getTaskAttemptID().taskID.jobID);
-      Task task = job.getTask(event.getTaskAttemptID().taskID);
+      Job job = context.getJob(event.getTaskAttemptID().getTaskId().getJobId());
+      Task task = job.getTask(event.getTaskAttemptID().getTaskId());
       TaskAttempt attempt = task.getAttempt(event.getTaskAttemptID());
       ((EventHandler<TaskAttemptEvent>) attempt).handle(event);
     }
@@ -434,9 +435,10 @@ public class MRAppMaster extends CompositeService {
   public static void main(String[] args) {
     try {
       //Configuration.addDefaultResource("job.xml");
-      ApplicationID applicationId = new ApplicationID();
-      applicationId.clusterTimeStamp = Long.valueOf(args[0]);
-      applicationId.id = Integer.valueOf(args[1]);
+      ApplicationId applicationId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+      
+      applicationId.setClusterTimestamp(Long.valueOf(args[0]));
+      applicationId.setId(Integer.valueOf(args[1]));
       MRAppMaster appMaster = new MRAppMaster(applicationId);
       YarnConfiguration conf = new YarnConfiguration(new JobConf());
       conf.addResource(new Path(YARNApplicationConstants.JOB_CONF_FILE));

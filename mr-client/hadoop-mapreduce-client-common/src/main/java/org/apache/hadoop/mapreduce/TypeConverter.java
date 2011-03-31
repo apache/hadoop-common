@@ -23,42 +23,48 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.apache.hadoop.mapred.JobPriority;
+import org.apache.hadoop.mapred.TIPStatus;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.Counter;
-import org.apache.hadoop.mapreduce.v2.api.CounterGroup;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.Phase;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEventStatus;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
-import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.mapreduce.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.Counter;
+import org.apache.hadoop.mapreduce.v2.api.records.CounterGroup;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.Phase;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEventStatus;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class TypeConverter {
 
-  public static org.apache.hadoop.mapred.JobID fromYarn(JobID id) {
-    String identifier = fromClusterTimeStamp(id.appID.clusterTimeStamp);
-    return new org.apache.hadoop.mapred.JobID(identifier, id.id);
+  public static org.apache.hadoop.mapred.JobID fromYarn(JobId id) {
+    String identifier = fromClusterTimeStamp(id.getAppId().getClusterTimestamp());
+    return new org.apache.hadoop.mapred.JobID(identifier, id.getId());
   }
 
   //currently there is 1-1 mapping between appid and jobid
-  public static org.apache.hadoop.mapreduce.JobID fromYarn(ApplicationID appID) {
-    String identifier = fromClusterTimeStamp(appID.clusterTimeStamp);
-    return new org.apache.hadoop.mapred.JobID(identifier, appID.id);
+  public static org.apache.hadoop.mapreduce.JobID fromYarn(ApplicationId appID) {
+    String identifier = fromClusterTimeStamp(appID.getClusterTimestamp());
+    return new org.apache.hadoop.mapred.JobID(identifier, appID.getId());
   }
 
-  public static JobID toYarn(org.apache.hadoop.mapreduce.JobID id) {
-    JobID jobID = new JobID();
-    jobID.id = id.getId(); //currently there is 1-1 mapping between appid and jobid
-    jobID.appID = new ApplicationID();
-    jobID.appID.id = id.getId();
-    jobID.appID.clusterTimeStamp = toClusterTimeStamp(id.getJtIdentifier());
-    return jobID;
+  public static JobId toYarn(org.apache.hadoop.mapreduce.JobID id) {
+    JobId jobId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(JobId.class);
+    jobId.setId(id.getId()); //currently there is 1-1 mapping between appid and jobid
+    
+    ApplicationId appId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+    appId.setId(id.getId());
+    appId.setClusterTimestamp(toClusterTimeStamp(id.getJtIdentifier()));
+    jobId.setAppId(appId);
+    return jobId;
   }
 
   private static String fromClusterTimeStamp(long clusterTimeStamp) {
@@ -93,17 +99,17 @@ public class TypeConverter {
     }
   }
 
-  public static org.apache.hadoop.mapred.TaskID fromYarn(TaskID id) {
-    return new org.apache.hadoop.mapred.TaskID(fromYarn(id.jobID), fromYarn(id.taskType),
-        id.id);
+  public static org.apache.hadoop.mapred.TaskID fromYarn(TaskId id) {
+    return new org.apache.hadoop.mapred.TaskID(fromYarn(id.getJobId()), fromYarn(id.getTaskType()),
+        id.getId());
   }
 
-  public static TaskID toYarn(org.apache.hadoop.mapreduce.TaskID id) {
-    TaskID taskID = new TaskID();
-    taskID.id = id.getId();
-    taskID.taskType = toYarn(id.getTaskType());
-    taskID.jobID = toYarn(id.getJobID());
-    return taskID;
+  public static TaskId toYarn(org.apache.hadoop.mapreduce.TaskID id) {
+    TaskId taskId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class);
+    taskId.setId(id.getId());
+    taskId.setTaskType(toYarn(id.getTaskType()));
+    taskId.setJobId(toYarn(id.getJobID()));
+    return taskId;
   }
 
   public static Phase toYarn(org.apache.hadoop.mapred.TaskStatus.Phase phase) {
@@ -125,11 +131,11 @@ public class TypeConverter {
   }
 
   public static TaskCompletionEvent[] fromYarn(
-      org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent[] newEvents) {
+      TaskAttemptCompletionEvent[] newEvents) {
     TaskCompletionEvent[] oldEvents =
         new TaskCompletionEvent[newEvents.length];
     int i = 0;
-    for (org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent newEvent 
+    for (TaskAttemptCompletionEvent newEvent 
         : newEvents) {
       oldEvents[i++] = fromYarn(newEvent);
     }
@@ -137,12 +143,12 @@ public class TypeConverter {
   }
 
   public static TaskCompletionEvent fromYarn(
-      org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent newEvent) {
-    return new TaskCompletionEvent(newEvent.eventId,
-              fromYarn(newEvent.attemptId), newEvent.attemptId.id,
-              newEvent.attemptId.taskID.taskType.equals(TaskType.MAP),
-              fromYarn(newEvent.status),
-              newEvent.mapOutputServerAddress.toString());
+      TaskAttemptCompletionEvent newEvent) {
+    return new TaskCompletionEvent(newEvent.getEventId(),
+              fromYarn(newEvent.getAttemptId()), newEvent.getAttemptId().getId(),
+              newEvent.getAttemptId().getTaskId().getTaskType().equals(TaskType.MAP),
+              fromYarn(newEvent.getStatus()),
+              newEvent.getMapOutputServerAddress());
   }
 
   public static TaskCompletionEvent.Status fromYarn(
@@ -163,78 +169,78 @@ public class TypeConverter {
   }
 
   public static org.apache.hadoop.mapred.TaskAttemptID fromYarn(
-      TaskAttemptID id) {
-    return new org.apache.hadoop.mapred.TaskAttemptID(fromYarn(id.taskID),
-        id.id);
+      TaskAttemptId id) {
+    return new org.apache.hadoop.mapred.TaskAttemptID(fromYarn(id.getTaskId()),
+        id.getId());
   }
 
-  public static TaskAttemptID toYarn(
+  public static TaskAttemptId toYarn(
       org.apache.hadoop.mapred.TaskAttemptID id) {
-    TaskAttemptID taskAttemptID = new TaskAttemptID();
-    taskAttemptID.taskID = toYarn(id.getTaskID());
-    taskAttemptID.id = id.getId();
-    return taskAttemptID;
+    TaskAttemptId taskAttemptId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskAttemptId.class);
+    taskAttemptId.setTaskId(toYarn(id.getTaskID()));
+    taskAttemptId.setId(id.getId());
+    return taskAttemptId;
   }
 
-  public static TaskAttemptID toYarn(
+  public static TaskAttemptId toYarn(
       org.apache.hadoop.mapreduce.TaskAttemptID id) {
-    TaskAttemptID taskAttemptID = new TaskAttemptID();
-    taskAttemptID.taskID = toYarn(id.getTaskID());
-    taskAttemptID.id = id.getId();
-    return taskAttemptID;
+    TaskAttemptId taskAttemptId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskAttemptId.class);
+    taskAttemptId.setTaskId(toYarn(id.getTaskID()));
+    taskAttemptId.setId(id.getId());
+    return taskAttemptId;
   }
   
   public static org.apache.hadoop.mapreduce.Counters fromYarn(
       Counters yCntrs) {
     org.apache.hadoop.mapreduce.Counters counters = 
       new org.apache.hadoop.mapreduce.Counters();
-    for (CounterGroup yGrp : yCntrs.groups.values()) {
-      for (Counter yCntr : yGrp.counters.values()) {
+    for (CounterGroup yGrp : yCntrs.getAllCounterGroups().values()) {
+      for (Counter yCntr : yGrp.getAllCounters().values()) {
         org.apache.hadoop.mapreduce.Counter c = 
-          counters.findCounter(yGrp.displayname.toString(), 
-              yCntr.displayName.toString());
-        c.setValue(yCntr.value);
+          counters.findCounter(yGrp.getDisplayName(), 
+              yCntr.getDisplayName());
+        c.setValue(yCntr.getValue());
       }
     }
     return counters;
   }
 
   public static Counters toYarn(org.apache.hadoop.mapred.Counters counters) {
-    Counters yCntrs = new Counters();
-    yCntrs.groups = new HashMap<CharSequence, CounterGroup>();
+    Counters yCntrs = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counters.class);
+    yCntrs.addAllCounterGroups(new HashMap<String, CounterGroup>());
     for (org.apache.hadoop.mapred.Counters.Group grp : counters) {
-      CounterGroup yGrp = new CounterGroup();
-      yGrp.name = grp.getName();
-      yGrp.displayname = grp.getDisplayName();
-      yGrp.counters = new HashMap<CharSequence, Counter>();
+      CounterGroup yGrp = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CounterGroup.class);
+      yGrp.setName(grp.getName());
+      yGrp.setDisplayName(grp.getDisplayName());
+      yGrp.addAllCounters(new HashMap<String, Counter>());
       for (org.apache.hadoop.mapred.Counters.Counter cntr : grp) {
-        Counter yCntr = new Counter();
-        yCntr.name = cntr.getName();
-        yCntr.displayName = cntr.getDisplayName();
-        yCntr.value = cntr.getValue();
-        yGrp.counters.put(yCntr.name, yCntr);
+        Counter yCntr = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counter.class);
+        yCntr.setName(cntr.getName());
+        yCntr.setDisplayName(cntr.getDisplayName());
+        yCntr.setValue(cntr.getValue());
+        yGrp.setCounter(yCntr.getName(), yCntr);
       }
-      yCntrs.groups.put(yGrp.name, yGrp);
+      yCntrs.setCounterGroup(yGrp.getName(), yGrp);
     }
     return yCntrs;
   }
 
   public static Counters toYarn(org.apache.hadoop.mapreduce.Counters counters) {
-    Counters yCntrs = new Counters();
-    yCntrs.groups = new HashMap<CharSequence, CounterGroup>();
+    Counters yCntrs = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counters.class);
+    yCntrs.addAllCounterGroups(new HashMap<String, CounterGroup>());
     for (org.apache.hadoop.mapreduce.CounterGroup grp : counters) {
-      CounterGroup yGrp = new CounterGroup();
-      yGrp.name = grp.getName();
-      yGrp.displayname = grp.getDisplayName();
-      yGrp.counters = new HashMap<CharSequence, Counter>();
+      CounterGroup yGrp = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CounterGroup.class);
+      yGrp.setName(grp.getName());
+      yGrp.setDisplayName(grp.getDisplayName());
+      yGrp.addAllCounters(new HashMap<String, Counter>());
       for (org.apache.hadoop.mapreduce.Counter cntr : grp) {
-        Counter yCntr = new Counter();
-        yCntr.name = cntr.getName();
-        yCntr.displayName = cntr.getDisplayName();
-        yCntr.value = cntr.getValue();
-        yGrp.counters.put(yCntr.name, yCntr);
+        Counter yCntr = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counter.class);
+        yCntr.setName(cntr.getName());
+        yCntr.setDisplayName(cntr.getDisplayName());
+        yCntr.setValue(cntr.getValue());
+        yGrp.setCounter(yCntr.getName(), yCntr);
       }
-      yCntrs.groups.put(yGrp.name, yGrp);
+      yCntrs.setCounterGroup(yGrp.getName(), yGrp);
     }
     return yCntrs;
   }
@@ -243,10 +249,10 @@ public class TypeConverter {
       JobReport jobreport, String jobFile, String trackingUrl) {
     String user = null,  jobName = null;
     JobPriority jobPriority = JobPriority.NORMAL;
-    return new org.apache.hadoop.mapred.JobStatus(fromYarn(jobreport.id),
-        jobreport.setupProgress, jobreport.mapProgress,
-        jobreport.reduceProgress, jobreport.cleanupProgress,
-        fromYarn(jobreport.state),
+    return new org.apache.hadoop.mapred.JobStatus(fromYarn(jobreport.getJobId()),
+        jobreport.getSetupProgress(), jobreport.getMapProgress(),
+        jobreport.getReduceProgress(), jobreport.getCleanupProgress(),
+        fromYarn(jobreport.getJobState()),
         jobPriority, user, jobName, jobFile, trackingUrl);
   }
   
@@ -287,38 +293,39 @@ public class TypeConverter {
     throw new YarnException("Unrecognized task state: " + state);
   }
   
-  public static TaskReport fromYarn(org.apache.hadoop.mapreduce.v2.api.TaskReport report) {
+  public static TaskReport fromYarn(org.apache.hadoop.mapreduce.v2.api.records.TaskReport report) {
     String[] diagnostics = null;
-    if (report.diagnostics != null) {
-      diagnostics = new String[report.diagnostics.size()];
+    if (report.getDiagnosticsList() != null) {
+      diagnostics = new String[report.getDiagnosticsCount()];
       int i = 0;
-      for (CharSequence cs : report.diagnostics) {
+      for (String cs : report.getDiagnosticsList()) {
         diagnostics[i++] = cs.toString();
       }
     } else {
       diagnostics = new String[0];
     }
-    TaskReport rep = new TaskReport(fromYarn(report.id), 
-        report.progress, report.state.toString(),
-      diagnostics, fromYarn(report.state), report.startTime, report.finishTime,
-      fromYarn(report.counters));
+    
+    TaskReport rep = new TaskReport(fromYarn(report.getTaskId()), 
+        report.getProgress(), report.getTaskState().toString(),
+      diagnostics, fromYarn(report.getTaskState()), report.getStartTime(), report.getFinishTime(),
+      fromYarn(report.getCounters()));
     List<org.apache.hadoop.mapreduce.TaskAttemptID> runningAtts 
           = new ArrayList<org.apache.hadoop.mapreduce.TaskAttemptID>();
-    for (org.apache.hadoop.mapreduce.v2.api.TaskAttemptID id 
-        : report.runningAttempts) {
+    for (org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId id 
+        : report.getRunningAttemptsList()) {
       runningAtts.add(fromYarn(id));
     }
     rep.setRunningTaskAttemptIds(runningAtts);
-    if (report.successfulAttempt != null) {
-      rep.setSuccessfulAttemptId(fromYarn(report.successfulAttempt));
+    if (report.getSuccessfulAttempt() != null) {
+      rep.setSuccessfulAttemptId(fromYarn(report.getSuccessfulAttempt()));
     }
     return rep;
   }
   
   public static List<TaskReport> fromYarn(
-      List<org.apache.hadoop.mapreduce.v2.api.TaskReport> taskReports) {
+      List<org.apache.hadoop.mapreduce.v2.api.records.TaskReport> taskReports) {
     List<TaskReport> reports = new ArrayList<TaskReport>();
-    for (org.apache.hadoop.mapreduce.v2.api.TaskReport r : taskReports) {
+    for (org.apache.hadoop.mapreduce.v2.api.records.TaskReport r : taskReports) {
       reports.add(fromYarn(r));
     }
     return reports;

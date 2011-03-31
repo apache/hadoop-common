@@ -27,20 +27,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.hs.CompletedJob;
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 
 /*
  * Loads and manages the Job history cache.
  */
 public class JobHistory implements HistoryContext {
 
-  private Map<JobID, Job> completedJobCache =
-    new ConcurrentHashMap<JobID, Job>();
+  private Map<JobId, Job> completedJobCache =
+    new ConcurrentHashMap<JobId, Job>();
   private Configuration conf;
   private final LinkedList<Job> jobQ = new LinkedList<Job>();
   private static final Log LOG = LogFactory.getLog(JobHistory.class);
@@ -51,16 +51,16 @@ public class JobHistory implements HistoryContext {
     this.conf = conf;
   }
   @Override
-  public synchronized Job getJob(JobID jobID) {
-    Job job = completedJobCache.get(jobID);
+  public synchronized Job getJob(JobId jobId) {
+    Job job = completedJobCache.get(jobId);
     if (job == null) {
       try {
-        job = new CompletedJob(conf, jobID);
+        job = new CompletedJob(conf, jobId);
       } catch (IOException e) {
         LOG.warn("HistoryContext getJob failed " + e);
         throw new YarnException(e);
       }
-      completedJobCache.put(jobID, job);
+      completedJobCache.put(jobId, job);
       jobQ.add(job);
       if (jobQ.size() > retiredJobsCacheSize) {
          Job removed = jobQ.remove();
@@ -71,11 +71,11 @@ public class JobHistory implements HistoryContext {
   }
 
   @Override
-  public Map<JobID, Job> getAllJobs(ApplicationID appID) {
+  public Map<JobId, Job> getAllJobs(ApplicationId appID) {
     //currently there is 1 to 1 mapping between app and job id
     org.apache.hadoop.mapreduce.JobID oldJobID = TypeConverter.fromYarn(appID);
-    Map<JobID, Job> jobs = new HashMap<JobID, Job>();
-    JobID jobID = TypeConverter.toYarn(oldJobID);
+    Map<JobId, Job> jobs = new HashMap<JobId, Job>();
+    JobId jobID = TypeConverter.toYarn(oldJobID);
     jobs.put(jobID, getJob(jobID));
     return jobs;
   }

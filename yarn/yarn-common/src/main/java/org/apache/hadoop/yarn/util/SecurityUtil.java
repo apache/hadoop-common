@@ -22,24 +22,21 @@ import java.io.IOException;
 
 import javax.crypto.SecretKey;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DataInputBuffer;
-import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.KerberosName;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
-import org.apache.hadoop.yarn.ApplicationID;
 
 public class SecurityUtil {
 
@@ -48,7 +45,7 @@ public class SecurityUtil {
   // imitation of operations done by client to upload FileSystem
   // DelegationTokens
   public static void uploadFileSystemDelegationTokens(Configuration conf,
-      ApplicationID appId, Path[] resourcePaths, Credentials credentials)
+      ApplicationId appId, Path[] resourcePaths, Credentials credentials)
       throws IOException {
 
     getFileSystemTokens(conf, resourcePaths, credentials);
@@ -56,7 +53,7 @@ public class SecurityUtil {
     FileSystem defaultFS = FileSystem.get(conf);
     // TODO: fix
     credentials.writeTokenStorageFile(
-        new Path("yarn", Integer.toString(appId.id),
+        new Path("yarn", Integer.toString(appId.getId()),
             YarnConfiguration.FS_TOKENS_FILE_NAME).makeQualified(
             FileSystem.getDefaultUri(conf), defaultFS.getWorkingDirectory()),
         conf);
@@ -86,7 +83,7 @@ public class SecurityUtil {
 
   // TODO: ApplicationMaster needs one token for each NodeManager. This should
   // be created by ResourceManager and sent to ApplicationMaster via RPC.
-  public static void loadContainerManagerTokens(ApplicationID appId,
+  public static void loadContainerManagerTokens(ApplicationId appId,
       Configuration conf, String nmServiceAddress) throws IOException {
 
     Path masterKeyFile =

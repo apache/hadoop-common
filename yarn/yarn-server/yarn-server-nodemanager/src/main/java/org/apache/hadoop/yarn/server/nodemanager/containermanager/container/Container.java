@@ -18,13 +18,14 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerStatus;
+
 
 public interface Container extends EventHandler<ContainerEvent> {
 
-  org.apache.hadoop.yarn.ContainerID getContainerID();
+  org.apache.hadoop.yarn.api.records.ContainerId getContainerID();
 
   String getUser();
 
@@ -32,7 +33,7 @@ public interface Container extends EventHandler<ContainerEvent> {
 
   ContainerLaunchContext getLaunchContext();
 
-  org.apache.hadoop.yarn.Container cloneAndGetContainer();
+  org.apache.hadoop.yarn.api.records.Container cloneAndGetContainer();
 
   ContainerStatus cloneAndGetContainerStatus();
 

@@ -18,19 +18,20 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
-import org.apache.hadoop.yarn.ContainerID;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.AbstractEvent;
+
 
 public class ContainerEvent extends AbstractEvent<ContainerEventType> {
 
-  private final ContainerID containerID;
+  private final ContainerId containerID;
 
-  public ContainerEvent(ContainerID cID, ContainerEventType eventType) {
+  public ContainerEvent(ContainerId cID, ContainerEventType eventType) {
     super(eventType);
     this.containerID = cID;
   }
 
-  public ContainerID getContainerID() {
+  public ContainerId getContainerID() {
     return containerID;
   }
 

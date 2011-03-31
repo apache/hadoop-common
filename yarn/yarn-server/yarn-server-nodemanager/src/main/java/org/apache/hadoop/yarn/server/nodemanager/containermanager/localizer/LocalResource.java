@@ -21,12 +21,12 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 import java.net.URISyntaxException;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
-import org.apache.hadoop.yarn.LocalResourceType;
 
 /**
- * A comparable {@link org.apache.hadoop.yarn.LocalResource}.
+ * A comparable {@link org.apache.hadoop.yarn.XLocalResource}.
  * 
  */
 class LocalResource implements Comparable<LocalResource> {
@@ -40,11 +40,11 @@ class LocalResource implements Comparable<LocalResource> {
    * @param resource
    * @throws URISyntaxException
    */
-  public LocalResource(org.apache.hadoop.yarn.LocalResource resource)
+  public LocalResource(org.apache.hadoop.yarn.api.records.LocalResource resource)
       throws URISyntaxException {
-    this.loc = AvroUtil.getPathFromYarnURL(resource.resource);
-    this.timestamp = resource.timestamp;
-    this.type = resource.type;
+    this.loc = ConverterUtils.getPathFromYarnURL(resource.getResource());
+    this.timestamp = resource.getTimestamp();
+    this.type = resource.getType();
   }
 
   @Override

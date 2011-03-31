@@ -21,27 +21,28 @@ package org.apache.hadoop.mapreduce.v2.app.job;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+
 
 /**
  * Main interface to interact with the job. Provides only getters. 
  */
 public interface Job {
 
-  JobID getID();
-  CharSequence getName();
+  JobId getID();
+  String getName();
   JobState getState();
   JobReport getReport();
   Counters getCounters();
-  Map<TaskID,Task> getTasks();
-  Map<TaskID,Task> getTasks(TaskType taskType);
-  Task getTask(TaskID taskID);
+  Map<TaskId,Task> getTasks();
+  Map<TaskId,Task> getTasks(TaskType taskType);
+  Task getTask(TaskId taskID);
   List<String> getDiagnostics();
   int getTotalMaps();
   int getTotalReduces();

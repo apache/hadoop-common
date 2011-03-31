@@ -36,8 +36,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -67,8 +67,8 @@ public class JobHistoryEventHandler extends AbstractService
   private static final Log LOG = LogFactory.getLog(
       JobHistoryEventHandler.class);
 
-  private static final Map<JobID, MetaInfo> fileMap =
-    Collections.<JobID,MetaInfo>synchronizedMap(new HashMap<JobID,MetaInfo>());
+  private static final Map<JobId, MetaInfo> fileMap =
+    Collections.<JobId,MetaInfo>synchronizedMap(new HashMap<JobId,MetaInfo>());
 
   static final FsPermission HISTORY_DIR_PERMISSION =
     FsPermission.createImmutable((short) 0750); // rwxr-x---
@@ -159,7 +159,7 @@ public class JobHistoryEventHandler extends AbstractService
    * @param jobId
    * @throws IOException
    */
-  protected void setupEventWriter(JobID jobId)
+  protected void setupEventWriter(JobId jobId)
   throws IOException {
     if (logDirPath == null) {
       throw new IOException("Missing Log Directory for History");
@@ -195,7 +195,7 @@ public class JobHistoryEventHandler extends AbstractService
 
   /** Close the event writer for this id 
    * @throws IOException */
-  public void closeWriter(JobID id) throws IOException {
+  public void closeWriter(JobId id) throws IOException {
     try {
       final MetaInfo mi = fileMap.get(id);
       if (mi != null) {
@@ -254,7 +254,7 @@ public class JobHistoryEventHandler extends AbstractService
     }
   }
 
-  protected void closeEventWriter(JobID jobId) throws IOException {
+  protected void closeEventWriter(JobId jobId) throws IOException {
     final MetaInfo mi = fileMap.get(jobId);
     try {
       Path logFile = mi.getHistoryFile();
@@ -318,7 +318,7 @@ public class JobHistoryEventHandler extends AbstractService
   /**
    * Get the job history file path
    */
-  public static Path getJobHistoryFile(Path dir, JobID jobId) {
+  public static Path getJobHistoryFile(Path dir, JobId jobId) {
     return new Path(dir, TypeConverter.fromYarn(jobId).toString());
   }
 

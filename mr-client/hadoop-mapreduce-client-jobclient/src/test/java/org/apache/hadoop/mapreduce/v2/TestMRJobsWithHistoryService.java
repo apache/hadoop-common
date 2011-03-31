@@ -20,45 +20,20 @@ package org.apache.hadoop.mapreduce.v2;
 
 import java.io.File;
 import java.io.IOException;
-import java.security.PrivilegedExceptionAction;
-import org.apache.avro.ipc.AvroRemoteException;
 
 import junit.framework.Assert;
 
+import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.FailingMapper;
-import org.apache.hadoop.RandomTextWriterJob;
 import org.apache.hadoop.SleepJob;
-import org.apache.hadoop.RandomTextWriterJob.RandomInputFormat;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.YARNRunner;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.JobStatus;
-import org.apache.hadoop.mapreduce.MRJobConfig;
-import org.apache.hadoop.mapreduce.TaskAttemptID;
-import org.apache.hadoop.mapreduce.TaskCompletionEvent;
-import org.apache.hadoop.mapreduce.TaskID;
-import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.server.YarnServerConfig;
-import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
-import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestMRJobsWithHistoryService {
@@ -98,7 +73,7 @@ public class TestMRJobsWithHistoryService {
     job.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
     job.waitForCompletion(true);
     Counters counterMR = job.getCounters();
-    ApplicationID appID = TypeConverter.toYarn(job.getJobID()).appID;
+    ApplicationId appID = TypeConverter.toYarn(job.getJobID()).getAppId();
     while (true) {
       Thread.sleep(1000);
       if (mrCluster.getResourceManager().getApplicationsManager()

@@ -61,12 +61,12 @@ class AppsList implements ToJSON {
       String ui = master == null ? "UNASSIGNED"
                                  : join(master, ':', app.httpPort());
       out.append("[\"");
-      appendSortable(out, app.id().id);
+      appendSortable(out, app.id().getId());
       appendLink(out, appID, rc.prefix(), "app", appID).append(_SEP).
           append(escapeHtml(app.user().toString())).append(_SEP).
           append(escapeHtml(app.name().toString())).append(_SEP).
           append(app.state().toString()).append(_SEP);
-      appendProgressBar(out, app.status().progress).append(_SEP);
+      appendProgressBar(out, app.status().getProgress()).append(_SEP);
       appendLink(out, ui, rc.prefix(), master == null ? "#" : "http://", ui).
           append("\"]");
     }

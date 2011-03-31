@@ -24,18 +24,18 @@ import java.util.Iterator;
 import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEventStatus;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobTaskAttemptFetchFailureEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEventStatus;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
 import org.junit.Test;
 
 public class TestFetchFailure {
@@ -71,7 +71,7 @@ public class TestFetchFailure {
     Assert.assertEquals("No of completion events not correct",
         1, events.length);
     Assert.assertEquals("Event status not correct",
-        TaskAttemptCompletionEventStatus.SUCCEEDED, events[0].status);
+        TaskAttemptCompletionEventStatus.SUCCEEDED, events[0].getStatus());
     
     // wait for reduce to start running
     app.waitForState(reduceTask, TaskState.RUNNING);
@@ -116,27 +116,27 @@ public class TestFetchFailure {
     
     //previous completion event now becomes obsolete
     Assert.assertEquals("Event status not correct",
-        TaskAttemptCompletionEventStatus.OBSOLETE, events[0].status);
+        TaskAttemptCompletionEventStatus.OBSOLETE, events[0].getStatus());
     
     events = job.getTaskAttemptCompletionEvents(0, 100);
     Assert.assertEquals("No of completion events not correct",
         4, events.length);
     Assert.assertEquals("Event map attempt id not correct",
-        mapAttempt1.getID(), events[0].attemptId);
+        mapAttempt1.getID(), events[0].getAttemptId());
     Assert.assertEquals("Event map attempt id not correct",
-        mapAttempt1.getID(), events[1].attemptId);
+        mapAttempt1.getID(), events[1].getAttemptId());
     Assert.assertEquals("Event map attempt id not correct",
-        mapAttempt2.getID(), events[2].attemptId);
+        mapAttempt2.getID(), events[2].getAttemptId());
     Assert.assertEquals("Event redude attempt id not correct",
-        reduceAttempt.getID(), events[3].attemptId);
+        reduceAttempt.getID(), events[3].getAttemptId());
     Assert.assertEquals("Event status not correct for map attempt1",
-        TaskAttemptCompletionEventStatus.OBSOLETE, events[0].status);
+        TaskAttemptCompletionEventStatus.OBSOLETE, events[0].getStatus());
     Assert.assertEquals("Event status not correct for map attempt1",
-        TaskAttemptCompletionEventStatus.FAILED, events[1].status);
+        TaskAttemptCompletionEventStatus.FAILED, events[1].getStatus());
     Assert.assertEquals("Event status not correct for map attempt2",
-        TaskAttemptCompletionEventStatus.SUCCEEDED, events[2].status);
+        TaskAttemptCompletionEventStatus.SUCCEEDED, events[2].getStatus());
     Assert.assertEquals("Event status not correct for reduce attempt1",
-        TaskAttemptCompletionEventStatus.SUCCEEDED, events[3].status);
+        TaskAttemptCompletionEventStatus.SUCCEEDED, events[3].getStatus());
   }
 
   private void sendFetchFailure(MRApp app, TaskAttempt reduceAttempt, 
@@ -144,6 +144,6 @@ public class TestFetchFailure {
     app.getContext().getEventHandler().handle(
         new JobTaskAttemptFetchFailureEvent(
             reduceAttempt.getID(), 
-            Arrays.asList(new TaskAttemptID[] {mapAttempt.getID()})));
+            Arrays.asList(new TaskAttemptId[] {mapAttempt.getID()})));
   }
 }

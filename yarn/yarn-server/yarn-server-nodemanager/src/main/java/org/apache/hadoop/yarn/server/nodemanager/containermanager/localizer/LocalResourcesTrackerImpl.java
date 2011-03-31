@@ -34,7 +34,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+
 
 class LocalResourcesTrackerImpl implements LocalResourcesTracker {
 
@@ -67,13 +68,13 @@ class LocalResourcesTrackerImpl implements LocalResourcesTracker {
 
   // TODO replace w/ queue over RPC
   /** @return Resources not present in this bundle */
-  public Collection<org.apache.hadoop.yarn.LocalResource> register(
+  public Collection<org.apache.hadoop.yarn.api.records.LocalResource> register(
       AppLocalizationRunnerImpl app,
-      Collection<org.apache.hadoop.yarn.LocalResource> rsrcs)
+      Collection<org.apache.hadoop.yarn.api.records.LocalResource> rsrcs)
       throws URISyntaxException {
-    ArrayList<org.apache.hadoop.yarn.LocalResource> ret =
-      new ArrayList<org.apache.hadoop.yarn.LocalResource>(rsrcs.size());
-    for (final org.apache.hadoop.yarn.LocalResource yrsrc : rsrcs) {
+    ArrayList<org.apache.hadoop.yarn.api.records.LocalResource> ret =
+      new ArrayList<org.apache.hadoop.yarn.api.records.LocalResource>(rsrcs.size());
+    for (final org.apache.hadoop.yarn.api.records.LocalResource yrsrc : rsrcs) {
       final LocalizedResource cand =
         new LocalizedResource(new Callable<Map<LocalResource,Path>>() {
               @Override

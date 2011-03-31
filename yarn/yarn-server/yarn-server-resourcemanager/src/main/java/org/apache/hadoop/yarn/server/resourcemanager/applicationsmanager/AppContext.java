@@ -18,12 +18,12 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Resource;
 
 /** 
  * The context of an application. 
@@ -33,7 +33,7 @@ public interface AppContext {
   
   /**
    * the application submission context for this application.
-   * @return the {@link ApplicationSubmissionContext} for the submitted
+   * @return the {@link XApplicationSubmissionContext} for the submitted
    * application.
    */
   public ApplicationSubmissionContext getSubmissionContext();
@@ -48,17 +48,17 @@ public interface AppContext {
    * get the application ID for this application
    * @return the application id for this application
    */
-  public ApplicationID getApplicationID(); 
+  public ApplicationId getApplicationID(); 
   
   /**
    * get the status of the application
-   * @return the {@link ApplicationStatus} of this application
+   * @return the {@link XApplicationStatus} of this application
    */
   public ApplicationStatus getStatus();
   
   /**
    * the application master for this application.
-   * @return the {@link ApplicationMaster} for this application
+   * @return the {@link XApplicationMaster} for this application
    */
   public ApplicationMaster getMaster();
   

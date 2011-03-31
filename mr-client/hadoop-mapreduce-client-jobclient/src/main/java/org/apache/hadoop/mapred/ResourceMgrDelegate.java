@@ -21,7 +21,6 @@ package org.apache.hadoop.mapred;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -42,16 +41,26 @@ import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIden
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.yarn.api.ClientRMProtocol;
+import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.ClientRMProtocol;
-import org.apache.hadoop.yarn.YarnClusterMetrics;
+
 
 // TODO: This should be part of something like yarn-client.
 public class ResourceMgrDelegate {
@@ -59,7 +68,8 @@ public class ResourceMgrDelegate {
       
   private Configuration conf;
   ClientRMProtocol applicationsManager;
-  private ApplicationID applicationId;
+  private ApplicationId applicationId;
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   public ResourceMgrDelegate(Configuration conf) throws UnsupportedFileSystemException {
     this.conf = conf;
@@ -110,10 +120,12 @@ public class ResourceMgrDelegate {
 
   public ClusterMetrics getClusterMetrics() throws IOException,
       InterruptedException {
-    YarnClusterMetrics metrics = applicationsManager.getClusterMetrics();
+    GetClusterMetricsRequest request = recordFactory.newRecordInstance(GetClusterMetricsRequest.class);
+    GetClusterMetricsResponse response = applicationsManager.getClusterMetrics(request);
+    YarnClusterMetrics metrics = response.getClusterMetrics();
     ClusterMetrics oldMetrics = new ClusterMetrics(1, 1, 1, 1, 1, 1, 
-        metrics.numNodeManagers * 10, metrics.numNodeManagers * 2, 1,
-        metrics.numNodeManagers, 0, 0);
+        metrics.getNumNodeManagers() * 10, metrics.getNumNodeManagers() * 2, 1,
+        metrics.getNumNodeManagers(), 0, 0);
     return oldMetrics;
   }
 
@@ -129,7 +141,8 @@ public class ResourceMgrDelegate {
   }
 
   public JobID getNewJobID() throws IOException, InterruptedException {
-    applicationId = applicationsManager.getNewApplicationId();
+    GetNewApplicationIdRequest request = recordFactory.newRecordInstance(GetNewApplicationIdRequest.class);
+    applicationId = applicationsManager.getNewApplicationId(request).getApplicationId();
     return TypeConverter.fromYarn(applicationId);
   }
 
@@ -193,23 +206,27 @@ public class ResourceMgrDelegate {
   }
   
   
-  public ApplicationID submitApplication(ApplicationSubmissionContext appContext) 
+  public ApplicationId submitApplication(ApplicationSubmissionContext appContext) 
   throws IOException {
-    appContext.applicationId = applicationId;
-    applicationsManager.submitApplication(appContext);
+    appContext.setApplicationId(applicationId);
+    SubmitApplicationRequest request = recordFactory.newRecordInstance(SubmitApplicationRequest.class);
+    request.setApplicationSubmissionContext(appContext);
+    applicationsManager.submitApplication(request);
     LOG.info("Submitted application " + applicationId + " to ResourceManager");
     return applicationId;
   }
 
-  public ApplicationMaster getApplicationMaster(ApplicationID appId) 
-    throws AvroRemoteException {
-    ApplicationMaster appMaster = 
-      applicationsManager.getApplicationMaster(appId);
-    while (appMaster.state != ApplicationState.RUNNING &&
-        appMaster.state != ApplicationState.KILLED && 
-        appMaster.state != ApplicationState.FAILED && 
-        appMaster.state != ApplicationState.COMPLETED) {
-      appMaster = applicationsManager.getApplicationMaster(appId);
+  public ApplicationMaster getApplicationMaster(ApplicationId appId) 
+    throws YarnRemoteException {
+    GetApplicationMasterRequest request = recordFactory.newRecordInstance(GetApplicationMasterRequest.class);
+    request.setApplicationId(appId);
+    GetApplicationMasterResponse response = applicationsManager.getApplicationMaster(request);
+    ApplicationMaster appMaster = response.getApplicationMaster(); 
+    while (appMaster.getState() != ApplicationState.RUNNING &&
+        appMaster.getState() != ApplicationState.KILLED && 
+        appMaster.getState() != ApplicationState.FAILED && 
+        appMaster.getState() != ApplicationState.COMPLETED) {
+      appMaster = applicationsManager.getApplicationMaster(request).getApplicationMaster();
       try {
         LOG.info("Waiting for appMaster to start..");
         Thread.sleep(2000);
@@ -220,7 +237,7 @@ public class ResourceMgrDelegate {
     return appMaster;
   }
 
-  public ApplicationID getApplicationId() {
+  public ApplicationId getApplicationId() {
     return applicationId;
   }
 }

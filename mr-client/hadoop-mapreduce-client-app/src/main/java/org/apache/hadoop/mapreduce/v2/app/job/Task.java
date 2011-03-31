@@ -20,25 +20,25 @@ package org.apache.hadoop.mapreduce.v2.app.job;
 
 import java.util.Map;
 
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 
 /**
  * Read only view of Task.
  */
 public interface Task {
-  TaskID getID();
+  TaskId getID();
   TaskReport getReport();
   TaskState getState();
   Counters getCounters();
   float getProgress();
   TaskType getType();
-  Map<TaskAttemptID, TaskAttempt> getAttempts();
-  TaskAttempt getAttempt(TaskAttemptID attemptID);
+  Map<TaskAttemptId, TaskAttempt> getAttempts();
+  TaskAttempt getAttempt(TaskAttemptId attemptID);
 
   /** Has Task reached the final state or not.
    */
@@ -52,7 +52,7 @@ public interface Task {
    * @param taskAttemptID
    * @return whether the attempt's output can be committed or not.
    */
-  boolean canCommit(TaskAttemptID taskAttemptID);
+  boolean canCommit(TaskAttemptId taskAttemptID);
 
   
 }

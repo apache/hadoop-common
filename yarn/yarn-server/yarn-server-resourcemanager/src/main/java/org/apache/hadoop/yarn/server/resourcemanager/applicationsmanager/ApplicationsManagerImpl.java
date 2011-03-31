@@ -29,12 +29,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.Application;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.event.Event;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
@@ -134,18 +133,18 @@ public class ApplicationsManagerImpl extends CompositeService
   }
 
   @Override
-  public synchronized ApplicationMaster getApplicationMaster(ApplicationID applicationId) {
+  public synchronized ApplicationMaster getApplicationMaster(ApplicationId applicationId) {
     ApplicationMaster appMaster =
       amTracker.get(applicationId).getMaster();
     return appMaster;
   }
   
   @Override
-  public ApplicationID getNewApplicationID() {
-    ApplicationID applicationId =
+  public ApplicationId getNewApplicationID() {
+    ApplicationId applicationId =
       org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.create(
           ResourceManager.clusterTimeStamp, applicationCounter.incrementAndGet());
-    LOG.info("Allocated new applicationId: " + applicationId.id);
+    LOG.info("Allocated new applicationId: " + applicationId.getId());
     return applicationId;
   }
 
@@ -153,7 +152,7 @@ public class ApplicationsManagerImpl extends CompositeService
   public synchronized void submitApplication(ApplicationSubmissionContext context)
   throws IOException {
     String user;
-    ApplicationID applicationId = context.applicationId;
+    ApplicationId applicationId = context.getApplicationId();
     String clientTokenStr = null;
     try {
       user = UserGroupInformation.getCurrentUser().getShortUserName();
@@ -170,27 +169,24 @@ public class ApplicationsManagerImpl extends CompositeService
       throw e;
     } 
 
-    context.queue =
-        (context.queue == null ? "default" : context.queue.toString());
-    context.applicationName =
-        (context.applicationName == null ? "N/A" : context.applicationName);
+    context.setQueue(context.getQueue() == null ? "default" : context.getQueue());
+    context.setApplicationName(context.getApplicationName() == null ? "N/A" : context.getApplicationName());
 
     amTracker.addMaster(user, context, clientTokenStr);
     // TODO this should happen via dispatcher. should move it out to scheudler
     // negotiator.
-    /* schedule */    
-    LOG.info("Application with id " + applicationId.id + " submitted by user " + 
+    LOG.info("Application with id " + applicationId.getId() + " submitted by user " + 
         user + " with " + context);
   }
 
   @Override
   public synchronized void finishApplicationMaster(ApplicationMaster applicationMaster)
   throws IOException {
-    amTracker.finish(applicationMaster.applicationId);
+    amTracker.finish(applicationMaster.getApplicationId());
   }
 
   @Override
-  public synchronized void finishApplication(ApplicationID applicationId) 
+  public synchronized void finishApplication(ApplicationId applicationId) 
   throws IOException {
     /* remove the applicaiton from the scheduler  for now. Later scheduler should
      * be a event handler of adding and cleaning up appications*/
@@ -214,7 +210,7 @@ public class ApplicationsManagerImpl extends CompositeService
     return amTracker.getAllApplications();
   }
 
-  public synchronized ApplicationMasterInfo getApplicationMasterInfo(ApplicationID
+  public synchronized ApplicationMasterInfo getApplicationMasterInfo(ApplicationId
       applicationId) {
     return amTracker.get(applicationId);
   }
@@ -232,16 +228,16 @@ public class ApplicationsManagerImpl extends CompositeService
       this.name = name;
     }
 
-    @Override public ApplicationID id() { return am.applicationId; }
-    @Override public CharSequence user() { return user; }
-    @Override public CharSequence name() { return name; }
-    @Override public CharSequence queue() { return queue; }
-    @Override public ApplicationStatus status() { return am.status; }
-    @Override public CharSequence master() { return am.host; }
-    @Override public int httpPort() { return am.httpPort; }
-    @Override public ApplicationState state() { return am.state; }
+    @Override public ApplicationId id() { return am.getApplicationId(); }
+    @Override public String user() { return user; }
+    @Override public String name() { return name; }
+    @Override public String queue() { return queue; }
+    @Override public ApplicationStatus status() { return am.getStatus(); }
+    @Override public String master() { return am.getHost(); }
+    @Override public int httpPort() { return am.getHttpPort(); }
+    @Override public ApplicationState state() { return am.getState(); }
     @Override public boolean isFinished() {
-      switch (am.state) {
+      switch (am.getState()) {
         case COMPLETED:
         case FAILED:
         case KILLED: return true;
@@ -261,7 +257,7 @@ public class ApplicationsManagerImpl extends CompositeService
   }
 
   @Override
-  public Application getApplication(ApplicationID appID) {
+  public Application getApplication(ApplicationId appID) {
     ApplicationMasterInfo master = amTracker.get(appID);
     return (master == null) ? null : 
       new AppImpl(master.getMaster(), 

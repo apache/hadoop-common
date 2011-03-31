@@ -31,9 +31,9 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -368,7 +368,7 @@ public class ParentQueue implements Queue {
       // Careful! Locking order is important!
       // Book keeping
       synchronized (this) {
-        releaseResource(clusterResource, container.resource);
+        releaseResource(clusterResource, container.getResource());
 
         LOG.info("completedContainer" +
             " queue=" + getQueueName() + 
@@ -401,8 +401,8 @@ public class ParentQueue implements Queue {
   }
 
   private synchronized void update(Resource clusterResource) {
-    setUtilization(usedResources.memory / (clusterResource.memory * absoluteCapacity));
-    setUsedCapacity(usedResources.memory / (clusterResource.memory * capacity));
+    setUtilization(usedResources.getMemory() / (clusterResource.getMemory() * absoluteCapacity));
+    setUsedCapacity(usedResources.getMemory() / (clusterResource.getMemory() * capacity));
   }
   
 }

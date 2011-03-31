@@ -19,7 +19,6 @@
 package org.apache.hadoop.mapred;
 
 import java.util.Collection;
-import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -27,19 +26,19 @@ import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.OutputCommitter;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.impl.TaskAttemptImpl;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
 
 
 public class ReduceTaskAttemptImpl extends TaskAttemptImpl {
 
   private final int numMapTasks;
 
-  public ReduceTaskAttemptImpl(TaskID id, int attempt,
+  public ReduceTaskAttemptImpl(TaskId id, int attempt,
       EventHandler eventHandler, Path jobFile, int partition,
       int numMapTasks, Configuration conf,
       TaskAttemptListener taskAttemptListener, OutputCommitter committer,

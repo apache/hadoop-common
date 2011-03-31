@@ -22,6 +22,8 @@ import com.google.inject.Inject;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.util.StringUtils;
@@ -29,8 +31,6 @@ import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
 import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
 
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
 
 import static org.apache.hadoop.mapreduce.v2.app.webapp.AMWebApp.*;
 import static org.apache.hadoop.yarn.util.StringHelper.*;
@@ -73,12 +73,12 @@ public class TasksBlock extends HtmlBlock {
       }
       String tid = MRApps.toString(task.getID());
       TaskReport report = task.getReport();
-      String pct = percent(report.progress);
-      long elapsed = Times.elapsed(report.startTime, report.finishTime);
+      String pct = percent(report.getProgress());
+      long elapsed = Times.elapsed(report.getStartTime(), report.getFinishTime());
       tbody.
         tr().
           td().
-            br().$title(String.valueOf(task.getID().id))._(). // sorting
+            br().$title(String.valueOf(task.getID().getId()))._(). // sorting
             a(url("task", tid), tid)._().
           td().
             br().$title(pct)._().
@@ -86,13 +86,13 @@ public class TasksBlock extends HtmlBlock {
               $title(join(pct, '%')). // tooltip
               div(_PROGRESSBAR_VALUE).
                 $style(join("width:", pct, '%'))._()._()._().
-          td(report.state.toString()).
+          td(report.getTaskState().toString()).
           td().
-            br().$title(String.valueOf(report.startTime))._().
-            _(dateFormat.format(new Date(report.startTime)))._().
+            br().$title(String.valueOf(report.getStartTime()))._().
+            _(dateFormat.format(new Date(report.getStartTime())))._().
           td().
-            br().$title(String.valueOf(report.finishTime))._().
-            _(dateFormat.format(new Date(report.finishTime)))._().
+            br().$title(String.valueOf(report.getFinishTime()))._().
+            _(dateFormat.format(new Date(report.getFinishTime())))._().
           td().
             br().$title(String.valueOf(elapsed))._().
             _(StringUtils.formatTime(elapsed))._()._();

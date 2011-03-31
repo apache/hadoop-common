@@ -20,27 +20,28 @@ package org.apache.hadoop.mapreduce.v2.app.job.event;
 
 import java.util.List;
 
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+
 
 
 public class JobTaskAttemptFetchFailureEvent extends JobEvent {
 
-  private final TaskAttemptID reduce;
-  private final List<TaskAttemptID> maps;
+  private final TaskAttemptId reduce;
+  private final List<TaskAttemptId> maps;
 
-  public JobTaskAttemptFetchFailureEvent(TaskAttemptID reduce, 
-      List<TaskAttemptID> maps) {
-    super(reduce.taskID.jobID, 
+  public JobTaskAttemptFetchFailureEvent(TaskAttemptId reduce, 
+      List<TaskAttemptId> maps) {
+    super(reduce.getTaskId().getJobId(), 
         JobEventType.JOB_TASK_ATTEMPT_FETCH_FAILURE);
     this.reduce = reduce;
     this.maps = maps;
   }
 
-  public List<TaskAttemptID> getMaps() {
+  public List<TaskAttemptId> getMaps() {
     return maps;
   }
 
-  public TaskAttemptID getReduce() {
+  public TaskAttemptId getReduce() {
     return reduce;
   }
 

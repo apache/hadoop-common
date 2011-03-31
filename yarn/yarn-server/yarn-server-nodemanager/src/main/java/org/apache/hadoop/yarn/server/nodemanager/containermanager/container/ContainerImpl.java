@@ -23,10 +23,12 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerStatus;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationContainerFinishedEvent;
@@ -40,7 +42,7 @@ import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class ContainerImpl implements Container {
 
@@ -49,6 +51,7 @@ public class ContainerImpl implements Container {
   private int exitCode;
 
   private static final Log LOG = LogFactory.getLog(Container.class);
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   public ContainerImpl(Dispatcher dispatcher,
       ContainerLaunchContext launchContext) {
@@ -147,33 +150,33 @@ public class ContainerImpl implements Container {
   private final StateMachine<ContainerState, ContainerEventType, ContainerEvent>
     stateMachine;
 
-  private synchronized org.apache.hadoop.yarn.ContainerState getCurrentState() {
+  private synchronized org.apache.hadoop.yarn.api.records.ContainerState getCurrentState() {
     switch (stateMachine.getCurrentState()) {
     case NEW:
     case LOCALIZING:
     case LOCALIZED:
-      return org.apache.hadoop.yarn.ContainerState.INTIALIZING;
+      return org.apache.hadoop.yarn.api.records.ContainerState.INITIALIZING;
     case RUNNING:
     case EXITED_WITH_SUCCESS:
     case EXITED_WITH_FAILURE:
     case KILLING:
     case CONTAINER_CLEANEDUP_AFTER_KILL:
     case CONTAINER_RESOURCES_CLEANINGUP:
-      return org.apache.hadoop.yarn.ContainerState.RUNNING;
+      return org.apache.hadoop.yarn.api.records.ContainerState.RUNNING;
     case DONE:
     default:
-      return org.apache.hadoop.yarn.ContainerState.COMPLETE;
+      return org.apache.hadoop.yarn.api.records.ContainerState.COMPLETE;
     }
   }
 
   @Override
-  public ContainerID getContainerID() {
-    return this.launchContext.id;
+  public ContainerId getContainerID() {
+    return this.launchContext.getContainerId();
   }
 
   @Override
   public String getUser() {
-    return this.launchContext.user.toString();
+    return this.launchContext.getUser();
   }
 
   @Override
@@ -182,11 +185,11 @@ public class ContainerImpl implements Container {
   }
 
   @Override
-  public synchronized org.apache.hadoop.yarn.Container cloneAndGetContainer() {
-    org.apache.hadoop.yarn.Container c = new org.apache.hadoop.yarn.Container();
-    c.id = this.launchContext.id;
-    c.resource = this.launchContext.resource;
-    c.state = getCurrentState();
+  public synchronized org.apache.hadoop.yarn.api.records.Container cloneAndGetContainer() {
+    org.apache.hadoop.yarn.api.records.Container c = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
+    c.setId(this.launchContext.getContainerId());
+    c.setResource(this.launchContext.getResource());
+    c.setState(getCurrentState());
     return c;
   }
 
@@ -197,10 +200,10 @@ public class ContainerImpl implements Container {
 
   @Override
   public ContainerStatus cloneAndGetContainerStatus() {
-    ContainerStatus containerStatus = new ContainerStatus();
-    containerStatus.state = getCurrentState();
-    containerStatus.containerID = this.launchContext.id;
-    containerStatus.exitStatus = exitCode;
+    ContainerStatus containerStatus = recordFactory.newRecordInstance(ContainerStatus.class);
+    containerStatus.setState(getCurrentState());
+    containerStatus.setContainerId(this.launchContext.getContainerId());
+	containerStatus.setExitStatus(exitCode);
     return containerStatus;
   }
 
@@ -220,13 +223,13 @@ public class ContainerImpl implements Container {
       // XXX This needs to be container-oriented
       // Inform the AuxServices about the opaque serviceData
       ContainerLaunchContext ctxt = container.getLaunchContext();
-      Map<CharSequence,ByteBuffer> csd = ctxt.serviceData;
+      Map<String,ByteBuffer> csd = ctxt.getAllServiceData();
       if (csd != null) {
         // TODO: Isn't this supposed to happen only once per Application?
-        for (Map.Entry<CharSequence,ByteBuffer> service : csd.entrySet()) {
+        for (Map.Entry<String,ByteBuffer> service : csd.entrySet()) {
           container.dispatcher.getEventHandler().handle(
               new AuxServicesEvent(AuxServicesEventType.APPLICATION_INIT,
-                ctxt.user.toString(), ctxt.id.appID,
+                ctxt.getUser(), ctxt.getContainerId().getAppId(),
                 service.getKey().toString(), service.getValue()));
         }
       }
@@ -329,7 +332,7 @@ public class ContainerImpl implements Container {
   @Override
   public synchronized void handle(ContainerEvent event) {
 
-    ContainerID containerID = event.getContainerID();
+    ContainerId containerID = event.getContainerID();
     LOG.info("Processing " + containerID + " of type " + event.getType());
 
     ContainerState oldState = stateMachine.getCurrentState();
@@ -348,6 +351,6 @@ public class ContainerImpl implements Container {
 
   @Override
   public String toString() {
-    return AvroUtil.toString(launchContext.id);
+    return ConverterUtils.toString(launchContext.getContainerId());
   }
 }

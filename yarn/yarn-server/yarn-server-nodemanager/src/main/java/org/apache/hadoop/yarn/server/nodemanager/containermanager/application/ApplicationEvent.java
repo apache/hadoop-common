@@ -18,21 +18,21 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.event.AbstractEvent;
 import org.apache.hadoop.yarn.event.Event;
-import org.apache.hadoop.yarn.ApplicationID;
 
 public class ApplicationEvent extends AbstractEvent<ApplicationEventType> {
 
-  private final ApplicationID applicationID;
+  private final ApplicationId applicationID;
 
-  public ApplicationEvent(ApplicationID appID,
+  public ApplicationEvent(ApplicationId appID,
       ApplicationEventType appEventType) {
     super(appEventType);
     this.applicationID = appID;
   }
 
-  public ApplicationID getApplicationID() {
+  public ApplicationId getApplicationID() {
     return this.applicationID;
   }
 

@@ -19,7 +19,7 @@
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
 import org.apache.hadoop.net.Node;
-import org.apache.hadoop.yarn.NodeID;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 
 /**
  * Node managers information on available resources 
@@ -31,7 +31,7 @@ public interface NodeInfo {
    * the node id of of this node.
    * @return the node id of this node.
    */
-  public NodeID getNodeID();
+  public NodeId getNodeID();
   /**
    * the hostname for this node.
    * @return the hostname for this node.
@@ -41,7 +41,7 @@ public interface NodeInfo {
    * the total available resource.
    * @return the total available resource.
    */
-  public org.apache.hadoop.yarn.Resource getTotalCapability();
+  public org.apache.hadoop.yarn.api.records.Resource getTotalCapability();
   /**
    * The rack name for this node manager.
    * @return the rack name.
@@ -56,12 +56,12 @@ public interface NodeInfo {
    * the available resource for this node.
    * @return the available resource this node.
    */
-  public org.apache.hadoop.yarn.Resource getAvailableResource();
+  public org.apache.hadoop.yarn.api.records.Resource getAvailableResource();
   /**
    * used resource on this node.
    * @return the used resource on this node.
    */
-  public org.apache.hadoop.yarn.Resource getUsedResource();
+  public org.apache.hadoop.yarn.api.records.Resource getUsedResource();
   /**
    * The current number of containers for this node
    * @return the number of containers

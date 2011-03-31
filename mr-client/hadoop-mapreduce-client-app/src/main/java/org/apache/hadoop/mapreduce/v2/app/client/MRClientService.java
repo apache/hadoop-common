@@ -21,28 +21,42 @@ package org.apache.hadoop.mapreduce.v2.app.client;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.ipc.Server;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetCountersRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetCountersResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetDiagnosticsRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetDiagnosticsResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetJobReportRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetJobReportResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptCompletionEventsRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptCompletionEventsResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptReportRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskAttemptReportResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportsRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportsResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillJobRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillJobResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskAttemptRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskAttemptResponse;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskRequest;
+import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskResponse;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
@@ -59,6 +73,9 @@ import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
@@ -151,7 +168,9 @@ public class MRClientService extends AbstractService
 
   class MRClientProtocolHandler implements MRClientProtocol {
 
-    private Job verifyAndGetJob(JobID jobID) throws AvroRemoteException {
+    private RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+
+    private Job verifyAndGetJob(JobId jobID) throws YarnRemoteException {
       Job job = appContext.getJob(jobID);
       if (job == null) {
         throw RPCUtil.getRemoteException("Unknown job " + jobID);
@@ -159,17 +178,17 @@ public class MRClientService extends AbstractService
       return job;
     }
  
-    private Task verifyAndGetTask(TaskID taskID) throws AvroRemoteException {
-      Task task = verifyAndGetJob(taskID.jobID).getTask(taskID);
+    private Task verifyAndGetTask(TaskId taskID) throws YarnRemoteException {
+      Task task = verifyAndGetJob(taskID.getJobId()).getTask(taskID);
       if (task == null) {
         throw RPCUtil.getRemoteException("Unknown Task " + taskID);
       }
       return task;
     }
 
-    private TaskAttempt verifyAndGetAttempt(TaskAttemptID attemptID) 
-          throws AvroRemoteException {
-      TaskAttempt attempt = verifyAndGetTask(attemptID.taskID).getAttempt(attemptID);
+    private TaskAttempt verifyAndGetAttempt(TaskAttemptId attemptID) 
+          throws YarnRemoteException {
+      TaskAttempt attempt = verifyAndGetTask(attemptID.getTaskId()).getAttempt(attemptID);
       if (attempt == null) {
         throw RPCUtil.getRemoteException("Unknown TaskAttempt " + attemptID);
       }
@@ -177,94 +196,121 @@ public class MRClientService extends AbstractService
     }
 
     @Override
-    public Counters getCounters(JobID jobID) throws AvroRemoteException {
-      Job job = verifyAndGetJob(jobID);
-      return job.getCounters();
+    public GetCountersResponse getCounters(GetCountersRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
+      Job job = verifyAndGetJob(jobId);
+      GetCountersResponse response = recordFactory.newRecordInstance(GetCountersResponse.class);
+      response.setCounters(job.getCounters());
+      return response;
+    }
+    
+    @Override
+    public GetJobReportResponse getJobReport(GetJobReportRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
+      Job job = verifyAndGetJob(jobId);
+      GetJobReportResponse response = recordFactory.newRecordInstance(GetJobReportResponse.class);
+      response.setJobReport(job.getReport());
+      return response;
+    }
+    
+    
+    @Override
+    public GetTaskAttemptReportResponse getTaskAttemptReport(GetTaskAttemptReportRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptId = request.getTaskAttemptId();
+      GetTaskAttemptReportResponse response = recordFactory.newRecordInstance(GetTaskAttemptReportResponse.class);
+      response.setTaskAttemptReport(verifyAndGetAttempt(taskAttemptId).getReport());
+      return response;
     }
 
     @Override
-    public JobReport getJobReport(JobID jobID) throws AvroRemoteException {
-      Job job = verifyAndGetJob(jobID);
-      return job.getReport();
+    public GetTaskReportResponse getTaskReport(GetTaskReportRequest request) throws YarnRemoteException {
+      TaskId taskId = request.getTaskId();
+      GetTaskReportResponse response = recordFactory.newRecordInstance(GetTaskReportResponse.class);
+      response.setTaskReport(verifyAndGetTask(taskId).getReport());
+      return response;
     }
 
     @Override
-    public TaskAttemptReport getTaskAttemptReport(TaskAttemptID taskAttemptID)
-        throws AvroRemoteException {
-      return verifyAndGetAttempt(taskAttemptID).getReport();
+    public GetTaskAttemptCompletionEventsResponse getTaskAttemptCompletionEvents(GetTaskAttemptCompletionEventsRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
+      int fromEventId = request.getFromEventId();
+      int maxEvents = request.getMaxEvents();
+      Job job = verifyAndGetJob(jobId);
+      
+      GetTaskAttemptCompletionEventsResponse response = recordFactory.newRecordInstance(GetTaskAttemptCompletionEventsResponse.class);
+      response.addAllCompletionEvents(Arrays.asList(job.getTaskAttemptCompletionEvents(fromEventId, maxEvents)));
+      return response;
     }
-
+    
     @Override
-    public TaskReport getTaskReport(TaskID taskID) throws AvroRemoteException {
-      return verifyAndGetTask(taskID).getReport();
-    }
-
-    @Override
-    public List<TaskAttemptCompletionEvent> getTaskAttemptCompletionEvents(JobID jobID, 
-        int fromEventId, int maxEvents) throws AvroRemoteException {
-      Job job = verifyAndGetJob(jobID);
-      return Arrays.asList(job.getTaskAttemptCompletionEvents(fromEventId, maxEvents));
-    }
-
-    @Override
-    public Void killJob(JobID jobID) throws AvroRemoteException {
-      LOG.info("Kill Job received from client " + jobID);
-      verifyAndGetJob(jobID);
+    public KillJobResponse killJob(KillJobRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
+      LOG.info("Kill Job received from client " + jobId);
+	  verifyAndGetJob(jobId);
       appContext.getEventHandler().handle(
-          new JobEvent(jobID, JobEventType.JOB_KILL));
-      return null;
+          new JobEvent(jobId, JobEventType.JOB_KILL));
+      KillJobResponse response = recordFactory.newRecordInstance(KillJobResponse.class);
+      return response;
     }
 
     @Override
-    public Void killTask(TaskID taskID) throws AvroRemoteException {
-      LOG.info("Kill task received from client " + taskID);
-      verifyAndGetTask(taskID);
+    public KillTaskResponse killTask(KillTaskRequest request) throws YarnRemoteException {
+      TaskId taskId = request.getTaskId();
+      LOG.info("Kill task received from client " + taskId);
+      verifyAndGetTask(taskId);
       appContext.getEventHandler().handle(
-          new TaskEvent(taskID, TaskEventType.T_KILL));
-      return null;
+          new TaskEvent(taskId, TaskEventType.T_KILL));
+      KillTaskResponse response = recordFactory.newRecordInstance(KillTaskResponse.class);
+      return response;
     }
-
+    
     @Override
-    public Void killTaskAttempt(TaskAttemptID taskAttemptID)
-        throws AvroRemoteException {
-      LOG.info("Kill task attempt received from client " + taskAttemptID);
-      verifyAndGetAttempt(taskAttemptID);
+    public KillTaskAttemptResponse killTaskAttempt(KillTaskAttemptRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptId = request.getTaskAttemptId();
+      LOG.info("Kill task attempt received from client " + taskAttemptId);
+      verifyAndGetAttempt(taskAttemptId);
       appContext.getEventHandler().handle(
-          new TaskAttemptEvent(taskAttemptID, 
+          new TaskAttemptEvent(taskAttemptId, 
               TaskAttemptEventType.TA_KILL));
-      return null;
+      KillTaskAttemptResponse response = recordFactory.newRecordInstance(KillTaskAttemptResponse.class);
+      return response;
     }
 
     @Override
-    public Void failTaskAttempt(TaskAttemptID taskAttemptID)
-        throws AvroRemoteException {
-      LOG.info("Fail task attempt received from client " + taskAttemptID);
-      verifyAndGetAttempt(taskAttemptID);
+    public GetDiagnosticsResponse getDiagnostics(GetDiagnosticsRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptId = request.getTaskAttemptId();
+      
+      GetDiagnosticsResponse response = recordFactory.newRecordInstance(GetDiagnosticsResponse.class);
+      response.addAllDiagnostics(verifyAndGetAttempt(taskAttemptId).getDiagnostics());
+      return response;
+    }
+
+    @Override
+    public FailTaskAttemptResponse failTaskAttempt(FailTaskAttemptRequest request) throws YarnRemoteException {
+      TaskAttemptId taskAttemptId = request.getTaskAttemptId();
+      LOG.info("Fail task attempt received from client " + taskAttemptId);
+      verifyAndGetAttempt(taskAttemptId);
       appContext.getEventHandler().handle(
-          new TaskAttemptEvent(taskAttemptID, 
+          new TaskAttemptEvent(taskAttemptId, 
               TaskAttemptEventType.TA_FAILMSG));
       return null;
     }
 
     @Override
-    public List<CharSequence> getDiagnostics(TaskAttemptID taskAttemptID)
-        throws AvroRemoteException {
-      return verifyAndGetAttempt(taskAttemptID).getDiagnostics();
-    }
-
-    @Override
-    public List<TaskReport> getTaskReports(JobID jobID, TaskType taskType)
-        throws AvroRemoteException {
-      Job job = verifyAndGetJob(jobID);
-      LOG.info("Getting task report for " + taskType + "   " + jobID);
-      List<TaskReport> reports = new ArrayList<TaskReport>();
+    public GetTaskReportsResponse getTaskReports(GetTaskReportsRequest request) throws YarnRemoteException {
+      JobId jobId = request.getJobId();
+      TaskType taskType = request.getTaskType();
+      
+      GetTaskReportsResponse response = recordFactory.newRecordInstance(GetTaskReportsResponse.class);
+      
+      Job job = verifyAndGetJob(jobId);
+      LOG.info("Getting task report for " + taskType + "   " + jobId);
       Collection<Task> tasks = job.getTasks(taskType).values();
       LOG.info("Getting task report size " + tasks.size());
       for (Task task : tasks) {
-        reports.add(task.getReport());
-      }
-      return reports;
+        response.addTaskReport(task.getReport());
+	  }
+      return response;
     }
-
   }
 }

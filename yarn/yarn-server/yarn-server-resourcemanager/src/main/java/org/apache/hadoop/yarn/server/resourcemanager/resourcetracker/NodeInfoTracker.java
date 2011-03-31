@@ -18,8 +18,9 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
-import org.apache.hadoop.yarn.HeartbeatResponse;
-import org.apache.hadoop.yarn.NodeStatus;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 
 /**
  * Track the node info and heart beat responses for this node.
@@ -28,14 +29,15 @@ import org.apache.hadoop.yarn.NodeStatus;
  */
 class NodeInfoTracker {
   private final NodeInfo node;
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   HeartbeatResponse lastHeartBeatResponse;
-  private NodeStatus nodeStatus = new NodeStatus();
+  private org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
 
   public NodeInfoTracker(NodeInfo node, HeartbeatResponse lastHeartBeatResponse) {
     this.node = node;
     this.lastHeartBeatResponse = lastHeartBeatResponse;
-    this.nodeStatus.nodeId = node.getNodeID();
-    this.nodeStatus.lastSeen = System.currentTimeMillis();
+    this.nodeStatus.setNodeId(node.getNodeID());
+    this.nodeStatus.setLastSeen(System.currentTimeMillis());
   }
 
   public synchronized NodeInfo getNodeInfo() {
@@ -50,11 +52,11 @@ class NodeInfoTracker {
     this.lastHeartBeatResponse = heartBeatResponse;
   }
 
-  public synchronized void updateNodeStatus(NodeStatus nodeStatus) {
+  public synchronized void updateNodeStatus(org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus) {
     this.nodeStatus = nodeStatus;
   }
 
-  public synchronized NodeStatus getNodeStatus() {
+  public synchronized org.apache.hadoop.yarn.server.api.records.NodeStatus getNodeStatus() {
     return this.nodeStatus;
   }
 }

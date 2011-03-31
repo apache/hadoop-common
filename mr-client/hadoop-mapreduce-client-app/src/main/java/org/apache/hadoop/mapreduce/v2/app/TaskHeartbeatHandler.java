@@ -25,12 +25,13 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptDiagnosticsUpdateEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+
 
 /**
  * This class keeps track of tasks that have already been launched. It
@@ -50,8 +51,8 @@ public class TaskHeartbeatHandler extends AbstractService {
 
   private EventHandler eventHandler;
 
-  private Map<TaskAttemptID, Long> runningAttempts 
-    = new HashMap<TaskAttemptID, Long>();
+  private Map<TaskAttemptId, Long> runningAttempts 
+    = new HashMap<TaskAttemptId, Long>();
 
   public TaskHeartbeatHandler(EventHandler eventHandler) {
     super("TaskHeartbeatHandler");
@@ -78,18 +79,18 @@ public class TaskHeartbeatHandler extends AbstractService {
     super.stop();
   }
 
-  public synchronized void receivedPing(TaskAttemptID attemptID) {
+  public synchronized void receivedPing(TaskAttemptId attemptID) {
     //only put for the registered attempts
     if (runningAttempts.containsKey(attemptID)) {
       runningAttempts.put(attemptID, System.currentTimeMillis());
     }
   }
 
-  public synchronized void register(TaskAttemptID attemptID) {
+  public synchronized void register(TaskAttemptId attemptID) {
     runningAttempts.put(attemptID, System.currentTimeMillis());
   }
 
-  public synchronized void unregister(TaskAttemptID attemptID) {
+  public synchronized void unregister(TaskAttemptId attemptID) {
     runningAttempts.remove(attemptID);
   }
 
@@ -99,14 +100,14 @@ public class TaskHeartbeatHandler extends AbstractService {
     public void run() {
       while (!stopped && !Thread.currentThread().isInterrupted()) {
         synchronized (TaskHeartbeatHandler.this) {
-          Iterator<Map.Entry<TaskAttemptID, Long>> iterator = 
+          Iterator<Map.Entry<TaskAttemptId, Long>> iterator = 
             runningAttempts.entrySet().iterator();
 
           //avoid calculating current time everytime in loop
           long currentTime = System.currentTimeMillis();
 
           while (iterator.hasNext()) {
-            Map.Entry<TaskAttemptID, Long> entry = iterator.next();
+            Map.Entry<TaskAttemptId, Long> entry = iterator.next();
             if (currentTime > entry.getValue() + taskTimeOut) {
               //task is lost, remove from the list and raise lost event
               iterator.remove();

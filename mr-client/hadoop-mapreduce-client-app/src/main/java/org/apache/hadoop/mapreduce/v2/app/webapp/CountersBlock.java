@@ -21,6 +21,11 @@ package org.apache.hadoop.mapreduce.v2.app.webapp;
 import com.google.inject.Inject;
 import java.util.Map;
 
+import org.apache.hadoop.mapreduce.v2.api.records.Counter;
+import org.apache.hadoop.mapreduce.v2.api.records.CounterGroup;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
@@ -29,11 +34,6 @@ import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
 import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
-import org.apache.hadoop.mapreduce.v2.api.Counter;
-import org.apache.hadoop.mapreduce.v2.api.CounterGroup;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
 
 import static org.apache.hadoop.mapreduce.v2.app.webapp.AMWebApp.*;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
@@ -70,17 +70,17 @@ public class CountersBlock extends HtmlBlock {
             th(".group.ui-state-default", "Counter Group").
             th(".ui-state-default", "Counters")._()._().
         tbody();
-    for (CounterGroup g : total.groups.values()) {
-      CounterGroup mg = map == null ? null : map.groups.get(g.name);
-      CounterGroup rg = reduce == null ? null : reduce.groups.get(g.name);
+    for (CounterGroup g : total.getAllCounterGroups().values()) {
+      CounterGroup mg = map == null ? null : map.getCounterGroup(g.getName());
+      CounterGroup rg = reduce == null ? null : reduce.getCounterGroup(g.getName());
       ++numGroups;
       // This is mostly for demonstration :) Typically we'd introduced
       // a CounterGroup block to reduce the verbosity. OTOH, this
       // serves as an indicator of where we're in the tag hierarchy.
       TR<THEAD<TABLE<TD<TR<TBODY<TABLE<DIV<Hamlet>>>>>>>> groupHeadRow = tbody.
         tr().
-          th().$title(g.name.toString()).
-            _(fixGroupDisplayName(g.displayname))._().
+          th().$title(g.getName()).
+            _(fixGroupDisplayName(g.getDisplayName()))._().
           td().$class(C_TABLE).
             table(".dt-counters").
               thead().
@@ -92,20 +92,20 @@ public class CountersBlock extends HtmlBlock {
       TBODY<TABLE<TD<TR<TBODY<TABLE<DIV<Hamlet>>>>>>> group = groupHeadRow.
             th(map == null ? "Value" : "Total")._()._().
         tbody();
-      for (Counter counter : g.counters.values()) {
+      for (Counter counter : g.getAllCounters().values()) {
         // Ditto
         TR<TBODY<TABLE<TD<TR<TBODY<TABLE<DIV<Hamlet>>>>>>>> groupRow = group.
           tr().
-            td().$title(counter.name.toString()).
-              _(counter.displayName.toString())._();
+            td().$title(counter.getName()).
+              _(counter.getDisplayName())._();
         if (map != null) {
-          Counter mc = mg == null ? null : mg.counters.get(counter.name);
-          Counter rc = rg == null ? null : rg.counters.get(counter.name);
+          Counter mc = mg == null ? null : mg.getCounter(counter.getName());
+          Counter rc = rg == null ? null : rg.getCounter(counter.getName());
           groupRow.
-            td(mc == null ? "0" : String.valueOf(mc.value)).
-            td(rc == null ? "0" : String.valueOf(rc.value));
+            td(mc == null ? "0" : String.valueOf(mc.getValue())).
+            td(rc == null ? "0" : String.valueOf(rc.getValue()));
         }
-        groupRow.td(String.valueOf(counter.value))._();
+        groupRow.td(String.valueOf(counter.getValue()))._();
       }
       group._()._()._()._();
     }
@@ -113,12 +113,12 @@ public class CountersBlock extends HtmlBlock {
   }
 
   private void getCounters(AppContext ctx) {
-    JobID jobID = null;
-    TaskID taskID = null;
+    JobId jobID = null;
+    TaskId taskID = null;
     String tid = $(TASK_ID);
     if (!tid.isEmpty()) {
       taskID = MRApps.toTaskID(tid);
-      jobID = taskID.jobID;
+      jobID = taskID.getJobId();
     } else {
       String jid = $(JOB_ID);
       if (!jid.isEmpty()) {
@@ -141,7 +141,7 @@ public class CountersBlock extends HtmlBlock {
       return;
     }
     // Get all types of counters
-    Map<TaskID, Task> tasks = job.getTasks();
+    Map<TaskId, Task> tasks = job.getTasks();
     total = JobImpl.newCounters();
     map = JobImpl.newCounters();
     reduce = JobImpl.newCounters();

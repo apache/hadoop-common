@@ -18,29 +18,36 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
-import org.apache.avro.ipc.AvroRemoteException;
-import org.apache.hadoop.yarn.HeartbeatResponse;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.NodeStatus;
-import org.apache.hadoop.yarn.RegistrationResponse;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceTracker;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.ResourceTracker;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResponse;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
+import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 
 public class LocalRMInterface implements ResourceTracker {
 
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  
   @Override
-  public RegistrationResponse registerNodeManager(CharSequence node,
-      Resource resource) throws AvroRemoteException {
-    RegistrationResponse registrationResponse = new RegistrationResponse();
-    registrationResponse.nodeID = new NodeID();
-    return registrationResponse;
+  public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest request) throws YarnRemoteException {
+    String node = request.getNode();
+    Resource resource = request.getResource();
+    RegistrationResponse registrationResponse = recordFactory.newRecordInstance(RegistrationResponse.class);
+    registrationResponse.setNodeId(recordFactory.newRecordInstance(NodeId.class));
+    RegisterNodeManagerResponse response = recordFactory.newRecordInstance(RegisterNodeManagerResponse.class);
+    response.setRegistrationResponse(registrationResponse);
+    return response;
   }
 
   @Override
-  public HeartbeatResponse nodeHeartbeat(NodeStatus nodeStatus)
-      throws AvroRemoteException {
-    // TODO Auto-generated method stub
-    return null;
+  public NodeHeartbeatResponse nodeHeartbeat(NodeHeartbeatRequest request) throws YarnRemoteException {
+    NodeHeartbeatResponse response = recordFactory.newRecordInstance(NodeHeartbeatResponse.class);
+    return response;
   }
-
 }

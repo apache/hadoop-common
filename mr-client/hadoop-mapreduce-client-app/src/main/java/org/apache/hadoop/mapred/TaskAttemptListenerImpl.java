@@ -34,6 +34,7 @@ import org.apache.hadoop.ipc.RPC.Server;
 import org.apache.hadoop.mapred.SortedRanges.Range;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.TaskHeartbeatHandler;
@@ -47,7 +48,6 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.service.CompositeService;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
 
 /**
  * This class is responsible for talking to the task umblical.
@@ -143,13 +143,13 @@ public class TaskAttemptListenerImpl extends CompositeService
     // An attempt is asking if it can commit its output. This can be decided
     // only by the task which is managing the multiple attempts. So redirect the
     // request there.
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID =
         TypeConverter.toYarn(taskAttemptID);
 
     taskHeartbeatHandler.receivedPing(attemptID);
 
-    Job job = context.getJob(attemptID.taskID.jobID);
-    Task task = job.getTask(attemptID.taskID);
+    Job job = context.getJob(attemptID.getTaskId().getJobId());
+    Task task = job.getTask(attemptID.getTaskId());
     return task.canCommit(attemptID);
   }
 
@@ -171,7 +171,7 @@ public class TaskAttemptListenerImpl extends CompositeService
     // An attempt is asking if it can commit its output. This can be decided
     // only by the task which is managing the multiple attempts. So redirect the
     // request there.
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID =
         TypeConverter.toYarn(taskAttemptID);
 
     taskHeartbeatHandler.receivedPing(attemptID);
@@ -185,7 +185,7 @@ public class TaskAttemptListenerImpl extends CompositeService
   public void done(TaskAttemptID taskAttemptID) throws IOException {
     LOG.info("Done acknowledgement from " + taskAttemptID.toString());
 
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID =
         TypeConverter.toYarn(taskAttemptID);
 
     taskHeartbeatHandler.receivedPing(attemptID);
@@ -201,7 +201,7 @@ public class TaskAttemptListenerImpl extends CompositeService
     LOG.fatal("Task: " + taskAttemptID + " - exited : " + msg);
     reportDiagnosticInfo(taskAttemptID, "Error: " + msg);
 
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID =
         TypeConverter.toYarn(taskAttemptID);
     context.getEventHandler().handle(
         new TaskAttemptEvent(attemptID, TaskAttemptEventType.TA_FAILMSG));
@@ -215,7 +215,7 @@ public class TaskAttemptListenerImpl extends CompositeService
         + message);
     reportDiagnosticInfo(taskAttemptID, "FSError: " + message);
 
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID =
         TypeConverter.toYarn(taskAttemptID);
     context.getEventHandler().handle(
         new TaskAttemptEvent(attemptID, TaskAttemptEventType.TA_FAILMSG));
@@ -235,18 +235,18 @@ public class TaskAttemptListenerImpl extends CompositeService
 
     // TODO: shouldReset is never used. See TT. Ask for Removal.
     boolean shouldReset = false;
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID =
       TypeConverter.toYarn(taskAttemptID);
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent[] events =
-        context.getJob(attemptID.taskID.jobID).getTaskAttemptCompletionEvents(
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent[] events =
+        context.getJob(attemptID.getTaskId().getJobId()).getTaskAttemptCompletionEvents(
             fromEventId, maxEvents);
 
     taskHeartbeatHandler.receivedPing(attemptID);
 
     //filter the events to return only map completion events in old format
     List<TaskCompletionEvent> mapEvents = new ArrayList<TaskCompletionEvent>();
-    for (org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent event : events) {
-      if (TaskType.MAP.equals(event.attemptId.taskID.taskType)) {
+    for (org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent event : events) {
+      if (TaskType.MAP.equals(event.getAttemptId().getTaskId().getTaskType())) {
         mapEvents.add(TypeConverter.fromYarn(event));
       }
     }
@@ -268,7 +268,7 @@ public class TaskAttemptListenerImpl extends CompositeService
     LOG.info("Diagnostics report from " + taskAttemptID.toString() + ": "
         + diagnosticInfo);
 
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID =
       TypeConverter.toYarn(taskAttemptID);
     taskHeartbeatHandler.receivedPing(attemptID);
 
@@ -286,7 +286,7 @@ public class TaskAttemptListenerImpl extends CompositeService
   public boolean statusUpdate(TaskAttemptID taskAttemptID,
       TaskStatus taskStatus) throws IOException, InterruptedException {
     LOG.info("Status update from " + taskAttemptID.toString());
-    org.apache.hadoop.mapreduce.v2.api.TaskAttemptID yarnAttemptID =
+    org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId yarnAttemptID =
         TypeConverter.toYarn(taskAttemptID);
     taskHeartbeatHandler.receivedPing(yarnAttemptID);
     TaskAttemptStatus taskAttemptStatus =
@@ -312,7 +312,7 @@ public class TaskAttemptListenerImpl extends CompositeService
     if (taskStatus.getFetchFailedMaps() != null 
         && taskStatus.getFetchFailedMaps().size() > 0) {
       taskAttemptStatus.fetchFailedMaps = 
-        new ArrayList<org.apache.hadoop.mapreduce.v2.api.TaskAttemptID>();
+        new ArrayList<org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId>();
       for (TaskAttemptID failedMapId : taskStatus.getFetchFailedMaps()) {
         taskAttemptStatus.fetchFailedMaps.add(
             TypeConverter.toYarn(failedMapId));
@@ -388,7 +388,7 @@ public class TaskAttemptListenerImpl extends CompositeService
   }
 
   @Override
-  public void register(org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID,
+  public void register(org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID,
       org.apache.hadoop.mapred.Task task, WrappedJvmID jvmID) {
     //create the mapping so that it is easy to look up
     //when it comes back to ask for Task.
@@ -398,7 +398,7 @@ public class TaskAttemptListenerImpl extends CompositeService
   }
 
   @Override
-  public void unregister(org.apache.hadoop.mapreduce.v2.api.TaskAttemptID attemptID,
+  public void unregister(org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID,
       WrappedJvmID jvmID) {
     //remove the mapping if not already removed
     jvmIDToAttemptMap.remove(jvmID);

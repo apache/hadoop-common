@@ -32,6 +32,18 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.Clock;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -46,24 +58,14 @@ import org.apache.hadoop.mapreduce.v2.app.speculate.LegacyTaskRuntimeEstimator;
 import org.apache.hadoop.mapreduce.v2.app.speculate.Speculator;
 import org.apache.hadoop.mapreduce.v2.app.speculate.SpeculatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.speculate.TaskRuntimeEstimator;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.CompositeService;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.JobReport;
-import org.apache.hadoop.mapreduce.v2.api.JobState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptCompletionEvent;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -102,6 +104,8 @@ public class TestRuntimeEstimators {
       = new AtomicInteger(0);
   private final AtomicLong taskTimeSavedBySpeculation
       = new AtomicLong(0L);
+  
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   private void coreTestEstimator
       (TaskRuntimeEstimator testedEstimator, int expectedSpeculations) {
@@ -255,7 +259,7 @@ public class TestRuntimeEstimators {
 
     @Override
     public void handle(TaskEvent event) {
-      TaskID taskID = event.getTaskID();
+      TaskId taskID = event.getTaskID();
       Task task = myJob.getTask(taskID);
 
       Assert.assertEquals
@@ -274,21 +278,21 @@ public class TestRuntimeEstimators {
   }
 
   class MyTaskImpl implements Task {
-    private final TaskID taskID;
-    private final Map<TaskAttemptID, TaskAttempt> attempts
-        = new HashMap<TaskAttemptID, TaskAttempt>(4);
+    private final TaskId taskID;
+    private final Map<TaskAttemptId, TaskAttempt> attempts
+        = new HashMap<TaskAttemptId, TaskAttempt>(4);
 
-    MyTaskImpl(JobID jobID, int index, TaskType type) {
-      taskID = new TaskID();
-      taskID.id = index;
-      taskID.taskType = type;
-      taskID.jobID = jobID;
+    MyTaskImpl(JobId jobID, int index, TaskType type) {
+      taskID = recordFactory.newRecordInstance(TaskId.class);
+      taskID.setId(index);
+      taskID.setTaskType(type);
+      taskID.setJobId(jobID);
     }
 
     void addAttempt() {
       TaskAttempt taskAttempt
           = new MyTaskAttemptImpl(taskID, attempts.size(), clock);
-      TaskAttemptID taskAttemptID = taskAttempt.getID();
+      TaskAttemptId taskAttemptID = taskAttempt.getID();
 
       attempts.put(taskAttemptID, taskAttempt);
 
@@ -299,7 +303,7 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public TaskID getID() {
+    public TaskId getID() {
       return taskID;
     }
 
@@ -327,19 +331,19 @@ public class TestRuntimeEstimators {
 
     @Override
     public TaskType getType() {
-      return taskID.taskType;
+      return taskID.getTaskType();
     }
 
     @Override
-    public Map<TaskAttemptID, TaskAttempt> getAttempts() {
-      Map<TaskAttemptID, TaskAttempt> result
-          = new HashMap<TaskAttemptID, TaskAttempt>(attempts.size());
+    public Map<TaskAttemptId, TaskAttempt> getAttempts() {
+      Map<TaskAttemptId, TaskAttempt> result
+          = new HashMap<TaskAttemptId, TaskAttempt>(attempts.size());
       result.putAll(attempts);
       return result;
     }
 
     @Override
-    public TaskAttempt getAttempt(TaskAttemptID attemptID) {
+    public TaskAttempt getAttempt(TaskAttemptId attemptID) {
       return attempts.get(attemptID);
     }
 
@@ -355,7 +359,7 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public boolean canCommit(TaskAttemptID taskAttemptID) {
+    public boolean canCommit(TaskAttemptId taskAttemptID) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
@@ -367,12 +371,12 @@ public class TestRuntimeEstimators {
   }
 
   class MyJobImpl implements Job {
-    private final JobID jobID;
-    private final Map<TaskID, Task> allTasks = new HashMap<TaskID, Task>();
-    private final Map<TaskID, Task> mapTasks = new HashMap<TaskID, Task>();
-    private final Map<TaskID, Task> reduceTasks = new HashMap<TaskID, Task>();
+    private final JobId jobID;
+    private final Map<TaskId, Task> allTasks = new HashMap<TaskId, Task>();
+    private final Map<TaskId, Task> mapTasks = new HashMap<TaskId, Task>();
+    private final Map<TaskId, Task> reduceTasks = new HashMap<TaskId, Task>();
 
-    MyJobImpl(JobID jobID, int numMaps, int numReduces) {
+    MyJobImpl(JobId jobID, int numMaps, int numReduces) {
       this.jobID = jobID;
       for (int i = 0; i < numMaps; ++i) {
         Task newTask = new MyTaskImpl(jobID, i, TaskType.MAP);
@@ -393,7 +397,7 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public JobID getID() {
+    public JobId getID() {
       return jobID;
     }
 
@@ -413,17 +417,17 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public Map<TaskID, Task> getTasks() {
+    public Map<TaskId, Task> getTasks() {
       return allTasks;
     }
 
     @Override
-    public Map<TaskID, Task> getTasks(TaskType taskType) {
+    public Map<TaskId, Task> getTasks(TaskType taskType) {
       return taskType == TaskType.MAP ? mapTasks : reduceTasks;
     }
 
     @Override
-    public Task getTask(TaskID taskID) {
+    public Task getTask(TaskId taskID) {
       return allTasks.get(taskID);
     }
 
@@ -449,7 +453,7 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public CharSequence getName() {
+    public String getName() {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
@@ -470,7 +474,7 @@ public class TestRuntimeEstimators {
    * NEW state.  Attempts transition only from NEW to RUNNING to SUCCEEDED .
    */
   class MyTaskAttemptImpl implements TaskAttempt {
-    private final TaskAttemptID myAttemptID;
+    private final TaskAttemptId myAttemptID;
 
     long startMockTime = Long.MIN_VALUE;
 
@@ -478,26 +482,26 @@ public class TestRuntimeEstimators {
 
     TaskAttemptState overridingState = TaskAttemptState.NEW;
 
-    MyTaskAttemptImpl(TaskID taskID, int index, Clock clock) {
-      myAttemptID = new TaskAttemptID();
-      myAttemptID.id = index;
-      myAttemptID.taskID = taskID;
+    MyTaskAttemptImpl(TaskId taskID, int index, Clock clock) {
+      myAttemptID = recordFactory.newRecordInstance(TaskAttemptId.class);
+      myAttemptID.setId(index);
+      myAttemptID.setTaskId(taskID);
     }
 
     void startUp() {
       startMockTime = clock.getTime();
       overridingState = null;
 
-      slotsInUse.addAndGet(taskTypeSlots(myAttemptID.taskID.taskType));
+      slotsInUse.addAndGet(taskTypeSlots(myAttemptID.getTaskId().getTaskType()));
 
       System.out.println("TLTRE.MyTaskAttemptImpl.startUp starting " + getID());
 
-      SpeculatorEvent event = new SpeculatorEvent(getID().taskID, -1);
+      SpeculatorEvent event = new SpeculatorEvent(getID().getTaskId(), -1);
       dispatcher.getEventHandler().handle(event);
     }
 
     @Override
-    public TaskAttemptID getID() {
+    public TaskAttemptId getID() {
       return myAttemptID;
     }
 
@@ -507,7 +511,7 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public List<CharSequence> getDiagnostics() {
+    public List<String> getDiagnostics() {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
@@ -517,8 +521,8 @@ public class TestRuntimeEstimators {
     }
 
     private float getCodeRuntime() {
-      int taskIndex = myAttemptID.taskID.id;
-      int attemptIndex = myAttemptID.id;
+      int taskIndex = myAttemptID.getTaskId().getId();
+      int attemptIndex = myAttemptID.getId();
 
       float result = 200.0F;
 
@@ -553,7 +557,7 @@ public class TestRuntimeEstimators {
     }
 
     private float getReduceProgress() {
-      Job job = myAppContext.getJob(myAttemptID.taskID.jobID);
+      Job job = myAppContext.getJob(myAttemptID.getTaskId().getJobId());
       float runtime = getCodeRuntime();
 
       Collection<Task> allMapTasks = job.getTasks(TaskType.MAP).values();
@@ -585,7 +589,7 @@ public class TestRuntimeEstimators {
       if (overridingState == TaskAttemptState.NEW) {
         return 0.0F;
       }
-      return myAttemptID.taskID.taskType == TaskType.MAP ? getMapProgress() : getReduceProgress();
+      return myAttemptID.getTaskId().getTaskType() == TaskType.MAP ? getMapProgress() : getReduceProgress();
     }
 
     @Override
@@ -601,13 +605,13 @@ public class TestRuntimeEstimators {
 
         System.out.println("MyTaskAttemptImpl.getState() -- attempt " + myAttemptID + " finished.");
 
-        slotsInUse.addAndGet(- taskTypeSlots(myAttemptID.taskID.taskType));
+        slotsInUse.addAndGet(- taskTypeSlots(myAttemptID.getTaskId().getTaskType()));
 
-        (myAttemptID.taskID.taskType == TaskType.MAP
+        (myAttemptID.getTaskId().getTaskType() == TaskType.MAP
             ? completedMaps : completedReduces).getAndIncrement();
 
         // check for a spectacularly successful speculation
-        TaskID taskID = myAttemptID.taskID;
+        TaskId taskID = myAttemptID.getTaskId();
         Task undoneTask = null;
 
         Task task = myJob.getTask(taskID);
@@ -617,7 +621,7 @@ public class TestRuntimeEstimators {
               && otherAttempt.getState() == TaskAttemptState.RUNNING) {
             // we had two instances running.  Try to determine how much
             //  we might have saved by speculation
-            if (getID().id > otherAttempt.getID().id) {
+            if (getID().getId() > otherAttempt.getID().getId()) {
               // the speculation won
               successfulSpeculations.getAndIncrement();
               float hisProgress = otherAttempt.getProgress();
@@ -638,7 +642,7 @@ public class TestRuntimeEstimators {
               long estimatedSavings = originalTaskEndEstimate - clock.getTime();
               taskTimeSavedBySpeculation.addAndGet(estimatedSavings);
               System.out.println("TLTRE: The task is " + task.getID());
-              slotsInUse.addAndGet(- taskTypeSlots(myAttemptID.taskID.taskType));
+              slotsInUse.addAndGet(- taskTypeSlots(myAttemptID.getTaskId().getTaskType()));
               ((MyTaskAttemptImpl)otherAttempt).overridingState
                   = TaskAttemptState.KILLED;
             } else {
@@ -659,7 +663,7 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public ContainerID getAssignedContainerID() {
+    public ContainerId getAssignedContainerID() {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
@@ -711,17 +715,17 @@ public class TestRuntimeEstimators {
   class MyAppContext implements AppContext {
     // I'll be making Avro objects by hand.  Please don't do that very often.
 
-    private final ApplicationID myApplicationID;
-    private final JobID myJobID;
-    private final Map<JobID, Job> allJobs;
+    private final ApplicationId myApplicationID;
+    private final JobId myJobID;
+    private final Map<JobId, Job> allJobs;
 
     MyAppContext(int numberMaps, int numberReduces) {
-      myApplicationID = new ApplicationID();
-      myApplicationID.clusterTimeStamp = clock.getTime();
-      myApplicationID.id = 1;
+      myApplicationID = recordFactory.newRecordInstance(ApplicationId.class);
+      myApplicationID.setClusterTimestamp(clock.getTime());
+      myApplicationID.setId(1);
 
-      myJobID = new JobID();
-      myJobID.appID = myApplicationID;
+      myJobID = recordFactory.newRecordInstance(JobId.class);
+      myJobID.setAppId(myApplicationID);
 
       Job myJob
           = new MyJobImpl(myJobID, numberMaps, numberReduces);
@@ -730,17 +734,17 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public ApplicationID getApplicationID() {
+    public ApplicationId getApplicationID() {
       return myApplicationID;
     }
 
     @Override
-    public Job getJob(JobID jobID) {
+    public Job getJob(JobId jobID) {
       return allJobs.get(jobID);
     }
 
     @Override
-    public Map<JobID, Job> getAllJobs() {
+    public Map<JobId, Job> getAllJobs() {
       return allJobs;
     }
 

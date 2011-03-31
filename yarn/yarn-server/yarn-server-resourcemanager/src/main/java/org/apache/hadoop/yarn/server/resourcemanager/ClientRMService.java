@@ -21,7 +21,6 @@ package org.apache.hadoop.yarn.server.resourcemanager;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.ipc.Server;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -29,12 +28,23 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.ClientRMProtocol;
-import org.apache.hadoop.yarn.YarnClusterMetrics;
+import org.apache.hadoop.yarn.api.ClientRMProtocol;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationResponse;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
@@ -52,6 +62,7 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
   private ApplicationsManager applicationsManager;
   private String clientServiceBindAddress;
   private Server server;
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   InetSocketAddress clientBindAddress;
   
   public ClientRMService(ApplicationsManager applicationsManager, 
@@ -89,42 +100,49 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
   }
 
   @Override
-  public ApplicationID getNewApplicationId() throws AvroRemoteException {
-    return applicationsManager.getNewApplicationID();
+  public GetNewApplicationIdResponse getNewApplicationId(GetNewApplicationIdRequest request) throws YarnRemoteException {
+    GetNewApplicationIdResponse response = recordFactory.newRecordInstance(GetNewApplicationIdResponse.class);
+    response.setApplicationId(applicationsManager.getNewApplicationID());
+    return response;
+  }
+  
+  @Override
+  public GetApplicationMasterResponse getApplicationMaster(GetApplicationMasterRequest request) throws YarnRemoteException {
+    ApplicationId applicationId = request.getApplicationId();
+    GetApplicationMasterResponse response = recordFactory.newRecordInstance(GetApplicationMasterResponse.class);
+    response.setApplicationMaster(applicationsManager.getApplicationMaster(applicationId));
+    return response;
   }
 
-  @Override
-  public ApplicationMaster getApplicationMaster(ApplicationID applicationId)
-      throws AvroRemoteException {
-    return applicationsManager.getApplicationMaster(applicationId);
-  }
-
-  @Override
-  public Void submitApplication(ApplicationSubmissionContext context)
-      throws AvroRemoteException {
+  public SubmitApplicationResponse submitApplication(SubmitApplicationRequest request) throws YarnRemoteException {
+    ApplicationSubmissionContext context = request.getApplicationSubmissionContext();
     try {
       applicationsManager.submitApplication(context);
     } catch (IOException ie) {
       LOG.info("Exception in submitting application", ie);
       throw RPCUtil.getRemoteException(ie);
     }
-    return null;
+    SubmitApplicationResponse response = recordFactory.newRecordInstance(SubmitApplicationResponse.class);
+    return response;
   }
 
   @Override
-  public Void finishApplication(ApplicationID applicationId)
-      throws AvroRemoteException {
+  public FinishApplicationResponse finishApplication(FinishApplicationRequest request) throws YarnRemoteException {
+    ApplicationId applicationId = request.getApplicationId();
     try {
       applicationsManager.finishApplication(applicationId);
     } catch(IOException ie) {
       LOG.info("Error finishing application ", ie);
     }
-    return null;
+    FinishApplicationResponse response = recordFactory.newRecordInstance(FinishApplicationResponse.class);
+    return response;
   }
 
   @Override
-  public YarnClusterMetrics getClusterMetrics() throws AvroRemoteException {
-    return clusterInfo.getClusterMetrics();
+  public GetClusterMetricsResponse getClusterMetrics(GetClusterMetricsRequest request) throws YarnRemoteException {
+    GetClusterMetricsResponse response = recordFactory.newRecordInstance(GetClusterMetricsResponse.class);
+    response.setClusterMetrics(clusterInfo.getClusterMetrics());
+    return response;
   }
   
   @Override

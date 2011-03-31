@@ -18,12 +18,12 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
-import org.apache.hadoop.yarn.ContainerID;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 
 public class ContainerExitEvent extends ContainerEvent {
   private int exitCode;
 
-  public ContainerExitEvent(ContainerID cID, ContainerEventType eventType,
+  public ContainerExitEvent(ContainerId cID, ContainerEventType eventType,
       int exitCode) {
     super(cID, eventType);
     this.exitCode = exitCode;

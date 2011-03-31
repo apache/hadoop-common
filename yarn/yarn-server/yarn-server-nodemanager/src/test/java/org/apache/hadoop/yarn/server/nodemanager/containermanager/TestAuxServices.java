@@ -24,13 +24,14 @@ import static org.junit.Assert.*;
 import java.nio.ByteBuffer;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServices;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEventType;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.service.Service;
 
-import org.apache.hadoop.yarn.ApplicationID;
 
 import static org.apache.hadoop.yarn.service.Service.STATE.*;
 
@@ -60,14 +61,14 @@ public class TestAuxServices {
       super.stop();
     }
     @Override
-    public void initApp(String user, ApplicationID appId, ByteBuffer data) {
+    public void initApp(String user, ApplicationId appId, ByteBuffer data) {
       assertEquals(idef, data.getChar());
       assertEquals(expected_appId, data.getInt());
-      assertEquals(expected_appId, appId.id);
+      assertEquals(expected_appId, appId.getId());
     }
     @Override
-    public void stopApp(ApplicationID appId) {
-      assertEquals(expected_appId, appId.id);
+    public void stopApp(ApplicationId appId) {
+      assertEquals(expected_appId, appId.getId());
     }
   }
 
@@ -93,8 +94,8 @@ public class TestAuxServices {
     aux.init(conf);
     aux.start();
 
-    ApplicationID appId = new ApplicationID();
-    appId.id = 65;
+    ApplicationId appId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+    appId.setId(65);
     ByteBuffer buf = ByteBuffer.allocate(6);
     buf.putChar('A');
     buf.putInt(65);
@@ -102,7 +103,7 @@ public class TestAuxServices {
     AuxServicesEvent event = new AuxServicesEvent(
         AuxServicesEventType.APPLICATION_INIT, "user0", appId, "Asrv", buf);
     aux.handle(event);
-    appId.id = 66;
+    appId.setId(66);
     event = new AuxServicesEvent(
         AuxServicesEventType.APPLICATION_STOP, "user0", appId, "Bsrv", null);
   }

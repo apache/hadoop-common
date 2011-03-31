@@ -34,14 +34,15 @@ import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerToken;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
@@ -71,8 +72,8 @@ public class FifoScheduler implements ResourceScheduler {
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(
         MINIMUM_MEMORY);
     
-  Map<ApplicationID, Application> applications = 
-    new TreeMap<ApplicationID, Application>(
+  Map<ApplicationId, Application> applications = 
+    new TreeMap<ApplicationId, Application>(
         new org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.Comparator());
 
   private static final Queue DEFAULT_QUEUE = new Queue() {
@@ -100,7 +101,7 @@ public class FifoScheduler implements ResourceScheduler {
   }
   
   @Override
-  public synchronized List<Container> allocate(ApplicationID applicationId,
+  public synchronized List<Container> allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release) 
       throws IOException {
     Application application = getApplication(applicationId);
@@ -147,25 +148,25 @@ public class FifoScheduler implements ResourceScheduler {
   }
   
   private void normalizeRequest(ResourceRequest ask) {
-    int memory = ask.capability.memory;
+    int memory = ask.getCapability().getMemory();
     memory = 
       MINIMUM_MEMORY * ((memory/MINIMUM_MEMORY) + (memory%MINIMUM_MEMORY)); 
   }
   
-  private synchronized Application getApplication(ApplicationID applicationId) {
+  private synchronized Application getApplication(ApplicationId applicationId) {
     return applications.get(applicationId);
   }
 
-  public synchronized void addApplication(ApplicationID applicationId, 
+  public synchronized void addApplication(ApplicationId applicationId, 
       String user, String unusedQueue, Priority unusedPriority) 
   throws IOException {
     applications.put(applicationId, 
         new Application(applicationId, DEFAULT_QUEUE, user));
-    LOG.info("Application Submission: " + applicationId.id + " from " + user + 
+    LOG.info("Application Submission: " + applicationId.getId() + " from " + user + 
         ", currently active: " + applications.size());
   }
 
-  public synchronized void removeApplication(ApplicationID applicationId)
+  public synchronized void removeApplication(ApplicationId applicationId)
   throws IOException {
     Application application = getApplication(applicationId);
     if (application == null) {
@@ -195,7 +196,7 @@ public class FifoScheduler implements ResourceScheduler {
         " #applications=" + applications.size());
     
     // Try to assign containers to applications in fifo order
-    for (Map.Entry<ApplicationID, Application> e : applications.entrySet()) {
+    for (Map.Entry<ApplicationId, Application> e : applications.entrySet()) {
       Application application = e.getValue();
       LOG.debug("pre-assignContainers");
       application.showRequests();
@@ -230,7 +231,7 @@ public class FifoScheduler implements ResourceScheduler {
       Priority priority, NodeInfo node, NodeType type) {
     ResourceRequest offSwitchRequest = 
       application.getResourceRequest(priority, NodeManager.ANY);
-    int maxContainers = offSwitchRequest.numContainers;
+    int maxContainers = offSwitchRequest.getNumContainers();
     
     if (type == NodeType.OFF_SWITCH) {
       return maxContainers;
@@ -243,14 +244,14 @@ public class FifoScheduler implements ResourceScheduler {
         return maxContainers;
       }
 
-      maxContainers = Math.min(maxContainers, rackLocalRequest.numContainers);
+      maxContainers = Math.min(maxContainers, rackLocalRequest.getNumContainers());
     }
     
     if (type == NodeType.DATA_LOCAL) {
       ResourceRequest nodeLocalRequest = 
         application.getResourceRequest(priority, node.getHostName());
       if (nodeLocalRequest != null) {
-        maxContainers = Math.min(maxContainers, nodeLocalRequest.numContainers);
+        maxContainers = Math.min(maxContainers, nodeLocalRequest.getNumContainers());
       }
     }
     
@@ -276,8 +277,8 @@ public class FifoScheduler implements ResourceScheduler {
 
     LOG.debug("assignContainersOnNode:" +
         " node=" + node.getHostName() + 
-        " application=" + application.getApplicationId().id +
-        " priority=" + priority.priority + 
+        " application=" + application.getApplicationId().getId() +
+        " priority=" + priority.getPriority() + 
         " #assigned=" + 
           (nodeLocalContainers + rackLocalContainers + offSwitchContainers));
     
@@ -295,7 +296,7 @@ public class FifoScheduler implements ResourceScheduler {
         Math.min(
             getMaxAllocatableContainers(application, priority, node, 
                 NodeType.DATA_LOCAL), 
-            request.numContainers);
+            request.getNumContainers());
       assignedContainers = 
         assignContainers(node, application, priority, 
             assignableContainers, request, NodeType.DATA_LOCAL);
@@ -313,7 +314,7 @@ public class FifoScheduler implements ResourceScheduler {
         Math.min(
             getMaxAllocatableContainers(application, priority, node, 
                 NodeType.RACK_LOCAL), 
-            request.numContainers);
+            request.getNumContainers());
       assignedContainers = 
         assignContainers(node, application, priority, 
             assignableContainers, request, NodeType.RACK_LOCAL);
@@ -329,7 +330,7 @@ public class FifoScheduler implements ResourceScheduler {
     if (request != null) {
       assignedContainers = 
         assignContainers(node, application, priority, 
-            request.numContainers, request, NodeType.OFF_SWITCH);
+            request.getNumContainers(), request, NodeType.OFF_SWITCH);
     }
     return assignedContainers;
   }
@@ -339,14 +340,14 @@ public class FifoScheduler implements ResourceScheduler {
       ResourceRequest request, NodeType type) {
     LOG.debug("assignContainers:" +
     		" node=" + node.getHostName() + 
-    		" application=" + application.getApplicationId().id + 
-        " priority=" + priority.priority + 
+    		" application=" + application.getApplicationId().getId() + 
+        " priority=" + priority.getPriority() + 
         " assignableContainers=" + assignableContainers +
         " request=" + request + " type=" + type);
-    Resource capability = request.capability;
+    Resource capability = request.getCapability();
     
     int availableContainers = 
-        node.getAvailableResource().memory / capability.memory; // TODO: A buggy
+        node.getAvailableResource().getMemory() / capability.getMemory(); // TODO: A buggy
                                                                 // application
                                                                 // with this
                                                                 // zero would
@@ -366,18 +367,18 @@ public class FifoScheduler implements ResourceScheduler {
                     node.getHostName(), capability);
         // If security is enabled, send the container-tokens too.
         if (UserGroupInformation.isSecurityEnabled()) {
-          ContainerToken containerToken = new ContainerToken();
+          ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
           ContainerTokenIdentifier tokenidentifier =
-              new ContainerTokenIdentifier(container.id,
-                  container.hostName.toString(), container.resource);
-          containerToken.identifier =
-              ByteBuffer.wrap(tokenidentifier.getBytes());
-          containerToken.kind = ContainerTokenIdentifier.KIND.toString();
-          containerToken.password =
+              new ContainerTokenIdentifier(container.getId(),
+                  container.getHostName(), container.getResource());
+          containerToken.setIdentifier(
+              ByteBuffer.wrap(tokenidentifier.getBytes()));
+          containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
+          containerToken.setPassword(
               ByteBuffer.wrap(containerTokenSecretManager
-                  .createPassword(tokenidentifier));
-          containerToken.service = container.hostName; // TODO: port
-          container.containerToken = containerToken;
+                  .createPassword(tokenidentifier)));
+          containerToken.setService(container.getHostName()); // TODO: port
+          container.setContainerToken(containerToken);
         }
         containers.add(container);
       }
@@ -390,7 +391,7 @@ public class FifoScheduler implements ResourceScheduler {
   private synchronized void applicationCompletedContainers(
      List<Container> completedContainers) {
     for (Container c: completedContainers) {
-      Application app = applications.get(c.id.appID);
+      Application app = applications.get(c.getId().getAppId());
       /** this is possible, since an application can be removed from scheduler but
        * the nodemanger is just updating about a completed container.
        */
@@ -402,7 +403,7 @@ public class FifoScheduler implements ResourceScheduler {
   
   @Override
   public synchronized NodeResponse nodeUpdate(NodeInfo node, 
-      Map<CharSequence,List<Container>> containers ) {
+      Map<String,List<Container>> containers ) {
    
     NodeResponse nodeResponse = nodeUpdateInternal(node, containers);
     applicationCompletedContainers(nodeResponse.getCompletedContainers());
@@ -425,7 +426,7 @@ public class FifoScheduler implements ResourceScheduler {
     case ADD:
       try {
         addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getUser(),
-            event.getAppContext().getQueue(), event.getAppContext().getSubmissionContext().priority);
+            event.getAppContext().getQueue(), event.getAppContext().getSubmissionContext().getPriority());
       } catch(IOException ie) {
         LOG.error("Unable to add application " + event.getAppContext().getApplicationID(), ie);
         /** this is fatal we are not able to add applications for scheduling **/
@@ -444,7 +445,7 @@ public class FifoScheduler implements ResourceScheduler {
   }
   
   private Map<String, NodeManager> nodes = new HashMap<String, NodeManager>();
-  private Resource clusterResource = new Resource();
+  private Resource clusterResource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Resource.class);
  
   public synchronized Resource getClusterResource() {
     return clusterResource;
@@ -464,7 +465,7 @@ public class FifoScheduler implements ResourceScheduler {
   }
  
   @Override
-  public synchronized NodeInfo addNode(NodeID nodeId, 
+  public synchronized NodeInfo addNode(NodeId nodeId, 
       String hostName, Node node, Resource capability) {
     NodeManager nodeManager = new NodeManager(nodeId, hostName, node, capability);
     nodes.put(nodeManager.getHostName(), nodeManager);
@@ -473,30 +474,30 @@ public class FifoScheduler implements ResourceScheduler {
     return nodeManager;
   }
 
-  public synchronized boolean releaseContainer(ApplicationID applicationId, 
+  public synchronized boolean releaseContainer(ApplicationId applicationId, 
       Container container) {
     // Reap containers
     LOG.info("Application " + applicationId + " released container " + container);
-    NodeManager nodeManager = nodes.get(container.hostName.toString());
+    NodeManager nodeManager = nodes.get(container.getHostName());
     return nodeManager.releaseContainer(container);
   }
   
   private synchronized NodeResponse nodeUpdateInternal(NodeInfo nodeInfo, 
-      Map<CharSequence,List<Container>> containers) {
+      Map<String,List<Container>> containers) {
     NodeManager node = nodes.get(nodeInfo.getHostName());
     LOG.debug("nodeUpdate: node=" + nodeInfo.getHostName() + 
-        " available=" + nodeInfo.getAvailableResource().memory);
+        " available=" + nodeInfo.getAvailableResource().getMemory());
     return node.statusUpdate(containers);
     
   }
 
   public synchronized void addAllocatedContainers(NodeInfo nodeInfo, 
-      ApplicationID applicationId, List<Container> containers) {
+      ApplicationId applicationId, List<Container> containers) {
     NodeManager node = nodes.get(nodeInfo.getHostName());
     node.allocateContainer(applicationId, containers);
   }
 
-  public synchronized void finishedApplication(ApplicationID applicationId,
+  public synchronized void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
     for (NodeInfo node: nodesToNotify) {
       NodeManager nodeManager = nodes.get(node.getHostName());

@@ -35,12 +35,13 @@ import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
@@ -77,10 +78,10 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   private final Comparator<Application> applicationComparator = 
     new Comparator<Application>() {
-    @Override
-    public int compare(Application a1, Application a2) {
-      return a1.getApplicationId().id - a2.getApplicationId().id;
-    }
+      @Override
+      public int compare(Application a1, Application a2) {
+        return a1.getApplicationId().getId() - a2.getApplicationId().getId();
+      }
   };
 
   private CapacitySchedulerConfiguration conf;
@@ -90,9 +91,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
 
   private Resource minimumAllocation;
-
-  private Map<ApplicationID, Application> applications = 
-    new TreeMap<ApplicationID, Application>(
+  
+  private Map<ApplicationId, Application> applications = 
+    new TreeMap<ApplicationId, Application>(
         new org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.Comparator());
 
 
@@ -177,7 +178,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
    * @param priority the priority of the application
    * @throws IOException
    */
-  public void addApplication(ApplicationID applicationId, 
+  public void addApplication(ApplicationId applicationId, 
       String user, String queueName, Priority priority)
   throws IOException {
     Queue queue = queues.get(queueName);
@@ -201,7 +202,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
     applications.put(applicationId, application);
 
-    LOG.info("Application Submission: " + applicationId.id + 
+    LOG.info("Application Submission: " + applicationId.getId() + 
         ", user: " + user +
         " queue: " + queue +
         ", currently active: " + applications.size());
@@ -213,7 +214,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
    * @param applicationId the applicationId of the application
    * @throws IOException
    */
-  public void removeApplication(ApplicationID applicationId)
+  public void removeApplication(ApplicationId applicationId)
   throws IOException {
     Application application = getApplication(applicationId);
 
@@ -241,7 +242,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public List<Container> allocate(ApplicationID applicationId,
+  public List<Container> allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release)
       throws IOException {
 
@@ -283,17 +284,16 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   private void normalizeRequest(ResourceRequest ask) {
-    int memory = ask.capability.memory;
-    int minMemory = minimumAllocation.memory;
-    ask.capability.memory =
-      minMemory * ((memory/minMemory) + (memory%minMemory > 0 ? 1 : 0));
+    int memory = ask.getCapability().getMemory();
+    int minMemory = minimumAllocation.getMemory();
+    ask.getCapability().setMemory (
+      minMemory * ((memory/minMemory) + (memory%minMemory > 0 ? 1 : 0)));
   }
 
 
   @Override
   public synchronized NodeResponse nodeUpdate(NodeInfo node, 
-      Map<CharSequence,List<Container>> containers ) {
-
+      Map<String,List<Container>> containers ) {
     LOG.info("nodeUpdate: " + node);
 
     NodeResponse nodeResponse = nodeUpdateInternal(node, containers);
@@ -310,7 +310,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   private synchronized void processCompletedContainers(
       List<Container> completedContainers) {
     for (Container container: completedContainers) {
-      Application application = getApplication(container.id.appID);
+      Application application = getApplication(container.getId().getAppId());
 
       // this is possible, since an application can be removed from scheduler 
       // but the nodemanger is just updating about a completed container.
@@ -342,7 +342,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     processCompletedContainers(unusedContainers);
   }
 
-  private synchronized Application getApplication(ApplicationID applicationId) {
+  private synchronized Application getApplication(ApplicationId applicationId) {
     return applications.get(applicationId);
   }
 
@@ -353,7 +353,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
       try {
         addApplication(event.getAppContext().getApplicationID(), 
             event.getAppContext().getUser(), event.getAppContext().getQueue(),
-            event.getAppContext().getSubmissionContext().priority);
+            event.getAppContext().getSubmissionContext().getPriority());
       } catch(IOException ie) {
         LOG.error("Error in adding an application to the scheduler", ie);
         //TODO do proper error handling to shutdown the Resource Manager is we 
@@ -373,7 +373,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
   
   private Map<String, NodeManager> nodes = new HashMap<String, NodeManager>();
-  private Resource clusterResource = new Resource();
+  private Resource clusterResource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Resource.class);
   
  
   public synchronized Resource getClusterResource() {
@@ -394,7 +394,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
  
   @Override
-  public synchronized NodeInfo addNode(NodeID nodeId, 
+  public synchronized NodeInfo addNode(NodeId nodeId, 
       String hostName, Node node, Resource capability) {
     NodeManager nodeManager = new NodeManager(nodeId, hostName, node, capability);
     nodes.put(nodeManager.getHostName(), nodeManager);
@@ -403,30 +403,30 @@ implements ResourceScheduler, CapacitySchedulerContext {
     return nodeManager;
   }
 
-  public synchronized boolean releaseContainer(ApplicationID applicationId, 
+  public synchronized boolean releaseContainer(ApplicationId applicationId, 
       Container container) {
     // Reap containers
     LOG.info("Application " + applicationId + " released container " + container);
-    NodeManager nodeManager = nodes.get(container.hostName.toString());
+    NodeManager nodeManager = nodes.get(container.getHostName());
     return nodeManager.releaseContainer(container);
   }
   
   public synchronized NodeResponse nodeUpdateInternal(NodeInfo nodeInfo, 
-      Map<CharSequence,List<Container>> containers) {
+      Map<String,List<Container>> containers) {
     NodeManager node = nodes.get(nodeInfo.getHostName());
     LOG.debug("nodeUpdate: node=" + nodeInfo.getHostName() + 
-        " available=" + nodeInfo.getAvailableResource().memory);
+        " available=" + nodeInfo.getAvailableResource().getMemory());
     return node.statusUpdate(containers);
     
   }
 
   public synchronized void addAllocatedContainers(NodeInfo nodeInfo, 
-      ApplicationID applicationId, List<Container> containers) {
+      ApplicationId applicationId, List<Container> containers) {
     NodeManager node = nodes.get(nodeInfo.getHostName());
     node.allocateContainer(applicationId, containers);
   }
 
-  public synchronized void finishedApplication(ApplicationID applicationId,
+  public synchronized void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
     for (NodeInfo node: nodesToNotify) {
       NodeManager nodeManager = nodes.get(node.getHostName());

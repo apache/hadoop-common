@@ -2,9 +2,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -15,20 +13,22 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.Node;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerToken;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
@@ -56,7 +56,7 @@ public class TestAMRestart extends TestCase {
     new ApplicationTokenSecretManager();
   DummyResourceScheduler scheduler;
   int count = 0;
-  ApplicationID appID;
+  ApplicationId appID;
   final int maxFailures = 3;
   AtomicInteger launchNotify = new AtomicInteger();
   AtomicInteger schedulerNotify = new AtomicInteger();
@@ -66,6 +66,7 @@ public class TestAMRestart extends TestCase {
   int launcherLaunchCalled = 0;
   int launcherCleanupCalled = 0;
   ApplicationMasterInfo masterInfo;
+  private final static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
   private class ExtApplicationsManagerImpl extends ApplicationsManagerImpl {
     public ExtApplicationsManagerImpl(
@@ -128,7 +129,7 @@ public class TestAMRestart extends TestCase {
 
   private class DummyResourceScheduler implements ResourceScheduler {
     @Override
-    public NodeInfo addNode(NodeID nodeId, String hostName, Node node,
+    public NodeInfo addNode(NodeId nodeId, String hostName, Node node,
         Resource capability) {
       return null;
     }
@@ -137,19 +138,19 @@ public class TestAMRestart extends TestCase {
     }
     @Override
     public NodeResponse nodeUpdate(NodeInfo nodeInfo,
-        Map<CharSequence, List<Container>> containers) {
+        Map<String, List<Container>> containers) {
       return null;
     }
 
     @Override
-    public List<Container> allocate(ApplicationID applicationId,
+    public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
-      Container container = new Container();
-      container.containerToken = new ContainerToken();
-      container.hostName = "localhost";
-      container.id = new ContainerID();
-      container.id.appID = appID;
-      container.id.id = count;
+      Container container = recordFactory.newRecordInstance(Container.class);
+      container.setContainerToken(recordFactory.newRecordInstance(ContainerToken.class));
+      container.setHostName("localhost");
+      container.setId(recordFactory.newRecordInstance(ContainerId.class));
+      container.getId().setAppId(appID);
+      container.getId().setId(count);
       count++;
       return Arrays.asList(container);
     }
@@ -183,9 +184,9 @@ public class TestAMRestart extends TestCase {
 
   @Before
   public void setUp() {
-    appID = new ApplicationID();
-    appID.clusterTimeStamp = System.currentTimeMillis();
-    appID.id = 1;
+    appID = recordFactory.newRecordInstance(ApplicationId.class);
+    appID.setClusterTimestamp(System.currentTimeMillis());
+    appID.setId(1);
     scheduler = new DummyResourceScheduler();
     asmContext.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
     appImpl = new ExtApplicationsManagerImpl(appTokenSecretManager, scheduler, asmContext);
@@ -211,9 +212,9 @@ public class TestAMRestart extends TestCase {
   }
   
   private class TestAppContext implements AppContext {
-    private ApplicationID appID;
+    private ApplicationId appID;
    
-    public TestAppContext(ApplicationID appID) {
+    public TestAppContext(ApplicationId appID) {
       this.appID = appID;
     }
     @Override
@@ -227,7 +228,7 @@ public class TestAMRestart extends TestCase {
     }
 
     @Override
-    public ApplicationID getApplicationID() {
+    public ApplicationId getApplicationID() {
       return appID;
     }
 
@@ -275,13 +276,13 @@ public class TestAMRestart extends TestCase {
 
   @Test
   public void testAMRestart() throws Exception {
-    ApplicationSubmissionContext subContext = new ApplicationSubmissionContext();
-    subContext.applicationId = appID;
-    subContext.applicationName = "dummyApp";
-    subContext.command = new ArrayList<CharSequence>();
-    subContext.environment = new HashMap<CharSequence, CharSequence>();
-    subContext.fsTokens = new ArrayList<CharSequence>();
-    subContext.fsTokens_todo = ByteBuffer.wrap(new byte[0]);
+    ApplicationSubmissionContext subContext = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    subContext.setApplicationId(appID);
+    subContext.setApplicationName("dummyApp");
+//    subContext.command = new ArrayList<String>();
+//    subContext.environment = new HashMap<String, String>();
+//    subContext.fsTokens = new ArrayList<String>();
+    subContext.setFsTokensTodo(ByteBuffer.wrap(new byte[0]));
     appImpl.submitApplication(subContext);
     masterInfo = appImpl.getApplicationMasterInfo(appID);
     synchronized (schedulerNotify) {

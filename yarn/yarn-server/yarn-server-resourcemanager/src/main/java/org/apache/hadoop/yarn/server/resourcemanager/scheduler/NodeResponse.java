@@ -2,8 +2,9 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
 import java.util.List;
 
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.Container;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
+
 
 /**
  * The class that encapsulates response from clusterinfo for 
@@ -12,15 +13,15 @@ import org.apache.hadoop.yarn.Container;
 public class NodeResponse {
   private final List<Container> completed;
   private final List<Container> toCleanUp;
-  private final List<ApplicationID> finishedApplications;
+  private final List<ApplicationId> finishedApplications;
   
-  public NodeResponse(List<ApplicationID> finishedApplications,
+  public NodeResponse(List<ApplicationId> finishedApplications,
       List<Container> completed, List<Container> toKill) {
     this.finishedApplications = finishedApplications;
     this.completed = completed;
     this.toCleanUp = toKill;
   }
-  public List<ApplicationID> getFinishedApplications() {
+  public List<ApplicationId> getFinishedApplications() {
     return this.finishedApplications;
   }
   public List<Container> getCompletedContainers() {

@@ -18,50 +18,38 @@
 
 package org.apache.hadoop.yarn.ipc;
 
-import org.apache.hadoop.yarn.YarnRemoteException;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.YarnRemoteExceptionFactory;
+import org.apache.hadoop.yarn.factory.providers.YarnRemoteExceptionFactoryProvider;
 
 public class RPCUtil {
 
+
   /**
-   * Returns the YarnRemoteException which is serializable by 
-   * Avro.
+   * Relying on the default factory configuration to be set correctly
+   * for the default configuration.
+   */
+  private static Configuration conf = new Configuration();
+  private static YarnRemoteExceptionFactory exceptionFactory = YarnRemoteExceptionFactoryProvider.getYarnRemoteExceptionFactory(conf);
+  
+  /**
+   * Returns the YarnRemoteException which is serializable. 
    */
   public static YarnRemoteException getRemoteException(Throwable t) {
-    YarnRemoteException e = new YarnRemoteException();
-    if (t != null) {
-      e.message = t.getMessage();
-      StringBuilder buf = new StringBuilder();
-      StackTraceElement[] trace = t.getStackTrace();
-      if (trace != null) {
-        for (StackTraceElement element : trace) {
-          buf.append(element.toString() + "\n    at ");
-        }
-        e.trace = buf.toString();
-      }
-      Throwable cause = t.getCause();
-      if (cause != null) {
-        e.cause = getRemoteException(cause);
-      }
-    }
-    return e;
+    return exceptionFactory.createYarnRemoteException(t);
   }
 
   /**
-   * Returns the YarnRemoteException which is serializable by 
-   * Avro.
+   * Returns the YarnRemoteException which is serializable.
    */
   public static YarnRemoteException getRemoteException(String message) {
-    YarnRemoteException e = new YarnRemoteException();
-    if (message != null) {
-      e.message = message;
-    }
-    return e;
+    return exceptionFactory.createYarnRemoteException(message);
   }
 
   public static String toString(YarnRemoteException e) {
-    return (e.message == null ? "" : e.message) + 
-        (e.trace == null ? "" : "\n StackTrace: " + e.trace) +
-        (e.cause == null ? "" : "\n Caused by: " + toString(e.cause));
-        
+    return (e.getMessage() == null ? "" : e.getMessage()) + 
+      (e.getRemoteTrace() == null ? "" : "\n StackTrace: " + e.getRemoteTrace()) + 
+      (e.getCause() == null ? "" : "\n Caused by: " + toString(e.getCause()));
   }
 }

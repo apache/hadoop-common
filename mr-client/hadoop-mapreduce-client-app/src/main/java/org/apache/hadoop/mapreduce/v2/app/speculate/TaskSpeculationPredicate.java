@@ -18,19 +18,20 @@
 
 package org.apache.hadoop.mapreduce.v2.app.speculate;
 
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
+
 
 public class TaskSpeculationPredicate {
-  boolean canSpeculate(AppContext context, TaskID taskID) {
+  boolean canSpeculate(AppContext context, TaskId taskID) {
     // This class rejects speculating any task that already has speculations,
     //  or isn't running.
     //  Subclasses should call TaskSpeculationPredicate.canSpeculate(...) , but
     //  can be even more restrictive.
-    JobID jobID = taskID.jobID;
+    JobId jobID = taskID.getJobId();
     Job job = context.getJob(jobID);
     Task task = job.getTask(taskID);
     return task.getAttempts().size() == 1;

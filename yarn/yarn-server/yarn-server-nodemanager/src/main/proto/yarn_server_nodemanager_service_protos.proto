@@ -1,0 +1,22 @@
+option java_package = "org.apache.hadoop.yarn.proto";
+option java_outer_classname = "YarnServerNodemanagerServiceProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+
+import "yarn_protos.proto";
+
+message SuccessfulLocalizationRequestProto {
+  optional string user = 1;
+  optional LocalResourceProto resource = 2;
+  optional URLProto path = 3;
+}
+message SuccessfulLocalizationResponseProto {
+}
+
+message FailedLocalizationRequestProto {
+  optional string user = 1;
+  optional LocalResourceProto resource = 2;
+  optional YarnRemoteExceptionProto exception =3;
+}
+message FailedLocalizationResponseProto {
+}

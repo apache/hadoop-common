@@ -46,16 +46,21 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.LocalizationProtocol;
-import org.apache.hadoop.yarn.URL;
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.YarnRemoteException;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
+import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.FailedLocalizationRequest;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.FailedLocalizationResponse;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.SuccessfulLocalizationRequest;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.SuccessfulLocalizationResponse;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEventType;
@@ -68,7 +73,9 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.even
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.security.LocalizerSecurityInfo;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.security.LocalizerTokenSecretManager;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
+import org.apache.hadoop.yarn.api.records.URL;
+
 
 public class ResourceLocalizationService extends AbstractService
     implements EventHandler<LocalizerEvent>, LocalizationProtocol {
@@ -87,6 +94,7 @@ public class ResourceLocalizationService extends AbstractService
   private final DeletionService delService;
   private final ExecutorService appLocalizerThreadPool =
     Executors.newCachedThreadPool();
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   /**
    * Map of private resources of users.
@@ -184,10 +192,12 @@ public class ResourceLocalizationService extends AbstractService
    * @param resource Resource localized
    * @param path Location on the local filesystem, or null if failed
    */
+  
   @Override
-  public Void successfulLocalization(CharSequence user,
-      org.apache.hadoop.yarn.LocalResource resource, URL path)
-      throws YarnRemoteException {
+  public SuccessfulLocalizationResponse successfulLocalization(SuccessfulLocalizationRequest request) throws YarnRemoteException {
+    String user = request.getUser();
+    org.apache.hadoop.yarn.api.records.LocalResource resource = request.getResource();
+    URL path = request.getPath();
     // TODO validate request
     LocalResourcesTracker userCache = privateRsrc.get(user.toString());
     if (null == userCache) {
@@ -195,17 +205,18 @@ public class ResourceLocalizationService extends AbstractService
     }
     try {
       userCache.setSuccess(new LocalResource(resource),
-          resource.size, AvroUtil.getPathFromYarnURL(path));
+          resource.getSize(), ConverterUtils.getPathFromYarnURL(path));
     } catch (Exception e) {
       throw RPCUtil.getRemoteException(e);
     }
-    return null;
+    SuccessfulLocalizationResponse response = recordFactory.newRecordInstance(SuccessfulLocalizationResponse.class);
+    return response;
   }
 
-  @Override
-  public Void failedLocalization(CharSequence user,
-      org.apache.hadoop.yarn.LocalResource resource, YarnRemoteException cause) 
-      throws YarnRemoteException {
+  public FailedLocalizationResponse failedLocalization(FailedLocalizationRequest request) throws YarnRemoteException {
+    String user = request.getUser();
+    org.apache.hadoop.yarn.api.records.LocalResource resource = request.getResource();
+    YarnRemoteException cause = request.getException();
     LocalResourcesTracker userCache = privateRsrc.get(user.toString());
     if (null == userCache) {
       throw RPCUtil.getRemoteException("Unknown user: " + user);
@@ -215,7 +226,8 @@ public class ResourceLocalizationService extends AbstractService
     } catch (Exception e) {
       throw RPCUtil.getRemoteException(e);
     }
-    return null;
+    FailedLocalizationResponse response = recordFactory.newRecordInstance(FailedLocalizationResponse.class);
+    return response;
   }
 
   @Override
@@ -271,7 +283,7 @@ public class ResourceLocalizationService extends AbstractService
       // Delete the container directories
       userName = container.getUser();;
       String containerIDStr = container.toString();
-      appIDStr = AvroUtil.toString(container.getContainerID().appID);
+      appIDStr = ConverterUtils.toString(container.getContainerID().getAppId());
       for (Path localDir : localDirs) {
         Path usersdir = new Path(localDir, ApplicationLocalizer.USERCACHE);
         Path userdir =

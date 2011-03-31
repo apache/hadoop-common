@@ -19,15 +19,15 @@
 package org.apache.hadoop.mapreduce.v2.app.launcher;
 
 import org.apache.hadoop.mapred.Task;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerLaunchContext;
-import org.apache.hadoop.yarn.ContainerToken;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerToken;
 
 public abstract class ContainerRemoteLaunchEvent extends ContainerLauncherEvent {
 
-  public ContainerRemoteLaunchEvent(TaskAttemptID taskAttemptID,
-      ContainerID containerID, String containerMgrAddress,
+  public ContainerRemoteLaunchEvent(TaskAttemptId taskAttemptID,
+      ContainerId containerID, String containerMgrAddress,
       ContainerToken containerToken) {
     super(taskAttemptID, containerID, containerMgrAddress,
         containerToken,

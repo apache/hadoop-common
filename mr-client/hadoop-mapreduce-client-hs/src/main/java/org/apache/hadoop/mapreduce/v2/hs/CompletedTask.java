@@ -27,14 +27,15 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskAttemptInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
+import org.apache.hadoop.mapreduce.v2.api.records.Counters;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
-import org.apache.hadoop.mapreduce.v2.api.Counters;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
-import org.apache.hadoop.mapreduce.v2.api.TaskReport;
-import org.apache.hadoop.mapreduce.v2.api.TaskState;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class CompletedTask implements Task {
 
@@ -44,15 +45,15 @@ public class CompletedTask implements Task {
   private final long startTime;
   private final long finishTime;
   private final TaskState state;
-  private final TaskID taskID;
+  private final TaskId taskId;
   private final TaskReport report;
-  private final Map<TaskAttemptID, TaskAttempt> attempts =
-    new LinkedHashMap<TaskAttemptID, TaskAttempt>();
+  private final Map<TaskAttemptId, TaskAttempt> attempts =
+    new LinkedHashMap<TaskAttemptId, TaskAttempt>();
   
   private static final Log LOG = LogFactory.getLog(CompletedTask.class);
 
-  CompletedTask(TaskID taskID, TaskInfo taskinfo) {
-    this.taskID = taskID;
+  CompletedTask(TaskId taskId, TaskInfo taskinfo) {
+    this.taskId = taskId;
     this.startTime = taskinfo.getStartTime();
     this.finishTime = taskinfo.getFinishTime();
     this.type = TypeConverter.toYarn(taskinfo.getTaskType());
@@ -61,35 +62,34 @@ public class CompletedTask implements Task {
     this.state = TaskState.valueOf(taskinfo.getTaskStatus());
     for (TaskAttemptInfo attemptHistory : 
                 taskinfo.getAllTaskAttempts().values()) {
-      CompletedTaskAttempt attempt = new CompletedTaskAttempt(taskID, 
+      CompletedTaskAttempt attempt = new CompletedTaskAttempt(taskId, 
           attemptHistory);
       attempts.put(attempt.getID(), attempt);
     }
     
-    report = new TaskReport();
-    report.id = taskID;
-    report.startTime = startTime;
-    report.finishTime = finishTime;
-    report.state = state;
-    report.progress = getProgress();
-    report.counters = getCounters();
-    report.runningAttempts = new ArrayList<TaskAttemptID>();
-    report.runningAttempts.addAll(attempts.keySet());
+    report = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskReport.class);
+    report.setTaskId(taskId);
+    report.setStartTime(startTime);
+    report.setFinishTime(finishTime);
+    report.setTaskState(state);
+    report.setProgress(getProgress());
+    report.setCounters(getCounters());
+    report.addAllRunningAttempts(new ArrayList<TaskAttemptId>(attempts.keySet()));
     //report.successfulAttempt = taskHistory.; //TODO
   }
 
   @Override
-  public boolean canCommit(TaskAttemptID taskAttemptID) {
+  public boolean canCommit(TaskAttemptId taskAttemptID) {
     return false;
   }
 
   @Override
-  public TaskAttempt getAttempt(TaskAttemptID attemptID) {
+  public TaskAttempt getAttempt(TaskAttemptId attemptID) {
     return attempts.get(attemptID);
   }
 
   @Override
-  public Map<TaskAttemptID, TaskAttempt> getAttempts() {
+  public Map<TaskAttemptId, TaskAttempt> getAttempts() {
     return attempts;
   }
 
@@ -99,8 +99,8 @@ public class CompletedTask implements Task {
   }
 
   @Override
-  public TaskID getID() {
-    return taskID;
+  public TaskId getID() {
+    return taskId;
   }
 
   @Override

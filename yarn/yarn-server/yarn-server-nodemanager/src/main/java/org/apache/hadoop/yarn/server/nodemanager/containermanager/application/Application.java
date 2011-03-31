@@ -23,16 +23,15 @@ import java.util.Map;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.EventHandler;
-
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.LocalResource;
-import org.apache.hadoop.yarn.LocalResourceVisibility;
 
 
 public interface Application extends EventHandler<ApplicationEvent> {
 
-  Map<CharSequence,CharSequence> getEnvironment();
+  Map<String,String> getEnvironment();
 
   Map<String,LocalResource> getResources(LocalResourceVisibility vis);
 
@@ -40,7 +39,7 @@ public interface Application extends EventHandler<ApplicationEvent> {
 
   String getUser();
 
-  ApplicationID getAppId();
+  ApplicationId getAppId();
 
   ApplicationState getApplicationState();
 

@@ -25,9 +25,11 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.client.ClientToAMSecretManager;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
@@ -45,6 +47,7 @@ import org.junit.Test;
  */
 public class TestApplicationMasterLauncher extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestApplicationMasterLauncher.class);
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private ApplicationMasterLauncher amLauncher;
   private DummyASM asmHandle;
   private final ApplicationTokenSecretManager applicationTokenSecretManager =
@@ -135,11 +138,11 @@ public class TestApplicationMasterLauncher extends TestCase {
 
   @Test
   public void testAMLauncher() throws Exception {
-    ApplicationSubmissionContext context = new ApplicationSubmissionContext();
-    context.applicationId = new ApplicationID();
-    context.applicationId.clusterTimeStamp = System.currentTimeMillis();
-    context.applicationId.id = 1;
-    context.user = "dummyuser";
+    ApplicationSubmissionContext context = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    context.setApplicationId(recordFactory.newRecordInstance(ApplicationId.class));
+    context.getApplicationId().setClusterTimestamp(System.currentTimeMillis());
+    context.getApplicationId().setId(1);
+    context.setUser("dummyuser");
     ApplicationMasterInfo masterInfo = new ApplicationMasterInfo(this.context.
         getDispatcher().getEventHandler(),
         "dummyuser", context,

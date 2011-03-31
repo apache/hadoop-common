@@ -21,7 +21,8 @@ package org.apache.hadoop.yarn.util;
 import java.util.Iterator;
 
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.ApplicationID;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 import static org.apache.hadoop.yarn.util.StringHelper.*;
 
@@ -32,25 +33,25 @@ public class Apps {
   public static final String APP = "app";
   public static final String ID = "ID";
 
-  public static String toString(ApplicationID id) {
-    return _join("app", id.clusterTimeStamp, id.id);
+  public static String toString(ApplicationId id) {
+    return _join("app", id.getClusterTimestamp(), id.getId());
   }
 
-  public static ApplicationID toAppID(String aid) {
+  public static ApplicationId toAppID(String aid) {
     Iterator<String> it = _split(aid).iterator();
     return toAppID(APP, aid, it);
   }
 
-  public static ApplicationID toAppID(String prefix, String s, Iterator<String> it) {
+  public static ApplicationId toAppID(String prefix, String s, Iterator<String> it) {
     if (!it.hasNext() || !it.next().equals(prefix)) {
       throwParseException(sjoin(prefix, ID), s);
     }
     shouldHaveNext(prefix, s, it);
-    ApplicationID appID = new ApplicationID();
-    appID.clusterTimeStamp = Long.parseLong(it.next());
+    ApplicationId appId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+    appId.setClusterTimestamp(Long.parseLong(it.next()));
     shouldHaveNext(prefix, s, it);
-    appID.id = Integer.parseInt(it.next());
-    return appID;
+    appId.setId(Integer.parseInt(it.next()));
+    return appId;
   }
 
   public static void shouldHaveNext(String prefix, String s, Iterator<String> it) {

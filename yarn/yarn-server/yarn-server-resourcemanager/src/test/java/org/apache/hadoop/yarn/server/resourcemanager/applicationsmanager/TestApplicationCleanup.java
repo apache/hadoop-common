@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+
 import junit.framework.Assert;
 import junit.framework.TestCase;
 
@@ -33,16 +34,18 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.NodeID;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
+import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
@@ -65,6 +68,7 @@ import org.junit.Test;
  */
 public class TestApplicationCleanup extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestApplicationCleanup.class);
+  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private AtomicInteger waitForState = new AtomicInteger(0);
   private ResourceScheduler scheduler;
   private final int memoryCapability = 1024;
@@ -238,33 +242,33 @@ public class TestApplicationCleanup extends TestCase {
   }
 
   private ResourceRequest createNewResourceRequest(int capability, int i) {
-    ResourceRequest request = new ResourceRequest();
-    request.capability = new Resource();
-    request.capability.memory = capability;
-    request.numContainers = 1;
-    request.priority = new Priority();
-    request.priority.priority = i;
-    request.hostName = "*";
+    ResourceRequest request = recordFactory.newRecordInstance(ResourceRequest.class);
+    request.setCapability(recordFactory.newRecordInstance(Resource.class));
+    request.getCapability().setMemory(capability);
+    request.setNumContainers(1);
+    request.setPriority(recordFactory.newRecordInstance(Priority.class));
+    request.getPriority().setPriority(i);
+    request.setHostName("*");
     return request;
   }
 
   protected NodeInfo addNodes(String commonName, int i, int memoryCapability) {
-    NodeID nodeId = new NodeID();
-    nodeId.id = i;
+    NodeId nodeId = recordFactory.newRecordInstance(NodeId.class);
+    nodeId.setId(i);
     String hostName = commonName + "_" + i;
     Node node = new NodeBase(hostName, NetworkTopology.DEFAULT_RACK);
-    Resource capability = new Resource();
-    capability.memory = 1024;
+    Resource capability = recordFactory.newRecordInstance(Resource.class);
+    capability.setMemory(1024);
     return scheduler.addNode(nodeId, hostName, node, capability);
   }
 
   @Test
   public void testApplicationCleanUp() throws Exception {
-    ApplicationID appID = asm.getNewApplicationID();
-    ApplicationSubmissionContext context = new ApplicationSubmissionContext();
-    context.applicationId = appID;
-    context.queue = "queuename";
-    context.user = "dummyuser";
+    ApplicationId appID = asm.getNewApplicationID();
+    ApplicationSubmissionContext context = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    context.setApplicationId(appID);
+    context.setQueue("queuename");
+    context.setUser("dummyuser");
     asm.submitApplication(context);
     waitForState(ApplicationState.LAUNCHED, asm.getApplicationMasterInfo(appID));
     List<ResourceRequest> reqs = new ArrayList<ResourceRequest>();
@@ -278,16 +282,16 @@ public class TestApplicationCleanup extends TestCase {
       nodesAdded.add(addNodes("localhost", i, memoryCapability));
     }
     /* let one node heartbeat */
-    Map<CharSequence, List<Container>> containers = new HashMap<CharSequence, List<Container>>();
+    Map<String, List<Container>> containers = new HashMap<String, List<Container>>();
     NodeInfo firstNode = nodesAdded.get(0);
-    int firstNodeMemory = firstNode.getAvailableResource().memory;
+    int firstNodeMemory = firstNode.getAvailableResource().getMemory();
     NodeInfo secondNode = nodesAdded.get(1);
     scheduler.nodeUpdate(firstNode, containers);
     scheduler.nodeUpdate(secondNode, containers);
     LOG.info("Available resource on first node" + firstNode.getAvailableResource());
     LOG.info("Available resource on second node" + secondNode.getAvailableResource());
     /* only allocate the containers to the first node */
-    assertTrue(firstNode.getAvailableResource().memory == 
+    assertTrue(firstNode.getAvailableResource().getMemory() == 
       (firstNodeMemory - (2*memoryNeeded)));
     ApplicationMasterInfo masterInfo = asm.getApplicationMasterInfo(appID);
     asm.finishApplication(appID);

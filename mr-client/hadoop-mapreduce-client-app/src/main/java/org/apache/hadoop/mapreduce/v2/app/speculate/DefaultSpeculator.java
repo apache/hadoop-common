@@ -33,9 +33,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.mapreduce.v2.api.TaskID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.Clock;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -47,10 +51,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.mapreduce.v2.api.JobID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptState;
-import org.apache.hadoop.mapreduce.v2.api.TaskType;
+
 
 public class DefaultSpeculator extends AbstractService implements
     Speculator {
@@ -71,8 +72,8 @@ public class DefaultSpeculator extends AbstractService implements
 
   private static final Log LOG = LogFactory.getLog(DefaultSpeculator.class);
 
-  private final ConcurrentMap<TaskID, Boolean> runningTasks
-      = new ConcurrentHashMap<TaskID, Boolean>();
+  private final ConcurrentMap<TaskId, Boolean> runningTasks
+      = new ConcurrentHashMap<TaskId, Boolean>();
 
   private final Map<Task, AtomicBoolean> pendingSpeculations
       = new ConcurrentHashMap<Task, AtomicBoolean>();
@@ -80,12 +81,12 @@ public class DefaultSpeculator extends AbstractService implements
   // These are the current needs, not the initial needs.  For each job, these
   //  record the number of attempts that exist and that are actively
   //  waiting for a container [as opposed to running or finished]
-  private final ConcurrentMap<JobID, AtomicInteger> mapContainerNeeds
-      = new ConcurrentHashMap<JobID, AtomicInteger>();
-  private final ConcurrentMap<JobID, AtomicInteger> reduceContainerNeeds
-      = new ConcurrentHashMap<JobID, AtomicInteger>();
+  private final ConcurrentMap<JobId, AtomicInteger> mapContainerNeeds
+      = new ConcurrentHashMap<JobId, AtomicInteger>();
+  private final ConcurrentMap<JobId, AtomicInteger> reduceContainerNeeds
+      = new ConcurrentHashMap<JobId, AtomicInteger>();
 
-  private final Set<TaskID> mayHaveSpeculated = new HashSet();
+  private final Set<TaskId> mayHaveSpeculated = new HashSet();
 
   private final Configuration conf;
   private AppContext context;
@@ -239,11 +240,11 @@ public class DefaultSpeculator extends AbstractService implements
 
   // This section contains the code that gets run for a SpeculatorEvent
 
-  private AtomicInteger containerNeed(TaskID taskID) {
-    JobID jobID = taskID.jobID;
-    TaskType taskType = taskID.taskType;
+  private AtomicInteger containerNeed(TaskId taskID) {
+    JobId jobID = taskID.getJobId();
+    TaskType taskType = taskID.getTaskType();
 
-    ConcurrentMap<JobID, AtomicInteger> relevantMap
+    ConcurrentMap<JobId, AtomicInteger> relevantMap
         = taskType == TaskType.MAP ? mapContainerNeeds : reduceContainerNeeds;
 
     AtomicInteger result = relevantMap.get(jobID);
@@ -289,9 +290,9 @@ public class DefaultSpeculator extends AbstractService implements
 
     String stateString = reportedStatus.stateString.toString();
 
-    TaskAttemptID attemptID = reportedStatus.id;
-    TaskID taskID = attemptID.taskID;
-    Job job = context.getJob(taskID.jobID);
+    TaskAttemptId attemptID = reportedStatus.id;
+    TaskId taskID = attemptID.getTaskId();
+    Job job = context.getJob(taskID.getJobId());
 
     if (job == null) {
       return;
@@ -335,10 +336,10 @@ public class DefaultSpeculator extends AbstractService implements
   //
   // All of these values are negative.  Any value that should be allowed to
   //  speculate is 0 or positive.
-  private long speculationValue(TaskID taskID, long now) {
-    Job job = context.getJob(taskID.jobID);
+  private long speculationValue(TaskId taskID, long now) {
+    Job job = context.getJob(taskID.getJobId());
     Task task = job.getTask(taskID);
-    Map<TaskAttemptID, TaskAttempt> attempts = task.getAttempts();
+    Map<TaskAttemptId, TaskAttempt> attempts = task.getAttempts();
     long acceptableRuntime = Long.MIN_VALUE;
     long result = Long.MIN_VALUE;
 
@@ -349,7 +350,7 @@ public class DefaultSpeculator extends AbstractService implements
       }
     }
 
-    TaskAttemptID runningTaskAttemptID = null;
+    TaskAttemptId runningTaskAttemptID = null;
 
     int numberRunningAttempts = 0;
 
@@ -407,7 +408,7 @@ public class DefaultSpeculator extends AbstractService implements
   }
 
   //Add attempt to a given Task.
-  protected void addSpeculativeAttempt(TaskID taskID) {
+  protected void addSpeculativeAttempt(TaskId taskID) {
     System.out.println
         ("DefaultSpeculator.addSpeculativeAttempt -- we are speculating " + taskID);
     eventHandler.handle(new TaskEvent(taskID, TaskEventType.T_ADD_SPEC_ATTEMPT));
@@ -433,10 +434,10 @@ public class DefaultSpeculator extends AbstractService implements
 
     long now = clock.getTime();
 
-    ConcurrentMap<JobID, AtomicInteger> containerNeeds
+    ConcurrentMap<JobId, AtomicInteger> containerNeeds
         = type == TaskType.MAP ? mapContainerNeeds : reduceContainerNeeds;
 
-    for (ConcurrentMap.Entry<JobID, AtomicInteger> jobEntry : containerNeeds.entrySet()) {
+    for (ConcurrentMap.Entry<JobId, AtomicInteger> jobEntry : containerNeeds.entrySet()) {
       // This race conditon is okay.  If we skip a speculation attempt we
       //  should have tried because the event that lowers the number of
       //  containers needed to zero hasn't come through, it will next time.
@@ -444,7 +445,7 @@ public class DefaultSpeculator extends AbstractService implements
       //  zero but increased due to a failure it's not too bad to launch one
       //  container prematurely.
       if (jobEntry.getValue().get() > 0) {
-        break;
+        continue;
       }
 
       int numberSpeculationsAlready = 0;
@@ -453,18 +454,18 @@ public class DefaultSpeculator extends AbstractService implements
       // loop through the tasks of the kind
       Job job = context.getJob(jobEntry.getKey());
 
-      Map<TaskID, Task> tasks = job.getTasks(type);
+      Map<TaskId, Task> tasks = job.getTasks(type);
 
       int numberAllowedSpeculativeTasks
           = (int) Math.max(MINIMUM_ALLOWED_SPECULATIVE_TASKS,
                            PROPORTION_TOTAL_TASKS_SPECULATABLE * tasks.size());
 
-      TaskID bestTaskID = null;
+      TaskId bestTaskID = null;
       long bestSpeculationValue = -1L;
 
       // this loop is potentially pricey.
       // TODO track the tasks that are potentially worth looking at
-      for (Map.Entry<TaskID, Task> taskEntry : tasks.entrySet()) {
+      for (Map.Entry<TaskId, Task> taskEntry : tasks.entrySet()) {
         long mySpeculationValue = speculationValue(taskEntry.getKey(), now);
 
         if (mySpeculationValue == ALREADY_SPECULATING) {

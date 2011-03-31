@@ -33,10 +33,10 @@ import org.apache.hadoop.io.DataInputByteBuffer;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.LocalResource;
-import org.apache.hadoop.yarn.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
@@ -49,50 +49,50 @@ import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
-import org.apache.hadoop.yarn.util.AvroUtil;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class ApplicationImpl implements Application {
 
   final Dispatcher dispatcher;
   final String user;
-  final ApplicationID appId;
-  final Map<CharSequence, CharSequence> env;
-  final Map<CharSequence, LocalResource> resources;
+  final ApplicationId appId;
+  final Map<String,String> env;
+  final Map<String,LocalResource> resources;
   final ByteBuffer containerTokens;
   Map<Path, String> localizedResources;
 
   private static final Log LOG = LogFactory.getLog(Application.class);
 
-  Map<ContainerID, Container> containers =
-      new HashMap<ContainerID, Container>();
+  Map<ContainerId, Container> containers =
+      new HashMap<ContainerId, Container>();
 
   // TODO check for suitability of symlink name
   static Map<String, LocalResource>
-      filterResources(Map<CharSequence, LocalResource> resources,
+      filterResources(Map<String, LocalResource> resources,
           LocalResourceVisibility state) {
     Map<String, LocalResource> ret =
         new HashMap<String, LocalResource>();
-    for (Map.Entry<CharSequence, LocalResource> rsrc : resources.entrySet()) {
-      if (state.equals(rsrc.getValue().state)) {
-        ret.put(rsrc.getKey().toString(), rsrc.getValue());
+    for (Map.Entry<String, LocalResource> rsrc : resources.entrySet()) {
+      if (state.equals(rsrc.getValue().getVisibility())) {
+        ret.put(rsrc.getKey(), rsrc.getValue());
       }
     }
     return ret;
   }
 
   public ApplicationImpl(Dispatcher dispatcher,
-      CharSequence user,
-      ApplicationID appId,
-      Map<CharSequence, CharSequence> env,
-      Map<CharSequence, LocalResource> resources,
+      String user,
+      ApplicationId appId,
+      Map<String,String> env,
+      Map<String,LocalResource> resources,
       ByteBuffer containerTokens) {
     this.dispatcher = dispatcher;
     this.user = user.toString();
     this.appId = appId;
     this.env = env;
     this.resources = null == resources
-        ? new HashMap<CharSequence, LocalResource>()
-        : resources;
+      ? new HashMap<String,LocalResource>()
+      : resources;
     this.containerTokens = containerTokens;
     stateMachine = stateMachineFactory.make(this);
   }
@@ -103,7 +103,7 @@ public class ApplicationImpl implements Application {
   }
 
   @Override
-  public ApplicationID getAppId() {
+  public ApplicationId getAppId() {
     return appId;
   }
 
@@ -114,7 +114,7 @@ public class ApplicationImpl implements Application {
   }
 
   @Override
-  public Map<CharSequence, CharSequence> getEnvironment() {
+  public Map<String, String> getEnvironment() {
     return env;
   }
 
@@ -271,7 +271,7 @@ public class ApplicationImpl implements Application {
     @Override
     public void transition(ApplicationImpl app, ApplicationEvent event) {
       ApplicationInitEvent initEvent = (ApplicationInitEvent) event;
-      ContainerID containerID = initEvent.getContainer().getContainerID();
+      ContainerId containerID = initEvent.getContainer().getContainerID();
       app.dispatcher.getEventHandler().handle(
           new ContainerEvent(containerID, ContainerEventType.INIT_CONTAINER));
       app.dispatcher.getEventHandler().handle(
@@ -316,7 +316,7 @@ public class ApplicationImpl implements Application {
 
       // Send event to ContainersLauncher to finish all the containers of this
       // application.
-      for (ContainerID containerID : app.containers.keySet()) {
+      for (ContainerId containerID : app.containers.keySet()) {
         app.dispatcher.getEventHandler().handle(
             new ContainerEvent(containerID,
                 ContainerEventType.KILL_CONTAINER));
@@ -353,7 +353,7 @@ public class ApplicationImpl implements Application {
   @Override
   public synchronized void handle(ApplicationEvent event) {
 
-    ApplicationID applicationID = event.getApplicationID();
+    ApplicationId applicationID = event.getApplicationID();
     LOG.info("Processing " + applicationID + " of type " + event.getType());
 
     ApplicationState oldState = stateMachine.getCurrentState();
@@ -372,6 +372,6 @@ public class ApplicationImpl implements Application {
 
   @Override
   public String toString() {
-    return AvroUtil.toString(appId);
+    return ConverterUtils.toString(appId);
   }
 }

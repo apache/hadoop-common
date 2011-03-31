@@ -35,6 +35,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
@@ -46,24 +47,31 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.AMRMProtocol;
+import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.records.AMResponse;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.SchedulerSecurityInfo;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.AMRMProtocol;
-import org.apache.hadoop.yarn.AMResponse;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationStatus;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.ContainerID;
-import org.apache.hadoop.yarn.ContainerState;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.Resource;
-import org.apache.hadoop.yarn.ResourceRequest;
-import org.apache.hadoop.mapreduce.v2.api.TaskAttemptID;
+
+
 
 /**
  * Allocates the container from the ResourceManager scheduler.
@@ -74,7 +82,7 @@ implements ContainerAllocator {
     LogFactory.getLog(RMContainerAllocator.class);
   private static final String ANY = "*";
   private static int rmPollInterval;//millis
-  private ApplicationID applicationId;
+  private ApplicationId applicationId;
   private EventHandler eventHandler;
   private volatile boolean stopped;
   protected Thread allocatorThread;
@@ -82,10 +90,12 @@ implements ContainerAllocator {
   private AMRMProtocol scheduler;
   private final ClientService clientService;
   private int lastResponseID = 0;
+  
+  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   //mapping for assigned containers
-  private final Map<ContainerID, TaskAttemptID> assignedMap = 
-    new HashMap<ContainerID, TaskAttemptID>();
+  private final Map<ContainerId, TaskAttemptId> assignedMap = 
+    new HashMap<ContainerId, TaskAttemptId>();
 
   private final Map<Priority, 
   Map<Resource,LinkedList<ContainerRequestEvent>>> localRequestsQueue = 
@@ -110,7 +120,7 @@ implements ContainerAllocator {
     this.clientService = clientService;
     this.applicationId = context.getApplicationID();
     this.eventHandler = context.getEventHandler();
-    this.applicationMaster = new ApplicationMaster();
+    this.applicationMaster = recordFactory.newRecordInstance(ApplicationMaster.class);
   }
 
   @Override
@@ -130,17 +140,18 @@ implements ContainerAllocator {
 
   protected void register() {
     //Register
-    applicationMaster.applicationId = applicationId;
-    applicationMaster.host =
-      clientService.getBindAddress().getAddress().getHostAddress();
-    applicationMaster.rpcPort = clientService.getBindAddress().getPort();
-    applicationMaster.state = ApplicationState.RUNNING;
-    applicationMaster.httpPort = clientService.getHttpPort();
-    applicationMaster.status = new ApplicationStatus();
-    applicationMaster.status.applicationId = applicationId;
-    applicationMaster.status.progress = 0.0f;
+    applicationMaster.setApplicationId(applicationId);
+    applicationMaster.setHost(clientService.getBindAddress().getAddress().getHostAddress());
+    applicationMaster.setRpcPort(clientService.getBindAddress().getPort());
+    applicationMaster.setState(ApplicationState.RUNNING);
+    applicationMaster.setHttpPort(clientService.getHttpPort());
+    applicationMaster.setStatus(recordFactory.newRecordInstance(ApplicationStatus.class));
+    applicationMaster.getStatus().setApplicationId(applicationId);
+    applicationMaster.getStatus().setProgress(0.0f);
     try {
-      scheduler.registerApplicationMaster(applicationMaster);
+      RegisterApplicationMasterRequest request = recordFactory.newRecordInstance(RegisterApplicationMasterRequest.class);
+      request.setApplicationMaster(applicationMaster);
+      scheduler.registerApplicationMaster(request);
     } catch(Exception are) {
       LOG.info("Exception while registering", are);
       throw new YarnException(are);
@@ -149,8 +160,10 @@ implements ContainerAllocator {
 
   protected void unregister() {
     try {
-      applicationMaster.state = ApplicationState.COMPLETED;
-      scheduler.finishApplicationMaster(applicationMaster);
+      applicationMaster.setState(ApplicationState.COMPLETED);
+      FinishApplicationMasterRequest request = recordFactory.newRecordInstance(FinishApplicationMasterRequest.class);
+      request.setApplicationMaster(applicationMaster);
+      scheduler.finishApplicationMaster(request);
     } catch(Exception are) {
       LOG.info("Error while unregistering ", are);
     }
@@ -300,20 +313,20 @@ implements ContainerAllocator {
     }
     ResourceRequest remoteRequest = reqMap.get(capability);
     if (remoteRequest == null) {
-      remoteRequest = new ResourceRequest();
-      remoteRequest.priority = priority;
-      remoteRequest.hostName = resourceName;
-      remoteRequest.capability = capability;
-      remoteRequest.numContainers = 0;
+      remoteRequest = recordFactory.newRecordInstance(ResourceRequest.class);
+      remoteRequest.setPriority(priority);
+      remoteRequest.setHostName(resourceName);
+      remoteRequest.setCapability(capability);
+      remoteRequest.setNumContainers(0);
       reqMap.put(capability, remoteRequest);
     }
-    remoteRequest.numContainers++;
+    remoteRequest.setNumContainers(remoteRequest.getNumContainers() + 1);
 
     // Note this down for next interaction with ResourceManager
     ask.add(remoteRequest);
-    LOG.info("addResourceRequest:" + " applicationId=" + applicationId.id
-        + " priority=" + priority.priority + " resourceName=" + resourceName
-        + " numContainers=" + remoteRequest.numContainers + " #asks="
+    LOG.info("addResourceRequest:" + " applicationId=" + applicationId.getId()
+        + " priority=" + priority.getPriority() + " resourceName=" + resourceName
+        + " numContainers=" + remoteRequest.getNumContainers() + " #asks="
         + ask.size());
   }
 
@@ -324,13 +337,13 @@ implements ContainerAllocator {
     Map<Resource, ResourceRequest> reqMap = remoteRequests.get(resourceName);
     ResourceRequest remoteRequest = reqMap.get(capability);
 
-    LOG.info("BEFORE decResourceRequest:" + " applicationId=" + applicationId.id
-        + " priority=" + priority.priority + " resourceName=" + resourceName
-        + " numContainers=" + remoteRequest.numContainers + " #asks="
+    LOG.info("BEFORE decResourceRequest:" + " applicationId=" + applicationId.getId()
+        + " priority=" + priority.getPriority() + " resourceName=" + resourceName
+        + " numContainers=" + remoteRequest.getNumContainers() + " #asks="
         + ask.size());
 
-    remoteRequest.numContainers--;
-    if (remoteRequest.numContainers == 0) {
+    remoteRequest.setNumContainers(remoteRequest.getNumContainers() -1);
+    if (remoteRequest.getNumContainers() == 0) {
       reqMap.remove(capability);
       if (reqMap.size() == 0) {
         remoteRequests.remove(resourceName);
@@ -345,21 +358,25 @@ implements ContainerAllocator {
       //already have it.
     }
 
-    LOG.info("AFTER decResourceRequest:" + " applicationId=" + applicationId.id
-        + " priority=" + priority.priority + " resourceName=" + resourceName
-        + " numContainers=" + remoteRequest.numContainers + " #asks="
+    LOG.info("AFTER decResourceRequest:" + " applicationId=" + applicationId.getId()
+        + " priority=" + priority.getPriority() + " resourceName=" + resourceName
+        + " numContainers=" + remoteRequest.getNumContainers() + " #asks="
         + ask.size());
   }
 
   private List<Container> getResources() throws Exception {
-    ApplicationStatus status = new ApplicationStatus();
-    status.applicationId = applicationId;
-    status.responseID = lastResponseID;
-    AMResponse response = 
-      scheduler.allocate(status, 
-          new ArrayList(ask), new ArrayList(release));
-    lastResponseID = response.responseId;
-    List<Container> allContainers = response.containers;
+    ApplicationStatus status = recordFactory.newRecordInstance(ApplicationStatus.class);
+    status.setApplicationId(applicationId);
+    status.setResponseId(lastResponseID);
+    
+    AllocateRequest allocateRequest = recordFactory.newRecordInstance(AllocateRequest.class);
+    allocateRequest.setApplicationStatus(status);
+    allocateRequest.addAllAsks(new ArrayList<ResourceRequest>(ask));
+    allocateRequest.addAllReleases(new ArrayList<Container>(release));
+    AllocateResponse allocateResponse = scheduler.allocate(allocateRequest);
+    AMResponse response = allocateResponse.getAMResponse(); 
+    lastResponseID = response.getResponseId();
+    List<Container> allContainers = response.getContainerList();
     ask.clear();
     release.clear();
 
@@ -369,15 +386,15 @@ implements ContainerAllocator {
         " recieved=" + allContainers.size());
     List<Container> allocatedContainers = new ArrayList<Container>();
     for (Container cont : allContainers) {
-      if (cont.state != ContainerState.COMPLETE) {
+      if (cont.getState() != ContainerState.COMPLETE) {
         allocatedContainers.add(cont);
         LOG.debug("Received Container :" + cont);
       } else {
         LOG.info("Received completed container " + cont);
-        TaskAttemptID attemptID = assignedMap.remove(cont.id);
+        TaskAttemptId attemptID = assignedMap.remove(cont.getId());
         if (attemptID == null) {
           LOG.error("Container complete event for unknown container id " + 
-              cont.id);
+              cont.getId());
         } else {
           //send the container completed event to Task attempt
           eventHandler.handle(new TaskAttemptEvent(attemptID, 
@@ -413,8 +430,8 @@ implements ContainerAllocator {
   private void assign(Priority priority, List<Container> allocatedContainers) {
     for (Iterator<Container> i=allocatedContainers.iterator(); i.hasNext();) {
       Container allocatedContainer = i.next();
-      String host = allocatedContainer.hostName.toString();
-      Resource capability = allocatedContainer.resource;
+      String host = allocatedContainer.getHostName();
+      Resource capability = allocatedContainer.getResource();
 
       LinkedList<ContainerRequestEvent> requestList = 
         localRequestsQueue.get(priority).get(capability);
@@ -455,15 +472,15 @@ implements ContainerAllocator {
 
         //send the container assigned event to Task attempt
         eventHandler.handle(new TaskAttemptContainerAssignedEvent(assigned
-            .getAttemptID(), allocatedContainer.id,
-            allocatedContainer.hostName.toString(),
-            allocatedContainer.containerToken));
+            .getAttemptID(), allocatedContainer.getId(),
+            allocatedContainer.getHostName(),
+            allocatedContainer.getContainerToken()));
 
-        assignedMap.put(allocatedContainer.id, assigned.getAttemptID());
+        assignedMap.put(allocatedContainer.getId(), assigned.getAttemptID());
 
         LOG.info("Assigned container (" + allocatedContainer + ") " +
             " to task " + assigned.getAttemptID() + " at priority " + priority + 
-            " on node " + allocatedContainer.hostName.toString());
+            " on node " + allocatedContainer.getHostName());
       }
     }
   }

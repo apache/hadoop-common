@@ -28,15 +28,17 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.ApplicationID;
-import org.apache.hadoop.yarn.ApplicationMaster;
-import org.apache.hadoop.yarn.ApplicationState;
-import org.apache.hadoop.yarn.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.Container;
-import org.apache.hadoop.yarn.Priority;
-import org.apache.hadoop.yarn.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
@@ -52,6 +54,7 @@ import org.junit.Test;
 /* a test case that tests the launch failure of a AM */
 public class TestAMLaunchFailure extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestAMLaunchFailure.class);
+  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   ApplicationsManagerImpl asmImpl;
   YarnScheduler scheduler = new DummyYarnScheduler();
   ApplicationTokenSecretManager applicationTokenSecretManager = 
@@ -60,10 +63,10 @@ public class TestAMLaunchFailure extends TestCase {
   private ASMContext context;
 
   private static class DummyYarnScheduler implements YarnScheduler {
-    private Container container = new Container();
+    private Container container = recordFactory.newRecordInstance(Container.class);
 
     @Override
-    public List<Container> allocate(ApplicationID applicationId,
+    public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       return Arrays.asList(container);
     }
@@ -151,23 +154,23 @@ public class TestAMLaunchFailure extends TestCase {
     asmImpl.stop();
   }
 
-  private ApplicationSubmissionContext createDummyAppContext(ApplicationID appID) {
-    ApplicationSubmissionContext context = new ApplicationSubmissionContext();
-    context.applicationId = appID;
+  private ApplicationSubmissionContext createDummyAppContext(ApplicationId appID) {
+    ApplicationSubmissionContext context = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    context.setApplicationId(appID);
     return context;
   }
 
   @Test
   public void testAMLaunchFailure() throws Exception {
-    ApplicationID appID = asmImpl.getNewApplicationID();
+    ApplicationId appID = asmImpl.getNewApplicationID();
     ApplicationSubmissionContext context = createDummyAppContext(appID);
     asmImpl.submitApplication(context);
     ApplicationMaster master = asmImpl.getApplicationMaster(appID);
 
-    while (master.state != ApplicationState.FAILED) {
+    while (master.getState() != ApplicationState.FAILED) {
       Thread.sleep(200);
       master = asmImpl.getApplicationMaster(appID);
     }
-    assertTrue(master.state == ApplicationState.FAILED);
+    assertTrue(master.getState() == ApplicationState.FAILED);
   }
 }
