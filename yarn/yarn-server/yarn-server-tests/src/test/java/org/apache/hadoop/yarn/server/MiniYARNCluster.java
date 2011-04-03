@@ -24,11 +24,13 @@ import java.io.IOException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
 import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
@@ -39,6 +41,10 @@ import org.apache.hadoop.yarn.service.CompositeService;
 public class MiniYARNCluster extends CompositeService {
 
   private static final Log LOG = LogFactory.getLog(MiniYARNCluster.class);
+
+  static {
+    DefaultMetricsSystem.setMiniClusterMode(true);
+  }
 
   private NodeManager nodeManager;
   private ResourceManager resourceManager;
@@ -96,18 +102,30 @@ public class MiniYARNCluster extends CompositeService {
             resourceManager.start();
           };
         }.start();
-        while (resourceManager.getServiceState() == STATE.INITED) {
+        int waitCount = 0;
+        while (resourceManager.getServiceState() == STATE.INITED
+            && waitCount++ < 60) {
           LOG.info("Waiting for RM to start...");
           Thread.sleep(1500);
         }
         if (resourceManager.getServiceState() != STATE.STARTED) {
           // RM could have failed.
-          throw new IOException("ResourceManager failed to start");
+          throw new IOException(
+              "ResourceManager failed to start. Final state is "
+                  + resourceManager.getServiceState());
         }
         super.start();
       } catch (Throwable t) {
         throw new YarnException(t);
       }
+    }
+
+    @Override
+    public synchronized void stop() {
+      if (resourceManager != null) {
+        resourceManager.stop();
+      }
+      super.stop();
     }
   }
 
@@ -116,7 +134,7 @@ public class MiniYARNCluster extends CompositeService {
       super(NodeManagerWrapper.class.getName());
     }
 
-    public void start() {
+    public synchronized void start() {
       try {
         File localDir =
             new File(testWorkDir, MiniYARNCluster.this.getName() + "-localDir");
@@ -153,7 +171,9 @@ public class MiniYARNCluster extends CompositeService {
             nodeManager.start();
           };
         }.start();
-        while (nodeManager.getServiceState() == STATE.INITED) {
+        int waitCount = 0;
+        while (nodeManager.getServiceState() == STATE.INITED
+            && waitCount++ < 60) {
           LOG.info("Waiting for NM to start...");
           Thread.sleep(1000);
         }
@@ -161,9 +181,18 @@ public class MiniYARNCluster extends CompositeService {
           // RM could have failed.
           throw new IOException("NodeManager failed to start");
         }
+        super.start();
       } catch (Throwable t) {
         throw new YarnException(t);
       }
+    }
+
+    @Override
+    public synchronized void stop() {
+      if (nodeManager != null) {
+        nodeManager.stop();
+      }
+      super.stop();
     }
   }
 }

@@ -107,6 +107,14 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
         throw new YarnException(t);
       }
     }
+
+    @Override
+    public synchronized void stop() {
+      if (historyServer != null) {
+        historyServer.stop();
+      }
+      super.stop();
+    }
   }
   public JobHistoryServer getHistoryServer() {
 	  return this.historyServer;

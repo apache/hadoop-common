@@ -47,7 +47,9 @@ import org.apache.hadoop.yarn.api.AMRMProtocol;
 import org.apache.hadoop.yarn.api.ContainerManager;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
@@ -64,6 +66,7 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
+import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationIdProto;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.security.ContainerManagerSecurityInfo;
@@ -84,9 +87,10 @@ public class TestContainerTokenSecretManager {
   @Test
   public void test() throws IOException, InterruptedException {
     final ContainerId containerID = recordFactory.newRecordInstance(ContainerId.class);
-    containerID.setAppId(recordFactory.newRecordInstance(ApplicationId.class));
-    ContainerTokenSecretManager secretManager =
-        new ContainerTokenSecretManager();
+    ApplicationId appID = recordFactory.newRecordInstance(ApplicationId.class);
+    appID.setClusterTimestamp(1234);
+    appID.setId(5);
+    containerID.setAppId(appID);
     final Configuration conf = new Configuration();
     conf.set(CommonConfigurationKeysPublic.HADOOP_SECURITY_AUTHENTICATION,
         "kerberos");
@@ -99,7 +103,6 @@ public class TestContainerTokenSecretManager {
     yarnCluster.start();
 
     ResourceManager resourceManager = yarnCluster.getResourceManager();
-    NodeManager nodeManager = yarnCluster.getNodeManager();
 
     final YarnRPC yarnRPC = YarnRPC.create(conf);
 
@@ -170,6 +173,23 @@ public class TestContainerTokenSecretManager {
                 schedulerAddr, conf);
           }
         });       
+
+    // Register the appMaster 
+    RegisterApplicationMasterRequest request =
+        recordFactory
+            .newRecordInstance(RegisterApplicationMasterRequest.class);
+    ApplicationMaster applicationMaster = recordFactory
+        .newRecordInstance(ApplicationMaster.class);
+    applicationMaster.setApplicationId(containerID.getAppId());
+    applicationMaster.setState(ApplicationState.RUNNING);
+    ApplicationStatus status =
+        recordFactory.newRecordInstance(ApplicationStatus.class);
+    status.setApplicationId(containerID.getAppId());
+    applicationMaster.setStatus(status);
+    request.setApplicationMaster(applicationMaster);
+    scheduler.registerApplicationMaster(request);
+
+    // Now request a container allocation.
     List<ResourceRequest> ask = new ArrayList<ResourceRequest>();
     ResourceRequest rr = recordFactory.newRecordInstance(ResourceRequest.class);
     rr.setCapability(recordFactory.newRecordInstance(Resource.class));
@@ -177,10 +197,9 @@ public class TestContainerTokenSecretManager {
     rr.setHostName("*");
     rr.setNumContainers(1);
     rr.setPriority(recordFactory.newRecordInstance(Priority.class));
+    rr.getPriority().setPriority(0);
     ask.add(rr);
     ArrayList<Container> release = new ArrayList<Container>();
-    ApplicationStatus status = recordFactory.newRecordInstance(ApplicationStatus.class);
-    status.setApplicationId(containerID.getAppId());
     
     AllocateRequest allocateRequest = recordFactory.newRecordInstance(AllocateRequest.class);
     allocateRequest.setApplicationStatus(status);
@@ -188,7 +207,6 @@ public class TestContainerTokenSecretManager {
     allocateRequest.addAllReleases(release);
     List<Container> allocatedContainers =
         scheduler.allocate(allocateRequest).getAMResponse().getContainerList();
-    ask.clear();
 
     waitCounter = 0;
     while ((allocatedContainers == null || allocatedContainers.size() == 0)

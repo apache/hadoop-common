@@ -116,8 +116,11 @@ public class HistoryClientService extends AbstractService {
     super.start();
   }
 
+  @Override
   public void stop() {
-    server.close();
+    if (server != null) {
+      server.close();
+    }
     if (webApp != null) {
       webApp.stop();
     }

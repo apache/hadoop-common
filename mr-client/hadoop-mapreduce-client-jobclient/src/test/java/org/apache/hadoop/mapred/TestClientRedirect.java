@@ -57,6 +57,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.ClientRMProtocol;
@@ -85,6 +86,10 @@ import org.apache.hadoop.yarn.service.AbstractService;
 import org.junit.Test;
 
 public class TestClientRedirect {
+
+  static {
+    DefaultMetricsSystem.setMiniClusterMode(true);
+  }
 
   private static final Log LOG = LogFactory.getLog(TestClientRedirect.class);
   private static final String RMADDRESS = "0.0.0.0:8054";

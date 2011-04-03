@@ -122,7 +122,10 @@ public class FifoScheduler implements ResourceScheduler {
     
     // Release containers
     releaseContainers(application, release);
-    
+
+    LOG.debug("allocate: post-update" +
+        " applicationId=" + applicationId + 
+        " application=" + application);
     application.showRequests();
     
     List<Container> allContainers = application.acquire();

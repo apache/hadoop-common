@@ -34,6 +34,7 @@ import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.junit.Before;
+import org.junit.After;
 import org.junit.Test;
 
 public class TestMRJobsWithHistoryService {
@@ -54,6 +55,19 @@ public class TestMRJobsWithHistoryService {
       mrCluster = new MiniMRYarnCluster(getClass().getName());
       mrCluster.init(new Configuration());
       mrCluster.start();
+    }
+  }
+
+  @After
+  public void tearDown() {
+    if (!(new File(MiniMRYarnCluster.APPJAR)).exists()) {
+      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR
+          + " not found. Not running test.");
+      return;
+    }
+
+    if (mrCluster != null) {
+      mrCluster.stop();
     }
   }
 

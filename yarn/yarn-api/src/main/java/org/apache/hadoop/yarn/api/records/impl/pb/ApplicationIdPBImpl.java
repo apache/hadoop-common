@@ -23,6 +23,7 @@ public class ApplicationIdPBImpl extends ProtoBase<ApplicationIdProto> implement
   }
 
   public ApplicationIdProto getProto() {
+    maybeInitBuilder();
     proto = viaProto ? proto : builder.build();
     viaProto = true;
     return proto;

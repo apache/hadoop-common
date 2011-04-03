@@ -69,6 +69,7 @@ public class ContainerTokenIdentifier extends TokenIdentifier {
     LOG.info("Writing ContainerTokenIdentifier to RPC layer");
     out.writeInt(this.containerId.getAppId().getId());
     out.writeInt(this.containerId.getId());
+    // TODO: Cluster time-stamp?
     out.writeUTF(this.nmHostName);
     out.writeInt(this.resource.getMemory()); // TODO: more resources.
   }

@@ -67,8 +67,10 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
+@Ignore
 public class TestRuntimeEstimators {
 
   private static int INITIAL_NUMBER_FREE_SLOTS = 300;

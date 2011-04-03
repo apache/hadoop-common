@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager;
 
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.avro.AvroRuntimeException;
 import org.apache.commons.logging.Log;
@@ -65,7 +66,7 @@ public class ResourceManager extends CompositeService {
   private RMResourceTrackerImpl rmResourceTracker;
   private ClientRMService clientRM;
   private ApplicationMasterService masterService;
-  private Boolean shutdown = false;
+  private AtomicBoolean shutdown = new AtomicBoolean(false);
   private WebApp webApp;
   private final ASMContext asmContext;
   
@@ -131,18 +132,19 @@ public class ResourceManager extends CompositeService {
     } catch(IOException ie) {
       throw new AvroRuntimeException("Failed to login", ie);
     }
-    super.start();
 
     webApp = WebApps.$for("yarn", masterService).at(
       conf.get(YarnConfiguration.RM_WEBAPP_BIND_ADDRESS,
       YarnConfiguration.DEFAULT_RM_WEBAPP_BIND_ADDRESS)).
     start(new RMWebApp(this));
-  }
 
-  public void run() {
+    super.start();
+
     synchronized(shutdown) {
       try {
-        shutdown.wait();
+        while(!shutdown.get()) {
+          shutdown.wait();
+        }
       } catch(InterruptedException ie) {
         LOG.info("Interrupted while waiting", ie);
       }
@@ -161,8 +163,8 @@ public class ResourceManager extends CompositeService {
     }
   
     synchronized(shutdown) {
-      shutdown = true;
-      shutdown.notify();
+      shutdown.set(true);
+      shutdown.notifyAll();
     }
     super.stop();
   }
@@ -217,7 +219,6 @@ public class ResourceManager extends CompositeService {
       resourceManager = new ResourceManager();
       resourceManager.init(conf);
       resourceManager.start();
-      resourceManager.run();
     } catch (Exception e) {
       LOG.error("Error starting RM", e);
     } finally {
