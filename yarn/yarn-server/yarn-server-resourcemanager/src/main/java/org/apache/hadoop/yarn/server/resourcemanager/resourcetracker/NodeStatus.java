@@ -22,16 +22,23 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.NodeId;
 
 
 public class NodeStatus {
   public static org.apache.hadoop.yarn.server.api.records.NodeStatus createNodeStatus(
       NodeId nodeId, Map<String, List<Container>> containers) {
-    org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
+    RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+    org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
     nodeStatus.setNodeId(nodeId);
     nodeStatus.addAllContainers(containers);
+    nodeStatus.setNodeHealthStatus(recordFactory
+        .newRecordInstance(NodeHealthStatus.class));
+    nodeStatus.getNodeHealthStatus().setIsNodeHealthy(true);
+    nodeStatus.setLastSeen(System.currentTimeMillis());
     return nodeStatus;
   }
 }

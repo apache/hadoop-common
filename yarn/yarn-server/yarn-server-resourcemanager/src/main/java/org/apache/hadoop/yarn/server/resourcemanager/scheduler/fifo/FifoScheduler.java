@@ -468,13 +468,10 @@ public class FifoScheduler implements ResourceScheduler {
   }
  
   @Override
-  public synchronized NodeInfo addNode(NodeId nodeId, 
-      String hostName, Node node, Resource capability) {
-    NodeManager nodeManager = new NodeManager(nodeId, hostName, node, capability);
+  public synchronized void addNode(NodeManager nodeManager) {
     nodes.put(nodeManager.getHostName(), nodeManager);
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
         clusterResource, nodeManager.getTotalCapability());
-    return nodeManager;
   }
 
   public synchronized boolean releaseContainer(ApplicationId applicationId, 

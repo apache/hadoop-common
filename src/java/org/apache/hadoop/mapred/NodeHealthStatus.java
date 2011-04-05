@@ -1,4 +1,4 @@
-package org.apache.hadoop;
+package org.apache.hadoop.mapred;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -12,25 +12,24 @@ import org.apache.hadoop.io.Writable;
  * related fields.
  * 
  */
-public class NodeHealthStatus implements Writable {
-  
+public class NodeHealthStatus implements
+    org.apache.hadoop.yarn.api.records.NodeHealthStatus, Writable {
+
   private boolean isNodeHealthy;
-  
   private String healthReport;
-  
-  private long lastReported;
-  
+  private long lastHealthReportTime;
+
   public NodeHealthStatus(boolean isNodeHealthy, String healthReport,
       long lastReported) {
     this.isNodeHealthy = isNodeHealthy;
     this.healthReport = healthReport;
-    this.lastReported = lastReported;
+    this.lastHealthReportTime = lastReported;
   }
   
   public NodeHealthStatus() {
     this.isNodeHealthy = true;
     this.healthReport = "";
-    this.lastReported = System.currentTimeMillis();
+    this.lastHealthReportTime = System.currentTimeMillis();
   }
 
   /**
@@ -70,7 +69,7 @@ public class NodeHealthStatus implements Writable {
    * @return health report of the node if any
    */
   public String getHealthReport() {
-    return healthReport;
+    return healthReport.toString();
   }
 
   /**
@@ -81,7 +80,7 @@ public class NodeHealthStatus implements Writable {
    * health script
    */
   public void setLastReported(long lastReported) {
-    this.lastReported = lastReported;
+    this.lastHealthReportTime = lastReported;
   }
 
   /**
@@ -90,21 +89,21 @@ public class NodeHealthStatus implements Writable {
    * @return time stamp of most recent health update.
    */
   public long getLastReported() {
-    return lastReported;
+    return lastHealthReportTime;
   }
 
   @Override
   public void readFields(DataInput in) throws IOException {
     isNodeHealthy = in.readBoolean();
     healthReport = Text.readString(in);
-    lastReported = in.readLong();
+    lastHealthReportTime = in.readLong();
   }
   
   @Override
   public void write(DataOutput out) throws IOException {
     out.writeBoolean(isNodeHealthy);
-    Text.writeString(out, healthReport);
-    out.writeLong(lastReported);
+    Text.writeString(out, healthReport.toString());
+    out.writeLong(lastHealthReportTime);
   }
   
 }

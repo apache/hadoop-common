@@ -61,9 +61,7 @@ public class TestNMExpiry extends TestCase {
 
   private static class VoidResourceListener implements ResourceListener {
     @Override
-    public NodeInfo addNode(NodeId nodeId, String hostName, Node node,
-        Resource capability) {
-      return new NodeManager(nodeId, hostName, node, capability);
+    public void addNode(NodeManager nodeManager) {      
     }
     @Override
     public void removeNode(NodeInfo node) {
@@ -111,17 +109,22 @@ public class TestNMExpiry extends TestCase {
     resourceTracker.start();
   }
 
-  private class TestThread extends Thread {
+  private class ThirdNodeHeartBeatThread extends Thread {
     public void run() {
-      HeartbeatResponse res = recordFactory.newRecordInstance(HeartbeatResponse.class);
+      int lastResponseID = 0;
       while (!stopT) {
         try {
-          org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
-          nodeStatus.setNodeId(response.getNodeId());
-          nodeStatus.setResponseId(res.getResponseId());
-          NodeHeartbeatRequest request = recordFactory.newRecordInstance(NodeHeartbeatRequest.class);
+          org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus =
+              recordFactory
+                  .newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
+          nodeStatus.setNodeId(thirdNodeRegResponse.getNodeId());
+          nodeStatus.setResponseId(lastResponseID);
+          NodeHeartbeatRequest request =
+              recordFactory.newRecordInstance(NodeHeartbeatRequest.class);
           request.setNodeStatus(nodeStatus);
-          res = resourceTracker.nodeHeartbeat(request).getHeartbeatResponse();
+          lastResponseID =
+              resourceTracker.nodeHeartbeat(request).getHeartbeatResponse()
+                  .getResponseId();
         } catch(Exception e) {
           LOG.info("failed to heartbeat ", e);
         }
@@ -130,7 +133,7 @@ public class TestNMExpiry extends TestCase {
   }
 
   boolean stopT = false;
-  RegistrationResponse response;
+  RegistrationResponse thirdNodeRegResponse;
 
   @Test
   public void testNMExpiry() throws Exception {
@@ -149,13 +152,16 @@ public class TestNMExpiry extends TestCase {
     request3.setResource(capability);
     resourceTracker.registerNodeManager(request1);
     resourceTracker.registerNodeManager(request2);
-    response = resourceTracker.registerNodeManager(request3).getRegistrationResponse();
+    thirdNodeRegResponse =
+        resourceTracker.registerNodeManager(request3)
+            .getRegistrationResponse();
     /* test to see if hostanme 3 does not expire */
     stopT = false;
-    new TestThread().start();
+    new ThirdNodeHeartBeatThread().start();
+    int timeOut = 0;
     synchronized (notify) {
-      while (notify.get() == 0) {
-        notify.wait();
+      while (notify.get() == 0 && timeOut++ < 30) {
+        notify.wait(1000);
       }
     }
     if (test.get() != 2) 

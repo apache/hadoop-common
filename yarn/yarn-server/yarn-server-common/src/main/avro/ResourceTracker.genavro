@@ -7,15 +7,19 @@ protocol ResourceTracker {
   record NodeID {
     int id;
   }
- 
+
+  record NodeHealthStatus {
+    boolean isNodeHealthy;
+    union {string, null} healthReport;
+    long lastHealthReportTime;
+  }
+
   record NodeStatus {
     NodeID nodeId;
 	int responseId;
 	long lastSeen;
     map<array<org.apache.hadoop.yarn.Container>> containers;
-    boolean isNodeHealthy;
-    union {string, null} healthReport;
-    long lastHealthReport;
+	NodeHealthStatus nodeHealthStatus;
   }
 
   record RegistrationResponse {

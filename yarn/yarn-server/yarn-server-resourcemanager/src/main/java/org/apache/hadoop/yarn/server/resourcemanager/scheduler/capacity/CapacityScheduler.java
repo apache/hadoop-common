@@ -47,6 +47,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
@@ -394,13 +395,10 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
  
   @Override
-  public synchronized NodeInfo addNode(NodeId nodeId, 
-      String hostName, Node node, Resource capability) {
-    NodeManager nodeManager = new NodeManager(nodeId, hostName, node, capability);
+  public synchronized void addNode(NodeManager nodeManager) {
     nodes.put(nodeManager.getHostName(), nodeManager);
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
         clusterResource, nodeManager.getTotalCapability());
-    return nodeManager;
   }
 
   public synchronized boolean releaseContainer(ApplicationId applicationId, 

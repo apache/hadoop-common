@@ -22,6 +22,7 @@ import java.util.ArrayList;
 
 import javax.security.auth.login.LoginException;
 
+import org.apache.hadoop.Clock;
 import org.apache.hadoop.mapred.FakeObjectUtilities.FakeJobInProgress;
 import org.apache.hadoop.mapreduce.ClusterMetrics;
 import org.apache.hadoop.mapreduce.TaskType;

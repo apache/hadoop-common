@@ -73,6 +73,64 @@
 
 <property><name>yarn.server.nodemanager.connect.rm</name><value>true</value></property> 
 
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.script.path</name>
+    <value></value>
+    <description>Location of the node's health-check script on the local
+    file-system.
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.interval</name>
+    <value>600000</value>
+    <description>Frequency of the health-check run by the NodeManager
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.script.timeout</name>
+    <value>1200000</value>
+    <description>Timeout for the health-check run by the NodeManager
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.script.args</name>
+    <value></value>
+    <description>Arguments to be passed to the health-check script run
+    by the NodeManager</description>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.script.path</name>
+    <value></value>
+    <description>Location of the node's health-check script on the local
+    file-system.
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.interval</name>
+    <value>600000</value>
+    <description>Frequency of the health-check run by the NodeManager
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.script.timeout</name>
+    <value>1200000</value>
+    <description>Timeout for the health-check run by the NodeManager
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.healthchecker.script.args</name>
+    <value></value>
+    <description>Arguments to be passed to the health-check script run
+    by the NodeManager</description>
+  </property>
+
 <!-- All MRAppMaster related configuration properties -->
 
   <property>

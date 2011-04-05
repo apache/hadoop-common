@@ -29,7 +29,6 @@ import org.apache.avro.AvroRuntimeException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
-import org.apache.hadoop.NodeHealthStatus;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
@@ -50,6 +49,7 @@ import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.api.records.NodeStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
@@ -209,13 +209,13 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
     LOG.debug(this.nodeName + " sending out status for " + numActiveContainers
         + " containers");
 
+    NodeHealthStatus nodeHealthStatus = this.context.getNodeHealthStatus();
     if (this.healthChecker != null) {
-      NodeHealthStatus nodeHealthStatus = this.context.getNodeHealthStatus();
       this.healthChecker.setHealthStatus(nodeHealthStatus);
-      status.setIsNodeHealthy(nodeHealthStatus.isNodeHealthy());
-      status.setHealthReport(nodeHealthStatus.getHealthReport());
-      status.setLastHealthReport(nodeHealthStatus.getLastReported());
     }
+    LOG.debug("Node's health-status : " + nodeHealthStatus.getIsNodeHealthy()
+        + ", " + nodeHealthStatus.getHealthReport());
+    status.setNodeHealthStatus(nodeHealthStatus);
 
     return status;
   }

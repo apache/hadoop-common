@@ -33,7 +33,8 @@ import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
-import org.apache.hadoop.NodeHealthStatus;
+import org.apache.hadoop.Clock;
+import org.apache.hadoop.mapred.NodeHealthStatus;
 import org.apache.hadoop.mapred.ClusterStatus.BlackListInfo;
 import org.apache.hadoop.mapred.JobTracker.ReasonForBlackListing;
 import org.apache.hadoop.mapreduce.TaskType;

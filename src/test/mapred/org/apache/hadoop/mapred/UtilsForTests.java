@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Properties;
 
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.Clock;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;

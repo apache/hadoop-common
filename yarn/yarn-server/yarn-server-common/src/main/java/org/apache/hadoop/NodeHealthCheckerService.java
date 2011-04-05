@@ -31,6 +31,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.service.AbstractService;
 
 /**
@@ -213,7 +214,6 @@ public class NodeHealthCheckerService extends AbstractService {
 
   public NodeHealthCheckerService(Configuration conf) {
     this();
-    this.conf = conf;
     init(conf);
   }
 
@@ -222,6 +222,7 @@ public class NodeHealthCheckerService extends AbstractService {
    */
   @Override
   public void init(Configuration conf) {
+    this.conf = conf;
     this.nodeHealthScript = 
         conf.get(HEALTH_CHECK_SCRIPT_PROPERTY);
     this.intervalTime = conf.getLong(HEALTH_CHECK_INTERVAL_PROPERTY,
@@ -364,9 +365,9 @@ public class NodeHealthCheckerService extends AbstractService {
    * @param healthStatus
    */
   public synchronized void setHealthStatus(NodeHealthStatus healthStatus) {
-    healthStatus.setNodeHealthy(this.isHealthy());
+    healthStatus.setIsNodeHealthy(this.isHealthy());
     healthStatus.setHealthReport(this.getHealthReport());
-    healthStatus.setLastReported(this.getLastReportedTime());
+    healthStatus.setLastHealthReportTime(this.getLastReportedTime());
   }
   
   /**

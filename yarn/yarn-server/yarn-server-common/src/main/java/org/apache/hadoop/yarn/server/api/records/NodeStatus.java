@@ -14,12 +14,10 @@ public interface NodeStatus {
   
   public abstract Map<String, List<Container>> getAllContainers();
   public abstract List<Container> getContainers(String key);
-  
-  public abstract boolean getIsNodeHealthy();
-  public abstract String getHealthReport();
-  public abstract long getLastHealthReport();
-  
-  
+
+  NodeHealthStatus getNodeHealthStatus();
+  void setNodeHealthStatus(NodeHealthStatus healthStatus);
+
   public abstract void setNodeId(NodeId nodeId);
   public abstract void setResponseId(int responseId);
   public abstract void setLastSeen(long lastSeen);
@@ -28,8 +26,4 @@ public interface NodeStatus {
   public abstract void setContainers(String key, List<Container> containers);
   public abstract void removeContainers(String key);
   public abstract void clearContainers();
-  
-  public abstract void setIsNodeHealthy(boolean isNodeHealthy);
-  public abstract void setHealthReport(String healthReport);
-  public abstract void setLastHealthReport(long lastHealthReport);
 }

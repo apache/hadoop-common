@@ -48,6 +48,9 @@ class NodesPage extends RmView {
           th(".rack", "Rack").
           th(".nodeid", "Node ID").
           th(".host", "Host").
+          th(".healthStatus", "Health-status").
+          th(".lastHealthUpdate", "Last health-update").
+          th(".healthReport", "Health-report").
           th(".containers", "Containers").
           th(".mem", "Mem Used (MB)").
           th(".mem", "Mem Avail (MB)")._()._().
@@ -57,6 +60,11 @@ class NodesPage extends RmView {
             td(ni.getRackName()).
             td(String.valueOf(ni.getNodeID().getId())).
             td(ni.getHostName()).
+            td(ni.getNodeHealthStatus().getIsNodeHealthy() ? "Healthy"
+                : "Unhealthy").
+            td(String.valueOf(ni.getNodeHealthStatus()
+                .getLastHealthReportTime())).
+            td(String.valueOf(ni.getNodeHealthStatus().getHealthReport())).
             td(String.valueOf(ni.getNumContainers())).
             td(String.valueOf(ni.getUsedResource().getMemory())).
             td(String.valueOf(ni.getAvailableResource().getMemory()))._();
@@ -79,8 +87,8 @@ class NodesPage extends RmView {
 
   private String nodesTableInit() {
     return tableInit().
-        // rack, nodeid, host, containers, memused, memavail
-        append(", aoColumns:[null, null, null, {bSearchable:false}, ").
+        // rack, nodeid, host, healthStatus, containers, memused, memavail
+        append(", aoColumns:[null, null, null, null, {bSearchable:false}, ").
         append("{bSearchable:false}, {bSearchable:false}]}").toString();
   }
 }

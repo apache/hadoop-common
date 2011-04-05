@@ -29,6 +29,9 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -106,7 +109,9 @@ public class TestNodeHealthService {
 
   @Test
   public void testNodeHealthScript() throws Exception {
-    NodeHealthStatus healthStatus = new NodeHealthStatus();
+    RecordFactory factory = RecordFactoryProvider.getRecordFactory(null);
+    NodeHealthStatus healthStatus =
+        factory.newRecordInstance(NodeHealthStatus.class);
     String errorScript = "echo ERROR\n echo \"Tracker not healthy\"";
     String normalScript = "echo \"I am all fine\"";
     String timeOutScript = "sleep 4\n echo\"I am fine\"";
@@ -124,7 +129,7 @@ public class TestNodeHealthService {
     LOG.info("Checking initial healthy condition");
     // Check proper report conditions.
     Assert.assertTrue("Node health status reported unhealthy", healthStatus
-        .isNodeHealthy());
+        .getIsNodeHealthy());
     Assert.assertTrue("Node health status reported unhealthy", healthStatus
         .getHealthReport().isEmpty());
 
@@ -137,7 +142,7 @@ public class TestNodeHealthService {
     nodeHealthChecker.setHealthStatus(healthStatus);
     LOG.info("Checking Healthy--->Unhealthy");
     Assert.assertFalse("Node health status reported healthy", healthStatus
-        .isNodeHealthy());
+        .getIsNodeHealthy());
     Assert.assertFalse("Node health status reported healthy", healthStatus
         .getHealthReport().isEmpty());
     
@@ -148,7 +153,7 @@ public class TestNodeHealthService {
     LOG.info("Checking UnHealthy--->healthy");
     // Check proper report conditions.
     Assert.assertTrue("Node health status reported unhealthy", healthStatus
-        .isNodeHealthy());
+        .getIsNodeHealthy());
     Assert.assertTrue("Node health status reported unhealthy", healthStatus
         .getHealthReport().isEmpty());
 
@@ -158,7 +163,7 @@ public class TestNodeHealthService {
     nodeHealthChecker.setHealthStatus(healthStatus);
     LOG.info("Checking Healthy--->timeout");
     Assert.assertFalse("Node health status reported healthy even after timeout",
-        healthStatus.isNodeHealthy());
+        healthStatus.getIsNodeHealthy());
     Assert.assertEquals("Node time out message not propogated", healthStatus
         .getHealthReport(),
         NodeHealthCheckerService.NODE_HEALTH_SCRIPT_TIMED_OUT_MSG);

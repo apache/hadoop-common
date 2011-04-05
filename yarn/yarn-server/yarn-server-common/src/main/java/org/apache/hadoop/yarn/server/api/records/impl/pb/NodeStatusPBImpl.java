@@ -12,10 +12,12 @@ import org.apache.hadoop.yarn.api.records.ProtoBase;
 import org.apache.hadoop.yarn.api.records.impl.pb.ContainerPBImpl;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerProto;
 import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.ContainerListProto;
+import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.NodeHealthStatusProto;
 import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.NodeIdProto;
 import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.NodeStatusProto;
 import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.NodeStatusProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.StringContainerListMapProto;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.api.records.NodeStatus;
     
@@ -26,8 +28,7 @@ public class NodeStatusPBImpl extends ProtoBase<NodeStatusProto> implements Node
   
   private NodeId nodeId = null;
   private Map<String, List<Container>> containers = null;
-  
-
+  private NodeHealthStatus nodeHealthStatus = null;
   
   public NodeStatusPBImpl() {
     builder = NodeStatusProto.newBuilder();
@@ -52,6 +53,9 @@ public class NodeStatusPBImpl extends ProtoBase<NodeStatusProto> implements Node
     }
     if (this.containers != null) {
       addContainersToProto();
+    }
+    if (this.nodeHealthStatus != null) {
+      builder.setNodeHealthStatus(convertToProtoFormat(this.nodeHealthStatus));
     }
   }
 
@@ -184,18 +188,19 @@ public class NodeStatusPBImpl extends ProtoBase<NodeStatusProto> implements Node
     };
     builder.addAllContainers(iterable);
   }
-  
+
   @Override
-  public boolean getIsNodeHealthy() {
+  public NodeHealthStatus getNodeHealthStatus() {
     NodeStatusProtoOrBuilder p = viaProto ? proto : builder;
-    return p.getIsNodeHealthy();
+    return new NodeHealthStatusPBImpl(p.getNodeHealthStatus());
   }
-  
+
   @Override
-  public void setIsNodeHealthy(boolean isNodeHealthy) {
+  public void setNodeHealthStatus(NodeHealthStatus healthStatus) {
     maybeInitBuilder();
-    builder.setIsNodeHealthy(isNodeHealthy);
+    builder.setNodeHealthStatus(convertToProtoFormat(healthStatus));
   }
+
   /*
    * 
    * @Override
@@ -217,37 +222,6 @@ public class NodeStatusPBImpl extends ProtoBase<NodeStatusProto> implements Node
     builder.setApplicationName((applicationName));
   }
   */
-  
-  @Override
-  public String getHealthReport() {
-    NodeStatusProtoOrBuilder p = viaProto ? proto : builder;
-    if (!p.hasHealthReport()) {
-      return null;
-    }
-    return (p.getHealthReport()); 
-  }
-  
-  @Override
-  public void setHealthReport(String healthReport) {
-    maybeInitBuilder();
-    if (healthReport == null) {
-      builder.clearHealthReport();
-      return;
-    }
-    builder.setHealthReport((healthReport));
-  }
-  
-  @Override
-  public long getLastHealthReport() {
-    NodeStatusProtoOrBuilder p = viaProto ? proto : builder;
-    return (p.getLastHealthReport());
-  }
-  
-  @Override
-  public void setLastHealthReport(long lastHealthReport) {
-    maybeInitBuilder();
-    builder.setLastHealthReport((lastHealthReport));
-  }
   
   private ContainerListProto convertToProtoFormat(List<Container> src) {
     ContainerListProto.Builder ret = ContainerListProto.newBuilder();
@@ -294,5 +268,13 @@ public class NodeStatusPBImpl extends ProtoBase<NodeStatusProto> implements Node
   private NodeId convertFromProtoFormat(NodeIdProto proto) {
     return new NodeIdPBImpl(proto);
   }
-  
+
+  private NodeHealthStatusProto convertToProtoFormat(
+      NodeHealthStatus healthStatus) {
+    return ((NodeHealthStatusPBImpl) healthStatus).getProto();
+  }
+
+  private NodeHealthStatus convertFromProtoFormat(NodeHealthStatusProto proto) {
+    return new NodeHealthStatusPBImpl(proto);
+  }
 }  

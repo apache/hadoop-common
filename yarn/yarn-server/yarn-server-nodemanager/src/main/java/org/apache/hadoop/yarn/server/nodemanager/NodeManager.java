@@ -28,7 +28,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.apache.hadoop.NodeHealthCheckerService;
-import org.apache.hadoop.NodeHealthStatus;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -38,7 +37,10 @@ import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.YarnServerConfig;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
@@ -154,9 +156,13 @@ public class NodeManager extends CompositeService {
             }
           });
 
-    private final NodeHealthStatus nodeHealthStatus = new NodeHealthStatus();
+    private final NodeHealthStatus nodeHealthStatus = RecordFactoryProvider
+        .getRecordFactory(null).newRecordInstance(NodeHealthStatus.class);
 
     public NMContext() {
+      this.nodeHealthStatus.setIsNodeHealthy(true);
+      this.nodeHealthStatus.setHealthReport("Healthy");
+      this.nodeHealthStatus.setLastHealthReportTime(System.currentTimeMillis());
     }
 
     @Override

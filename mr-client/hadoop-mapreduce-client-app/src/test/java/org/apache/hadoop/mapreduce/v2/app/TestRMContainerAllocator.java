@@ -62,6 +62,8 @@ import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
@@ -206,8 +208,10 @@ public class TestRMContainerAllocator {
     nodeId.setId(0);
     Resource resource = recordFactory.newRecordInstance(Resource.class);
     resource.setMemory(memory);
-    NodeInfo nodeManager = scheduler.addNode(nodeId, nodeName,
-        RMResourceTrackerImpl.resolve(nodeName), resource); // Node registration
+    NodeManager nodeManager = new NodeManagerImpl(nodeId, nodeName,
+        RMResourceTrackerImpl.resolve(nodeName), resource
+        );
+    scheduler.addNode(nodeManager); // Node registration
     return nodeManager;
   }
 

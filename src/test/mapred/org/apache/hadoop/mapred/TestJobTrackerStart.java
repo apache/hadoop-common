@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.mapred;
 
+import org.apache.hadoop.Clock;
 import org.apache.hadoop.mapred.UtilsForTests.FakeClock;
 
 import junit.framework.TestCase;

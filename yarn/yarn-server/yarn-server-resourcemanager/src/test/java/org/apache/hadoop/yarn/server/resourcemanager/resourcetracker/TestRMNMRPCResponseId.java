@@ -36,6 +36,7 @@ import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
@@ -55,10 +56,8 @@ public class TestRMNMRPCResponseId extends TestCase {
   private class DummyResourceListener implements ResourceListener {
 
     @Override
-    public NodeInfo addNode(NodeId nodeId, String hostName, Node node,
-        Resource capability) {
-      nodeid = nodeId;
-      return new NodeManager(nodeId, hostName, node, capability);
+    public void addNode(NodeManager nodeManager) {
+      nodeid = nodeManager.getNodeID();
     }
 
     @Override

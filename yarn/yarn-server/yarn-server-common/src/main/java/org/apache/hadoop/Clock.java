@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapred;
+package org.apache.hadoop;
 
 /**
  * A clock class - can be mocked out for testing.

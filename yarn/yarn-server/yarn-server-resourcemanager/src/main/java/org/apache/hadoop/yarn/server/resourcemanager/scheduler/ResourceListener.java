@@ -39,14 +39,9 @@ public interface ResourceListener {
  
   /**
    * add a node to the resource listener.
-   * @param nodeId the nodeid of the node
-   * @param hostName the hostname of this node.
-   * @param node the topology information.
-   * @param capability the resource  capability of the node.
-   * @return the {@link NodeInfo} object that tracks this nodemanager.
+   * @param nodeManager the nodeManager view
    */
-  public NodeInfo addNode(NodeId nodeId,String hostName,
-      Node node, Resource capability);
+  public void addNode(NodeManager nodeManager);
   
   /**
    * A node has been removed from the cluster.

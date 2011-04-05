@@ -36,6 +36,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
@@ -129,9 +130,7 @@ public class TestAMRestart extends TestCase {
 
   private class DummyResourceScheduler implements ResourceScheduler {
     @Override
-    public NodeInfo addNode(NodeId nodeId, String hostName, Node node,
-        Resource capability) {
-      return null;
+    public void addNode(NodeManager nodeManager) {
     }
     @Override
     public void removeNode(NodeInfo node) {

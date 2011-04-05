@@ -19,6 +19,7 @@
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.NodeId;
 
 /**
@@ -37,6 +38,11 @@ public interface NodeInfo {
    * @return the hostname for this node.
    */
   public String getHostName();
+  /**
+   * the health-status for this node
+   * @return the health-status for this node.
+   */
+  public NodeHealthStatus getNodeHealthStatus();
   /**
    * the total available resource.
    * @return the total available resource.

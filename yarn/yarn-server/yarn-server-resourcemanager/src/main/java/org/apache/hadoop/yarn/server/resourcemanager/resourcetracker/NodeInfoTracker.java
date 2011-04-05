@@ -18,9 +18,8 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
-import org.apache.hadoop.yarn.factories.RecordFactory;
-import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 
 /**
  * Track the node info and heart beat responses for this node.
@@ -28,20 +27,26 @@ import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
  *
  */
 class NodeInfoTracker {
-  private final NodeInfo node;
-  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  private final NodeManager node;
   HeartbeatResponse lastHeartBeatResponse;
-  private org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
+  private long lastSeen;
 
-  public NodeInfoTracker(NodeInfo node, HeartbeatResponse lastHeartBeatResponse) {
+  public NodeInfoTracker(NodeManager node, HeartbeatResponse lastHeartBeatResponse) {
     this.node = node;
     this.lastHeartBeatResponse = lastHeartBeatResponse;
-    this.nodeStatus.setNodeId(node.getNodeID());
-    this.nodeStatus.setLastSeen(System.currentTimeMillis());
+    this.lastSeen = System.currentTimeMillis();
   }
 
-  public synchronized NodeInfo getNodeInfo() {
+  public synchronized NodeManager getNodeManager() {
     return this.node;
+  }
+
+  public synchronized void updateLastSeen(long lastSeen) {
+    this.lastSeen = lastSeen;
+  }
+
+  public synchronized long getNodeLastSeen() {
+    return this.lastSeen;
   }
 
   public synchronized HeartbeatResponse getLastHeartBeatResponse() {
@@ -50,13 +55,5 @@ class NodeInfoTracker {
 
   public synchronized void refreshHeartBeatResponse(HeartbeatResponse heartBeatResponse) {
     this.lastHeartBeatResponse = heartBeatResponse;
-  }
-
-  public synchronized void updateNodeStatus(org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus) {
-    this.nodeStatus = nodeStatus;
-  }
-
-  public synchronized org.apache.hadoop.yarn.server.api.records.NodeStatus getNodeStatus() {
-    return this.nodeStatus;
   }
 }
