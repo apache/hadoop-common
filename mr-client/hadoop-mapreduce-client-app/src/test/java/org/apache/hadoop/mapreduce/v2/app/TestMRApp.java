@@ -55,30 +55,29 @@ public class TestMRApp {
     MRApp app = new MRApp(1, 0, false);
     Job job = app.submit(new Configuration());
     app.waitForState(job, JobState.RUNNING);
-    Assert.assertEquals("No of tasks not correct",
-        1, job.getTasks().size());
-     Iterator<Task> it = job.getTasks().values().iterator();
-     Task task = it.next();
-     app.waitForState(task, TaskState.RUNNING);
-     TaskAttempt attempt = task.getAttempts().values().iterator().next();
-     app.waitForState(attempt, TaskAttemptState.RUNNING);
-     
-     //send the commit pending signal to the task
-     app.getContext().getEventHandler().handle(
-         new TaskAttemptEvent(
-             attempt.getID(),
-             TaskAttemptEventType.TA_COMMIT_PENDING));
-     
-     //wait for first attempt to commit pending
-     app.waitForState(attempt, TaskAttemptState.COMMIT_PENDING);
-     
-     //send the done signal to the task
-     app.getContext().getEventHandler().handle(
-         new TaskAttemptEvent(
-             task.getAttempts().values().iterator().next().getID(),
-             TaskAttemptEventType.TA_DONE));
-     
-     app.waitForState(job, JobState.SUCCEEDED);
+    Assert.assertEquals("Num tasks not correct", 1, job.getTasks().size());
+    Iterator<Task> it = job.getTasks().values().iterator();
+    Task task = it.next();
+    app.waitForState(task, TaskState.RUNNING);
+    TaskAttempt attempt = task.getAttempts().values().iterator().next();
+    app.waitForState(attempt, TaskAttemptState.RUNNING);
+
+    //send the commit pending signal to the task
+    app.getContext().getEventHandler().handle(
+        new TaskAttemptEvent(
+            attempt.getID(),
+            TaskAttemptEventType.TA_COMMIT_PENDING));
+
+    //wait for first attempt to commit pending
+    app.waitForState(attempt, TaskAttemptState.COMMIT_PENDING);
+
+    //send the done signal to the task
+    app.getContext().getEventHandler().handle(
+        new TaskAttemptEvent(
+            task.getAttempts().values().iterator().next().getID(),
+            TaskAttemptEventType.TA_DONE));
+
+    app.waitForState(job, JobState.SUCCEEDED);
   }
 
   @Test
@@ -87,11 +86,12 @@ public class TestMRApp {
     Configuration conf = new Configuration();
     //after half of the map completion, reduce will start
     conf.setFloat(MRJobConfig.COMPLETED_MAPS_FOR_REDUCE_SLOWSTART, 0.5f);
+    //uberization forces full slowstart (1.0), so disable that
+    conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
     Job job = app.submit(conf);
     app.waitForState(job, JobState.RUNNING);
     //all maps would be running
-    Assert.assertEquals("No of tasks not correct",
-       3, job.getTasks().size());
+    Assert.assertEquals("Num tasks not correct", 3, job.getTasks().size());
     Iterator<Task> it = job.getTasks().values().iterator();
     Task mapTask1 = it.next();
     Task mapTask2 = it.next();
@@ -144,19 +144,18 @@ public class TestMRApp {
     MRApp app = new MRApp(1, 0, false);
     Job job = app.submit(new Configuration());
     app.waitForState(job, JobState.RUNNING);
-    Assert.assertEquals("No of tasks not correct",
-        1, job.getTasks().size());
-     Iterator<Task> it = job.getTasks().values().iterator();
-     Task task = it.next();
-     app.waitForState(task, TaskState.RUNNING);
-     
-     //send an invalid event on task at current state
-     app.getContext().getEventHandler().handle(
-         new TaskEvent(
-             task.getID(), TaskEventType.T_SCHEDULE));
-     
-     //this must lead to job error
-     app.waitForState(job, JobState.ERROR);
+    Assert.assertEquals("Num tasks not correct", 1, job.getTasks().size());
+    Iterator<Task> it = job.getTasks().values().iterator();
+    Task task = it.next();
+    app.waitForState(task, TaskState.RUNNING);
+
+    //send an invalid event on task at current state
+    app.getContext().getEventHandler().handle(
+        new TaskEvent(
+            task.getID(), TaskEventType.T_SCHEDULE));
+
+    //this must lead to job error
+    app.waitForState(job, JobState.ERROR);
   }
 
   @Test
@@ -170,7 +169,7 @@ public class TestMRApp {
 
   @Test
   public void checkTaskStateTypeConversion() {
-  //verify that all states can be converted without 
+    //verify that all states can be converted without 
     // throwing an exception
     for (TaskState state : TaskState.values()) {
       TypeConverter.fromYarn(state);

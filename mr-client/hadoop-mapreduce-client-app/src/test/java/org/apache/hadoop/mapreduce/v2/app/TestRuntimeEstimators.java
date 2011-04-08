@@ -468,6 +468,11 @@ public class TestRuntimeEstimators {
     public int getTotalReduces() {
       return reduceTasks.size();
     }
+
+    @Override
+    public boolean isUber() {
+      return false;
+    }
   }
 
   /*

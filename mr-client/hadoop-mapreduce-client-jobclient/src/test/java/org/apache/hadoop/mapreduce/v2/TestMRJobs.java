@@ -62,13 +62,14 @@ public class TestMRJobs {
 
   private static final Log LOG = LogFactory.getLog(TestMRJobs.class);
 
-  private static MiniMRYarnCluster mrCluster;
+  protected static MiniMRYarnCluster mrCluster;
 
   @BeforeClass
   public static void setup() {
 
     if (!(new File(MiniMRYarnCluster.APPJAR)).exists()) {
-      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR + " not found. Not running test.");
+      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR
+               + " not found. Not running test.");
       return;
     }
 
@@ -77,12 +78,17 @@ public class TestMRJobs {
       mrCluster.init(new Configuration());
       mrCluster.start();
     }
+
+    // TestMRJobs is for testing non-uberized operation only; see TestUberAM
+    // for corresponding uberized tests.
+    mrCluster.getConfig().setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
   }
 
   @AfterClass
   public static void tearDown() {
     if (mrCluster != null) {
       mrCluster.stop();
+      mrCluster = null;
     }
   }
 
@@ -90,28 +96,41 @@ public class TestMRJobs {
   public void testSleepJob() throws IOException, InterruptedException,
       ClassNotFoundException { 
 
+    LOG.info("\n\n\nStarting testSleepJob().");
+
     if (!(new File(MiniMRYarnCluster.APPJAR)).exists()) {
-      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR + " not found. Not running test.");
+      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR
+               + " not found. Not running test.");
       return;
     }
 
     SleepJob sleepJob = new SleepJob();
     sleepJob.setConf(mrCluster.getConfig());
-    //Job with 3 maps and 2 reduces
-    Job job = sleepJob.createJob(3, 2, 10000, 1, 5000, 1);
+
+    int numReduces = mrCluster.getConfig().getInt("TestMRJobs.testSleepJob.reduces", 2); // or mrCluster.getConfig().getInt(MRJobConfig.NUM_REDUCES, 2);
+
+    // job with 3 maps (10s) and numReduces reduces (5s), 1 "record" each:
+    Job job = sleepJob.createJob(3, numReduces, 10000, 1, 5000, 1);
+
     // TODO: We should not be setting MRAppJar as job.jar. It should be
     // uploaded separately by YarnRunner.
     job.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
     job.waitForCompletion(true);
     Assert.assertEquals(JobStatus.State.SUCCEEDED, job.getJobState());
+
+    // TODO later:  add explicit "isUber()" checks of some sort (extend
+    // JobStatus?)--compare against MRJobConfig.JOB_UBERTASK_ENABLE value
   }
 
   @Test
   public void testRandomWriter() throws IOException, InterruptedException,
       ClassNotFoundException {
 
+    LOG.info("\n\n\nStarting testRandomWriter().");
+
     if (!(new File(MiniMRYarnCluster.APPJAR)).exists()) {
-      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR + " not found. Not running test.");
+      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR
+               + " not found. Not running test.");
       return;
     }
 
@@ -140,43 +159,24 @@ public class TestMRJobs {
       }
     }
     Assert.assertEquals("Number of part files is wrong!", 3, count);
+
+    // TODO later:  add explicit "isUber()" checks of some sort
   }
 
   @Test
   public void testFailingMapper() throws IOException, InterruptedException,
       ClassNotFoundException {
 
+    LOG.info("\n\n\nStarting testFailingMapper().");
+
     if (!(new File(MiniMRYarnCluster.APPJAR)).exists()) {
-      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR + " not found. Not running test.");
+      LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR
+               + " not found. Not running test.");
       return;
     }
 
-    int numMaps = 1;
-    mrCluster.getConfig().setInt(MRJobConfig.NUM_MAPS, numMaps);
-    
-    mrCluster.getConfig().setInt("mapreduce.task.timeout", 10*1000);//reduce the timeout
-    mrCluster.getConfig().setInt(MRJobConfig.MAP_MAX_ATTEMPTS, 2); //reduce the no of attempts
+    Job job = runFailingMapperJob();
 
-    Job job = new Job(mrCluster.getConfig());
-
-    job.setJarByClass(FailingMapper.class);
-    job.setJobName("failmapper");
-
-    job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(Text.class);
-
-    job.setInputFormatClass(RandomInputFormat.class);
-    job.setMapperClass(FailingMapper.class);
-
-    job.setOutputFormatClass(TextOutputFormat.class);
-    job.setNumReduceTasks(0);
-    
-    FileOutputFormat.setOutputPath(job, new Path(mrCluster.getTestWorkDir().getAbsolutePath(),
-        "failmapper-output"));
-    // TODO: We should not be setting MRAppJar as job.jar. It should be
-    // uploaded separately by YarnRunner.
-    job.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
-    job.waitForCompletion(true);
     TaskID taskID = new TaskID(job.getJobID(), TaskType.MAP, 0);
     TaskAttemptID aId = new TaskAttemptID(taskID, 0);
     System.out.println("Diagnostics for " + aId + " :");
@@ -195,17 +195,50 @@ public class TestMRJobs {
     Assert.assertEquals(TaskCompletionEvent.Status.FAILED, 
         events[1].getStatus().FAILED);
     Assert.assertEquals(JobStatus.State.FAILED, job.getJobState());
+
+    // TODO later:  add explicit "isUber()" checks of some sort
+  }
+
+  protected Job runFailingMapperJob()
+  throws IOException, InterruptedException, ClassNotFoundException {
+    mrCluster.getConfig().setInt(MRJobConfig.NUM_MAPS, 1);
+    mrCluster.getConfig().setInt("mapreduce.task.timeout", 10*1000);//reduce the timeout
+    mrCluster.getConfig().setInt(MRJobConfig.MAP_MAX_ATTEMPTS, 2); //reduce the number of attempts
+
+    Job job = new Job(mrCluster.getConfig());
+
+    job.setJarByClass(FailingMapper.class);
+    job.setJobName("failmapper");
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(Text.class);
+    job.setInputFormatClass(RandomInputFormat.class);
+    job.setOutputFormatClass(TextOutputFormat.class);
+    job.setMapperClass(FailingMapper.class);
+    job.setNumReduceTasks(0);
+    
+    FileOutputFormat.setOutputPath(job,
+        new Path(mrCluster.getTestWorkDir().getAbsolutePath(),
+        "failmapper-output"));
+    // TODO: We should not be setting MRAppJar as job.jar. It should be
+    // uploaded separately by YarnRunner.
+    job.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
+    job.waitForCompletion(true);
+
+    return job;
   }
 
 //@Test
   public void testSleepJobWithSecurityOn() throws IOException,
       InterruptedException, ClassNotFoundException {
 
+    LOG.info("\n\n\nStarting testSleepJobWithSecurityOn().");
+
     if (!(new File(MiniMRYarnCluster.APPJAR)).exists()) {
       return;
     }
 
-    mrCluster.getConfig().set(CommonConfigurationKeysPublic.HADOOP_SECURITY_AUTHENTICATION,
+    mrCluster.getConfig().set(
+        CommonConfigurationKeysPublic.HADOOP_SECURITY_AUTHENTICATION,
         "kerberos");
     mrCluster.getConfig().set(RMConfig.RM_KEYTAB, "/etc/krb5.keytab");
     mrCluster.getConfig().set(NMConfig.NM_KEYTAB, "/etc/krb5.keytab");
@@ -239,6 +272,8 @@ public class TestMRJobs {
         return null;
       }
     });
+
+    // TODO later:  add explicit "isUber()" checks of some sort
   }
 
 }

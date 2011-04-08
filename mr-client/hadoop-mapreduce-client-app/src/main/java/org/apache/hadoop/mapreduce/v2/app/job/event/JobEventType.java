@@ -28,11 +28,12 @@ public enum JobEventType {
 
   //Producer:MRAppMaster
   JOB_INIT,
+  JOB_START,
 
   //Producer:Task
   JOB_TASK_COMPLETED,
   JOB_MAP_TASK_RESCHEDULED,
-  JOB_TASK_ATTEMPT_COMPLETED_EVENT,
+  JOB_TASK_ATTEMPT_COMPLETED_EVENT,  // why "_EVENT" only on this one?
 
   //Producer:Any component
   JOB_DIAGNOSTIC_UPDATE,

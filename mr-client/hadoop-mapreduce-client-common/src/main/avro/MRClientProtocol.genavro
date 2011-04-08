@@ -101,6 +101,7 @@ protocol MRClientProtocol {
 
   enum JobState {
     NEW,
+    INITED,
     RUNNING,
     SUCCEEDED,
     FAILED,

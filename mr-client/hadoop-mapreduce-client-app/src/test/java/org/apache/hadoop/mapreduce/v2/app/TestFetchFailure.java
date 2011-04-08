@@ -24,6 +24,7 @@ import java.util.Iterator;
 import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEventStatus;
@@ -44,10 +45,13 @@ public class TestFetchFailure {
   public void testFetchFailure() throws Exception {
     MRApp app = new MRApp(1, 1, false);
     Configuration conf = new Configuration();
+    // map -> reduce -> fetch-failure -> map retry is incompatible with
+    // sequential, single-task-attempt approach in uber-AM, so disable:
+    conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
     Job job = app.submit(conf);
     app.waitForState(job, JobState.RUNNING);
     //all maps would be running
-    Assert.assertEquals("No of tasks not correct",
+    Assert.assertEquals("Num tasks not correct",
        2, job.getTasks().size());
     Iterator<Task> it = job.getTasks().values().iterator();
     Task mapTask = it.next();
@@ -68,7 +72,7 @@ public class TestFetchFailure {
     
     TaskAttemptCompletionEvent[] events = 
       job.getTaskAttemptCompletionEvents(0, 100);
-    Assert.assertEquals("No of completion events not correct",
+    Assert.assertEquals("Num completion events not correct",
         1, events.length);
     Assert.assertEquals("Event status not correct",
         TaskAttemptCompletionEventStatus.SUCCEEDED, events[0].getStatus());
@@ -91,7 +95,7 @@ public class TestFetchFailure {
     Assert.assertEquals("Map TaskAttempt state not correct",
         TaskAttemptState.FAILED, mapAttempt1.getState());
 
-    Assert.assertEquals("No of attempts in Map Task not correct",
+    Assert.assertEquals("Num attempts in Map Task not correct",
         2, mapTask.getAttempts().size());
     
     Iterator<TaskAttempt> atIt = mapTask.getAttempts().values().iterator();
@@ -119,7 +123,7 @@ public class TestFetchFailure {
         TaskAttemptCompletionEventStatus.OBSOLETE, events[0].getStatus());
     
     events = job.getTaskAttemptCompletionEvents(0, 100);
-    Assert.assertEquals("No of completion events not correct",
+    Assert.assertEquals("Num completion events not correct",
         4, events.length);
     Assert.assertEquals("Event map attempt id not correct",
         mapAttempt1.getID(), events[0].getAttemptId());

@@ -48,6 +48,7 @@ public interface Job {
   int getTotalReduces();
   int getCompletedMaps();
   int getCompletedReduces();
+  boolean isUber();
 
   TaskAttemptCompletionEvent[]
       getTaskAttemptCompletionEvents(int fromEventId, int maxEvents);

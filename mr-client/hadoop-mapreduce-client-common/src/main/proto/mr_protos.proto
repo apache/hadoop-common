@@ -103,12 +103,13 @@ message TaskAttemptReportProto {
 
 enum JobStateProto {
   J_NEW = 1;
-  J_RUNNING = 2;
-  J_SUCCEEDED = 3;
-  J_FAILED = 4;
-  J_KILL_WAIT = 5;
-  J_KILLED = 6;
-  J_ERROR = 7;
+  J_INITED = 2;
+  J_RUNNING = 3;
+  J_SUCCEEDED = 4;
+  J_FAILED = 5;
+  J_KILL_WAIT = 6;
+  J_KILLED = 7;
+  J_ERROR = 8;
 }
 
 message JobReportProto {

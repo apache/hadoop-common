@@ -31,7 +31,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.LocalContainerLauncher;
 import org.apache.hadoop.mapred.TaskAttemptListenerImpl;
+import org.apache.hadoop.mapred.TaskUmbilicalProtocol;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
@@ -53,6 +55,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEventType;
 import org.apache.hadoop.mapreduce.v2.app.job.impl.JobImpl;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncher;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncherImpl;
+import org.apache.hadoop.mapreduce.v2.app.local.LocalContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.speculate.DefaultSpeculator;
@@ -111,6 +114,8 @@ public class MRAppMaster extends CompositeService {
   private JobTokenSecretManager jobTokenSecretManager =
       new JobTokenSecretManager();
 
+  private Job job;
+
   public MRAppMaster(ApplicationId applicationId) {
     this(applicationId, null);
   }
@@ -139,26 +144,19 @@ public class MRAppMaster extends CompositeService {
     //service to do the task cleanup
     taskCleaner = createTaskCleaner(context);
     addIfService(taskCleaner);
-    //service to launch allocated containers via NodeManager
-    containerLauncher = createContainerLauncher(context);
-    addIfService(containerLauncher);
-    
+
     //service to handle requests from JobClient
     clientService = createClientService(context);
     addIfService(clientService);
 
-    //service to allocate containers from RM
-    containerAllocator = createContainerAllocator(clientService, context);
-    addIfService(containerAllocator);
-
     //service to log job history events
     EventHandler<JobHistoryEvent> historyService = 
-      createJobHistoryHandler(conf);
+        createJobHistoryHandler(conf);
+
+    JobEventDispatcher synchronousJobEventDispatcher = new JobEventDispatcher();
 
     //register the event dispatchers
-    dispatcher.register(ContainerAllocator.EventType.class, containerAllocator);
-    dispatcher.register(ContainerLauncher.EventType.class, containerLauncher);
-    dispatcher.register(JobEventType.class, new JobEventDispatcher());
+    dispatcher.register(JobEventType.class, synchronousJobEventDispatcher);
     dispatcher.register(TaskEventType.class, new TaskEventDispatcher());
     dispatcher.register(TaskAttemptEventType.class, 
         new TaskAttemptEventDispatcher());
@@ -178,7 +176,118 @@ public class MRAppMaster extends CompositeService {
     }
 
     super.init(conf);
-  }
+
+    //---- start of what used to be startJobs() code:
+
+    Configuration config = getConfig();
+
+    job = createJob(config);
+
+    /** create a job event for job intialization */
+    JobEvent initJobEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT);
+    /** send init to the job (this does NOT trigger job execution) */
+    synchronousJobEventDispatcher.handle(initJobEvent);
+
+    // JobImpl's InitTransition is done (call above is synchronous), so the
+    // "uber-decision" (MR-1220) has been made.  Query job and switch to
+    // ubermode if appropriate (by registering different container-allocator
+    // and container-launcher services/event-handlers).
+
+    if (job.isUber()) {
+      LOG.info("MRAppMaster uberizing job " + job.getID()
+               + " in local container (\"uber-AM\").");
+    } else {
+      LOG.info("MRAppMaster launching normal, non-uberized, multi-container "
+               + "job " + job.getID() + ".");
+    }
+
+    // service to allocate containers from RM (if non-uber) or to fake it (uber)
+    containerAllocator =
+        createContainerAllocator(clientService, context, job.isUber());
+    addIfService(containerAllocator);
+    dispatcher.register(ContainerAllocator.EventType.class, containerAllocator);
+    if (containerAllocator instanceof Service) {
+      ((Service) containerAllocator).init(config);
+    }
+
+    // corresponding service to launch allocated containers via NodeManager
+    containerLauncher = createContainerLauncher(context, job.isUber());
+    addIfService(containerLauncher);
+    dispatcher.register(ContainerLauncher.EventType.class, containerLauncher);
+    if (containerLauncher instanceof Service) {
+      ((Service) containerLauncher).init(config);
+    }
+
+  } // end of init()
+
+  /** Create and initialize (but don't start) a single job. */
+  public Job createJob(Configuration conf) {
+    Credentials fsTokens = new Credentials();
+
+    if (UserGroupInformation.isSecurityEnabled()) {
+      // Read the file-system tokens from the localized tokens-file.
+      try {
+        Path jobSubmitDir =
+            FileContext.getLocalFSFileContext().makeQualified(
+                new Path(new File(YARNApplicationConstants.JOB_SUBMIT_DIR)
+                    .getAbsolutePath()));
+        Path jobTokenFile =
+            new Path(jobSubmitDir, YarnConfiguration.APPLICATION_TOKENS_FILE);
+        fsTokens.addAll(Credentials.readTokenStorageFile(jobTokenFile, conf));
+        LOG.info("jobSubmitDir=" + jobSubmitDir + " jobTokenFile="
+            + jobTokenFile);
+
+        UserGroupInformation currentUser =
+            UserGroupInformation.getCurrentUser();
+        for (Token<? extends TokenIdentifier> tk : fsTokens.getAllTokens()) {
+          LOG.info(" --- DEBUG: Token of kind " + tk.getKind()
+              + "in current ugi in the AppMaster for service "
+              + tk.getService());
+          currentUser.addToken(tk); // For use by AppMaster itself.
+        }
+      } catch (IOException e) {
+        throw new YarnException(e);
+      }
+    }
+
+    // create single job
+    Job newJob = new JobImpl(appID, conf, dispatcher.getEventHandler(),
+                      taskAttemptListener, jobTokenSecretManager, fsTokens);
+    ((RunningAppContext) context).jobs.put(newJob.getID(), newJob);
+
+    dispatcher.register(JobFinishEvent.Type.class,
+        new EventHandler<JobFinishEvent>() {
+          @Override
+          public void handle(JobFinishEvent event) {
+            // job has finished
+            // this is the only job, so shut down the Appmaster
+            // note in a workflow scenario, this may lead to creation of a new
+            // job (FIXME?)
+
+            // TODO:currently just wait for some time so clients can know the
+            // final states. Will be removed once RM come on.
+            try {
+              Thread.sleep(15000);
+            } catch (InterruptedException e) {
+              e.printStackTrace();
+            }
+            LOG.info("Calling stop for all the services");
+            try {
+              stop();
+            } catch (Throwable t) {
+              LOG.warn("Graceful stop failed ", t);
+            }
+            //TODO: this is required because rpc server does not shut down
+            // in spite of calling server.stop().
+            //Bring the process down by force.
+            //Not needed after HADOOP-7140
+            LOG.info("Exiting MR AppMaster..GoodBye!");
+            System.exit(0);
+          }
+        });
+
+    return newJob;
+  } // end createJob()
 
   static class NullSpeculatorEventHandler
       implements EventHandler<SpeculatorEvent> {
@@ -245,14 +354,20 @@ public class MRAppMaster extends CompositeService {
     return new TaskCleanerImpl(context);
   }
 
-  protected ContainerLauncher createContainerLauncher(AppContext context) {
-    return new ContainerLauncherImpl(context);
-  }
-  
-  protected ContainerAllocator createContainerAllocator(ClientService
-      clientService, AppContext context) {
+  protected ContainerAllocator createContainerAllocator(
+      ClientService clientService, AppContext context, boolean isLocal) {
     //return new StaticContainerAllocator(context);
-    return new RMContainerAllocator(clientService, context);
+    return isLocal
+        ? new LocalContainerAllocator(clientService, context)
+        : new RMContainerAllocator(clientService, context);
+  }
+
+  protected ContainerLauncher createContainerLauncher(AppContext context,
+                                                      boolean isLocal) {
+    return isLocal
+        ? new LocalContainerLauncher(context,
+            (TaskUmbilicalProtocol) taskAttemptListener)
+        : new ContainerLauncherImpl(context);
   }
 
   //TODO:should have an interface for MRClientService
@@ -292,7 +407,7 @@ public class MRAppMaster extends CompositeService {
   class RunningAppContext implements AppContext {
 
     private Map<JobId, Job> jobs = new ConcurrentHashMap<JobId, Job>();
-   
+
     @Override
     public ApplicationId getApplicationID() {
       return appID;
@@ -330,80 +445,17 @@ public class MRAppMaster extends CompositeService {
   /**
    * This can be overridden to instantiate multiple jobs and create a 
    * workflow.
+   *
+   * TODO:  Rework the design to actually support this.  Currently much of the
+   * job stuff has been moved to init() above to support uberization (MR-1220).
+   * In a typical workflow, one presumably would want to uberize only a subset
+   * of the jobs (the "small" ones), which is awkward with the current design.
    */
   protected void startJobs() {
-
-    Configuration config = getConfig();
-
-    Credentials fsTokens = new Credentials();
-
-    if (UserGroupInformation.isSecurityEnabled()) {
-      // Read the file-system tokens from the localized tokens-file.
-      try {
-        Path jobSubmitDir =
-            FileContext.getLocalFSFileContext().makeQualified(
-                new Path(new File(YARNApplicationConstants.JOB_SUBMIT_DIR)
-                    .getAbsolutePath()));
-        Path jobTokenFile =
-            new Path(jobSubmitDir, YarnConfiguration.APPLICATION_TOKENS_FILE);
-        fsTokens.addAll(Credentials.readTokenStorageFile(jobTokenFile, config));
-        LOG.info("jobSubmitDir=" + jobSubmitDir + " jobTokenFile="
-            + jobTokenFile);
-
-        UserGroupInformation currentUser =
-            UserGroupInformation.getCurrentUser();
-        for (Token<? extends TokenIdentifier> tk : fsTokens.getAllTokens()) {
-          LOG.info(" --- DEBUG: Token of kind " + tk.getKind()
-              + "in current ugi in the AppMaster for service "
-              + tk.getService());
-          currentUser.addToken(tk); // For use by AppMaster itself.
-        }
-      } catch (IOException e) {
-        throw new YarnException(e);
-      }
-    }
-
-    //create single job
-    Job job =
-        new JobImpl(appID, config, dispatcher.getEventHandler(),
-            taskAttemptListener, jobTokenSecretManager, fsTokens);
-    ((RunningAppContext) context).jobs.put(job.getID(), job);
-
-    dispatcher.register(JobFinishEvent.Type.class,
-        new EventHandler<JobFinishEvent>() {
-          @Override
-          public void handle(JobFinishEvent event) {
-            // job has finished
-            // this is the only job, so shutdown the Appmaster
-            // note in a workflow scenario, this may lead to creation of a new
-            // job
-
-            // TODO:currently just wait for sometime so clients can know the
-            // final states. Will be removed once RM come on.
-            try {
-              Thread.sleep(15000);
-            } catch (InterruptedException e) {
-              e.printStackTrace();
-            }
-            LOG.info("Calling stop for all the services");
-            try {
-              stop();
-            } catch (Throwable t) {
-              LOG.warn("Graceful stop failed ", t);
-            }
-            //TODO: this is required because rpc server does not shutdown
-            //inspite of calling server.stop().
-            //Bring the process down by force.
-            //Not needed after HADOOP-7140
-            LOG.info("Exiting MR AppMaster..GoodBye!");
-            System.exit(0);
-          }
-        });
-
-    /** create a job event for job intialization **/
-    JobEvent initJobEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT);
-    /** send init on the job. this triggers the job execution.**/
-    dispatcher.getEventHandler().handle(initJobEvent);
+    /** create a job-start event to get this ball rolling */
+    JobEvent startJobEvent = new JobEvent(job.getID(), JobEventType.JOB_START);
+    /** send the job-start event. this triggers the job execution. */
+    dispatcher.getEventHandler().handle(startJobEvent);
   }
 
   private class JobEventDispatcher implements EventHandler<JobEvent> {
@@ -411,7 +463,8 @@ public class MRAppMaster extends CompositeService {
     public void handle(JobEvent event) {
       ((EventHandler<JobEvent>)context.getJob(event.getJobId())).handle(event);
     }
-  }  
+  }
+
   private class TaskEventDispatcher implements EventHandler<TaskEvent> {
     @Override
     public void handle(TaskEvent event) {

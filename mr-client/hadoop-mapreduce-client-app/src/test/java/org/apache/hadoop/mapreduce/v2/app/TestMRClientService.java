@@ -66,7 +66,7 @@ public class TestMRClientService {
     Configuration conf = new Configuration();
     Job job = app.submit(conf);
     app.waitForState(job, JobState.RUNNING);
-    Assert.assertEquals("No of tasks not correct", 1, job.getTasks().size());
+    Assert.assertEquals("Num tasks not correct", 1, job.getTasks().size());
     Iterator<Task> it = job.getTasks().values().iterator();
     Task task = it.next();
     app.waitForState(task, TaskState.RUNNING);
@@ -97,67 +97,76 @@ public class TestMRClientService {
     MRClientProtocol proxy =
       (MRClientProtocol) rpc.getProxy(MRClientProtocol.class,
           app.clientService.getBindAddress(), conf);
-    GetCountersRequest gcRequest = recordFactory.newRecordInstance(GetCountersRequest.class);    
+    GetCountersRequest gcRequest =
+        recordFactory.newRecordInstance(GetCountersRequest.class);    
     gcRequest.setJobId(job.getID());
-    Assert.assertNotNull("Counters is null", proxy.getCounters(gcRequest).getCounters());
-    
-    GetJobReportRequest gjrRequest = recordFactory.newRecordInstance(GetJobReportRequest.class);
+    Assert.assertNotNull("Counters is null",
+        proxy.getCounters(gcRequest).getCounters());
+
+    GetJobReportRequest gjrRequest =
+        recordFactory.newRecordInstance(GetJobReportRequest.class);
     gjrRequest.setJobId(job.getID());
-    Assert.assertNotNull("JobReport is null", proxy.getJobReport(gjrRequest).getJobReport());
-    
-    GetTaskAttemptCompletionEventsRequest gtaceRequest = recordFactory.newRecordInstance(GetTaskAttemptCompletionEventsRequest.class);
+    Assert.assertNotNull("JobReport is null",
+        proxy.getJobReport(gjrRequest).getJobReport());
+
+    GetTaskAttemptCompletionEventsRequest gtaceRequest =
+        recordFactory.newRecordInstance(GetTaskAttemptCompletionEventsRequest.class);
     gtaceRequest.setJobId(job.getID());
     gtaceRequest.setFromEventId(0);
     gtaceRequest.setMaxEvents(10);
     Assert.assertNotNull("TaskCompletionEvents is null", 
         proxy.getTaskAttemptCompletionEvents(gtaceRequest).getCompletionEventList());
-    
-    GetDiagnosticsRequest gdRequest = recordFactory.newRecordInstance(GetDiagnosticsRequest.class);
+
+    GetDiagnosticsRequest gdRequest =
+        recordFactory.newRecordInstance(GetDiagnosticsRequest.class);
     gdRequest.setTaskAttemptId(attempt.getID());
     Assert.assertNotNull("Diagnostics is null", 
         proxy.getDiagnostics(gdRequest).getDiagnosticsList());
-    
-    GetTaskAttemptReportRequest gtarRequest = recordFactory.newRecordInstance(GetTaskAttemptReportRequest.class);
+
+    GetTaskAttemptReportRequest gtarRequest =
+        recordFactory.newRecordInstance(GetTaskAttemptReportRequest.class);
     gtarRequest.setTaskAttemptId(attempt.getID());
     Assert.assertNotNull("TaskAttemptReport is null", 
         proxy.getTaskAttemptReport(gtarRequest).getTaskAttemptReport());
-    
-    GetTaskReportRequest gtrRequest = recordFactory.newRecordInstance(GetTaskReportRequest.class);
+
+    GetTaskReportRequest gtrRequest =
+        recordFactory.newRecordInstance(GetTaskReportRequest.class);
     gtrRequest.setTaskId(task.getID());
     Assert.assertNotNull("TaskReport is null", 
         proxy.getTaskReport(gtrRequest).getTaskReport());
-    
-    GetTaskReportsRequest gtreportsRequest = recordFactory.newRecordInstance(GetTaskReportsRequest.class);
+
+    GetTaskReportsRequest gtreportsRequest =
+        recordFactory.newRecordInstance(GetTaskReportsRequest.class);
     gtreportsRequest.setJobId(job.getID());
     gtreportsRequest.setTaskType(TaskType.MAP);
     Assert.assertNotNull("TaskReports for map is null", 
         proxy.getTaskReports(gtreportsRequest).getTaskReportList());
-    
-    gtreportsRequest = recordFactory.newRecordInstance(GetTaskReportsRequest.class);
+
+    gtreportsRequest =
+        recordFactory.newRecordInstance(GetTaskReportsRequest.class);
     gtreportsRequest.setJobId(job.getID());
     gtreportsRequest.setTaskType(TaskType.REDUCE);
     Assert.assertNotNull("TaskReports for reduce is null", 
         proxy.getTaskReports(gtreportsRequest).getTaskReportList());
-    
+
     List<String> diag = proxy.getDiagnostics(gdRequest).getDiagnosticsList();
-    Assert.assertEquals("No of diagnostic not correct" , 2 , diag.size());
-    Assert.assertEquals("Diag 1 not correct" , 
+    Assert.assertEquals("Num diagnostics not correct", 2 , diag.size());
+    Assert.assertEquals("Diag 1 not correct",
         diagnostic1, diag.get(0).toString());
-    Assert.assertEquals("Diag 2 not correct" , 
+    Assert.assertEquals("Diag 2 not correct",
         diagnostic2, diag.get(1).toString());
-    
+
     TaskReport taskReport = proxy.getTaskReport(gtrRequest).getTaskReport();
-    Assert.assertEquals("No of diagnostic not correct", 2, 
+    Assert.assertEquals("Num diagnostics not correct", 2,
         taskReport.getDiagnosticsCount());
-    
+
     //send the done signal to the task
     app.getContext().getEventHandler().handle(
         new TaskAttemptEvent(
             task.getAttempts().values().iterator().next().getID(),
             TaskAttemptEventType.TA_DONE));
-    
+
     app.waitForState(job, JobState.SUCCEEDED);
-    
   }
 
   class MRAppWithClientService extends MRApp {

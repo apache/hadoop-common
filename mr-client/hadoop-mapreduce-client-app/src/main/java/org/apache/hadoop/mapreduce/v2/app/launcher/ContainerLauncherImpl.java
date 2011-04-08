@@ -189,7 +189,8 @@ public class ContainerLauncherImpl extends AbstractService implements
           startRequest.setContainerLaunchContext(containerLaunchContext);
           proxy.startContainer(startRequest);
 
-          // after launching send launched event to taskattempt
+          // after launching, send launched event to task attempt to move
+          // it from ASSIGNED to RUNNING state
           context.getEventHandler().handle(
               new TaskAttemptEvent(launchEv.getTaskAttemptID(),
                   TaskAttemptEventType.TA_CONTAINER_LAUNCHED));
@@ -201,9 +202,9 @@ public class ContainerLauncherImpl extends AbstractService implements
         }
 
         break;
-      case CONTAINER_REMOTE_CLEANUP:
 
-        // We will have to remove the launch event if it is still in eventQueue
+      case CONTAINER_REMOTE_CLEANUP:
+        // We will have to remove the launch (meant "cleanup"? FIXME) event if it is still in eventQueue
         // and not yet processed
         if (eventQueue.contains(event)) {
           eventQueue.remove(event); // TODO: Any synchro needed?
@@ -228,10 +229,10 @@ public class ContainerLauncherImpl extends AbstractService implements
                 e);
           }
 
-            // after killing send killed event to taskattempt
-            context.getEventHandler().handle(
-                new TaskAttemptEvent(event.getTaskAttemptID(),
-                    TaskAttemptEventType.TA_CONTAINER_CLEANED));
+          // after killing, send killed event to taskattempt
+          context.getEventHandler().handle(
+              new TaskAttemptEvent(event.getTaskAttemptID(),
+                  TaskAttemptEventType.TA_CONTAINER_CLEANED));
         }
         break;
       }

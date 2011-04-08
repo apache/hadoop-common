@@ -417,8 +417,13 @@ public class MockJobs extends MockApps {
       }
 
       @Override
-      public TaskAttemptCompletionEvent[] getTaskAttemptCompletionEvents(int fromEventId,
-                                                           int maxEvents) {
+      public boolean isUber() {
+        return false;
+      }
+
+      @Override
+      public TaskAttemptCompletionEvent[] getTaskAttemptCompletionEvents(
+          int fromEventId, int maxEvents) {
         return null;
       }
 

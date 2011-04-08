@@ -259,6 +259,7 @@ public class TypeConverter {
   public static int fromYarn(JobState state) {
     switch (state) {
     case NEW:
+    case INITED:
       return org.apache.hadoop.mapred.JobStatus.PREP;
     case RUNNING:
       return org.apache.hadoop.mapred.JobStatus.RUNNING;

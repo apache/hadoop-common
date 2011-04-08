@@ -224,10 +224,15 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   @Override
+  public boolean isUber() {
+    return false;
+  }
+
+  @Override
   public Map<TaskId, Task> getTasks(TaskType taskType) {
     if (TaskType.MAP.equals(taskType)) {
       return mapTasks;
-    } else {//we have only two type of tasks
+    } else {//we have only two types of tasks
       return reduceTasks;
     }
   }

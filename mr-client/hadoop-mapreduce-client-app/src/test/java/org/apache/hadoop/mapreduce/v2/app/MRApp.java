@@ -78,14 +78,16 @@ public class MRApp extends MRAppMaster {
   int maps;
   int reduces;
 
-  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  private final RecordFactory recordFactory =
+      RecordFactoryProvider.getRecordFactory(null);
   
-  //if true tasks complete automatically as soon as they are launched
+  //if true, tasks complete automatically as soon as they are launched
   protected boolean autoComplete = false;
 
   public MRApp(int maps, int reduces, boolean autoComplete) {
     
-    super(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class));
+    super(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(
+        ApplicationId.class));
     this.maps = maps;
     this.reduces = reduces;
     this.autoComplete = autoComplete;
@@ -158,30 +160,33 @@ public class MRApp extends MRAppMaster {
   public void verifyCompleted() {
     for (Job job : getContext().getAllJobs().values()) {
       JobReport jobReport = job.getReport();
-      Assert.assertTrue("Job start time is  not less than finish time",
+      Assert.assertTrue("Job start time is not less than finish time",
           jobReport.getStartTime() < jobReport.getFinishTime());
       Assert.assertTrue("Job finish time is in future",
           jobReport.getFinishTime() < System.currentTimeMillis());
       for (Task task : job.getTasks().values()) {
         TaskReport taskReport = task.getReport();
-        Assert.assertTrue("Task start time is  not less than finish time",
+        Assert.assertTrue("Task start time is not less than finish time",
             taskReport.getStartTime() < taskReport.getFinishTime());
         for (TaskAttempt attempt : task.getAttempts().values()) {
           TaskAttemptReport attemptReport = attempt.getReport();
-          Assert.assertTrue("Attempt start time is  not less than finish time",
+          Assert.assertTrue("Attempt start time is not less than finish time",
               attemptReport.getStartTime() < attemptReport.getFinishTime());
         }
       }
     }
   }
 
-  protected void startJobs() {
-    Job job = new TestJob(getAppID(), getDispatcher().getEventHandler(),
-        getTaskAttemptListener());
-    ((AppContext) getContext()).getAllJobs().put(job.getID(), job);
+  public Job createJob(Configuration conf) {
+    Job newJob = new TestJob(getAppID(), getDispatcher().getEventHandler(),
+                             getTaskAttemptListener());
+    ((AppContext) getContext()).getAllJobs().put(newJob.getID(), newJob);
 
-    getDispatcher().register(org.apache.hadoop.mapreduce.jobhistory.EventType.class,
+    // FIXME?  why does this work?  MRAppMaster init() already registered one...
+    getDispatcher().register(
+        org.apache.hadoop.mapreduce.jobhistory.EventType.class,
         createJobHistoryHandler(getConfig()));
+
     getDispatcher().register(JobFinishEvent.Type.class,
         new EventHandler<JobFinishEvent>() {
           @Override
@@ -189,11 +194,8 @@ public class MRApp extends MRAppMaster {
             stop();
           }
         });
-    
-    /** create a job event for job intialization **/
-    JobEvent initJobEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT);
-    /** send init on the job. this triggers the job execution.**/
-    getDispatcher().getEventHandler().handle(initJobEvent);
+
+    return newJob;
   }
 
   @Override
@@ -213,7 +215,8 @@ public class MRApp extends MRAppMaster {
   }
 
   @Override
-  protected ContainerLauncher createContainerLauncher(AppContext context) {
+  protected ContainerLauncher createContainerLauncher(AppContext context,
+                                                      boolean isLocal) {
     return new MockContainerLauncher();
   }
 
@@ -248,7 +251,7 @@ public class MRApp extends MRAppMaster {
 
   @Override
   protected ContainerAllocator createContainerAllocator(
-      ClientService clientService, AppContext context) {
+      ClientService clientService, AppContext context, boolean isLocal) {
     return new ContainerAllocator(){
       private int containerCount;
       @Override
@@ -292,19 +295,17 @@ public class MRApp extends MRAppMaster {
   }
 
   class TestJob extends JobImpl {
-    //overwrite the init transition
+    //override the init transition
     StateMachineFactory<JobImpl, JobState, JobEventType, JobEvent> localFactory
-         //overwrite the init transition
-         = stateMachineFactory.addTransition
-                 (JobState.NEW,
-                  EnumSet.of(JobState.RUNNING, JobState.FAILED),
-                  JobEventType.JOB_INIT,
-                  // This is abusive.
-                  new TestInitTransition(getConfig(), maps, reduces));
+        = stateMachineFactory.addTransition(JobState.NEW,
+            EnumSet.of(JobState.INITED, JobState.FAILED),
+            JobEventType.JOB_INIT,
+            // This is abusive.
+            new TestInitTransition(getConfig(), maps, reduces));
 
     private final StateMachine<JobState, JobEventType, JobEvent>
-           localStateMachine;
-    
+        localStateMachine;
+
     @Override
     protected StateMachine<JobState, JobEventType, JobEvent> getStateMachine() {
       return localStateMachine;
@@ -319,9 +320,8 @@ public class MRApp extends MRAppMaster {
       //  instance variable.
       localStateMachine = localFactory.make(this);
     }
-    
   }
-  
+
   //Override InitTransition to not look for split files etc
   static class TestInitTransition extends JobImpl.InitTransition {
     private Configuration config;

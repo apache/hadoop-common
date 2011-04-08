@@ -202,7 +202,7 @@ public class YARNRunner implements ClientProtocol {
   
   @Override
   public JobStatus submitJob(JobID jobId, String jobSubmitDir, Credentials ts)
-  throws IOException, InterruptedException{
+  throws IOException, InterruptedException {
 
     // Upload only in security mode: TODO
     Path applicationTokensFile =
@@ -258,16 +258,19 @@ public class YARNRunner implements ClientProtocol {
   private ApplicationSubmissionContext getApplicationSubmissionContext(
       Configuration jobConf,
       String jobSubmitDir, Credentials ts) throws IOException {
-    ApplicationSubmissionContext appContext = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
+    ApplicationSubmissionContext appContext =
+        recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
     ApplicationId applicationId = resMgrDelegate.getApplicationId();
     appContext.setApplicationId(applicationId);
     Resource capability = recordFactory.newRecordInstance(Resource.class);
-    capability.setMemory(conf.getInt(YARN_AM_RESOURCE_KEY, DEFAULT_YARN_AM_RESOURCE));
-    LOG.info("Master capability = " + capability);
+    capability.setMemory(
+        conf.getInt(YARN_AM_RESOURCE_KEY, DEFAULT_YARN_AM_RESOURCE));
+    LOG.info("AppMaster capability = " + capability);
     appContext.setMasterCapability(capability);
 
     FileContext defaultFS = FileContext.getFileContext(conf);
-    Path jobConfPath = new Path(jobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
+    Path jobConfPath =
+        new Path(jobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
     
     URL yarnUrlForJobSubmitDir =
         ConverterUtils.getYarnUrlFromPath(defaultFS.makeQualified(new Path(
@@ -290,9 +293,9 @@ public class YARNRunner implements ClientProtocol {
     // TODO gross hack
     for (String s : new String[] { "job.split", "job.splitmetainfo",
         YarnConfiguration.APPLICATION_TOKENS_FILE }) {
-      appContext.setResourceTodo(YARNApplicationConstants.JOB_SUBMIT_DIR + "/" + s,
-          createApplicationResource(defaultFS,
-              new Path(jobSubmitDir, s)));
+      appContext.setResourceTodo(
+          YARNApplicationConstants.JOB_SUBMIT_DIR + "/" + s,
+          createApplicationResource(defaultFS, new Path(jobSubmitDir, s)));
     }
 
     // TODO: Only if security is on.
@@ -332,8 +335,8 @@ public class YARNRunner implements ClientProtocol {
     vargs.add("org.apache.hadoop.mapreduce.v2.app.MRAppMaster");
     vargs.add(String.valueOf(applicationId.getClusterTimestamp()));
     vargs.add(String.valueOf(applicationId.getId()));
-    vargs.add("1>logs/stderr");
-    vargs.add("2>logs/stdout");
+    vargs.add("1>logs/stdout");
+    vargs.add("2>logs/stderr");
 
     Vector<String> vargsFinal = new Vector<String>(8);
     // Final commmand

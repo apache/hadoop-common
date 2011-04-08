@@ -39,7 +39,7 @@ import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.service.Service;
 
 /**
- * Configures and starts the MR specific components in the YARN cluster.
+ * Configures and starts the MR-specific components in the YARN cluster.
  *
  */
 public class MiniMRYarnCluster extends MiniYARNCluster {
@@ -116,7 +116,8 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
       super.stop();
     }
   }
+
   public JobHistoryServer getHistoryServer() {
-	  return this.historyServer;
+    return this.historyServer;
   }
 }

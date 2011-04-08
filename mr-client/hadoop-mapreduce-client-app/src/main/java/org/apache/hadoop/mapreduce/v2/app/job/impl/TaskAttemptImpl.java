@@ -419,7 +419,7 @@ public abstract class TaskAttemptImpl implements
       memory = conf.getInt(MRJobConfig.REDUCE_MEMORY_MB, 1024);
     }
     
-    return 1024;
+    return 1024; //FIXME:  why not "return memory;" ?
   }
 
   private static LocalResource getLocalResource(FileContext fc, Path file, 
@@ -443,7 +443,7 @@ public abstract class TaskAttemptImpl implements
       FileContext remoteFS = FileContext.getFileContext(conf);
       
       Path localizedJobConf = new Path(YARNApplicationConstants.JOB_CONF_FILE);
-      remoteTask.setJobFile(localizedJobConf.toString()); // Screwed!!!!!!
+      remoteTask.setJobFile(localizedJobConf.toString()); // Screwed!!!!!! (presumably this means "FIXME"...)
       URL jobConfFileOnRemoteFS = ConverterUtils.getYarnUrlFromPath(localizedJobConf);
       LOG.info("The job-conf file on the remote FS is " + jobConfFileOnRemoteFS);
       
@@ -842,6 +842,7 @@ public abstract class TaskAttemptImpl implements
       taskAttempt.containerID = cEvent.getContainerID();
       taskAttempt.containerMgrAddress = cEvent.getContainerManagerAddress();
       taskAttempt.containerToken = cEvent.getContainerToken();
+      // this is a _real_ Task (classic Hadoop mapred flavor):
       taskAttempt.remoteTask = taskAttempt.createRemoteTask();
       taskAttempt.jvmID = new WrappedJvmID(
           taskAttempt.remoteTask.getTaskID().getJobID(), 
@@ -858,7 +859,7 @@ public abstract class TaskAttemptImpl implements
           return taskAttempt.getContainer();
         }
         @Override
-        public Task getRemoteTask() {
+        public Task getRemoteTask() {  // classic mapred Task, not YARN version
           return taskAttempt.remoteTask;
         }
       });

@@ -376,7 +376,7 @@ public class TestRMContainerAllocator {
     public List<TaskAttemptContainerAssignedEvent> schedule() {
       //run the scheduler
       try {
-        allocate();
+        heartbeat();
       } catch (Exception e) {
 
       }

@@ -51,24 +51,25 @@ public class TestFail {
   //The job succeeds.
   public void testFailTask() throws Exception {
     MRApp app = new MockFirstFailingAttemptMRApp(1, 0);
-    Job job = app.submit(new Configuration());
+    Configuration conf = new Configuration();
+    // this test requires two task attempts, but uberization overrides max to 1
+    conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
+    Job job = app.submit(conf);
     app.waitForState(job, JobState.SUCCEEDED);
     Map<TaskId,Task> tasks = job.getTasks();
-    Assert.assertEquals("No of tasks is not correct", 1, 
-        tasks.size());
+    Assert.assertEquals("Num tasks is not correct", 1, tasks.size());
     Task task = tasks.values().iterator().next();
-    Assert.assertEquals("Task state not correct", TaskState.SUCCEEDED, 
+    Assert.assertEquals("Task state not correct", TaskState.SUCCEEDED,
         task.getReport().getTaskState());
-    Map<TaskAttemptId, TaskAttempt> attempts = 
-      tasks.values().iterator().next().getAttempts();
-    Assert.assertEquals("No of attempts is not correct", 2, 
-        attempts.size());
+    Map<TaskAttemptId, TaskAttempt> attempts =
+        tasks.values().iterator().next().getAttempts();
+    Assert.assertEquals("Num attempts is not correct", 2, attempts.size());
     //one attempt must be failed 
     //and another must have succeeded
     Iterator<TaskAttempt> it = attempts.values().iterator();
-    Assert.assertEquals("Attempt state not correct", TaskAttemptState.FAILED, 
-          it.next().getReport().getTaskAttemptState());
-    Assert.assertEquals("Attempt state not correct", TaskAttemptState.SUCCEEDED, 
+    Assert.assertEquals("Attempt state not correct", TaskAttemptState.FAILED,
+        it.next().getReport().getTaskAttemptState());
+    Assert.assertEquals("Attempt state not correct", TaskAttemptState.SUCCEEDED,
         it.next().getReport().getTaskAttemptState());
   }
 
@@ -141,20 +142,22 @@ public class TestFail {
     Configuration conf = new Configuration();
     int maxAttempts = 2;
     conf.setInt(MRJobConfig.MAP_MAX_ATTEMPTS, maxAttempts);
+    // disable uberization (requires entire job to be reattempted, so max for
+    // subtask attempts is overridden to 1)
+    conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
     Job job = app.submit(conf);
     app.waitForState(job, JobState.FAILED);
     Map<TaskId,Task> tasks = job.getTasks();
-    Assert.assertEquals("No of tasks is not correct", 1, 
-        tasks.size());
+    Assert.assertEquals("Num tasks is not correct", 1, tasks.size());
     Task task = tasks.values().iterator().next();
-    Assert.assertEquals("Task state not correct", TaskState.FAILED, 
+    Assert.assertEquals("Task state not correct", TaskState.FAILED,
         task.getReport().getTaskState());
-    Map<TaskAttemptId, TaskAttempt> attempts = 
-      tasks.values().iterator().next().getAttempts();
-    Assert.assertEquals("No of attempts is not correct", maxAttempts, 
+    Map<TaskAttemptId, TaskAttempt> attempts =
+        tasks.values().iterator().next().getAttempts();
+    Assert.assertEquals("Num attempts is not correct", maxAttempts,
         attempts.size());
     for (TaskAttempt attempt : attempts.values()) {
-      Assert.assertEquals("Attempt state not correct", TaskAttemptState.FAILED, 
+      Assert.assertEquals("Attempt state not correct", TaskAttemptState.FAILED,
           attempt.getReport().getTaskAttemptState());
     }
   }

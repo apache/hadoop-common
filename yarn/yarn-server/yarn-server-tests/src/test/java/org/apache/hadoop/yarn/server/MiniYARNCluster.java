@@ -42,6 +42,7 @@ public class MiniYARNCluster extends CompositeService {
 
   private static final Log LOG = LogFactory.getLog(MiniYARNCluster.class);
 
+  // temp fix until metrics system can auto-detect itself running in unit test:
   static {
     DefaultMetricsSystem.setMiniClusterMode(true);
   }
