@@ -18,14 +18,22 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor;
 
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.yarn.event.Event;
 
 public class ContainersMonitorEvent extends
     AbstractEvent<ContainersMonitorEventType> {
 
-  public ContainersMonitorEvent(ContainersMonitorEventType eventType) {
+  private final ContainerId containerId;
+
+  public ContainersMonitorEvent(ContainerId containerId,
+      ContainersMonitorEventType eventType) {
     super(eventType);
+    this.containerId = containerId;
+  }
+
+  public ContainerId getContainerId() {
+    return this.containerId;
   }
 
 }

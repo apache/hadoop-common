@@ -13,7 +13,7 @@ import org.apache.hadoop.io.Writable;
  * 
  */
 public class NodeHealthStatus implements
-    org.apache.hadoop.yarn.api.records.NodeHealthStatus, Writable {
+  org.apache.hadoop.yarn.server.api.records.NodeHealthStatus, Writable {
 
   private boolean isNodeHealthy;
   private String healthReport;
@@ -38,7 +38,8 @@ public class NodeHealthStatus implements
    * 
    * @param isNodeHealthy
    */
-  public void setNodeHealthy(boolean isNodeHealthy) {
+  @Override
+  public void setIsNodeHealthy(boolean isNodeHealthy) {
     this.isNodeHealthy = isNodeHealthy;
   }
 
@@ -48,7 +49,8 @@ public class NodeHealthStatus implements
    * 
    * @return true if the node is healthy.
    */
-  public boolean isNodeHealthy() {
+  @Override
+  public boolean getIsNodeHealthy() {
     return isNodeHealthy;
   }
 
@@ -58,6 +60,7 @@ public class NodeHealthStatus implements
    * @param healthReport
    *          String listing cause of failure.
    */
+  @Override
   public void setHealthReport(String healthReport) {
     this.healthReport = healthReport;
   }
@@ -79,7 +82,7 @@ public class NodeHealthStatus implements
    * @param lastReported last reported time by node 
    * health script
    */
-  public void setLastReported(long lastReported) {
+  public void setLastHealthReportTime(long lastReported) {
     this.lastHealthReportTime = lastReported;
   }
 
@@ -88,7 +91,8 @@ public class NodeHealthStatus implements
    * 
    * @return time stamp of most recent health update.
    */
-  public long getLastReported() {
+  @Override
+  public long getLastHealthReportTime() {
     return lastHealthReportTime;
   }
 

@@ -18,10 +18,17 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -44,12 +51,28 @@ public class TestEventFlow {
   private static final Log LOG = LogFactory.getLog(TestEventFlow.class);
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
+  private static File localDir = new File("target",
+      TestEventFlow.class.getName() + "-localDir").getAbsoluteFile();
+  private static File logDir = new File("target",
+      TestEventFlow.class.getName() + "-logDir").getAbsoluteFile();
+
   @Test
   public void testSuccessfulContainerLaunch() throws InterruptedException,
-      YarnRemoteException {
+      IOException {
+
+    FileContext localFS = FileContext.getLocalFSFileContext();
+
+    localFS.delete(new Path(localDir.getAbsolutePath()), true);
+    localFS.delete(new Path(logDir.getAbsolutePath()), true);
+    localDir.mkdir();
+    logDir.mkdir();
+
     Context context = new NMContext();
 
     YarnConfiguration conf = new YarnConfiguration();
+    conf.set(NMConfig.NM_LOCAL_DIR, localDir.getAbsolutePath());
+    conf.set(NMConfig.NM_LOG_DIR, logDir.getAbsolutePath());
+
     ContainerExecutor exec = new DefaultContainerExecutor();
     DeletionService del = new DeletionService(exec);
     Dispatcher dispatcher = new AsyncDispatcher();
@@ -70,7 +93,7 @@ public class TestEventFlow {
 
     DummyContainerManager containerManager =
         new DummyContainerManager(context, exec, del, nodeStatusUpdater);
-    containerManager.init(new Configuration());
+    containerManager.init(conf);
     containerManager.start();
 
     ContainerLaunchContext launchContext = recordFactory.newRecordInstance(ContainerLaunchContext.class);

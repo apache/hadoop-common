@@ -19,18 +19,9 @@
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor;
 
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.service.AbstractService;
+import org.apache.hadoop.yarn.service.Service;
 
-public class ContainersMonitor extends AbstractService
-    implements EventHandler<ContainersMonitorEvent> {
-
-  public ContainersMonitor() {
-    super("containers-monitor");
-  }
-
-  @Override
-  public void handle(ContainersMonitorEvent monitorEvent) {
-    // TODO
-  }
+public interface ContainersMonitor extends Service,
+    EventHandler<ContainersMonitorEvent> {
 
 }

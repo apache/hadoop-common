@@ -1,11 +1,13 @@
 package org.apache.hadoop.yarn.api.records;
 
 public interface ContainerStatus {
-  public abstract ContainerId getContainerId();
-  public abstract ContainerState getState();
-  public abstract int getExitStatus();
+  ContainerId getContainerId();
+  ContainerState getState();
+  String getExitStatus();
+  String getDiagnostics();
   
-  public abstract void setContainerId(ContainerId containerId);
-  public abstract void setState(ContainerState state);
-  public abstract void setExitStatus(int exitStatus);
+  void setContainerId(ContainerId containerId);
+  void setState(ContainerState state);
+  void setExitStatus(String exitStatus);
+  void setDiagnostics(String diagnostics);
 }

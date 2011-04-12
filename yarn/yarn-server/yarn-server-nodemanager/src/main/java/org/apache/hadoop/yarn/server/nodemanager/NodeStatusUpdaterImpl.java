@@ -94,7 +94,7 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
     this.heartBeatInterval =
         conf.getLong(NMConfig.HEARTBEAT_INTERVAL,
             NMConfig.DEFAULT_HEARTBEAT_INTERVAL);
-    int memory = conf.getInt(NMConfig.NM_RESOURCE, 8);
+    int memory = conf.getInt(NMConfig.NM_VMEM_GB, 8);
     this.totalResource = recordFactory.newRecordInstance(Resource.class);
     this.totalResource.setMemory(memory * 1024);
     super.init(conf);

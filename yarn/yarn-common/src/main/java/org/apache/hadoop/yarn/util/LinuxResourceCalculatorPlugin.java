@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapreduce.util;
+package org.apache.hadoop.yarn.util;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -29,7 +29,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.mapred.TaskTrackerStatus;
+import org.apache.hadoop.yarn.util.ProcfsBasedProcessTree;
+import org.apache.hadoop.yarn.util.ResourceCalculatorPlugin;
 
 /**
  * Plugin to calculate resource information on Linux systems.
@@ -87,9 +88,9 @@ public class LinuxResourceCalculatorPlugin extends ResourceCalculatorPlugin {
   private long cumulativeCpuTime = 0L; // CPU used time since system is on (ms)
   private long lastCumulativeCpuTime = 0L; // CPU used time read last time (ms)
   // Unix timestamp while reading the CPU time (ms)
-  private float cpuUsage = TaskTrackerStatus.UNAVAILABLE;
-  private long sampleTime = TaskTrackerStatus.UNAVAILABLE;
-  private long lastSampleTime = TaskTrackerStatus.UNAVAILABLE;
+  private float cpuUsage = ResourceCalculatorPlugin.UNAVAILABLE;
+  private long sampleTime = ResourceCalculatorPlugin.UNAVAILABLE;
+  private long lastSampleTime = ResourceCalculatorPlugin.UNAVAILABLE;
   private ProcfsBasedProcessTree pTree = null;
 
   boolean readMemInfoFile = false;
@@ -352,7 +353,7 @@ public class LinuxResourceCalculatorPlugin extends ResourceCalculatorPlugin {
   public float getCpuUsage() {
     readProcStatFile();
     sampleTime = getCurrentTime();
-    if (lastSampleTime == TaskTrackerStatus.UNAVAILABLE ||
+    if (lastSampleTime == ResourceCalculatorPlugin.UNAVAILABLE ||
         lastSampleTime > sampleTime) {
       // lastSampleTime > sampleTime may happen when the system time is changed
       lastSampleTime = sampleTime;

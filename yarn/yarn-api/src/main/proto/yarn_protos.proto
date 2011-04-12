@@ -168,7 +168,8 @@ message ContainerLaunchContextProto {
 message ContainerStatusProto {
   optional ContainerIdProto container_id = 1;
   optional ContainerStateProto state = 2;
-  optional int32 exit_status = 3;
+  optional string diagnostics = 3 [default = ""];
+  optional string exit_status = 4 [default = "N/A"];
 }
 
 

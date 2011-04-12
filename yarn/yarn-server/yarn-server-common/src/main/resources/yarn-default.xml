@@ -71,8 +71,7 @@
     <value>0.0.0.0:45454</value>
   </property>
 
-<property><name>yarn.server.nodemanager.connect.rm</name><value>true</value></property> 
-
+  <!--  HealthChecker's properties -->
   <property>
     <name>yarn.server.nodemanager.healthchecker.script.path</name>
     <value></value>
@@ -130,6 +129,26 @@
     <description>Arguments to be passed to the health-check script run
     by the NodeManager</description>
   </property>
+  <!-- End of HealthChecker's properties -->
+
+  <!-- ContainerMonitor related properties -->
+
+  <property>
+    <name>yarn.server.nodemanager.containers-monitor.monitoring-interval</name>
+    <value>3000</value>
+  </property>
+
+  <property>
+    <name>yarn.server.nodemanager.containers-monitor.resourcecalculatorplugin</name>
+    <value></value>
+  </property>
+
+   <property>
+     <name>yarn.server.nodemanager.reserved-physical-memory.mb</name>
+     <value>-1</value>
+   </property>
+
+  <!-- End of ContainerMonitor related properties -->
 
 <!-- All MRAppMaster related configuration properties -->
 

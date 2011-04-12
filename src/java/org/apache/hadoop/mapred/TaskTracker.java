@@ -54,7 +54,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
-import org.apache.hadoop.NodeHealthStatus;
+import org.apache.hadoop.mapred.NodeHealthStatus;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
@@ -98,8 +98,7 @@ import static org.apache.hadoop.metrics2.impl.MsInfo.*;
 import org.apache.hadoop.mapreduce.util.ConfigUtil;
 import org.apache.hadoop.mapreduce.util.MRAsyncDiskService;
 import org.apache.hadoop.mapreduce.util.MemoryCalculatorPlugin;
-import org.apache.hadoop.mapreduce.util.ProcfsBasedProcessTree;
-import org.apache.hadoop.mapreduce.util.ResourceCalculatorPlugin;
+import org.apache.hadoop.yarn.util.ProcfsBasedProcessTree;
 import org.apache.hadoop.mapreduce.util.ServerConfigUtil;
 import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.net.NetUtils;
@@ -115,6 +114,8 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.RunJar;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.VersionInfo;
+import org.apache.hadoop.yarn.util.ResourceCalculatorPlugin;
+
 import static org.apache.hadoop.mapred.QueueManager.toFullPropertyName;
 
 /*******************************************************
@@ -1730,8 +1731,8 @@ public class TaskTracker
       if (healthChecker != null) {
         healthChecker.setHealthStatus(healthStatus);
       } else {
-        healthStatus.setNodeHealthy(true);
-        healthStatus.setLastReported(0L);
+        healthStatus.setIsNodeHealthy(true);
+        healthStatus.setLastHealthReportTime(0L);
         healthStatus.setHealthReport("");
       }
     }
@@ -1803,7 +1804,7 @@ public class TaskTracker
    * @return total size of free virtual memory.
    */
   long getAvailableVirtualMemoryOnTT() {
-    long availableVirtualMemoryOnTT = TaskTrackerStatus.UNAVAILABLE;
+    long availableVirtualMemoryOnTT = ResourceCalculatorPlugin.UNAVAILABLE;
     if (resourceCalculatorPlugin != null) {
       availableVirtualMemoryOnTT =
               resourceCalculatorPlugin.getAvailableVirtualMemorySize();
@@ -1816,7 +1817,7 @@ public class TaskTracker
    * @return total size of free physical memory in bytes
    */
   long getAvailablePhysicalMemoryOnTT() {
-    long availablePhysicalMemoryOnTT = TaskTrackerStatus.UNAVAILABLE;
+    long availablePhysicalMemoryOnTT = ResourceCalculatorPlugin.UNAVAILABLE;
     if (resourceCalculatorPlugin != null) {
       availablePhysicalMemoryOnTT =
               resourceCalculatorPlugin.getAvailablePhysicalMemorySize();
@@ -1829,7 +1830,7 @@ public class TaskTracker
    * @return cumulative CPU used time in millisecond
    */
   long getCumulativeCpuTimeOnTT() {
-    long cumulativeCpuTime = TaskTrackerStatus.UNAVAILABLE;
+    long cumulativeCpuTime = ResourceCalculatorPlugin.UNAVAILABLE;
     if (resourceCalculatorPlugin != null) {
       cumulativeCpuTime = resourceCalculatorPlugin.getCumulativeCpuTime();
     }
@@ -1841,7 +1842,7 @@ public class TaskTracker
    * @return number of processors
    */
   int getNumProcessorsOnTT() {
-    int numProcessors = TaskTrackerStatus.UNAVAILABLE;
+    int numProcessors = ResourceCalculatorPlugin.UNAVAILABLE;
     if (resourceCalculatorPlugin != null) {
       numProcessors = resourceCalculatorPlugin.getNumProcessors();
     }
@@ -1853,7 +1854,7 @@ public class TaskTracker
    * @return CPU frequency in kHz
    */
   long getCpuFrequencyOnTT() {
-    long cpuFrequency = TaskTrackerStatus.UNAVAILABLE;
+    long cpuFrequency = ResourceCalculatorPlugin.UNAVAILABLE;
     if (resourceCalculatorPlugin != null) {
       cpuFrequency = resourceCalculatorPlugin.getCpuFrequency();
     }
@@ -1865,7 +1866,7 @@ public class TaskTracker
    * @return CPU usage in %
    */
   float getCpuUsageOnTT() {
-    float cpuUsage = TaskTrackerStatus.UNAVAILABLE;
+    float cpuUsage = ResourceCalculatorPlugin.UNAVAILABLE;
     if (resourceCalculatorPlugin != null) {
       cpuUsage = resourceCalculatorPlugin.getCpuUsage();
     }

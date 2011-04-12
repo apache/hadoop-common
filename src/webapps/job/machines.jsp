@@ -84,8 +84,8 @@
       for (Iterator it = c.iterator(); it.hasNext(); ) {
         TaskTrackerStatus tt = (TaskTrackerStatus) it.next();
         long sinceHeartbeat = System.currentTimeMillis() - tt.getLastSeen();
-        boolean isHealthy = tt.getHealthStatus().isNodeHealthy();
-        long sinceHealthCheck = tt.getHealthStatus().getLastReported();
+        boolean isHealthy = tt.getHealthStatus().getIsNodeHealthy();
+        long sinceHealthCheck = tt.getHealthStatus().getLastHealthReportTime();
         String healthString = "";
         if(sinceHealthCheck == 0) {
           healthString = "N/A";

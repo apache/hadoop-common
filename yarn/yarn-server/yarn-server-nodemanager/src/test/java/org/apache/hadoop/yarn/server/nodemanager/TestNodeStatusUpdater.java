@@ -205,7 +205,7 @@ public class TestNodeStatusUpdater {
     };
 
     YarnConfiguration conf = new YarnConfiguration();
-    conf.setInt(NMConfig.NM_RESOURCE, 5); // 5GB
+    conf.setInt(NMConfig.NM_VMEM_GB, 5); // 5GB
     conf.set(NMConfig.NM_BIND_ADDRESS, "127.0.0.1:12345");
     conf.set(NMConfig.NM_LOCALIZER_BIND_ADDRESS, "127.0.0.1:12346");
     conf.set(NMConfig.NM_LOG_DIR, new Path(basedir, "logs").toUri().getPath());

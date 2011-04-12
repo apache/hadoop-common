@@ -73,7 +73,7 @@ public class TestTaskTrackerBlacklisting extends TestCase {
     boolean jumpADay = false;
 
     @Override
-    long getTime() {
+    public long getTime() {
       if (!jumpADay) {
         return super.getTime();
       } else {
@@ -168,9 +168,9 @@ public class TestTaskTrackerBlacklisting extends TestCase {
           .convertTrackerNameToHostName(tracker));
       if (status != null) {
         NodeHealthStatus healthStatus = tts.getHealthStatus();
-        healthStatus.setNodeHealthy(status.isNodeHealthy());
+        healthStatus.setIsNodeHealthy(status.getIsNodeHealthy());
         healthStatus.setHealthReport(status.getHealthReport());
-        healthStatus.setLastReported(status.getLastReported());
+        healthStatus.setLastHealthReportTime(status.getLastHealthReportTime());
       }
       jobTracker.heartbeat(tts, false, initialContact, 
                            false, responseId);
@@ -200,8 +200,8 @@ public class TestTaskTrackerBlacklisting extends TestCase {
     for (String host : hosts) {
       checkReasonForBlackListing(host, nodeUnHealthyReasonSet);
     }
-    status.setNodeHealthy(true);
-    status.setLastReported(System.currentTimeMillis());
+    status.setIsNodeHealthy(true);
+    status.setLastHealthReportTime(System.currentTimeMillis());
     status.setHealthReport("");
     //white list tracker so the further test cases can be
     //using trackers.
@@ -314,8 +314,8 @@ public class TestTaskTrackerBlacklisting extends TestCase {
           error,
           jobTracker.getFaultReport(hosts[i]).replace("\n", ""));
     }
-    status.setNodeHealthy(false);
-    status.setLastReported(System.currentTimeMillis());
+    status.setIsNodeHealthy(false);
+    status.setLastHealthReportTime(System.currentTimeMillis());
     status.setHealthReport(error1);
     sendHeartBeat(status, false);
     checkReasonForBlackListing(hosts[0], nodeUnHealthyReasonSet);
@@ -334,8 +334,8 @@ public class TestTaskTrackerBlacklisting extends TestCase {
   
   private NodeHealthStatus getUnhealthyNodeStatus(String error) {
     NodeHealthStatus status = new NodeHealthStatus();
-    status.setNodeHealthy(false);
-    status.setLastReported(System.currentTimeMillis());
+    status.setIsNodeHealthy(false);
+    status.setLastHealthReportTime(System.currentTimeMillis());
     status.setHealthReport(error);
     return status;
   }

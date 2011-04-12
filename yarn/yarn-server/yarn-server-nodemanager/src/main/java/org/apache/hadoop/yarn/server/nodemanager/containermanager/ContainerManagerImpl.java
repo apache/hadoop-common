@@ -67,6 +67,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Ap
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationInitEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerDiagnosticsUpdateEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
@@ -76,6 +77,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.Reso
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitor;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorImpl;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
@@ -130,7 +132,8 @@ public class ContainerManagerImpl extends CompositeService implements
     auxiluaryServices.register(this);
     addService(auxiluaryServices);
 
-    ContainersMonitor containersMonitor = new ContainersMonitor();
+    ContainersMonitor containersMonitor =
+        new ContainersMonitorImpl(exec, dispatcher);
     addService(containersMonitor);
 
     dispatcher.register(ContainerEventType.class,
@@ -247,6 +250,9 @@ public class ContainerManagerImpl extends CompositeService implements
       //    + containerID + " on this NodeManager!!");
     }
     dispatcher.getEventHandler().handle(
+        new ContainerDiagnosticsUpdateEvent(containerID,
+            "Container killed by the application."));
+    dispatcher.getEventHandler().handle(
         new ContainerEvent(containerID, ContainerEventType.KILL_CONTAINER));
 
     // TODO: Move this code to appropriate place once kill_container is
@@ -323,6 +329,9 @@ public class ContainerManagerImpl extends CompositeService implements
           (CMgrCompletedContainersEvent) event;
       for (org.apache.hadoop.yarn.api.records.Container container : containersFinishedEvent
           .getContainersToCleanup()) {
+        this.dispatcher.getEventHandler().handle(
+            new ContainerDiagnosticsUpdateEvent(container.getId(),
+                "Container Killed by ResourceManager"));
         this.dispatcher.getEventHandler().handle(
             new ContainerEvent(container.getId(),
                 ContainerEventType.KILL_CONTAINER));

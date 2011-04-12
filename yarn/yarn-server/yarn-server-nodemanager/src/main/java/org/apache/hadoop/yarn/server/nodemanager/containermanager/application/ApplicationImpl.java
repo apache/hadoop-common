@@ -39,6 +39,7 @@ import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerDiagnosticsUpdateEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
@@ -317,6 +318,9 @@ public class ApplicationImpl implements Application {
       // Send event to ContainersLauncher to finish all the containers of this
       // application.
       for (ContainerId containerID : app.containers.keySet()) {
+        app.dispatcher.getEventHandler().handle(
+            new ContainerDiagnosticsUpdateEvent(containerID,
+                "Container killed on application-finish."));
         app.dispatcher.getEventHandler().handle(
             new ContainerEvent(containerID,
                 ContainerEventType.KILL_CONTAINER));

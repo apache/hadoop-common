@@ -46,6 +46,7 @@ import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
@@ -94,7 +95,8 @@ public class TestContainerManager {
 
   protected static File localDir = new File("target",
       TestContainerManager.class.getName() + "-localDir").getAbsoluteFile();
-
+  protected static File logDir = new File("target",
+      TestContainerManager.class.getName() + "-logDir").getAbsoluteFile();
   protected static File tmpDir = new File("target",
       TestContainerManager.class.getName() + "-tmpDir");
 
@@ -130,14 +132,17 @@ public class TestContainerManager {
   public void setup() throws IOException {
     localFS.delete(new Path(localDir.getAbsolutePath()), true);
     localFS.delete(new Path(tmpDir.getAbsolutePath()), true);
+    localFS.delete(new Path(logDir.getAbsolutePath()), true);
     localDir.mkdir();
     tmpDir.mkdir();
+    logDir.mkdir();
     LOG.info("Created localDir in " + localDir.getAbsolutePath());
     LOG.info("Created tmpDir in " + tmpDir.getAbsolutePath());
 
     String bindAddress = "0.0.0.0:5555";
     conf.set(NMConfig.NM_BIND_ADDRESS, bindAddress);
     conf.set(NMConfig.NM_LOCAL_DIR, localDir.getAbsolutePath());
+    conf.set(NMConfig.NM_LOG_DIR, logDir.getAbsolutePath());
 
     // Default delSrvc
     delSrvc = new DeletionService(exec) {
@@ -219,6 +224,8 @@ public class TestContainerManager {
     containerLaunchContext.setLocalResource(destinationFile, rsrc_alpha);
     containerLaunchContext.setUser(container.getUser());
     containerLaunchContext.setContainerId(container.getContainerId());
+    containerLaunchContext.setResource(recordFactory
+        .newRecordInstance(Resource.class));
 //    containerLaunchContext.command = new ArrayList<CharSequence>();
 
     StartContainerRequest startRequest = recordFactory.newRecordInstance(StartContainerRequest.class);
@@ -301,6 +308,9 @@ public class TestContainerManager {
     containerLaunchContext.setUser(containerLaunchContext.getUser());
     containerLaunchContext.addCommand("/bin/bash");
     containerLaunchContext.addCommand(scriptFile.getAbsolutePath());
+    containerLaunchContext.setResource(recordFactory
+        .newRecordInstance(Resource.class));
+    containerLaunchContext.getResource().setMemory(100 * 1024 * 1024);
     StartContainerRequest startRequest = recordFactory.newRecordInstance(StartContainerRequest.class);
     startRequest.setContainerLaunchContext(containerLaunchContext);
     containerManager.startContainer(startRequest);
@@ -343,7 +353,7 @@ public class TestContainerManager {
     GetContainerStatusRequest gcsRequest = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
     gcsRequest.setContainerId(cId);
     ContainerStatus containerStatus = containerManager.getContainerStatus(gcsRequest).getStatus();
-    Assert.assertEquals(ExitCode.KILLED.getExitCode(),
+    Assert.assertEquals(String.valueOf(ExitCode.KILLED.getExitCode()),
         containerStatus.getExitStatus());
 
     // Assert that the process is not alive anymore
@@ -397,6 +407,9 @@ public class TestContainerManager {
     containerLaunchContext.setLocalResource(destinationFile, rsrc_alpha);
     containerLaunchContext.setUser(container.getUser());
     containerLaunchContext.setContainerId(container.getContainerId());
+    containerLaunchContext.setResource(recordFactory
+        .newRecordInstance(Resource.class));
+
 //    containerLaunchContext.command = new ArrayList<CharSequence>();
 
     StartContainerRequest request = recordFactory.newRecordInstance(StartContainerRequest.class);

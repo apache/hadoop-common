@@ -86,8 +86,9 @@ public class YARNRunner implements ClientProtocol {
 
   private static final Log LOG = LogFactory.getLog(YARNRunner.class);
 
-  public static final String YARN_AM_RESOURCE_KEY = "yarn.am.mapreduce.resource.mb";
-  private static final int DEFAULT_YARN_AM_RESOURCE = 1024;
+  public static final String YARN_AM_VMEM_MB =
+      "yarn.am.mapreduce.resource.mb";
+  private static final int DEFAULT_YARN_AM_VMEM_MB = 1536;
   
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private ResourceMgrDelegate resMgrDelegate;
@@ -263,9 +264,8 @@ public class YARNRunner implements ClientProtocol {
     ApplicationId applicationId = resMgrDelegate.getApplicationId();
     appContext.setApplicationId(applicationId);
     Resource capability = recordFactory.newRecordInstance(Resource.class);
-    capability.setMemory(
-        conf.getInt(YARN_AM_RESOURCE_KEY, DEFAULT_YARN_AM_RESOURCE));
-    LOG.info("AppMaster capability = " + capability);
+    capability.setMemory(conf.getInt(YARN_AM_VMEM_MB, DEFAULT_YARN_AM_VMEM_MB));
+    LOG.info("Master capability = " + capability);
     appContext.setMasterCapability(capability);
 
     FileContext defaultFS = FileContext.getFileContext(conf);

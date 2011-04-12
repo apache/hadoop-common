@@ -26,7 +26,8 @@ import java.util.Random;
 import junit.framework.TestCase;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapred.TaskTrackerStatus;
+import org.apache.hadoop.yarn.util.LinuxResourceCalculatorPlugin;
+import org.apache.hadoop.yarn.util.ResourceCalculatorPlugin;
 import org.junit.Test;
 
 /**
@@ -172,7 +173,7 @@ public class TestLinuxResourceCalculatorPlugin extends TestCase {
     updateStatFile(uTime, nTime, sTime);
     assertEquals(plugin.getCumulativeCpuTime(),
                  FAKE_JIFFY_LENGTH * (uTime + nTime + sTime));
-    assertEquals(plugin.getCpuUsage(), (float)(TaskTrackerStatus.UNAVAILABLE));
+    assertEquals(plugin.getCpuUsage(), (float)(ResourceCalculatorPlugin.UNAVAILABLE));
     
     // Advance the time and sample again to test the CPU usage calculation
     uTime += 100L;

@@ -142,6 +142,12 @@ public class MiniYARNCluster extends CompositeService {
         localDir.mkdir();
         LOG.info("Created localDir in " + localDir.getAbsolutePath());
         getConfig().set(NMConfig.NM_LOCAL_DIR, localDir.getAbsolutePath());
+        File logDir =
+            new File(testWorkDir, MiniYARNCluster.this.getName()
+                + "-logDir");
+        logDir.mkdir();
+        LOG.info("Created logDir in " + logDir.getAbsolutePath());
+        getConfig().set(NMConfig.NM_LOG_DIR, logDir.getAbsolutePath());
         nodeManager = new NodeManager() {
 
           @Override

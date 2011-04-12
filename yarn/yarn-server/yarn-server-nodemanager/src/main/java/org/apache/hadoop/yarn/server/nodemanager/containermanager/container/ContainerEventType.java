@@ -23,6 +23,7 @@ public enum ContainerEventType {
   // Producer: ContainerManager
   INIT_CONTAINER,
   KILL_CONTAINER,
+  UPDATE_DIAGNOSTICS_MSG,
   CONTAINER_DONE,
 
   // DownloadManager

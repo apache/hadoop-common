@@ -98,15 +98,27 @@ public class ContainerStatusPBImpl extends ProtoBase<ContainerStatusProto> imple
     this.containerId = containerId;
   }
   @Override
-  public int getExitStatus() {
+  public String getExitStatus() {
     ContainerStatusProtoOrBuilder p = viaProto ? proto : builder;
     return (p.getExitStatus());
   }
 
   @Override
-  public void setExitStatus(int exitStatus) {
+  public void setExitStatus(String exitStatus) {
     maybeInitBuilder();
-    builder.setExitStatus((exitStatus));
+    builder.setExitStatus(exitStatus);
+  }
+
+  @Override
+  public String getDiagnostics() {
+    ContainerStatusProtoOrBuilder p = viaProto ? proto : builder;
+    return (p.getDiagnostics());    
+  }
+
+  @Override
+  public void setDiagnostics(String diagnostics) {
+    maybeInitBuilder();
+    builder.setDiagnostics(diagnostics);
   }
 
   private ContainerStateProto convertToProtoFormat(ContainerState e) {

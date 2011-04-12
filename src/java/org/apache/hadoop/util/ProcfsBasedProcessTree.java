@@ -32,7 +32,7 @@ import org.apache.hadoop.classification.InterfaceStability;
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
 public class ProcfsBasedProcessTree extends
-    org.apache.hadoop.mapreduce.util.ProcfsBasedProcessTree {
+    org.apache.hadoop.yarn.util.ProcfsBasedProcessTree {
 
   public ProcfsBasedProcessTree(String pid) {
     super(pid);

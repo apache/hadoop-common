@@ -124,14 +124,21 @@ public class DummyContainerManager extends ContainerManagerImpl {
   }
 
   public static void waitForContainerState(ContainerManager containerManager,
-        ContainerId containerID, ContainerState finalState)
+      ContainerId containerID, ContainerState finalState)
+      throws InterruptedException, YarnRemoteException {
+    waitForContainerState(containerManager, containerID, finalState, 20);
+  }
+
+  public static void waitForContainerState(ContainerManager containerManager,
+        ContainerId containerID, ContainerState finalState, int timeOutMax)
         throws InterruptedException, YarnRemoteException {
       GetContainerStatusRequest request = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
       request.setContainerId(containerID);
       ContainerStatus containerStatus =
           containerManager.getContainerStatus(request).getStatus();
       int timeoutSecs = 0;
-      while (!containerStatus.getState().equals(finalState) && timeoutSecs++ < 20) {
+    while (!containerStatus.getState().equals(finalState)
+        && timeoutSecs++ < timeOutMax) {
         Thread.sleep(1000);
         LOG.info("Waiting for container to get into state " + finalState
             + ". Current state is " + containerStatus.getState());

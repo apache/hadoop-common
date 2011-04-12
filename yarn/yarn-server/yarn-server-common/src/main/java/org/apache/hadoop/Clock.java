@@ -21,8 +21,8 @@ package org.apache.hadoop;
 /**
  * A clock class - can be mocked out for testing.
  */
-class Clock {
-  long getTime() {
+public class Clock {
+  public long getTime() {
     return System.currentTimeMillis();
   }
 }

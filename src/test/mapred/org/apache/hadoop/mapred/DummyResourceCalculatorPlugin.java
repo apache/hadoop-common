@@ -19,7 +19,7 @@
 package org.apache.hadoop.mapred;
 
 import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.mapreduce.util.ResourceCalculatorPlugin;
+import org.apache.hadoop.yarn.util.ResourceCalculatorPlugin;
 
 /**
  * Plugin class to test resource information reported by TT. Use

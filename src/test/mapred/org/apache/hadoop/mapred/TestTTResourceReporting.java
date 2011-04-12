@@ -24,9 +24,9 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapreduce.SleepJob;
 import org.apache.hadoop.mapreduce.TaskCounter;
-import org.apache.hadoop.mapreduce.util.LinuxResourceCalculatorPlugin;
-import org.apache.hadoop.mapreduce.util.ResourceCalculatorPlugin;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.hadoop.yarn.util.LinuxResourceCalculatorPlugin;
+import org.apache.hadoop.yarn.util.ResourceCalculatorPlugin;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.JTConfig;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
@@ -94,13 +94,13 @@ public class TestTTResourceReporting extends TestCase {
       long availablePhysicalMemoryOnTT =
           getConf().getLong("availablePmemOnTT", JobConf.DISABLED_MEMORY_LIMIT);
       long cumulativeCpuTime =
-          getConf().getLong("cumulativeCpuTime", TaskTrackerStatus.UNAVAILABLE);
+          getConf().getLong("cumulativeCpuTime", ResourceCalculatorPlugin.UNAVAILABLE);
       long cpuFrequency =
-          getConf().getLong("cpuFrequency", TaskTrackerStatus.UNAVAILABLE);
+          getConf().getLong("cpuFrequency", ResourceCalculatorPlugin.UNAVAILABLE);
       int numProcessors =
-          getConf().getInt("numProcessors", TaskTrackerStatus.UNAVAILABLE);
+          getConf().getInt("numProcessors", ResourceCalculatorPlugin.UNAVAILABLE);
       float cpuUsage =
-          getConf().getFloat("cpuUsage", TaskTrackerStatus.UNAVAILABLE);
+          getConf().getFloat("cpuUsage", ResourceCalculatorPlugin.UNAVAILABLE);
 
       long reportedTotalVirtualMemoryOnTT =
           status.getResourceStatus().getTotalVirtualMemory();

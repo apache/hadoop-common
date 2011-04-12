@@ -36,8 +36,8 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.Conta
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEventType;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStartMonitoringEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStopMonitoringEvent;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
@@ -49,6 +49,7 @@ public class ContainerImpl implements Container {
   private final Dispatcher dispatcher;
   private final ContainerLaunchContext launchContext;
   private int exitCode;
+  private final StringBuilder diagnostics;
 
   private static final Log LOG = LogFactory.getLog(Container.class);
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
@@ -57,12 +58,16 @@ public class ContainerImpl implements Container {
       ContainerLaunchContext launchContext) {
     this.dispatcher = dispatcher;
     this.launchContext = launchContext;
+    this.diagnostics = new StringBuilder();
 
     stateMachine = stateMachineFactory.make(this);
   }
 
   private static final ContainerDoneTransition CONTAINER_DONE_TRANSITION =
     new ContainerDoneTransition();
+
+  private static final ContainerDiagnosticsUpdateTransition UPDATE_DIAGNOSTICS_TRANSITION =
+      new ContainerDiagnosticsUpdateTransition();
 
   // State Machine for each container.
   private static StateMachineFactory
@@ -72,6 +77,9 @@ public class ContainerImpl implements Container {
     // From NEW State
     .addTransition(ContainerState.NEW, ContainerState.LOCALIZING,
         ContainerEventType.INIT_CONTAINER)
+     .addTransition(ContainerState.NEW, ContainerState.NEW,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.NEW, ContainerState.DONE,
         ContainerEventType.KILL_CONTAINER, CONTAINER_DONE_TRANSITION)
 
@@ -80,6 +88,9 @@ public class ContainerImpl implements Container {
         ContainerState.LOCALIZED,
         ContainerEventType.CONTAINER_RESOURCES_LOCALIZED,
         new LocalizedTransition())
+     .addTransition(ContainerState.LOCALIZING, ContainerState.LOCALIZING,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.LOCALIZING,
         ContainerState.CONTAINER_RESOURCES_CLEANINGUP,
         ContainerEventType.KILL_CONTAINER,
@@ -91,6 +102,9 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.LOCALIZED, ContainerState.EXITED_WITH_FAILURE,
         ContainerEventType.CONTAINER_EXITED_WITH_FAILURE,
         new ExitedWithFailureTransition())
+     .addTransition(ContainerState.LOCALIZED, ContainerState.LOCALIZED,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
 
     // From RUNNING State
     .addTransition(ContainerState.RUNNING,
@@ -101,6 +115,9 @@ public class ContainerImpl implements Container {
         ContainerState.EXITED_WITH_FAILURE,
         ContainerEventType.CONTAINER_EXITED_WITH_FAILURE,
         new ExitedWithFailureTransition())
+     .addTransition(ContainerState.RUNNING, ContainerState.RUNNING,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.RUNNING, ContainerState.KILLING,
         ContainerEventType.KILL_CONTAINER, new KillTransition())
 
@@ -108,6 +125,10 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.EXITED_WITH_SUCCESS, ContainerState.DONE,
             ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
             CONTAINER_DONE_TRANSITION)
+    .addTransition(ContainerState.EXITED_WITH_SUCCESS,
+        ContainerState.EXITED_WITH_SUCCESS,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.EXITED_WITH_SUCCESS,
                    ContainerState.EXITED_WITH_SUCCESS,
                    ContainerEventType.KILL_CONTAINER)
@@ -117,6 +138,10 @@ public class ContainerImpl implements Container {
             ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
             CONTAINER_DONE_TRANSITION)
     .addTransition(ContainerState.EXITED_WITH_FAILURE,
+        ContainerState.EXITED_WITH_FAILURE,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
+    .addTransition(ContainerState.EXITED_WITH_FAILURE,
                    ContainerState.EXITED_WITH_FAILURE,
                    ContainerEventType.KILL_CONTAINER)
 
@@ -125,6 +150,9 @@ public class ContainerImpl implements Container {
         ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
         ContainerEventType.CONTAINER_KILLED_ON_REQUEST,
         new ContainerKilledTransition())
+     .addTransition(ContainerState.KILLING, ContainerState.KILLING,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.KILLING, ContainerState.KILLING,
         ContainerEventType.KILL_CONTAINER)
     .addTransition(ContainerState.KILLING, ContainerState.EXITED_WITH_SUCCESS,
@@ -139,10 +167,17 @@ public class ContainerImpl implements Container {
             ContainerState.DONE,
             ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
             CONTAINER_DONE_TRANSITION)
+    .addTransition(ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
+        ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
 
     // From DONE
     .addTransition(ContainerState.DONE, ContainerState.DONE,
         ContainerEventType.KILL_CONTAINER, CONTAINER_DONE_TRANSITION)
+     .addTransition(ContainerState.DONE, ContainerState.DONE,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
 
     // create the topology tables
     .installTopology();
@@ -203,7 +238,8 @@ public class ContainerImpl implements Container {
     ContainerStatus containerStatus = recordFactory.newRecordInstance(ContainerStatus.class);
     containerStatus.setState(getCurrentState());
     containerStatus.setContainerId(this.launchContext.getContainerId());
-	containerStatus.setExitStatus(exitCode);
+    containerStatus.setDiagnostics(diagnostics.toString());
+	  containerStatus.setExitStatus(String.valueOf(exitCode));
     return containerStatus;
   }
 
@@ -244,9 +280,12 @@ public class ContainerImpl implements Container {
     public void transition(ContainerImpl container, ContainerEvent event) {
       // Inform the ContainersMonitor to start monitoring the container's
       // resource usage.
+      // TODO: Fix pmem limits below
+      long vmemBytes =
+          container.getLaunchContext().getResource().getMemory() * 1024 * 1024L;
       container.dispatcher.getEventHandler().handle(
-          new ContainersMonitorEvent(
-              ContainersMonitorEventType.START_MONITORING_CONTAINER));
+          new ContainerStartMonitoringEvent(container.getContainerID(),
+              vmemBytes, -1));
     }
   }
 
@@ -326,6 +365,20 @@ public class ContainerImpl implements Container {
       // Inform the application
       container.dispatcher.getEventHandler().handle(
           new ApplicationContainerFinishedEvent(container.getContainerID()));
+      // Remove the container from the resource-monitor
+      container.dispatcher.getEventHandler().handle(
+          new ContainerStopMonitoringEvent(container.getContainerID()));
+    }
+  }
+
+  static class ContainerDiagnosticsUpdateTransition implements
+      SingleArcTransition<ContainerImpl, ContainerEvent> {
+    @Override
+    public void transition(ContainerImpl container, ContainerEvent event) {
+      ContainerDiagnosticsUpdateEvent updateEvent =
+          (ContainerDiagnosticsUpdateEvent) event;
+      container.diagnostics.append(updateEvent.getDiagnosticsUpdate())
+          .append("\n");
     }
   }
 

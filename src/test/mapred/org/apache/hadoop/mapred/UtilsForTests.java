@@ -699,7 +699,7 @@ public class UtilsForTests {
     }
 
     @Override
-    long getTime() {
+    public long getTime() {
       return time;
     }
   }

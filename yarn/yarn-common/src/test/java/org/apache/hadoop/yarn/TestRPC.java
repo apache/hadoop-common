@@ -151,7 +151,7 @@ public class TestRPC {
       status = recordFactory.newRecordInstance(ContainerStatus.class);
       status.setState(ContainerState.RUNNING);
       status.setContainerId(container.getContainerId());
-      status.setExitStatus(0);
+      status.setExitStatus(String.valueOf(0));
       return response;
     }
 

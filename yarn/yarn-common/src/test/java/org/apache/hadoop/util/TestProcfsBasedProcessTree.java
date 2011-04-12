@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapreduce.util;
+package org.apache.hadoop.util;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -25,7 +25,6 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Random;
 import java.util.Vector;
 import java.util.regex.Matcher;
@@ -33,37 +32,37 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapred.DefaultTaskController;
-import org.apache.hadoop.mapred.TaskController;
-import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
-import static org.apache.hadoop.mapred.TaskController.Signal;
-
-import junit.framework.TestCase;
+import org.apache.hadoop.yarn.util.ProcfsBasedProcessTree;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * A JUnit test to test ProcfsBasedProcessTree.
  */
-public class TestProcfsBasedProcessTree extends TestCase {
+public class TestProcfsBasedProcessTree {
 
   private static final Log LOG = LogFactory
       .getLog(TestProcfsBasedProcessTree.class);
-  private static String TEST_ROOT_DIR = new Path(System.getProperty(
-         "test.build.data", "/tmp")).toString().replace(' ', '+');
+  protected static File TEST_ROOT_DIR = new File("target",
+      TestProcfsBasedProcessTree.class.getName() + "-localDir");
 
   private ShellCommandExecutor shexec = null;
   private String pidFile, lowestDescendant;
   private String shellScript;
+
   private static final int N = 6; // Controls the RogueTask
 
   private class RogueTaskThread extends Thread {
     public void run() {
       try {
         Vector<String> args = new Vector<String>();
-        if(TaskController.isSetsidAvailable) {
+        if(isSetsidAvailable()) {
           args.add("setsid");
         }
         args.add("bash");
@@ -98,6 +97,13 @@ public class TestProcfsBasedProcessTree extends TestCase {
     return getPidFromPidFile(pidFile);
   }
 
+  @Before
+  public void setup() throws IOException {
+    FileContext.getLocalFSFileContext().delete(
+        new Path(TEST_ROOT_DIR.getAbsolutePath()), true);
+  }
+
+  @Test
   public void testProcessTree() throws Exception {
 
     try {
@@ -112,14 +118,16 @@ public class TestProcfsBasedProcessTree extends TestCase {
     }
     // create shell script
     Random rm = new Random();
-    File tempFile = new File(TEST_ROOT_DIR, this.getName() + "_shellScript_" +
-                             rm.nextInt() + ".sh");
+    File tempFile =
+        new File(TEST_ROOT_DIR, getClass().getName() + "_shellScript_"
+            + rm.nextInt() + ".sh");
     tempFile.deleteOnExit();
     shellScript = TEST_ROOT_DIR + File.separator + tempFile.getName();
 
     // create pid file
-    tempFile = new File(TEST_ROOT_DIR,  this.getName() + "_pidFile_" +
-                        rm.nextInt() + ".pid");
+    tempFile =
+        new File(TEST_ROOT_DIR, getClass().getName() + "_pidFile_"
+            + rm.nextInt() + ".pid");
     tempFile.deleteOnExit();
     pidFile = TEST_ROOT_DIR + File.separator + tempFile.getName();
 
@@ -151,8 +159,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
     t.start();
     String pid = getRogueTaskPID();
     LOG.info("Root process pid: " + pid);
-    ProcfsBasedProcessTree p = new ProcfsBasedProcessTree(pid,
-                               TaskController.isSetsidAvailable);
+    ProcfsBasedProcessTree p = createProcessTree(pid);
     p = p.getProcessTree(); // initialize
     LOG.info("ProcessTree: " + p.toString());
 
@@ -173,18 +180,17 @@ public class TestProcfsBasedProcessTree extends TestCase {
     String processTreeDump = p.getProcessTreeDump();
 
     // destroy the process and all its subprocesses
-    TaskController tc = new DefaultTaskController();
-    tc.signalTask(null, Integer.valueOf(pid), Signal.KILL);
+    destroyProcessTree(pid);
 
-    if (TaskController.isSetsidAvailable) { // whole processtree should be gone
-      assertFalse("Proceesses in process group live",
-          p.isAnyProcessInTreeAlive(tc));
+    if (isSetsidAvailable()) { // whole processtree should be gone
+      Assert.assertFalse("Proceesses in process group live",
+          isAnyProcessInTreeAlive(p));
     } else {// process should be gone
-      assertFalse("ProcessTree must have been gone", p.isAlive(tc));
+      Assert.assertFalse("ProcessTree must have been gone", isAlive(pid));
     }
 
     LOG.info("Process-tree dump follows: \n" + processTreeDump);
-    assertTrue("Process-tree dump doesn't start with a proper header",
+    Assert.assertTrue("Process-tree dump doesn't start with a proper header",
         processTreeDump.startsWith("\t|- PID PPID PGRPID SESSID CMD_NAME " +
         "USER_MODE_TIME(MILLIS) SYSTEM_TIME(MILLIS) VMEM_USAGE(BYTES) " +
         "RSSMEM_USAGE(PAGES) FULL_CMD_LINE\n"));
@@ -193,7 +199,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
           " [0-9]+ [0-9]+ [0-9]+ [0-9]+ sh " + shellScript + " " + i;
       Pattern pat = Pattern.compile(cmdLineDump);
       Matcher mat = pat.matcher(processTreeDump);
-      assertTrue("Process-tree dump doesn't contain the cmdLineDump of " + i
+      Assert.assertTrue("Process-tree dump doesn't contain the cmdLineDump of " + i
           + "th process!", mat.find());
     }
 
@@ -207,11 +213,25 @@ public class TestProcfsBasedProcessTree extends TestCase {
 
     // ProcessTree is gone now. Any further calls should be sane.
     p = p.getProcessTree();
-    assertFalse("ProcessTree must have been gone", p.isAlive(tc));
-    assertTrue("Cumulative vmem for the gone-process is "
+    Assert.assertFalse("ProcessTree must have been gone", isAlive(pid));
+    Assert.assertTrue("Cumulative vmem for the gone-process is "
         + p.getCumulativeVmem() + " . It should be zero.", p
         .getCumulativeVmem() == 0);
-    assertTrue(p.toString().equals("[ ]"));
+    Assert.assertTrue(p.toString().equals("[ ]"));
+  }
+
+  protected ProcfsBasedProcessTree createProcessTree(String pid) {
+    return new ProcfsBasedProcessTree(pid,
+                               isSetsidAvailable());
+  }
+
+  protected ProcfsBasedProcessTree createProcessTree(String pid,
+      boolean setsidUsed, String procfsRootDir) {
+    return new ProcfsBasedProcessTree(pid, setsidUsed, procfsRootDir);
+  }
+
+  protected void destroyProcessTree(String pid) throws IOException {
+    sendSignal(pid, 9);
   }
 
   /**
@@ -309,6 +329,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
    * @throws IOException if there was a problem setting up the
    *                      fake procfs directories or files.
    */
+  @Test
   public void testCpuAndMemoryForProcessTree() throws IOException {
 
     // test processes
@@ -335,26 +356,25 @@ public class TestProcfsBasedProcessTree extends TestCase {
       writeStatFiles(procfsRootDir, pids, procInfos);
       
       // crank up the process tree class.
-      ProcfsBasedProcessTree processTree = 
-          new ProcfsBasedProcessTree("100", true,
-              procfsRootDir.getAbsolutePath());
+      ProcfsBasedProcessTree processTree =
+          createProcessTree("100", true, procfsRootDir.getAbsolutePath());
       // build the process tree.
       processTree.getProcessTree();
       
       // verify cumulative memory
-      assertEquals("Cumulative virtual memory does not match", 600000L,
+      Assert.assertEquals("Cumulative virtual memory does not match", 600000L,
                    processTree.getCumulativeVmem());
 
       // verify rss memory
       long cumuRssMem = ProcfsBasedProcessTree.PAGE_SIZE > 0 ?
                         600L * ProcfsBasedProcessTree.PAGE_SIZE : 0L;
-      assertEquals("Cumulative rss memory does not match",
+      Assert.assertEquals("Cumulative rss memory does not match",
                    cumuRssMem, processTree.getCumulativeRssmem());
 
       // verify cumulative cpu time
       long cumuCpuTime = ProcfsBasedProcessTree.JIFFY_LENGTH_IN_MILLIS > 0 ?
              7200L * ProcfsBasedProcessTree.JIFFY_LENGTH_IN_MILLIS : 0L;
-      assertEquals("Cumulative cpu time does not match",
+      Assert.assertEquals("Cumulative cpu time does not match",
                    cumuCpuTime, processTree.getCumulativeCpuTime());
 
       // test the cpu time again to see if it cumulates
@@ -370,7 +390,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
       // verify cumulative cpu time again
       cumuCpuTime = ProcfsBasedProcessTree.JIFFY_LENGTH_IN_MILLIS > 0 ?
              9400L * ProcfsBasedProcessTree.JIFFY_LENGTH_IN_MILLIS : 0L;
-      assertEquals("Cumulative cpu time does not match",
+      Assert.assertEquals("Cumulative cpu time does not match",
                    cumuCpuTime, processTree.getCumulativeCpuTime());
     } finally {
       FileUtil.fullyDelete(procfsRootDir);
@@ -383,6 +403,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
    * @throws IOException if there was a problem setting up the
    *                      fake procfs directories or files.
    */
+  @Test
   public void testMemForOlderProcesses() throws IOException {
     // initial list of processes
     String[] pids = { "100", "200", "300", "400" };
@@ -408,14 +429,13 @@ public class TestProcfsBasedProcessTree extends TestCase {
       writeStatFiles(procfsRootDir, pids, procInfos);
       
       // crank up the process tree class.
-      ProcfsBasedProcessTree processTree = 
-          new ProcfsBasedProcessTree("100", true,
-              procfsRootDir.getAbsolutePath());
+      ProcfsBasedProcessTree processTree =
+          createProcessTree("100", true, procfsRootDir.getAbsolutePath());
       // build the process tree.
       processTree.getProcessTree();
       
       // verify cumulative memory
-      assertEquals("Cumulative memory does not match",
+      Assert.assertEquals("Cumulative memory does not match",
                    700000L, processTree.getCumulativeVmem());
 
       // write one more process as child of 100.
@@ -429,19 +449,19 @@ public class TestProcfsBasedProcessTree extends TestCase {
       
       // check memory includes the new process.
       processTree.getProcessTree();
-      assertEquals("Cumulative vmem does not include new process",
+      Assert.assertEquals("Cumulative vmem does not include new process",
                    1200000L, processTree.getCumulativeVmem());
       long cumuRssMem = ProcfsBasedProcessTree.PAGE_SIZE > 0 ?
                         1200L * ProcfsBasedProcessTree.PAGE_SIZE : 0L;
-      assertEquals("Cumulative rssmem does not include new process",
+      Assert.assertEquals("Cumulative rssmem does not include new process",
                    cumuRssMem, processTree.getCumulativeRssmem());
       
       // however processes older than 1 iteration will retain the older value
-      assertEquals("Cumulative vmem shouldn't have included new process",
+      Assert.assertEquals("Cumulative vmem shouldn't have included new process",
                    700000L, processTree.getCumulativeVmem(1));
       cumuRssMem = ProcfsBasedProcessTree.PAGE_SIZE > 0 ?
                    700L * ProcfsBasedProcessTree.PAGE_SIZE : 0L;
-      assertEquals("Cumulative rssmem shouldn't have included new process",
+      Assert.assertEquals("Cumulative rssmem shouldn't have included new process",
                    cumuRssMem, processTree.getCumulativeRssmem(1));
 
       // one more process
@@ -457,26 +477,26 @@ public class TestProcfsBasedProcessTree extends TestCase {
       processTree.getProcessTree();
       
       // processes older than 2 iterations should be same as before.
-      assertEquals("Cumulative vmem shouldn't have included new processes",
+      Assert.assertEquals("Cumulative vmem shouldn't have included new processes",
                    700000L, processTree.getCumulativeVmem(2));
       cumuRssMem = ProcfsBasedProcessTree.PAGE_SIZE > 0 ?
                    700L * ProcfsBasedProcessTree.PAGE_SIZE : 0L;
-      assertEquals("Cumulative rssmem shouldn't have included new processes",
+      Assert.assertEquals("Cumulative rssmem shouldn't have included new processes",
                    cumuRssMem, processTree.getCumulativeRssmem(2));
 
       // processes older than 1 iteration should not include new process,
       // but include process 500
-      assertEquals("Cumulative vmem shouldn't have included new processes",
+      Assert.assertEquals("Cumulative vmem shouldn't have included new processes",
                    1200000L, processTree.getCumulativeVmem(1));
       cumuRssMem = ProcfsBasedProcessTree.PAGE_SIZE > 0 ?
                    1200L * ProcfsBasedProcessTree.PAGE_SIZE : 0L;
-      assertEquals("Cumulative rssmem shouldn't have included new processes",
+      Assert.assertEquals("Cumulative rssmem shouldn't have included new processes",
                    cumuRssMem, processTree.getCumulativeRssmem(1));
 
       // no processes older than 3 iterations, this should be 0
-      assertEquals("Getting non-zero vmem for processes older than 3 iterations",
+      Assert.assertEquals("Getting non-zero vmem for processes older than 3 iterations",
                     0L, processTree.getCumulativeVmem(3));
-      assertEquals("Getting non-zero rssmem for processes older than 3 iterations",
+      Assert.assertEquals("Getting non-zero rssmem for processes older than 3 iterations",
                     0L, processTree.getCumulativeRssmem(3));
     } finally {
       FileUtil.fullyDelete(procfsRootDir);
@@ -490,6 +510,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
    * @throws IOException if there was a problem setting up the
    *                      fake procfs directories or files.
    */
+  @Test
   public void testDestroyProcessTree() throws IOException {
     // test process
     String pid = "100";
@@ -500,11 +521,11 @@ public class TestProcfsBasedProcessTree extends TestCase {
       setupProcfsRootDir(procfsRootDir);
       
       // crank up the process tree class.
-      ProcfsBasedProcessTree processTree = new ProcfsBasedProcessTree(
-                        pid, true, procfsRootDir.getAbsolutePath());
+      ProcfsBasedProcessTree processTree =
+          createProcessTree(pid, true, procfsRootDir.getAbsolutePath());
 
       // Let us not create stat file for pid 100.
-      assertTrue(ProcfsBasedProcessTree.checkPidPgrpidForMatch(
+      Assert.assertTrue(ProcfsBasedProcessTree.checkPidPgrpidForMatch(
             Integer.valueOf(pid), procfsRootDir.getAbsolutePath()));
     } finally {
       FileUtil.fullyDelete(procfsRootDir);
@@ -516,6 +537,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
    * 
    * @throws IOException
    */
+  @Test
   public void testProcessTreeDump()
       throws IOException {
 
@@ -554,7 +576,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
       writeStatFiles(procfsRootDir, pids, procInfos);
       writeCmdLineFiles(procfsRootDir, pids, cmdLines);
 
-      ProcfsBasedProcessTree processTree = new ProcfsBasedProcessTree(
+      ProcfsBasedProcessTree processTree = createProcessTree(
           "100", true, procfsRootDir.getAbsolutePath());
       // build the process tree.
       processTree.getProcessTree();
@@ -563,13 +585,13 @@ public class TestProcfsBasedProcessTree extends TestCase {
       String processTreeDump = processTree.getProcessTreeDump();
 
       LOG.info("Process-tree dump follows: \n" + processTreeDump);
-      assertTrue("Process-tree dump doesn't start with a proper header",
+      Assert.assertTrue("Process-tree dump doesn't start with a proper header",
           processTreeDump.startsWith("\t|- PID PPID PGRPID SESSID CMD_NAME " +
           "USER_MODE_TIME(MILLIS) SYSTEM_TIME(MILLIS) VMEM_USAGE(BYTES) " +
           "RSSMEM_USAGE(PAGES) FULL_CMD_LINE\n"));
       for (int i = 0; i < 5; i++) {
         ProcessStatInfo p = procInfos[i];
-        assertTrue(
+        Assert.assertTrue(
             "Process-tree dump doesn't contain the cmdLineDump of process "
                 + p.pid, processTreeDump.contains("\t|- " + p.pid + " "
                 + p.ppid + " " + p.pgrpId + " " + p.session + " (" + p.name
@@ -579,7 +601,7 @@ public class TestProcfsBasedProcessTree extends TestCase {
 
       // 600 should not be in the dump
       ProcessStatInfo p = procInfos[5];
-      assertFalse(
+      Assert.assertFalse(
           "Process-tree dump shouldn't contain the cmdLineDump of process "
               + p.pid, processTreeDump.contains("\t|- " + p.pid + " " + p.ppid
               + " " + p.pgrpId + " " + p.session + " (" + p.name + ") "
@@ -587,6 +609,64 @@ public class TestProcfsBasedProcessTree extends TestCase {
     } finally {
       FileUtil.fullyDelete(procfsRootDir);
     }
+  }
+
+  protected static boolean isSetsidAvailable() {
+      ShellCommandExecutor shexec = null;
+      boolean setsidSupported = true;
+      try {
+        String[] args = {"setsid", "bash", "-c", "echo $$"};
+        shexec = new ShellCommandExecutor(args);
+        shexec.execute();
+      } catch (IOException ioe) {
+        LOG.warn("setsid is not available on this machine. So not using it.");
+        setsidSupported = false;
+      } finally { // handle the exit code
+        LOG.info("setsid exited with exit code " + shexec.getExitCode());
+      }
+      return setsidSupported;
+  }
+
+  /**
+   * Is the root-process alive?
+   * Used only in tests.
+   * @return true if the root-process is alive, false otherwise.
+   */
+  private static boolean isAlive(String pid) {
+    try {
+      final String sigpid = isSetsidAvailable() ? "-" + pid : pid;
+      try {
+        sendSignal(sigpid, 0);
+      } catch (ExitCodeException e) {
+        return false;
+      }
+      return true;
+    } catch (IOException ignored) {
+    }
+    return false;
+  }
+
+  private static void sendSignal(String pid, int signal) throws IOException {
+    ShellCommandExecutor shexec = null;
+      String[] arg = { "kill", "-" + signal, pid };
+      shexec = new ShellCommandExecutor(arg);
+    shexec.execute();
+  }
+
+  /**
+   * Is any of the subprocesses in the process-tree alive?
+   * Used only in tests.
+   * @return true if any of the processes in the process-tree is
+   *           alive, false otherwise.
+   */
+  private static boolean isAnyProcessInTreeAlive(
+      ProcfsBasedProcessTree processTree) {
+    for (Integer pId : processTree.getCurrentProcessIDs()) {
+      if (isAlive(pId.toString())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -598,11 +678,11 @@ public class TestProcfsBasedProcessTree extends TestCase {
                                         throws IOException { 
     // cleanup any existing process root dir.
     if (procfsRootDir.exists()) {
-      assertTrue(FileUtil.fullyDelete(procfsRootDir));  
+      Assert.assertTrue(FileUtil.fullyDelete(procfsRootDir));  
     }
 
     // create afresh
-    assertTrue(procfsRootDir.mkdirs());
+    Assert.assertTrue(procfsRootDir.mkdirs());
   }
 
   /**

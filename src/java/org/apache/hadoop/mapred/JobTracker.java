@@ -56,7 +56,7 @@ import javax.security.auth.login.LoginException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.Clock;
-import org.apache.hadoop.NodeHealthStatus;
+import org.apache.hadoop.mapred.NodeHealthStatus;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
@@ -2699,7 +2699,7 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     NodeHealthStatus status = trackerStatus.getHealthStatus();
     synchronized (faultyTrackers) {
       faultyTrackers.setNodeHealthStatus(trackerStatus.getHost(), 
-          status.isNodeHealthy(), status.getHealthReport());
+          status.getIsNodeHealthy(), status.getHealthReport());
     }
   }
     

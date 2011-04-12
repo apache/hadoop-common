@@ -50,7 +50,9 @@ public class NMConfig {
 
   public static final String DEFAULT_NM_LOG_DIR = "/tmp/logs";
 
-  public static final String NM_RESOURCE = NM_PREFIX + "resource.memory.gb";
+  public static final int DEFAULT_NM_VMEM_GB = 8;
+
+  public static final String NM_VMEM_GB = NM_PREFIX + "resource.memory.gb";
 
   // TODO: Should this instead be dictated by RM?
   public static final String HEARTBEAT_INTERVAL = NM_PREFIX

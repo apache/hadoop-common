@@ -20,11 +20,12 @@ package org.apache.hadoop.mapreduce.util;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.yarn.util.LinuxResourceCalculatorPlugin;
 
 /**
  * Plugin to calculate virtual and physical memories on Linux systems.
  * @deprecated 
- * Use {@link org.apache.hadoop.mapreduce.util.LinuxResourceCalculatorPlugin}
+ * Use {@link org.apache.hadoop.yarn.util.LinuxResourceCalculatorPlugin}
  * instead
  */
 @Deprecated

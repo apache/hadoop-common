@@ -24,6 +24,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapred.TaskStatus.State;
+import org.apache.hadoop.yarn.util.ResourceCalculatorPlugin;
 
 import java.io.*;
 import java.util.*;
@@ -57,7 +58,6 @@ public class TaskTrackerStatus implements Writable {
   private int maxReduceTasks;
   private NodeHealthStatus healthStatus;
    
-  public static final int UNAVAILABLE = -1;
   /**
    * Class representing a collection of resources on this tasktracker.
    */
@@ -69,12 +69,12 @@ public class TaskTrackerStatus implements Writable {
     private long reduceSlotMemorySizeOnTT;
     private long availableSpace;
 
-    private long availableVirtualMemory = UNAVAILABLE; // in byte
-    private long availablePhysicalMemory = UNAVAILABLE; // in byte
-    private int numProcessors = UNAVAILABLE;
-    private long cumulativeCpuTime = UNAVAILABLE; // in millisecond
-    private long cpuFrequency = UNAVAILABLE; // in kHz
-    private float cpuUsage = UNAVAILABLE; // in %
+    private long availableVirtualMemory = ResourceCalculatorPlugin.UNAVAILABLE; // in byte
+    private long availablePhysicalMemory = ResourceCalculatorPlugin.UNAVAILABLE; // in byte
+    private int numProcessors = ResourceCalculatorPlugin.UNAVAILABLE;
+    private long cumulativeCpuTime = ResourceCalculatorPlugin.UNAVAILABLE; // in millisecond
+    private long cpuFrequency = ResourceCalculatorPlugin.UNAVAILABLE; // in kHz
+    private float cpuUsage = ResourceCalculatorPlugin.UNAVAILABLE; // in %
 
     ResourceStatus() {
       totalVirtualMemory = JobConf.DISABLED_MEMORY_LIMIT;
@@ -192,7 +192,7 @@ public class TaskTrackerStatus implements Writable {
      */
     void setAvailableVirtualMemory(long availableMem) {
       availableVirtualMemory = availableMem > 0 ?
-                               availableMem : UNAVAILABLE;
+                               availableMem : ResourceCalculatorPlugin.UNAVAILABLE;
     }
 
     /**
@@ -215,7 +215,7 @@ public class TaskTrackerStatus implements Writable {
      */
     void setAvailablePhysicalMemory(long availableRAM) {
       availablePhysicalMemory = availableRAM > 0 ?
-                                availableRAM : UNAVAILABLE;
+                                availableRAM : ResourceCalculatorPlugin.UNAVAILABLE;
     }
 
     /**
@@ -236,7 +236,7 @@ public class TaskTrackerStatus implements Writable {
      */
     public void setCpuFrequency(long cpuFrequency) {
       this.cpuFrequency = cpuFrequency > 0 ?
-                          cpuFrequency : UNAVAILABLE;
+                          cpuFrequency : ResourceCalculatorPlugin.UNAVAILABLE;
     }
 
     /**
@@ -257,7 +257,7 @@ public class TaskTrackerStatus implements Writable {
      */
     public void setNumProcessors(int numProcessors) {
       this.numProcessors = numProcessors > 0 ?
-                           numProcessors : UNAVAILABLE;
+                           numProcessors : ResourceCalculatorPlugin.UNAVAILABLE;
     }
 
     /**
@@ -278,7 +278,7 @@ public class TaskTrackerStatus implements Writable {
      */
     public void setCumulativeCpuTime(long cumulativeCpuTime) {
       this.cumulativeCpuTime = cumulativeCpuTime > 0 ?
-                               cumulativeCpuTime : UNAVAILABLE;
+                               cumulativeCpuTime : ResourceCalculatorPlugin.UNAVAILABLE;
     }
 
     /**

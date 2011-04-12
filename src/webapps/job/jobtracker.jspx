@@ -23,7 +23,8 @@
   <jsp:directive.page import="java.util.Date" />
   <jsp:directive.page import="java.util.List" />
   <jsp:directive.page import="org.apache.hadoop.mapreduce.server.jobtracker.JobTrackerJspHelper" />
-  <jsp:directive.page import="org.apache.hadoop.util.*" />
+    <jsp:directive.page import="org.apache.hadoop.util.*" />
+  <jsp:directive.page import="org.apache.hadoop.yarn.util.*" />
   <jsp:directive.page import="org.apache.hadoop.mapreduce.*" />
   <jsp:directive.page import="org.apache.hadoop.mapred.JSPUtil" />
 

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapreduce.util;
+package org.apache.hadoop.yarn.util;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -24,22 +24,19 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.LinkedList;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.mapred.TaskController;
-import org.apache.hadoop.mapred.DefaultTaskController;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
 import org.apache.hadoop.util.StringUtils;
-import static org.apache.hadoop.mapred.TaskController.Signal;
 
 /**
  * A Proc file-system based ProcessTree. Works only on Linux.
@@ -58,8 +55,8 @@ public class ProcfsBasedProcessTree {
     "([0-9-]+\\s){7}([0-9]+)\\s([0-9]+)\\s([0-9-]+\\s){7}([0-9]+)\\s([0-9]+)" +
     "(\\s[0-9-]+){15}");
 
-  static final String PROCFS_STAT_FILE = "stat";
-  static final String PROCFS_CMDLINE_FILE = "cmdline";
+  public static final String PROCFS_STAT_FILE = "stat";
+  public static final String PROCFS_CMDLINE_FILE = "cmdline";
   public static final long PAGE_SIZE;
   static {
     ShellCommandExecutor shellExecutor =
@@ -94,11 +91,11 @@ public class ProcfsBasedProcessTree {
   // to a test directory.
   private String procfsDir;
   
-  private final Integer pid;
+  protected final Integer pid;
   private Long cpuTime = 0L;
   private boolean setsidUsed = false;
 
-  private Map<Integer, ProcessInfo> processTree =
+  protected Map<Integer, ProcessInfo> processTree =
     new HashMap<Integer, ProcessInfo>();
 
   public ProcfsBasedProcessTree(String pid) {
@@ -223,36 +220,6 @@ public class ProcfsBasedProcessTree {
     return this;
   }
 
-  /**
-   * Is the root-process alive?
-   * @return true if the root-process is alive, false otherwise.
-   */
-  boolean isAlive(int pid, TaskController taskController) {
-    try {
-      return taskController.signalTask(null, pid, Signal.NULL);
-    } catch (IOException ignored) { }
-    return false;
-  }
-
-  boolean isAlive(TaskController taskController) {
-    return isAlive(pid, taskController);
-  }
-
-  /**
-   * Is any of the subprocesses in the process-tree alive?
-   * @return true if any of the processes in the process-tree is
-   *           alive, false otherwise.
-   */
-  boolean isAnyProcessInTreeAlive(TaskController taskController) {
-    for (Integer pId : processTree.keySet()) {
-      if (isAlive(pId, taskController)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-
   /** Verify that the given process id is same as its process group id.
    * @param pidStr Process id of the to-be-verified-process
    * @param procfsDir  Procfs root dir
@@ -261,7 +228,7 @@ public class ProcfsBasedProcessTree {
     return checkPidPgrpidForMatch(pid, PROCFS);
   }
 
-  static boolean checkPidPgrpidForMatch(int _pid, String procfs) {
+  public static boolean checkPidPgrpidForMatch(int _pid, String procfs) {
     // Get information for this process
     ProcessInfo pInfo = new ProcessInfo(_pid);
     pInfo = constructProcessInfo(pInfo, procfs);
@@ -272,6 +239,12 @@ public class ProcfsBasedProcessTree {
 
   private static final String PROCESSTREE_DUMP_FORMAT =
       "\t|- %d %d %d %d %s %d %d %d %d %s\n";
+
+  public List<Integer> getCurrentProcessIDs() {
+    List<Integer> currentPIDs = new ArrayList<Integer>();
+    currentPIDs.addAll(processTree.keySet());
+    return currentPIDs;
+  }
 
   /**
    * Get a dump of the process-tree.

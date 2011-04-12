@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapreduce.util;
+package org.apache.hadoop.yarn.util;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -31,6 +31,8 @@ import org.apache.hadoop.util.ReflectionUtils;
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
 public abstract class ResourceCalculatorPlugin extends Configured {
+
+  public static final int UNAVAILABLE = -1;
 
   /**
    * Obtain the total size of the virtual memory present in the system.
