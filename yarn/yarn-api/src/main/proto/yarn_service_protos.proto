@@ -74,6 +74,19 @@ message GetClusterMetricsResponseProto {
   optional YarnClusterMetricsProto cluster_metrics = 1;
 }
 
+message GetAllApplicationsRequestProto {
+}
+
+message GetAllApplicationsResponseProto {
+  repeated ApplicationProto applications = 1;
+}
+
+message GetClusterNodesRequestProto {
+}
+
+message GetClusterNodesResponseProto {
+  repeated NodeManagerInfoProto nodeManagers = 1; 
+}
 
 
 //////////////////////////////////////////////////////

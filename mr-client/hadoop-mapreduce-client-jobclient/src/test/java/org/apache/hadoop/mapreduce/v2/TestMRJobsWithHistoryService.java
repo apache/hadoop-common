@@ -92,7 +92,7 @@ public class TestMRJobsWithHistoryService {
     while (true) {
       Thread.sleep(1000);
       if (mrCluster.getResourceManager().getApplicationsManager()
-          .getApplication(appID).state().equals(ApplicationState.COMPLETED))
+          .getApplication(appID).getState().equals(ApplicationState.COMPLETED))
         break;
     }
     Counters counterHS = job.getCounters();

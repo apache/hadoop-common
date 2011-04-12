@@ -29,7 +29,7 @@ import static org.apache.hadoop.yarn.util.StringHelper.*;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
 import static org.apache.hadoop.yarn.webapp.view.Jsons.*;
 
-import org.apache.hadoop.yarn.Application;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.util.Apps;
 import org.apache.hadoop.yarn.webapp.ToJSON;
@@ -56,17 +56,17 @@ class AppsList implements ToJSON {
       } else {
         out.append(",\n");
       }
-      String appID = Apps.toString(app.id());
-      CharSequence master = app.master();
+      String appID = Apps.toString(app.getApplicationId());
+      CharSequence master = app.getMasterHost();
       String ui = master == null ? "UNASSIGNED"
-                                 : join(master, ':', app.httpPort());
+                                 : join(master, ':', app.getMasterPort());
       out.append("[\"");
-      appendSortable(out, app.id().getId());
+      appendSortable(out, app.getApplicationId().getId());
       appendLink(out, appID, rc.prefix(), "app", appID).append(_SEP).
-          append(escapeHtml(app.user().toString())).append(_SEP).
-          append(escapeHtml(app.name().toString())).append(_SEP).
-          append(app.state().toString()).append(_SEP);
-      appendProgressBar(out, app.status().getProgress()).append(_SEP);
+          append(escapeHtml(app.getUser().toString())).append(_SEP).
+          append(escapeHtml(app.getName().toString())).append(_SEP).
+          append(app.getState().toString()).append(_SEP);
+      appendProgressBar(out, app.getStatus().getProgress()).append(_SEP);
       appendLink(out, ui, rc.prefix(), master == null ? "#" : "http://", ui).
           append("\"]");
     }

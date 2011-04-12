@@ -121,7 +121,7 @@ public class YARNRunner implements ClientProtocol {
   @Override
   public TaskTrackerInfo[] getActiveTrackers() throws IOException,
       InterruptedException {
-	  throw new IOException("Not implemented");
+	  return resMgrDelegate.getActiveTrackers();
   }
 
   @Override

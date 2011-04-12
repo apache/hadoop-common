@@ -103,7 +103,24 @@ message LocalResourceProto {
   optional LocalResourceVisibilityProto visibility= 5;
 }
 
+message ApplicationProto {
+  optional ApplicationIdProto applicationId = 1;
+  optional string user = 2;
+  optional string queue = 3;
+  optional string name = 4;
+  optional ApplicationStatusProto status = 5;
+  optional ApplicationStateProto state = 6;
+  optional string masterHost = 7;
+  optional int32 masterPort = 8;
+}
 
+message NodeManagerInfoProto {
+  optional string nodeName = 1;
+  optional string rackName = 2;
+  optional ResourceProto used = 3;
+  optional ResourceProto capability = 4;
+  optional int32 numContainers = 5;
+}
 
 
 ////////////////////////////////////////////////////////////////////////

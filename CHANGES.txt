@@ -2,6 +2,11 @@ Hadoop MapReduce Change Log
 
 Trunk (unreleased changes)
 
+  MAPREDUCE-279
+    
+    Implement 'bin/mapred job -list' and 'bin/mapred job
+    -list-active-trackers'. (acmurthy)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class

@@ -29,8 +29,8 @@ import static org.apache.hadoop.test.MockitoMaker.*;
 import static org.apache.hadoop.yarn.server.resourcemanager.MockNodes.*;
 import static org.apache.hadoop.yarn.webapp.Params.*;
 
-import org.apache.hadoop.yarn.Application;
 import org.apache.hadoop.yarn.MockApps;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
@@ -64,7 +64,7 @@ public class TestRMWebApp {
     TestAsm(int n) {
       appsList = MockApps.genApps(n);
       for (Application app : appsList) {
-        appsMap.put(app.id(), app);
+        appsMap.put(app.getApplicationId(), app);
       }
     }
 

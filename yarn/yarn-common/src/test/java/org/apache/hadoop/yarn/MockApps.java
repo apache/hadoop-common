@@ -24,7 +24,7 @@ import com.google.common.collect.Lists;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.hadoop.yarn.Application;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
@@ -80,23 +80,55 @@ public class MockApps {
     final String name = newAppName();
     final String queue = newQueue();
     return new Application() {
-      @Override public ApplicationId id() { return id; }
-      @Override public CharSequence user() { return user; }
-      @Override public CharSequence name() { return name; }
-      @Override public ApplicationStatus status() { return status; }
-      @Override public ApplicationState state() { return state; }
-      @Override public CharSequence queue() { return queue; }
-      @Override public CharSequence master() {
+      @Override public ApplicationId getApplicationId() { return id; }
+      @Override public String getUser() { return user; }
+      @Override public String getName() { return name; }
+      @Override public ApplicationStatus getStatus() { return status; }
+      @Override public ApplicationState getState() { return state; }
+      @Override public String getQueue() { return queue; }
+      @Override public String getMasterHost() {
         return Math.random() > 0.8 ? null : "localhost";
       }
-      @Override public int httpPort() { return 58888; }
-      @Override public boolean isFinished() {
-        switch (state) {
-          case COMPLETED:
-          case FAILED:
-          case KILLED: return true;
-        }
-        return false;
+      @Override public int getMasterPort() { return 58888; }
+      @Override
+      public void setApplicationId(ApplicationId applicationId) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public void setMasterHost(String masterHost) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public void setMasterPort(int masterPort) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public void setName(String name) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public void setQueue(String queue) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public void setState(ApplicationState state) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public void setStatus(ApplicationStatus status) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public void setUser(String user) {
+        // TODO Auto-generated method stub
+        
       }
     };
   }

@@ -41,13 +41,13 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.yarn.Application;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.AMRMProtocol;
 import org.apache.hadoop.yarn.api.ContainerManager;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
@@ -127,16 +127,16 @@ public class TestContainerTokenSecretManager {
     Application app =
         resourceManager.getApplicationsManager().getApplication(
             containerID.getAppId());
-    while (app.state() != ApplicationState.LAUNCHED && waitCounter <= 20) {
+    while (app.getState() != ApplicationState.LAUNCHED && waitCounter <= 20) {
       Thread.sleep(1000);
       LOG.info("Waiting for AM to be allocated a container. Current state is "
-          + app.state());
+          + app.getState());
       app =
           resourceManager.getApplicationsManager().getApplication(
               containerID.getAppId());
     }
 
-    Assert.assertTrue(ApplicationState.PENDING != app.state());
+    Assert.assertTrue(ApplicationState.PENDING != app.getState());
 
     UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
 

@@ -20,6 +20,7 @@ package org.apache.hadoop.mapred;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -42,16 +43,21 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.ClientRMProtocol;
+import org.apache.hadoop.yarn.api.protocolrecords.GetAllApplicationsRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetAllApplicationsResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -97,12 +103,20 @@ public class ResourceMgrDelegate {
 
   public TaskTrackerInfo[] getActiveTrackers() throws IOException,
       InterruptedException {
-    return null;
+    GetClusterNodesRequest request = 
+      recordFactory.newRecordInstance(GetClusterNodesRequest.class);
+    GetClusterNodesResponse response = 
+      applicationsManager.getClusterNodes(request);
+    return TypeConverter.fromYarn(response.getNodeManagerList());
   }
 
 
   public JobStatus[] getAllJobs() throws IOException, InterruptedException {
-    return null;
+    GetAllApplicationsRequest request =
+      recordFactory.newRecordInstance(GetAllApplicationsRequest.class);
+    GetAllApplicationsResponse response = 
+      applicationsManager.getAllApplications(request);
+    return TypeConverter.fromYarn(response.getApplicationList());
   }
 
 

@@ -444,13 +444,13 @@ public class CLI extends Configured implements Tool {
    */
   private void listJobs(Cluster cluster) 
       throws IOException, InterruptedException {
-    List<Job> runningJobs = new ArrayList<Job>();
-    for (Job job : cluster.getAllJobs()) {
-      if (!job.isComplete()) {
+    List<JobStatus> runningJobs = new ArrayList<JobStatus>();
+    for (JobStatus job : cluster.getAllJobStatuses()) {
+      if (!job.isJobComplete()) {
         runningJobs.add(job);
       }
     }
-    displayJobList(runningJobs.toArray(new Job[0]));
+    displayJobListFromStatus(runningJobs.toArray(new JobStatus[0]));
   }
     
   /**
@@ -459,7 +459,7 @@ public class CLI extends Configured implements Tool {
    */
   private void listAllJobs(Cluster cluster) 
       throws IOException, InterruptedException {
-    displayJobList(cluster.getAllJobs());
+    displayJobListFromStatus(cluster.getAllJobStatuses());
   }
   
   /**
@@ -523,18 +523,18 @@ public class CLI extends Configured implements Tool {
     }
   }
   
-  protected void displayJobList(Job[] jobs) 
-      throws IOException, InterruptedException {
+  protected void displayJobListFromStatus(JobStatus[] jobs) 
+  throws IOException, InterruptedException {
     System.out.println("Total jobs:" + jobs.length);
     System.out.println("JobId\tState\tStartTime\t" +
-      "UserName\tPriority\tSchedulingInfo");
-    for (Job job : jobs) {
+    "UserName\tPriority\tSchedulingInfo");
+    for (JobStatus job : jobs) {
       System.out.printf("%s\t%s\t%d\t%s\t%s\t%s\n", job.getJobID().toString(),
-        job.getJobState(), job.getStartTime(),
-        job.getUser(), job.getPriority().name(), job.getSchedulingInfo());
+          job.getState(), job.getStartTime(),
+          job.getUsername(), job.getPriority().name(), job.getSchedulingInfo());
     }
-  }
-  
+}
+
   public static void main(String[] argv) throws Exception {
     int res = ToolRunner.run(new CLI(), argv);
     System.exit(res);

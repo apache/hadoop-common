@@ -20,7 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.webapp;
 
 import com.google.inject.Inject;
 
-import org.apache.hadoop.yarn.Application;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.util.Apps;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
@@ -52,20 +52,20 @@ class AppsBlock extends HtmlBlock {
         tbody();
     int i = 0;
     for (Application app : list.apps) {
-      String appId = Apps.toString(app.id());
-      CharSequence master = app.master();
+      String appId = Apps.toString(app.getApplicationId());
+      CharSequence master = app.getMasterHost();
       String am = master == null ? "UNASSIGNED"
-                                 : join(master, ':', app.httpPort());
-      String percent = String.format("%.1f", app.status().getProgress() * 100);
+                                 : join(master, ':', app.getMasterPort());
+      String percent = String.format("%.1f", app.getStatus().getProgress() * 100);
       tbody.
         tr().
           td().
-            br().$title(String.valueOf(app.id().getId()))._(). // for sorting
+            br().$title(String.valueOf(app.getApplicationId().getId()))._(). // for sorting
             a(url("app", appId), appId)._().
-          td(app.user().toString()).
-          td(app.name().toString()).
-          td(app.queue().toString()).
-          td(app.state().toString()).
+          td(app.getUser().toString()).
+          td(app.getName().toString()).
+          td(app.getQueue().toString()).
+          td(app.getState().toString()).
           td().
             br().$title(percent)._(). // for sorting
             div(_PROGRESSBAR).

@@ -16,5 +16,7 @@ service ClientRMProtocolService {
   rpc submitApplication (SubmitApplicationRequestProto) returns (SubmitApplicationResponseProto);
   rpc finishApplication (FinishApplicationRequestProto) returns (FinishApplicationResponseProto);
   rpc getClusterMetrics (GetClusterMetricsRequestProto) returns (GetClusterMetricsResponseProto);
+  rpc getAllApplications (GetAllApplicationsRequestProto) returns (GetAllApplicationsResponseProto);
+  rpc getClusterNodes (GetClusterNodesRequestProto) returns (GetClusterNodesResponseProto);
 }
 

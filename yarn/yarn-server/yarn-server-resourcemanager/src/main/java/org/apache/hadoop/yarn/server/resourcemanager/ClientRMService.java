@@ -20,6 +20,8 @@ package org.apache.hadoop.yarn.server.resourcemanager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.avro.ipc.Server;
 import org.apache.commons.logging.Log;
@@ -31,16 +33,21 @@ import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.yarn.api.ClientRMProtocol;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetAllApplicationsRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetAllApplicationsResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationResponse;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -49,8 +56,10 @@ import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ResourceContext;
 import org.apache.hadoop.yarn.service.AbstractService;
+
 
 /**
  * The client interface to the Resource Manager. This module handles all the rpc
@@ -145,6 +154,41 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
     return response;
   }
   
+  @Override
+  public GetAllApplicationsResponse getAllApplications(
+      GetAllApplicationsRequest request) throws YarnRemoteException {
+    GetAllApplicationsResponse response = 
+      recordFactory.newRecordInstance(GetAllApplicationsResponse.class);
+    response.setApplicationList(applicationsManager.getApplications());
+    return response;
+  }
+
+  @Override
+  public GetClusterNodesResponse getClusterNodes(GetClusterNodesRequest request)
+      throws YarnRemoteException {
+    GetClusterNodesResponse response = 
+      recordFactory.newRecordInstance(GetClusterNodesResponse.class);
+    List<NodeInfo> nodeInfos = clusterInfo.getAllNodeInfo();
+    List<NodeManagerInfo> nodes = 
+      new ArrayList<NodeManagerInfo>(nodeInfos.size());
+    for (NodeInfo nodeInfo : nodeInfos) {
+      nodes.add(createNodeManagerInfo(nodeInfo));
+    }
+    response.setNodeManagerList(nodes);
+    return response;
+  }
+
+  private NodeManagerInfo createNodeManagerInfo(NodeInfo nodeInfo) {
+    NodeManagerInfo node = 
+      recordFactory.newRecordInstance(NodeManagerInfo.class);
+    node.setNodeName(nodeInfo.getHostName());
+    node.setRackName(nodeInfo.getRackName());
+    node.setCapability(nodeInfo.getTotalCapability());
+    node.setUsed(nodeInfo.getUsedResource());
+    node.setNumContainers(nodeInfo.getNumContainers());
+    return node;
+  }
+
   @Override
   public void stop() {
     if (this.server != null) {

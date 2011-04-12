@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.mapreduce;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +28,7 @@ import org.apache.hadoop.mapred.JobPriority;
 import org.apache.hadoop.mapred.TIPStatus;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapreduce.TaskReport;
+import org.apache.hadoop.mapreduce.JobStatus.State;
 import org.apache.hadoop.mapreduce.v2.api.records.Counter;
 import org.apache.hadoop.mapreduce.v2.api.records.CounterGroup;
 import org.apache.hadoop.mapreduce.v2.api.records.Counters;
@@ -40,7 +43,10 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class TypeConverter {
@@ -331,5 +337,70 @@ public class TypeConverter {
     }
     return reports;
   }
+  
+  public static JobStatus.State fromYarn(ApplicationState state) {
+    switch (state) {
+    case ALLOCATED:
+    case LAUNCHED:
+    case PENDING:
+      return State.PREP;
+    case PAUSED:
+    case RUNNING:
+      return State.RUNNING;
+    case COMPLETED:
+      return State.SUCCEEDED;
+    case FAILED:
+      return State.FAILED;
+    case KILLED:
+      return State.KILLED;
+    }
+    throw new YarnException("Unrecognized application state: " + state);
+  }
+
+  public static TaskTrackerInfo fromYarn(NodeManagerInfo node) {
+    TaskTrackerInfo taskTracker = new TaskTrackerInfo(node.getNodeName());
+    return taskTracker;
+  }
+
+  public static TaskTrackerInfo[] fromYarn(List<NodeManagerInfo> nodes) {
+    List<TaskTrackerInfo> taskTrackers = new ArrayList<TaskTrackerInfo>();
+    for (NodeManagerInfo node : nodes) {
+      taskTrackers.add(fromYarn(node));
+    }
+    return taskTrackers.toArray(new TaskTrackerInfo[nodes.size()]);
+  }
+
+  public static JobStatus fromYarn(Application application) {
+    String trackingUrl = "";
+    try {
+      if (application.getMasterHost() != null) {
+        URL url = 
+          new URL("http", application.getMasterHost(),
+              application.getMasterPort(), "");
+        trackingUrl = url.toString();
+      }
+    } catch (MalformedURLException ignored) {
+    }
+
+    JobStatus jobStatus = 
+      new JobStatus(
+          TypeConverter.fromYarn(application.getApplicationId()), 
+          0.0f, 0.0f, 0.0f, 0.0f, 
+          TypeConverter.fromYarn(application.getState()), 
+          org.apache.hadoop.mapreduce.JobPriority.NORMAL, 
+          application.getUser(), application.getName(), "", 
+          trackingUrl
+      ); 
+    return jobStatus;
+  }
+
+  public static JobStatus[] fromYarn(List<Application> applications) {
+    List<JobStatus> jobStatuses = new ArrayList<JobStatus>();
+    for (Application application : applications) {
+      jobStatuses.add(TypeConverter.fromYarn(application));
+    }
+    return jobStatuses.toArray(new JobStatus[jobStatuses.size()]);
+  }
+
 }
 

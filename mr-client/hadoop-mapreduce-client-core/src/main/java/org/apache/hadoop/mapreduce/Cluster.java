@@ -211,9 +211,15 @@ public class Cluster {
    * @return array of {@link Job}
    * @throws IOException
    * @throws InterruptedException
+   * @deprecated Use {@link #getAllJobStatuses()} instead
    */
+  @Deprecated
   public Job[] getAllJobs() throws IOException, InterruptedException {
     return getJobs(client.getAllJobs());
+  }
+  
+  public JobStatus[] getAllJobStatuses() throws IOException, InterruptedException {
+    return client.getAllJobs();
   }
   
   /**

@@ -23,8 +23,9 @@ import com.google.inject.Inject;
 import java.util.Date;
 
 import org.apache.hadoop.util.VersionInfo;
-import org.apache.hadoop.yarn.Application;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
@@ -75,18 +76,20 @@ public class RmController extends Controller {
       return;
     }
     setTitle(join("Application ", aid));
-    CharSequence master = app.master();
+    CharSequence master = app.getMasterHost();
     String ui = master == null ? "UNASSIGNED"
-                               : join(master, ':', app.httpPort());
+                               : join(master, ':', app.getMasterPort());
 
     ResponseInfo info = info("Application Overview").
-      _("User:", app.user()).
-      _("Name:", app.name()).
-      _("State:", app.state()).
+      _("User:", app.getUser()).
+      _("Name:", app.getName()).
+      _("State:", app.getState()).
       _("Started:", "FIXAPI!").
       _("Elapsed:", "FIXAPI!").
       _("Master UI:", master == null ? "#" : join("http://", ui), ui);
-    if (app.isFinished()) {
+    if (app.getState() == ApplicationState.COMPLETED || 
+        app.getState() == ApplicationState.FAILED || 
+        app.getState() == ApplicationState.KILLED) {
       info._("History:", "FIXAPI!");
     }
     render(InfoPage.class);

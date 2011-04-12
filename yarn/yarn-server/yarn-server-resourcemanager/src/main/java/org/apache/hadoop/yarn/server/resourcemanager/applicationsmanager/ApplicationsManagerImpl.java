@@ -28,13 +28,16 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.yarn.Application;
+import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.security.client.ClientToAMSecretManager;
@@ -69,6 +72,9 @@ public class ApplicationsManagerImpl extends CompositeService
   private final ApplicationTokenSecretManager applicationTokenSecretManager;
   private final ASMContext asmContext; 
   
+  private final RecordFactory recordFactory = 
+    RecordFactoryProvider.getRecordFactory(null);
+
   public ApplicationsManagerImpl(ApplicationTokenSecretManager 
       applicationTokenSecretManager, YarnScheduler scheduler, ASMContext asmContext) {
     super("ApplicationsManager");
@@ -215,42 +221,26 @@ public class ApplicationsManagerImpl extends CompositeService
     return amTracker.get(applicationId);
   }
   
-  static class AppImpl implements Application {
-    final ApplicationMaster am;
-    final String user;
-    final String queue;
-    final String name;
-    
-    AppImpl(ApplicationMaster am, String user, String queue, String name) { 
-      this.am = am; 
-      this.user = user;
-      this.queue = queue;
-      this.name = name;
-    }
-
-    @Override public ApplicationId id() { return am.getApplicationId(); }
-    @Override public String user() { return user; }
-    @Override public String name() { return name; }
-    @Override public String queue() { return queue; }
-    @Override public ApplicationStatus status() { return am.getStatus(); }
-    @Override public String master() { return am.getHost(); }
-    @Override public int httpPort() { return am.getHttpPort(); }
-    @Override public ApplicationState state() { return am.getState(); }
-    @Override public boolean isFinished() {
-      switch (am.getState()) {
-        case COMPLETED:
-        case FAILED:
-        case KILLED: return true;
-      }
-      return false;
-    }
+  private Application createApplication(ApplicationMaster am, String user,
+      String queue, String name) {
+    Application application = 
+      recordFactory.newRecordInstance(Application.class);
+    application.setApplicationId(am.getApplicationId());
+    application.setMasterHost(am.getHost());
+    application.setMasterPort(am.getHttpPort());
+    application.setName(name);
+    application.setQueue(queue);
+    application.setState(am.getState());
+    application.setStatus(am.getStatus());
+    application.setUser(user);
+    return application;
   }
-
+  
   @Override
   public List<Application> getApplications() {
     List<Application> apps = new ArrayList<Application>();
     for (AppContext am: getAllApplications()) {
-      apps.add(new AppImpl(am.getMaster(), 
+      apps.add(createApplication(am.getMaster(), 
           am.getUser(), am.getQueue(), am.getName()));
     }
     return apps;
@@ -260,7 +250,7 @@ public class ApplicationsManagerImpl extends CompositeService
   public Application getApplication(ApplicationId appID) {
     ApplicationMasterInfo master = amTracker.get(appID);
     return (master == null) ? null : 
-      new AppImpl(master.getMaster(), 
+      createApplication(master.getMaster(), 
           master.getUser(), master.getQueue(), master.getName());
   }
 }
