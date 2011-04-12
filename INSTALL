@@ -53,6 +53,7 @@ ln -s $HADOOP_YARN_INSTALL/modules/hadoop-mapreduce-client-common-1.0-SNAPSHOT.j
 ln -s $HADOOP_YARN_INSTALL/modules/yarn-common-1.0-SNAPSHOT.jar .
 ln -s $HADOOP_YARN_INSTALL/modules/hadoop-mapreduce-client-core-1.0-SNAPSHOT.jar .	
 ln -s $HADOOP_YARN_INSTALL/modules/yarn-server-common-1.0-SNAPSHOT.jar .
+ln -s $HADOOP_YARN_INSTALL/lib/protobuf-java-2.4.0a.jar .
 
 Step 11) You are all set, an example on how to run a job is:
 
