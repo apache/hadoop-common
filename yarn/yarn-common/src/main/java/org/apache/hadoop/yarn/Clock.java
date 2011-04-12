@@ -16,22 +16,9 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.mapreduce.v2.app;
+package org.apache.hadoop.yarn;
 
-/**
- * A clock class - can be mocked out for testing.
- */
-public class Clock {
-  long previous = Long.MIN_VALUE;
+public interface Clock {
 
-  long getMeasuredTime() {
-    return System.currentTimeMillis();
-  }
-
-  public long getTime() {
-    // Make the result monotonic even if the time is glitched back due
-    //  to some sort of leap second
-    previous = Math.max(previous, getMeasuredTime());
-    return previous;
-  }
+  long getTime();
 }

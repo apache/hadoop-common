@@ -103,18 +103,6 @@ public class TestJobHistoryEvents {
         TaskAttemptState.SUCCEEDED, attempt.getState());
   }
 
-  static class HistoryEnabledApp extends MRApp {
-    public HistoryEnabledApp(int maps, int reduces, boolean autoComplete) {
-      super(maps, reduces, autoComplete);
-    }
-
-    @Override
-    protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
-        Configuration conf) {
-      return new JobHistoryEventHandler();
-    }
-  }
-
   public static void main(String[] args) throws Exception {
     TestJobHistoryEvents t = new TestJobHistoryEvents();
     t.testHistoryEvents();

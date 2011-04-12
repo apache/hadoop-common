@@ -30,16 +30,13 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
-import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
-import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
-import org.apache.hadoop.yarn.event.EventHandler;
 import org.junit.Test;
 
 public class TestJobHistoryParsing {
@@ -118,17 +115,6 @@ public class TestJobHistoryParsing {
         jobInfo.getFinishedReduces() == 1);
   }
 
-  static class HistoryEnabledApp extends MRApp {
-    public HistoryEnabledApp(int maps, int reduces, boolean autoComplete) {
-      super(maps, reduces, autoComplete);
-    }
-
-    @Override
-    protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
-        Configuration conf) {
-      return new JobHistoryEventHandler();
-    }
-  }
   public static void main(String[] args) throws Exception {
     TestJobHistoryParsing t = new TestJobHistoryParsing();
     t.testHistoryParsing();

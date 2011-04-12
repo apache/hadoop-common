@@ -31,6 +31,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.event.EventHandler;
 
 public class ReduceTaskImpl extends TaskImpl {
@@ -41,9 +42,9 @@ public class ReduceTaskImpl extends TaskImpl {
       EventHandler eventHandler, Path jobFile, Configuration conf,
       int numMapTasks, TaskAttemptListener taskAttemptListener,
       OutputCommitter committer, Token<JobTokenIdentifier> jobToken,
-      Collection<Token<? extends TokenIdentifier>> fsTokens) {
+      Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock) {
     super(jobId, TaskType.REDUCE, partition, eventHandler, jobFile, conf,
-        taskAttemptListener, committer, jobToken, fsTokens);
+        taskAttemptListener, committer, jobToken, fsTokens, clock);
     this.numMapTasks = numMapTasks;
   }
 
@@ -57,7 +58,7 @@ public class ReduceTaskImpl extends TaskImpl {
     return new ReduceTaskAttemptImpl(getID(), nextAttemptNumber,
         eventHandler, jobFile,
         partition, numMapTasks, conf, taskAttemptListener,
-        committer, jobToken, fsTokens);
+        committer, jobToken, fsTokens, clock);
   }
 
   @Override

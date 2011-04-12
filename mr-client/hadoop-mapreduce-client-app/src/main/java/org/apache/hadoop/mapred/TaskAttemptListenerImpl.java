@@ -91,7 +91,8 @@ public class TaskAttemptListenerImpl extends CompositeService
   }
 
   protected void registerHeartbeatHandler() {
-    taskHeartbeatHandler = new TaskHeartbeatHandler(context.getEventHandler());
+    taskHeartbeatHandler = new TaskHeartbeatHandler(context.getEventHandler(), 
+        context.getClock());
     addService(taskHeartbeatHandler);
   }
 

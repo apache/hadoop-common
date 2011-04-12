@@ -64,6 +64,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEventType;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskTAttemptEvent;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -89,6 +90,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   private final TaskId taskId;
   private Map<TaskAttemptId, TaskAttempt> attempts;
   private final int maxAttempts;
+  protected final Clock clock;
   private final Lock readLock;
   private final Lock writeLock;
   
@@ -217,8 +219,9 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       EventHandler eventHandler, Path remoteJobConfFile, Configuration conf,
       TaskAttemptListener taskAttemptListener, OutputCommitter committer,
       Token<JobTokenIdentifier> jobToken,
-      Collection<Token<? extends TokenIdentifier>> fsTokens) {
+      Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock) {
     this.conf = conf;
+    this.clock = clock;
     this.jobFile = remoteJobConfFile;
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     readLock = readWriteLock.readLock();

@@ -15,32 +15,11 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+package org.apache.hadoop.yarn;
 
-package org.apache.hadoop.mapreduce.v2.app;
+public class SystemClock implements Clock {
 
-import java.util.Map;
-
-import org.apache.hadoop.mapreduce.v2.api.records.JobId;
-import org.apache.hadoop.mapreduce.v2.app.job.Job;
-import org.apache.hadoop.yarn.Clock;
-import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.event.EventHandler;
-
-
-/**
- * Context interface for sharing information across components in YARN App.
- */
-public interface AppContext {
-
-  ApplicationId getApplicationID();
-
-  CharSequence getUser();
-
-  Job getJob(JobId jobID);
-
-  Map<JobId, Job> getAllJobs();
-
-  EventHandler getEventHandler();
-
-  Clock getClock();
+  public long getTime() {
+    return System.currentTimeMillis();
+  }
 }

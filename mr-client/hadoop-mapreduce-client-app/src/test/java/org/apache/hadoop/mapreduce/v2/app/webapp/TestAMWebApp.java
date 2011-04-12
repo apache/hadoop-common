@@ -27,6 +27,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.MockJobs;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.util.Apps;
@@ -74,6 +75,11 @@ public class TestAMWebApp {
 
     @Override
     public EventHandler getEventHandler() {
+      return null;
+    }
+
+    @Override
+    public Clock getClock() {
       return null;
     }
   }

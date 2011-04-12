@@ -92,6 +92,7 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
@@ -124,6 +125,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
   //final fields
+  private final Clock clock;
   private final Lock readLock;
   private final Lock writeLock;
   private final JobId jobId;
@@ -327,10 +329,11 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   public JobImpl(ApplicationId appID, Configuration conf,
       EventHandler eventHandler, TaskAttemptListener taskAttemptListener,
       JobTokenSecretManager jobTokenSecretManager,
-      Credentials fsTokenCredentials) {
+      Credentials fsTokenCredentials, Clock clock) {
 
     this.jobId = recordFactory.newRecordInstance(JobId.class);
     this.conf = conf;
+    this.clock = clock;
     jobId.setAppId(appID);
     jobId.setId(appID.getId());
     oldJobId = TypeConverter.fromYarn(jobId);
@@ -615,7 +618,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   }
 
   private void finished() {
-    finishTime = System.currentTimeMillis();
+    finishTime = clock.getTime();
     eventHandler.handle(new JobFinishEvent(jobId));
   }
 
@@ -647,7 +650,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
      */
     @Override
     public JobState transition(JobImpl job, JobEvent event) {
-      job.startTime = System.currentTimeMillis();
+      job.startTime = job.clock.getTime();
       try {
         setup(job);
         job.jobContext = new JobContextImpl(job.conf,
@@ -880,7 +883,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
                 job.remoteJobConfFile, 
                 job.conf, splits[i], 
                 job.taskAttemptListener, 
-                job.committer, job.jobToken, job.fsTokens.getAllTokens());
+                job.committer, job.jobToken, job.fsTokens.getAllTokens(), 
+                job.clock);
         job.addTask(task);
       }
       LOG.info("Input size for job " + job.jobId + " = " + inputLength
@@ -895,7 +899,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
                 job.remoteJobConfFile, 
                 job.conf, job.numMapTasks, 
                 job.taskAttemptListener, job.committer, job.jobToken,
-                job.fsTokens.getAllTokens());
+                job.fsTokens.getAllTokens(), job.clock);
         job.addTask(task);
       }
       LOG.info("Number of reduces for job " + job.jobId + " = "
@@ -932,7 +936,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
      */
     @Override
     public void transition(JobImpl job, JobEvent event) {
-      job.startTime = System.currentTimeMillis();
+      job.startTime = job.clock.getTime();
       job.scheduleTasks(job.mapTasks);  // schedule (i.e., start) the maps
       JobInitedEvent jie =
         new JobInitedEvent(TypeConverter.fromYarn(job.jobId),

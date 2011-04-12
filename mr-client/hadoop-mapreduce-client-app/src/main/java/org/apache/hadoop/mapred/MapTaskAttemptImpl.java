@@ -32,6 +32,7 @@ import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.impl.TaskAttemptImpl;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.event.EventHandler;
 
 public class MapTaskAttemptImpl extends TaskAttemptImpl {
@@ -43,10 +44,10 @@ public class MapTaskAttemptImpl extends TaskAttemptImpl {
       int partition, TaskSplitMetaInfo splitInfo, Configuration conf,
       TaskAttemptListener taskAttemptListener, 
       OutputCommitter committer, Token<JobTokenIdentifier> jobToken,
-      Collection<Token<? extends TokenIdentifier>> fsTokens) {
+      Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock) {
     super(taskId, attempt, eventHandler, 
         taskAttemptListener, jobFile, partition, conf, splitInfo.getLocations(),
-        committer, jobToken, fsTokens);
+        committer, jobToken, fsTokens, clock);
     this.splitInfo = splitInfo;
   }
 

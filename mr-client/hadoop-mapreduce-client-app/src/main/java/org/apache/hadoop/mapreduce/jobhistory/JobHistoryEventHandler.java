@@ -37,6 +37,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
@@ -52,6 +53,8 @@ import org.apache.hadoop.yarn.service.AbstractService;
  */
 public class JobHistoryEventHandler extends AbstractService
     implements EventHandler<JobHistoryEvent> {
+
+  private final AppContext context;
 
   private FileContext logDirFc; // log Dir FileContext
   private FileContext doneDirFc; // done Dir FileContext
@@ -76,8 +79,9 @@ public class JobHistoryEventHandler extends AbstractService
   public static final FsPermission HISTORY_FILE_PERMISSION =
     FsPermission.createImmutable((short) 0740); // rwxr-----
 
-  public JobHistoryEventHandler() {
+  public JobHistoryEventHandler(AppContext context) {
     super("JobHistoryEventHandler");
+    this.context = context;
   }
 
   @Override
@@ -117,7 +121,6 @@ public class JobHistoryEventHandler extends AbstractService
       throw new YarnException(ioe);
     }
     super.init(conf);
-    start();
   }
 
   @Override
@@ -167,7 +170,7 @@ public class JobHistoryEventHandler extends AbstractService
 
     MetaInfo oldFi = fileMap.get(jobId);
 
-    long submitTime = (oldFi == null ? System.currentTimeMillis() : oldFi.submitTime);
+    long submitTime = (oldFi == null ? context.getClock().getTime() : oldFi.submitTime);
 
     Path logFile = getJobHistoryFile(logDirPath, jobId);
     // String user = conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));

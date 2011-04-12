@@ -45,7 +45,6 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
-import org.apache.hadoop.mapreduce.v2.app.Clock;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
@@ -58,6 +57,8 @@ import org.apache.hadoop.mapreduce.v2.app.speculate.LegacyTaskRuntimeEstimator;
 import org.apache.hadoop.mapreduce.v2.app.speculate.Speculator;
 import org.apache.hadoop.mapreduce.v2.app.speculate.SpeculatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.speculate.TaskRuntimeEstimator;
+import org.apache.hadoop.yarn.Clock;
+import org.apache.hadoop.yarn.SystemClock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
@@ -690,11 +691,10 @@ public class TestRuntimeEstimators {
     }
   }
 
-  static class MockClock extends Clock {
+  static class MockClock implements Clock {
     private long currentTime = 0;
 
-    @Override
-    long getMeasuredTime() {
+    public long getTime() {
       return currentTime;
     }
 
@@ -712,7 +712,7 @@ public class TestRuntimeEstimators {
       public MyAppMaster(Clock clock) {
         super(MyAppMaster.class.getName());
         if (clock == null) {
-          clock = new Clock();
+          clock = new SystemClock();
         }
       this.clock = clock;
       LOG.info("Created MyAppMaster");
@@ -763,6 +763,11 @@ public class TestRuntimeEstimators {
     @Override
     public CharSequence getUser() {
       throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public Clock getClock() {
+      return clock;
     }
   }
 }

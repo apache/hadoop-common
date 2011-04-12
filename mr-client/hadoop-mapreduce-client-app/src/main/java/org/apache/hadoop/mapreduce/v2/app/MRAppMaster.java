@@ -67,6 +67,8 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.Clock;
+import org.apache.hadoop.yarn.SystemClock;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
@@ -117,14 +119,11 @@ public class MRAppMaster extends CompositeService {
   private Job job;
 
   public MRAppMaster(ApplicationId applicationId) {
-    this(applicationId, null);
+    this(applicationId, new SystemClock());
   }
 
   public MRAppMaster(ApplicationId applicationId, Clock clock) {
     super(MRAppMaster.class.getName());
-    if (clock == null) {
-      clock = new Clock();
-    }
     this.clock = clock;
     this.appID = applicationId;
     LOG.info("Created MRAppMaster for application " + applicationId);
@@ -151,7 +150,8 @@ public class MRAppMaster extends CompositeService {
 
     //service to log job history events
     EventHandler<JobHistoryEvent> historyService = 
-        createJobHistoryHandler(conf);
+        createJobHistoryHandler(context);
+    addIfService(historyService);
 
     JobEventDispatcher synchronousJobEventDispatcher = new JobEventDispatcher();
 
@@ -252,7 +252,8 @@ public class MRAppMaster extends CompositeService {
 
     // create single job
     Job newJob = new JobImpl(appID, conf, dispatcher.getEventHandler(),
-                      taskAttemptListener, jobTokenSecretManager, fsTokens);
+                      taskAttemptListener, jobTokenSecretManager, fsTokens, 
+                      clock);
     ((RunningAppContext) context).jobs.put(newJob.getID(), newJob);
 
     dispatcher.register(JobFinishEvent.Type.class,
@@ -304,9 +305,8 @@ public class MRAppMaster extends CompositeService {
   }
 
   protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
-      Configuration conf) {
-    JobHistoryEventHandler eventHandler = new JobHistoryEventHandler();
-    eventHandler.init(conf);
+      AppContext context) {
+    JobHistoryEventHandler eventHandler = new JobHistoryEventHandler(context);
     return eventHandler;
   }
 
@@ -433,6 +433,10 @@ public class MRAppMaster extends CompositeService {
       return getConfig().get(MRJobConfig.USER_NAME);
     }
 
+    @Override
+    public Clock getClock() {
+      return clock;
+    }
   }
 
   @Override

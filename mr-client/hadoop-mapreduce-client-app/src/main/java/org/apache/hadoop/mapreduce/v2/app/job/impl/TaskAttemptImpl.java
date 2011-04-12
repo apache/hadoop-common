@@ -82,6 +82,7 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
@@ -127,6 +128,7 @@ public abstract class TaskAttemptImpl implements
   protected final int partition;
   protected final EventHandler eventHandler;
   private final TaskAttemptId attemptId;
+  private final Clock clock;
   private final org.apache.hadoop.mapred.JobID oldJobId;
   private final TaskAttemptListener taskAttemptListener;
   private final OutputCommitter committer;
@@ -378,9 +380,10 @@ public abstract class TaskAttemptImpl implements
       TaskAttemptListener taskAttemptListener, Path jobFile, int partition,
       Configuration conf, String[] dataLocalHosts, OutputCommitter committer,
       Token<JobTokenIdentifier> jobToken,
-      Collection<Token<? extends TokenIdentifier>> fsTokens) {
+      Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock) {
     oldJobId = TypeConverter.fromYarn(taskId.getJobId());
     this.conf = conf;
+    this.clock = clock;
     attemptId = recordFactory.newRecordInstance(TaskAttemptId.class);
     attemptId.setTaskId(taskId);
     attemptId.setId(i);
@@ -811,7 +814,7 @@ public abstract class TaskAttemptImpl implements
   private void setFinishTime() {
     //set the finish time only if launch time is set
     if (launchTime != 0) {
-      finishTime = System.currentTimeMillis();
+      finishTime = clock.getTime();
     }
   }
 
@@ -917,7 +920,7 @@ public abstract class TaskAttemptImpl implements
     public void transition(TaskAttemptImpl taskAttempt, 
         TaskAttemptEvent event) {
       //set the launch time
-      taskAttempt.launchTime = System.currentTimeMillis();
+      taskAttempt.launchTime = taskAttempt.clock.getTime();
       // register it to TaskAttemptListener so that it start listening
       // for it
       taskAttempt.taskAttemptListener.register(
@@ -931,7 +934,7 @@ public abstract class TaskAttemptImpl implements
           (new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), tase));
       taskAttempt.eventHandler.handle
           (new SpeculatorEvent
-              (taskAttempt.attemptId, true, System.currentTimeMillis()));
+              (taskAttempt.attemptId, true, taskAttempt.clock.getTime()));
       //make remoteTask reference as null as it is no more needed
       //and free up the memory
       taskAttempt.remoteTask = null;
@@ -1143,7 +1146,7 @@ public abstract class TaskAttemptImpl implements
       // send event to speculator about the reported status
       taskAttempt.eventHandler.handle
           (new SpeculatorEvent
-              (taskAttempt.reportedStatus, System.currentTimeMillis()));
+              (taskAttempt.reportedStatus, taskAttempt.clock.getTime()));
       
       //add to diagnostic
       taskAttempt.addDiagnosticInfo(newReportedStatus.diagnosticInfo);

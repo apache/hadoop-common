@@ -29,6 +29,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptDiagnosticsUpdateEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
 
@@ -49,14 +50,16 @@ public class TaskHeartbeatHandler extends AbstractService {
   private volatile boolean stopped;
   private int taskTimeOut = 5*60*1000;//5 mins
 
-  private EventHandler eventHandler;
+  private final EventHandler eventHandler;
+  private final Clock clock;
 
   private Map<TaskAttemptId, Long> runningAttempts 
     = new HashMap<TaskAttemptId, Long>();
 
-  public TaskHeartbeatHandler(EventHandler eventHandler) {
+  public TaskHeartbeatHandler(EventHandler eventHandler, Clock clock) {
     super("TaskHeartbeatHandler");
     this.eventHandler = eventHandler;
+    this.clock = clock;
   }
 
   @Override
@@ -82,12 +85,12 @@ public class TaskHeartbeatHandler extends AbstractService {
   public synchronized void receivedPing(TaskAttemptId attemptID) {
     //only put for the registered attempts
     if (runningAttempts.containsKey(attemptID)) {
-      runningAttempts.put(attemptID, System.currentTimeMillis());
+      runningAttempts.put(attemptID, clock.getTime());
     }
   }
 
   public synchronized void register(TaskAttemptId attemptID) {
-    runningAttempts.put(attemptID, System.currentTimeMillis());
+    runningAttempts.put(attemptID, clock.getTime());
   }
 
   public synchronized void unregister(TaskAttemptId attemptID) {
@@ -104,7 +107,7 @@ public class TaskHeartbeatHandler extends AbstractService {
             runningAttempts.entrySet().iterator();
 
           //avoid calculating current time everytime in loop
-          long currentTime = System.currentTimeMillis();
+          long currentTime = clock.getTime();
 
           while (iterator.hasNext()) {
             Map.Entry<TaskAttemptId, Long> entry = iterator.next();

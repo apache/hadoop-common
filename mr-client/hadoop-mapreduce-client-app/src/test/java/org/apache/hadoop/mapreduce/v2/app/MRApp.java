@@ -60,6 +60,7 @@ import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleaner;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
 import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -179,13 +180,8 @@ public class MRApp extends MRAppMaster {
 
   public Job createJob(Configuration conf) {
     Job newJob = new TestJob(getAppID(), getDispatcher().getEventHandler(),
-                             getTaskAttemptListener());
+                             getTaskAttemptListener(), getContext().getClock());
     ((AppContext) getContext()).getAllJobs().put(newJob.getID(), newJob);
-
-    // FIXME?  why does this work?  MRAppMaster init() already registered one...
-    getDispatcher().register(
-        org.apache.hadoop.mapreduce.jobhistory.EventType.class,
-        createJobHistoryHandler(getConfig()));
 
     getDispatcher().register(JobFinishEvent.Type.class,
         new EventHandler<JobFinishEvent>() {
@@ -312,9 +308,9 @@ public class MRApp extends MRAppMaster {
     }
 
     public TestJob(ApplicationId appID, EventHandler eventHandler,
-        TaskAttemptListener taskAttemptListener) {
+        TaskAttemptListener taskAttemptListener, Clock clock) {
       super(appID, new Configuration(), eventHandler, taskAttemptListener,
-          new JobTokenSecretManager(), new Credentials());
+          new JobTokenSecretManager(), new Credentials(), clock);
 
       // This "this leak" is okay because the retained pointer is in an
       //  instance variable.
