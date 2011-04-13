@@ -1,29 +1,21 @@
-<?xml version="1.0"?><project>
+<?xml version="1.0"?>
+<project>
   <parent>
     <artifactId>hadoop-mapreduce-client</artifactId>
     <groupId>org.apache.hadoop</groupId>
-    <version>${yarn.version}</version>
+    <version>${hadoop-mapreduce.version}</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.hadoop</groupId>
   <artifactId>hadoop-mapreduce-client-jobclient</artifactId>
   <name>hadoop-mapreduce-client-jobclient</name>
-  <version>${yarn.version}</version>
-  <url>http://maven.apache.org</url>
+  <version>${hadoop-mapreduce.version}</version>
+
+  <properties>
+    <install.file>${project.artifact.file}</install.file>
+  </properties>
 
   <dependencies>
-    <!-- begin MNG-4223 workaround -->
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>yarn-api</artifactId>
-      <version>${yarn.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>yarn-common</artifactId>
-      <version>${yarn.version}</version>
-    </dependency>
-    <!-- end MNG-4223 workaround -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-mapreduce-client-common</artifactId>
@@ -37,7 +29,6 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-mapreduce-client-app</artifactId>
-      <version>${yarn.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -56,19 +47,16 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-server-nodemanager</artifactId>
-      <version>${yarn.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-server-resourcemanager</artifactId>
-      <version>${yarn.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-server-common</artifactId>
-      <version>${yarn.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>

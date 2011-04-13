@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
-  <groupId>org.apache.hadoop.mapreduce</groupId>
+  <groupId>org.apache.hadoop</groupId>
   <artifactId>hadoop-mapreduce</artifactId>
   <version>${hadoop-mapreduce.version}</version>
   <packaging>pom</packaging>
-
   <name>hadoop-mapreduce</name>
-  <url>http://maven.apache.org</url>
+  <url>http://hadoop.apache.org/mapreduce/</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -17,11 +15,21 @@
     <hadoop-common.version>0.22.0-SNAPSHOT</hadoop-common.version>
     <hadoop-hdfs.version>0.22.0-SNAPSHOT</hadoop-hdfs.version>
     <hadoop-mapreduce.version>1.0-SNAPSHOT</hadoop-mapreduce.version>
+    <yarn.version>1.0-SNAPSHOT</yarn.version>
+    <install.file>${project.build.directory}/pom.xml</install.file>
   </properties>
 
+  <repositories>
+    <repository>
+      <id>repository.jboss.org</id>
+      <url>http://repository.jboss.org/nexus/content/groups/public/</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
+
   <dependencies>
-    <!-- The Avro dependency must be defined before hadoop-common to override 
-    the transitive dependency on avro in hadoop-common. -->
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java</artifactId>
@@ -108,7 +116,7 @@
       <version>3.2.3.Final</version>
     </dependency>
   </dependencies>
-  
+
   <build>
     <pluginManagement>
       <plugins>
@@ -117,20 +125,127 @@
           <artifactId>findbugs-maven-plugin</artifactId>
           <version>2.3.1</version>
         </plugin>
+        <plugin>
+          <artifactId>maven-clean-plugin</artifactId>
+          <version>2.4.1</version>
+        </plugin>
+        <plugin>
+          <groupId>com.atlassian.maven.plugins</groupId>
+          <artifactId>maven-clover2-plugin</artifactId>
+          <version>3.0.2</version>
+          <configuration>
+            <licenseLocation>/home/y/conf/clover/clover.license</licenseLocation>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <!-- pre 2.1 ignores project.build.sourceEncoding -->
+          <version>2.3.2</version>
+          <configuration>
+            <source>1.6</source>
+            <target>1.6</target>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <!-- requires 2.5+ to make system properties work -->
+          <!-- requires 2.7+ to avoid SUREFIRE-640 -->
+          <version>2.7.2</version>
+          <configuration>
+            <failIfNoTests>false</failIfNoTests>
+            <redirectTestOutputToFile>${test.logs}</redirectTestOutputToFile>
+            <forkedProcessTimeoutInSeconds>${test.timeout}</forkedProcessTimeoutInSeconds>
+            <environmentVariables>
+              <JAVA_HOME>${java.home}</JAVA_HOME>
+            </environmentVariables>
+            <systemPropertyVariables>
+              <build.dir>${project.build.directory}</build.dir>
+              <build.output.dir>${project.build.outputDirectory}</build.output.dir>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <version>2.2.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-antrun-plugin</artifactId>
+          <version>1.6</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>exec-maven-plugin</artifactId>
+          <version>1.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>build-helper-maven-plugin</artifactId>
+          <version>1.5</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>2.3.1</version>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <!-- pre 2.1 ignores project.build.sourceEncoding -->
-        <version>2.3.2</version>
-        <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
-        </configuration>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>santize-pom</id>
+            <phase>package</phase>
+            <configuration>
+              <target>
+                <copy file="pom.xml" todir="${project.build.directory}">
+                  <filterchain>
+                    <!-- we'll have to wait for ant 1.8.3 for the following
+                    <expandproperties>
+                      <propertyset regex=".*version$">
+                      </propertyset>
+                    </expandproperties>
+                    until then an even uglier workaround: -->
+                    <tokenfilter>
+                      <replaceregex pattern="\$\{hadoop-common.version}"
+                          replace="${hadoop-common.version}" flags="g"/>
+                      <replaceregex pattern="\$\{hadoop-hdfs.version}"
+                          replace="${hadoop-hdfs.version}" flags="g"/>
+                      <replaceregex pattern="\$\{hadoop-mapreduce.version}"
+                          replace="${hadoop-mapreduce.version}" flags="g"/>
+                      <replaceregex pattern="\$\{yarn.version}"
+                          replace="${yarn.version}" flags="g"/>
+                    </tokenfilter>
+                  </filterchain>
+                </copy>
+              </target>
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
-
+      <plugin>
+        <artifactId>maven-install-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>install-sanitized-pom</id>
+            <configuration>
+              <file>${install.file}</file>
+              <pomFile>${project.build.directory}/pom.xml</pomFile>
+            </configuration>
+            <phase>install</phase>
+            <goals>
+              <goal>install-file</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
         <configuration>
@@ -140,44 +255,9 @@
           </descriptors>
         </configuration>
       </plugin>
-     
-      <plugin>
-       <artifactId>maven-clean-plugin</artifactId>
-       <version>2.4.1</version>
-      </plugin>
-      
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <!-- requires 2.5+ to make system properties work -->
-        <!-- requires 2.7+ to avoid SUREFIRE-640 -->
-        <version>2.7.2</version>
-        <configuration>
-          <failIfNoTests>false</failIfNoTests>
-          <redirectTestOutputToFile>${test.logs}</redirectTestOutputToFile>
-          <forkedProcessTimeoutInSeconds>${test.timeout}</forkedProcessTimeoutInSeconds>
-          <environmentVariables>
-            <JAVA_HOME>${java.home}</JAVA_HOME>
-          </environmentVariables>
-          <systemPropertyVariables>
-            <build.dir>${project.build.directory}</build.dir>
-            <build.output.dir>${project.build.outputDirectory}</build.output.dir>
-          </systemPropertyVariables>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>findbugs-maven-plugin</artifactId>
-        <version>2.3.1</version>
-      </plugin>
       <plugin>
         <groupId>com.atlassian.maven.plugins</groupId>
         <artifactId>maven-clover2-plugin</artifactId>
-        <version>3.0.2</version>
-        <configuration>
-          <licenseLocation>/home/y/conf/clover/clover.license</licenseLocation>
-        </configuration>
         <executions>
           <execution>
             <goals>
@@ -195,4 +275,19 @@
     <module>mr-client</module>
   </modules>
 
+  <reporting>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>findbugs-maven-plugin</artifactId>
+        <configuration>
+          <findbugsXmlOutput>true</findbugsXmlOutput>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.atlassian.maven.plugins</groupId>
+        <artifactId>maven-clover2-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </reporting>
 </project>

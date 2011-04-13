@@ -1,10 +1,5 @@
 <?xml version="1.0"?>
 <project>
-
-  <properties>
-    <yarn.version>1.0-SNAPSHOT</yarn.version>
-  </properties>
-
   <parent>
     <artifactId>yarn-server</artifactId>
     <groupId>org.apache.hadoop</groupId>
@@ -15,30 +10,15 @@
   <artifactId>yarn-server-nodemanager</artifactId>
   <name>yarn-server-nodemanager</name>
   <version>${yarn.version}</version>
-  <url>http://maven.apache.org</url>
+
+  <properties>
+    <install.file>${project.artifact.file}</install.file>
+  </properties>
 
   <dependencies>
-    <!-- begin MNG-4223 workaround -->
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>yarn-api</artifactId>
-      <version>${yarn.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>yarn-common</artifactId>
-      <version>${yarn.version}</version>
-    </dependency>
-    <!-- end MNG-4223 workaround -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-server-common</artifactId>
-      <version>${yarn.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
-      <version>2.4.0a</version>
     </dependency>
   </dependencies>
 
@@ -115,45 +95,30 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <systemProperties>
+          <systemPropertyVariables>
             <property>
               <name>container-executor-path</name>
               <value></value>
             </property>
-          </systemProperties>
+          </systemPropertyVariables>
           <excludes>
             <exclude>**/TestFSDownload.java</exclude>
           </excludes>
         </configuration>
       </plugin>
-      <!--plugin>
-        <groupId>org.apache.avro</groupId>
-        <artifactId>avro-maven-plugin</artifactId>
-        <version>1.4.0-SNAPSHOT</version>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>compile</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin-->
 
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
         <executions>
           <execution>
-            <id>create_generate_src_dirctory</id>
+            <id>create-protobuf-generated-sources-directory</id>
             <phase>initialize</phase>
             <configuration>
-              <tasks>
+              <target>
                 <mkdir dir="target/generated-sources/proto" />
-              </tasks>
+              </target>
             </configuration>
             <goals>
               <goal>run</goal>
@@ -165,7 +130,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>1.2</version>
         <executions>
           <execution>
             <id>generate-sources</id>
@@ -190,7 +154,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.5</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -206,7 +169,6 @@
           </execution>
         </executions>
       </plugin>
-
     </plugins>
   </build>
 </project>

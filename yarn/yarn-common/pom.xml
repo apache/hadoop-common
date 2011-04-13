@@ -1,9 +1,5 @@
-<?xml version="1.0"?><project>
-
-  <properties>
-    <yarn.version>1.0-SNAPSHOT</yarn.version>
-  </properties>
-
+<?xml version="1.0"?>
+<project>
   <parent>
     <artifactId>yarn</artifactId>
     <groupId>org.apache.hadoop</groupId>
@@ -14,48 +10,42 @@
   <artifactId>yarn-common</artifactId>
   <name>yarn-common</name>
   <version>${yarn.version}</version>
-  <url>http://maven.apache.org</url>
+
+  <properties>
+    <install.file>${project.artifact.file}</install.file>
+  </properties>
 
   <dependencies>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-api</artifactId>
-      <version>${yarn.version}</version>
     </dependency>
-    <dependency>
-          <groupId>com.google.protobuf</groupId>
-          <artifactId>protobuf-java</artifactId>
-          <version>2.4.0a</version>
-      </dependency>
   </dependencies>
 
   <build>
     <plugins>
-     <plugin>
-       <groupId>org.apache.maven.plugins</groupId>
-       <artifactId>maven-jar-plugin</artifactId>
-       <version>2.3.1</version>
-       <executions>
-         <execution>
-           <goals>
-             <goal>test-jar</goal>
-           </goals>
-           <phase>test-compile</phase>
-         </execution>
-       </executions>
-     </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <phase>test-compile</phase>
+          </execution>
+        </executions>
+      </plugin>
      
-          <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
+      <plugin>
         <artifactId>maven-antrun-plugin</artifactId>
         <executions>
           <execution>
-            <id>create_generate_src_dirctory</id>
+            <id>create-protobuf-generated-sources-directory</id>
             <phase>initialize</phase>
             <configuration>
-              <tasks>
+              <target>
                 <mkdir dir="target/generated-sources/proto" />
-              </tasks>
+              </target>
             </configuration>
             <goals>
               <goal>run</goal>
@@ -67,7 +57,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>1.2</version>
         <executions>
           <execution>
             <id>generate-sources</id>
@@ -91,7 +80,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.5</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -107,13 +95,6 @@
           </execution>
         </executions>
       </plugin>
-     
-     
-     
-     
-     
-     
-     
     </plugins>
   </build>
 </project>

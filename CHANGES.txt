@@ -10,6 +10,8 @@ Trunk (unreleased changes)
     Add HistoryCleanerService to Job History server. (Krishna Ramachandran
     via sharad)
 
+   Install sanitized poms for downstream sanity (Luke Lu via mahadev)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class

@@ -9,70 +9,35 @@
   <groupId>org.apache.hadoop</groupId>
   <artifactId>yarn-server-common</artifactId>
   <name>yarn-server-common</name>
+  <version>${yarn.version}</version>
 
   <properties>
-    <yarn.version>1.0-SNAPSHOT</yarn.version>
+    <install.file>${project.artifact.file}</install.file>
   </properties>
-
-  <version>${yarn.version}</version>
-  <url>http://maven.apache.org</url>
 
   <dependencies>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-common</artifactId>
-      <version>${yarn.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.zookeeper</groupId>
       <artifactId>zookeeper</artifactId>
-      <version>3.3.1</version>
-      <scope>compile</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>com.sun.jdmk</groupId>
-          <artifactId>jmxtools</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>com.sun.jmx</groupId>
-          <artifactId>jmxri</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
-      <version>2.4.0a</version>
     </dependency>
   </dependencies>
 
   <build>
     <plugins>
-      <!--plugin>
-        <groupId>org.apache.avro</groupId>
-        <artifactId>avro-maven-plugin</artifactId>
-        <version>1.4.0-SNAPSHOT</version>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>compile</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin-->
-
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
         <executions>
           <execution>
-            <id>create_generate_src_dirctory</id>
+            <id>create-protobuf-generated-sources-directory</id>
             <phase>initialize</phase>
             <configuration>
-              <tasks>
+              <target>
                 <mkdir dir="target/generated-sources/proto" />
-              </tasks>
+              </target>
             </configuration>
             <goals>
               <goal>run</goal>
@@ -84,7 +49,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>1.2</version>
         <executions>
           <execution>
             <id>generate-sources</id>
@@ -110,7 +74,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.5</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -126,10 +89,6 @@
           </execution>
         </executions>
       </plugin>
-
-
-
-
     </plugins>
   </build>
 </project>

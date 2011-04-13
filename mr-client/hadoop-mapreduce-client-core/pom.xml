@@ -1,29 +1,34 @@
-<?xml version="1.0"?><project>
+<?xml version="1.0"?>
+<project>
   <parent>
     <artifactId>hadoop-mapreduce-client</artifactId>
     <groupId>org.apache.hadoop</groupId>
-    <version>${yarn.version}</version>
+    <version>${hadoop-mapreduce.version}</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.hadoop</groupId>
   <artifactId>hadoop-mapreduce-client-core</artifactId>
-  <name>hadoop-mapreduce-client</name>
-  <version>${yarn.version}</version>
+  <name>hadoop-mapreduce-client-core</name>
+  <version>${hadoop-mapreduce.version}</version>
   <url>http://maven.apache.org</url>
 
   <properties>
-    <yarn.version>1.0-SNAPSHOT</yarn.version>
+    <install.file>${project.artifact.file}</install.file>
   </properties>
   
   <dependencies>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-common</artifactId> 
-      <version>${yarn.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-hdfs</artifactId>
+      <version>${hadoop-hdfs.version}</version>
     </dependency>
   </dependencies>
 
-<build>
+  <build>
     <plugins>
       <plugin>
         <groupId>org.apache.avro</groupId>
@@ -40,5 +45,4 @@
       </plugin>
     </plugins>
   </build>
-
 </project>

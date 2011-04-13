@@ -1,9 +1,5 @@
-<?xml version="1.0"?><project>
-
-  <properties>
-    <yarn.version>1.0-SNAPSHOT</yarn.version>
-  </properties>
-
+<?xml version="1.0"?>
+<project>
   <parent>
     <artifactId>yarn</artifactId>
     <groupId>org.apache.hadoop</groupId>
@@ -15,16 +11,8 @@
   <name>yarn-server</name>
   <version>${yarn.version}</version>
   <packaging>pom</packaging>
-  <url>http://maven.apache.org</url>
 
   <dependencies>
-    <!-- begin MNG-4223 workaround -->
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>yarn-api</artifactId>
-      <version>${yarn.version}</version>
-    </dependency>
-    <!-- end MNG-4223 workaround -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-common</artifactId>
