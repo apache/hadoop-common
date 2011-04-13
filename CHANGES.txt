@@ -7,6 +7,9 @@ Trunk (unreleased changes)
     Implement 'bin/mapred job -list' and 'bin/mapred job
     -list-active-trackers'. (acmurthy)
 
+    Add HistoryCleanerService to Job History server. (Krishna Ramachandran
+    via sharad)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class

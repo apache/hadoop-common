@@ -33,6 +33,8 @@ import org.apache.hadoop.yarn.service.CompositeService;
  *****************************************************************/
 public class JobHistoryServer extends CompositeService {
   private static final Log LOG = LogFactory.getLog(JobHistoryServer.class);
+  private HistoryClientService clientService;
+  private HistoryCleanerService cleanerService;
 
   static{
     Configuration.addDefaultResource("mapred-default.xml");
@@ -46,15 +48,18 @@ public class JobHistoryServer extends CompositeService {
   public synchronized void init(Configuration conf) {
     Configuration config = new YarnConfiguration(conf);
     HistoryContext history = new JobHistory(conf);
-    addService(new HistoryClientService(history));
-    //TODO: add HistoryCleaner service
+    clientService = new HistoryClientService(history);
+    cleanerService = new HistoryCleanerService(config);
+    addService(clientService);
+    addService(cleanerService);
     super.init(config);
   }
 
   public static void main(String[] args) {
     StringUtils.startupShutdownMessage(JobHistoryServer.class, args, LOG);
+    JobHistoryServer server = null;
     try {
-      JobHistoryServer server = new JobHistoryServer();
+      server = new JobHistoryServer();
       YarnConfiguration conf = new YarnConfiguration(new JobConf());
       server.init(conf);
       server.start();

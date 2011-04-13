@@ -47,4 +47,10 @@ public class YarnMRJobConfig {
 
   public static final String HISTORY_DONE_DIR_KEY =
        "yarn.historyfile.doneDir";
+  public static final String HISTORY_MAXAGE =
+	  "yarn.historyfile.maxage";
+  public static final String HS_WEBAPP_BIND_ADDRESS = HS_PREFIX +
+      "address.webapp";
+  public static final String DEFAULT_HS_WEBAPP_BIND_ADDRESS =
+	  "0.0.0.0:19888";
 }
