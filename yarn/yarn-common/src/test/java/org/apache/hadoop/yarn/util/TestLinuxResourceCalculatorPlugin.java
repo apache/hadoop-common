@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapreduce.util;
+package org.apache.hadoop.yarn.util;
 
 import java.io.File;
 import java.io.FileWriter;

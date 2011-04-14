@@ -34,7 +34,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapred.TaskController;
-import org.apache.hadoop.mapreduce.util.TestProcfsBasedProcessTree;
+import org.apache.hadoop.yarn.util.TestProcfsBasedProcessTree;
 
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Shell;

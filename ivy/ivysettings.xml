@@ -36,7 +36,7 @@
   <property name="maven2.pattern.ext"  value="${maven2.pattern}.[ext]"/>
   <property name="resolvers" value="default" override="false"/>
   <property name="force-resolve" value="false" override="false"/>
-  <settings defaultResolver="${resolvers}"/>
+  <settings defaultResolver="${resolvers}" validate="false"/>
 
   <resolvers>
     <ibiblio name="maven2" root="${repo.maven.org}" pattern="${maven2.pattern.ext}" m2compatible="true"/>
@@ -44,7 +44,7 @@
         checkmodified="true" changingPattern=".*SNAPSHOT"/>
 
     <filesystem name="fs" m2compatible="true" force="${force-resolve}">
-       <artifact pattern="${repo.dir}/[organisation]/[module]/[revision]/[module]-[revision].[ext]"/>
+       <artifact pattern="${repo.dir}/[organisation]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"/>
        <ivy pattern="${repo.dir}/[organisation]/[module]/[revision]/[module]-[revision].pom"/>
     </filesystem>
 
