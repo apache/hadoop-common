@@ -39,7 +39,8 @@ import org.junit.Test;
 
 public class TestMRJobsWithHistoryService {
 
-  private static final Log LOG = LogFactory.getLog(TestMRJobs.class);
+  private static final Log LOG =
+    LogFactory.getLog(TestMRJobsWithHistoryService.class);
 
   private static MiniMRYarnCluster mrCluster;
 

@@ -12,6 +12,8 @@ Trunk (unreleased changes)
 
    Install sanitized poms for downstream sanity (Luke Lu via mahadev)
 
+   WebApp for Job History (Krishna Ramachandran via mahadev)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class

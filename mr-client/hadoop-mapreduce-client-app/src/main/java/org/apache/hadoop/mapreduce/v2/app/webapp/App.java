@@ -26,7 +26,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 
 @RequestScoped
-class App {
+public class App {
   final AppContext context;
   Job job;
   Task task;

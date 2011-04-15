@@ -35,13 +35,19 @@ import com.google.inject.Inject;
 
 public class AppController extends Controller implements AMParams {
   final App app;
-
-  @Inject AppController(App app, Configuration conf, RequestContext ctx) {
+  
+  protected AppController(App app, Configuration conf, RequestContext ctx,
+      String title) {
     super(ctx);
     this.app = app;
     set(APP_ID, Apps.toString(app.context.getApplicationID()));
-    set(RM_WEB, join("http://", 
-        conf.get(YarnConfiguration.RM_WEBAPP_BIND_ADDRESS, "localhost:8888")));
+    set(RM_WEB, join("http://", conf.get(
+        YarnConfiguration.RM_WEBAPP_BIND_ADDRESS, "localhost:8888")));
+  }
+
+  @Inject
+  protected AppController(App app, Configuration conf, RequestContext ctx) {
+    this(app, conf, ctx, "am");
   }
 
   @Override public void index() {

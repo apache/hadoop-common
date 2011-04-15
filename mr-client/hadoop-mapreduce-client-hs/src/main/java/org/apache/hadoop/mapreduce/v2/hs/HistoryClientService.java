@@ -57,8 +57,10 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
+import org.apache.hadoop.mapreduce.v2.hs.webapp.HSWebApp;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -66,6 +68,7 @@ import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.webapp.WebApp;
+import org.apache.hadoop.yarn.webapp.WebApps;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 
 /**
@@ -92,6 +95,7 @@ public class HistoryClientService extends AbstractService {
   public void start() {
     Configuration conf = new Configuration(getConfig());
     YarnRPC rpc = YarnRPC.create(conf);
+    initializeWebApp(conf);
     String serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
         YarnMRJobConfig.DEFAULT_HS_BIND_ADDRESS);
     InetSocketAddress address = NetUtils.createSocketAddr(serviceAddr);
@@ -114,6 +118,13 @@ public class HistoryClientService extends AbstractService {
     
     //TODO: start webApp on fixed port ??
     super.start();
+  }
+
+  private void initializeWebApp(Configuration conf) {
+    webApp = new HSWebApp(history);
+    String bindAddress = conf.get(YarnMRJobConfig.HS_WEBAPP_BIND_ADDRESS,
+        YarnMRJobConfig.DEFAULT_HS_WEBAPP_BIND_ADDRESS);
+    WebApps.$for("yarn", this).at(bindAddress).start(webApp); 
   }
 
   @Override
@@ -182,7 +193,6 @@ public class HistoryClientService extends AbstractService {
       int maxEvents = request.getMaxEvents();
       
       Job job = getJob(jobId);
-      
       GetTaskAttemptCompletionEventsResponse response = recordFactory.newRecordInstance(GetTaskAttemptCompletionEventsResponse.class);
       response.addAllCompletionEvents(Arrays.asList(job.getTaskAttemptCompletionEvents(fromEventId, maxEvents)));
       return response;
@@ -241,4 +251,5 @@ public class HistoryClientService extends AbstractService {
     }
 
   }
+
 }

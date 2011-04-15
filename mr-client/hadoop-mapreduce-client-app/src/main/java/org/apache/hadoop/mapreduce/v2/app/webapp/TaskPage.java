@@ -32,7 +32,7 @@ import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
 import static org.apache.hadoop.yarn.util.StringHelper.*;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
 
-class TaskPage extends AppView {
+public class TaskPage extends AppView {
 
   static class AttemptsBlock extends HtmlBlock {
     final App app;
