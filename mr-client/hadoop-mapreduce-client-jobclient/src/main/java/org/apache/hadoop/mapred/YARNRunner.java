@@ -335,6 +335,7 @@ public class YARNRunner implements ClientProtocol {
     vargs.add("org.apache.hadoop.mapreduce.v2.app.MRAppMaster");
     vargs.add(String.valueOf(applicationId.getClusterTimestamp()));
     vargs.add(String.valueOf(applicationId.getId()));
+    vargs.add(YarnConfiguration.AM_FAIL_COUNT_STRING);
     vargs.add("1>logs/stdout");
     vargs.add("2>logs/stderr");
 

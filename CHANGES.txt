@@ -21,6 +21,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-2424. Polish uber-AppMaster: add uber-AM counters and GUI
     indicators.  (Greg Roelofs via mahadev)
+   
+    Add fail count to the command line of the application master. (mahadev)
 
   
   INCOMPATIBLE CHANGES

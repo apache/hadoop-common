@@ -117,11 +117,17 @@ public class MRAppMaster extends CompositeService {
       new JobTokenSecretManager();
 
   private Job job;
-
+  private int failCount = 0;
+  
   public MRAppMaster(ApplicationId applicationId) {
     this(applicationId, new SystemClock());
   }
-
+  
+  public MRAppMaster(ApplicationId applicationId, int failCount) {
+    this(applicationId);
+    this.failCount = failCount;
+  }
+  
   public MRAppMaster(ApplicationId applicationId, Clock clock) {
     super(MRAppMaster.class.getName());
     this.clock = clock;
@@ -496,7 +502,8 @@ public class MRAppMaster extends CompositeService {
       
       applicationId.setClusterTimestamp(Long.valueOf(args[0]));
       applicationId.setId(Integer.valueOf(args[1]));
-      MRAppMaster appMaster = new MRAppMaster(applicationId);
+      int failCount = Integer.valueOf(args[2]);
+      MRAppMaster appMaster = new MRAppMaster(applicationId, failCount);
       YarnConfiguration conf = new YarnConfiguration(new JobConf());
       conf.addResource(new Path(YARNApplicationConstants.JOB_CONF_FILE));
       conf.set(MRJobConfig.USER_NAME, 

@@ -25,6 +25,8 @@ public class YarnConfiguration extends Configuration {
 
   public static final String RM_PREFIX = "yarn.server.resourcemanager.";
   
+  public static final String AM_FAIL_COUNT_STRING = "<FAILCOUNT>";
+  
   public static final String SCHEDULER_ADDRESS = RM_PREFIX
       + "scheduler.address";    
   

@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.crypto.SecretKey;
@@ -169,9 +171,17 @@ public class AMLauncher implements Runnable {
     ContainerLaunchContext container = recordFactory.newRecordInstance(ContainerLaunchContext.class);
     container.addAllCommands(applicationMasterContext.getCommandList());
     StringBuilder mergedCommand = new StringBuilder();
+    String failCount = Integer.toString(master.getFailedCount());
+    List<String> commandList = new ArrayList<String>();
     for (String str : container.getCommandList()) {
-      mergedCommand.append(str).append(" ");
+      String result = str.replaceFirst(YarnConfiguration.AM_FAIL_COUNT_STRING, failCount);
+      mergedCommand.append(result).append(" ");
+      commandList.add(result);
     }
+    container.clearCommands();
+    container.addAllCommands(commandList);
+    /** add the failed count to the app master command line */
+   
     LOG.info("Command to launch container " + 
         containerID + " : " + mergedCommand);
     container.addAllEnv(applicationMasterContext.getAllEnvironment());
