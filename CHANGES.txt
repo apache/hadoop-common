@@ -13,6 +13,8 @@ Trunk (unreleased changes)
    Install sanitized poms for downstream sanity (Luke Lu via mahadev)
 
    WebApp for Job History (Krishna Ramachandran via mahadev)
+  
+   Fix YarnRemoteException to give more details. (siddharth seth via mahadev)
 
   INCOMPATIBLE CHANGES
 
