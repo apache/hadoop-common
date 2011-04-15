@@ -16,6 +16,13 @@ Trunk (unreleased changes)
   
    Fix YarnRemoteException to give more details. (siddharth seth via mahadev)
 
+    MAPREDUCE-2405. Implement uber-AppMaster (in-cluster LocalJobRunner for
+    MRv2). (Greg Roelofs and Sharad Agarwal via mahadev)
+
+    MAPREDUCE-2424. Polish uber-AppMaster: add uber-AM counters and GUI
+    indicators.  (Greg Roelofs via mahadev)
+
+  
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class
@@ -431,7 +438,7 @@ Release 0.21.0 - 2010-08-13
   NEW FEATURES
 
     MAPREDUCE-1774. Large-scale Automated Framework (Sharad Agarwal, Sreekanth
-    Ramakrishnan, Konstantin Boudnik, at all via cos)
+    Ramakrishnan, Konstantin Boudnik, et al. via cos)
 
     MAPREDUCE-706. Support for FIFO pools in the fair scheduler.
     (Matei Zaharia)

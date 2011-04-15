@@ -265,7 +265,7 @@ public class YARNRunner implements ClientProtocol {
     appContext.setApplicationId(applicationId);
     Resource capability = recordFactory.newRecordInstance(Resource.class);
     capability.setMemory(conf.getInt(YARN_AM_VMEM_MB, DEFAULT_YARN_AM_VMEM_MB));
-    LOG.info("Master capability = " + capability);
+    LOG.info("AppMaster capability = " + capability);
     appContext.setMasterCapability(capability);
 
     FileContext defaultFS = FileContext.getFileContext(conf);

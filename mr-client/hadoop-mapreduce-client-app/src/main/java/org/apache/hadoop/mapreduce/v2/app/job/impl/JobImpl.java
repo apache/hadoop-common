@@ -122,7 +122,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   // Maximum no. of fetch-failure notifications after which map task is failed
   private static final int MAX_FETCH_FAILURES_NOTIFICATIONS = 3;
 
-  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  private final RecordFactory recordFactory =
+      RecordFactoryProvider.getRecordFactory(null);
   
   //final fields
   private final Clock clock;
@@ -131,14 +132,25 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private final JobId jobId;
   private final org.apache.hadoop.mapreduce.JobID oldJobId;
   private final TaskAttemptListener taskAttemptListener;
-  private boolean lazyTasksCopyNeeded = false;
   private final Object tasksSyncHandle = new Object();
-  private volatile Map<TaskId, Task> tasks = new LinkedHashMap<TaskId, Task>();
   private final Set<TaskId> mapTasks = new LinkedHashSet<TaskId>();
   private final Set<TaskId> reduceTasks = new LinkedHashSet<TaskId>();
   private final EventHandler eventHandler;
+
+  private boolean lazyTasksCopyNeeded = false;
+  private volatile Map<TaskId, Task> tasks = new LinkedHashMap<TaskId, Task>();
+  private Counters jobCounters = newCounters();
+    // FIXME:  support job-level counters
+    //
+    // Presumably want to define new event type that job-related entities
+    // (e.g., MRAppMaster or LocalContainerLauncher) can emit with some sort
+    // of payload (maybe just Counters?); then define new Job state-machine
+    // transition to handle the event and update jobCounters with payload data.
+    // Can then replace task-level uber counters (MR-2424) with job-level ones
+    // sent from LocalContainerLauncher, and eventually including a count of
+    // of uber-AM attempts (probably sent from MRAppMaster).
   public Configuration conf;
-  
+
   //fields initialized in init
   private FileSystem fs;
   private Path remoteJobSubmitDir;
@@ -404,9 +416,10 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   @Override
   public Counters getCounters() {
     Counters counters = newCounters();
-    // TODO: compute job level counters
+    // TODO: compute job-level counters
     readLock.lock();
     try {
+      incrAllCounters(counters, jobCounters);
       return incrTaskCounters(counters, tasks.values());
     } finally {
       readLock.unlock();
@@ -414,7 +427,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   }
 
   public static Counters newCounters() {
-    Counters counters = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counters.class);
+    Counters counters = RecordFactoryProvider.getRecordFactory(null)
+        .newRecordInstance(Counters.class);
 //    counters.groups = new HashMap<String, CounterGroup>();
     return counters;
   }
@@ -432,7 +446,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       for (CounterGroup otherGroup: other.getAllCounterGroups().values()) {
         CounterGroup group = counters.getCounterGroup(otherGroup.getName());
         if (group == null) {
-          group = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CounterGroup.class);
+          group = RecordFactoryProvider.getRecordFactory(null)
+              .newRecordInstance(CounterGroup.class);
 //          group.counters = new HashMap<CharSequence, Counter>();
           group.setName(otherGroup.getName());
           counters.setCounterGroup(group.getName(), group);
@@ -441,7 +456,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         for (Counter otherCounter : otherGroup.getAllCounters().values()) {
           Counter counter = group.getCounter(otherCounter.getName());
           if (counter == null) {
-            counter = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counter.class);
+            counter = RecordFactoryProvider.getRecordFactory(null)
+                .newRecordInstance(Counter.class);
             counter.setName(otherCounter.getName());
             group.setCounter(counter.getName(), counter);
           }

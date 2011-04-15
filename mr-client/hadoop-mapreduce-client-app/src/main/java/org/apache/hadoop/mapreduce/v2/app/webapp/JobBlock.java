@@ -72,6 +72,7 @@ public class JobBlock extends HtmlBlock {
     info("Job Overview").
         _("Job Name:", job.getName()).
         _("State:", job.getState()).
+        _("Uberized:", job.isUber()).
         _("Started:", new Date(jobReport.getStartTime())).
         _("Elapsed:", StringUtils.formatTime(System.currentTimeMillis()
                                              - jobReport.getStartTime()));

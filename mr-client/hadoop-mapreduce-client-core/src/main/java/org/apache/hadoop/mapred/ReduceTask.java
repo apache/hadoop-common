@@ -367,6 +367,11 @@ public class ReduceTask extends Task {
     boolean useNewApi = job.getUseNewReducer();
     initialize(job, getJobID(), reporter, useNewApi);
 
+    if (job.getBoolean("mapreduce.task.uberized", false)) {
+      reporter.getCounter(TaskCounter.NUM_UBER_AM_REDUCES).increment(1);
+      // or getCounters().findCounter( ... ).increment(1);
+    }
+
     // check if it is a cleanupJobTask
     if (jobCleanup) {
       runJobCleanupTask(umbilical, reporter);

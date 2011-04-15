@@ -325,6 +325,11 @@ class MapTask extends Task {
     boolean useNewApi = job.getUseNewMapper();
     initialize(job, getJobID(), reporter, useNewApi);
 
+    if (job.getBoolean("mapreduce.task.uberized", false)) {
+      reporter.getCounter(TaskCounter.NUM_UBER_AM_MAPS).increment(1);
+      // or getCounters().findCounter( ... ).increment(1);
+    }
+
     // check if it is a cleanupJobTask
     if (jobCleanup) {
       runJobCleanupTask(umbilical, reporter);

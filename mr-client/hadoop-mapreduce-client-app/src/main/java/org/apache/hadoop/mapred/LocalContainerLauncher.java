@@ -138,7 +138,7 @@ public class LocalContainerLauncher extends AbstractService implements
    *     - creates "remoteTask" for us == real Task
    *     - sends CONTAINER_REMOTE_LAUNCH
    *     - TA: UNASSIGNED -> ASSIGNED
-   * - CONTAINER_REMOTE_LAUNCH handled by LocalContainerLauncher (us!)
+   * - CONTAINER_REMOTE_LAUNCH handled by LocalContainerLauncher (us)
    *   - sucks "remoteTask" out of TaskAttemptImpl via getRemoteTask()
    *   - sends TA_CONTAINER_LAUNCHED
    *     [[ elsewhere...
@@ -250,6 +250,13 @@ public class LocalContainerLauncher extends AbstractService implements
 
       try {
         JobConf conf = new JobConf(getConfig());
+
+        // mark this as an uberized subtask so it can set task counter
+        // (longer-term/FIXME:  could redefine as job counter and send
+        // "JobCounterEvent" to JobImpl on [successful] completion of subtask;
+        // will need new Job state-machine transition and JobImpl jobCounters
+        // map to handle)
+        conf.setBoolean("mapreduce.task.uberized", true);
 
         // META-FIXME: do we want the extra sanity-checking (doneWithMaps,
         // etc.), or just assume/hope the state machine(s) and uber-AM work
