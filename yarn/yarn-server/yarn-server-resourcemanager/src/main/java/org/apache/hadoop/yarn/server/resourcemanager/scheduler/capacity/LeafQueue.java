@@ -411,10 +411,12 @@ public class LeafQueue implements Queue {
     // Allow progress for queues with miniscule capacity
     final int queueCapacity = 
       Math.max(
-          divideAndCeil((int)(absoluteCapacity * clusterResource.getMemory()), 
-              minimumAllocation.getMemory()), 
+          divideAndCeil(
+              (int)(absoluteCapacity * clusterResource.getMemory()), 
+              minimumAllocation.getMemory()) 
+              * minimumAllocation.getMemory(),           // round up 
           required.getMemory());
-    
+
     final int consumed = usedResources.getMemory();
     final int currentCapacity = 
       (consumed < queueCapacity) ? queueCapacity : (consumed + required.getMemory());
@@ -443,7 +445,8 @@ public class LeafQueue implements Queue {
           " queueCapacity: " + queueCapacity + 
           " qconsumed: " + consumed +
           " currentCapacity: " + currentCapacity +
-          " activeUsers: " + activeUsers 
+          " activeUsers: " + activeUsers +
+          " clusterCapacity: " + clusterResource.getMemory()
           );
       return false;
     }

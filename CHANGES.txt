@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    Fixed computation of user-limits at runtime. (acmurthy) 
+    
     Implement 'bin/mapred queue [-info [-showJobs]] [-list] and enhanced 
     'bin/mapred job -list' to show queue and ApplicationMaster information. 
     (acmurthy)
