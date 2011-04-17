@@ -869,10 +869,10 @@ public class JobClient extends CLI {
   }
   
   void displayJobList(JobStatus[] jobs) {
-    System.out.printf("JobId\tState\tStartTime\tUserName\tPriority\tSchedulingInfo\n");
+    System.out.printf("JobId\tState\tStartTime\tUserName\tQueue\tPriority\tSchedulingInfo\n");
     for (JobStatus job : jobs) {
-      System.out.printf("%s\t%d\t%d\t%s\t%s\t%s\n", job.getJobID(), job.getRunState(),
-          job.getStartTime(), job.getUsername(), 
+      System.out.printf("%s\t%d\t%d\t%s\t%s\t%s\t%s\n", job.getJobID(), job.getRunState(),
+          job.getStartTime(), job.getUsername(), job.getQueue(), 
           job.getJobPriority().name(), job.getSchedulingInfo());
     }
   }

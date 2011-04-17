@@ -4,6 +4,10 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    Implement 'bin/mapred queue [-info [-showJobs]] [-list] and enhanced 
+    'bin/mapred job -list' to show queue and ApplicationMaster information. 
+    (acmurthy)
+    
     Implement 'bin/mapred job -list' and 'bin/mapred job
     -list-active-trackers'. (acmurthy)
 

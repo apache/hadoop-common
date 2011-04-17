@@ -179,7 +179,7 @@ public class ResourceManager extends CompositeService {
   }
 
   protected ClientRMService createClientRMService() {
-    return new ClientRMService(applicationsManager, rmResourceTracker);
+    return new ClientRMService(applicationsManager, rmResourceTracker, scheduler);
   }
 
   protected ApplicationMasterService createApplicationMasterService() {

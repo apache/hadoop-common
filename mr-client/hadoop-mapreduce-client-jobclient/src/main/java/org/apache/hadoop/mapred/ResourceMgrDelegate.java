@@ -20,6 +20,7 @@ package org.apache.hadoop.mapred;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.logging.Log;
@@ -52,12 +53,12 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -126,12 +127,6 @@ public class ResourceMgrDelegate {
   }
 
 
-  public QueueInfo[] getChildQueues(String arg0) throws IOException,
-      InterruptedException {
-    throw new IOException("Not implemented");
-  }
-
-
   public ClusterMetrics getClusterMetrics() throws IOException,
       InterruptedException {
     GetClusterMetricsRequest request = recordFactory.newRecordInstance(GetClusterMetricsRequest.class);
@@ -160,10 +155,38 @@ public class ResourceMgrDelegate {
     return TypeConverter.fromYarn(applicationId);
   }
 
+  private static final String ROOT = "root";
+
+  private GetQueueInfoRequest getQueueInfoRequest(String queueName, 
+      boolean includeApplications, boolean includeChildQueues, boolean recursive) {
+    GetQueueInfoRequest request = 
+      recordFactory.newRecordInstance(GetQueueInfoRequest.class);
+    request.setQueueName(queueName);
+    request.setIncludeApplications(includeApplications);
+    request.setIncludeChildQueues(includeChildQueues);
+    request.setRecursive(recursive);
+    return request;
+    
+  }
   
-  public QueueInfo getQueue(String arg0) throws IOException,
-      InterruptedException {
-    throw new IOException("Not implemented");
+  public QueueInfo getQueue(String queueName) throws IOException,
+  InterruptedException {
+    GetQueueInfoRequest request = 
+      getQueueInfoRequest(queueName, true, false, false); 
+      recordFactory.newRecordInstance(GetQueueInfoRequest.class);
+    return TypeConverter.fromYarn(
+        applicationsManager.getQueueInfo(request).getQueueInfo());
+  }
+  
+  private void getChildQueues(org.apache.hadoop.yarn.api.records.QueueInfo parent, 
+      List<org.apache.hadoop.yarn.api.records.QueueInfo> queues) {
+    List<org.apache.hadoop.yarn.api.records.QueueInfo> childQueues = 
+      parent.getChildQueues();
+
+    for (org.apache.hadoop.yarn.api.records.QueueInfo child : childQueues) {
+      queues.add(child);
+      getChildQueues(child, queues);
+    }
   }
 
 
@@ -174,14 +197,42 @@ public class ResourceMgrDelegate {
 
 
   public QueueInfo[] getQueues() throws IOException, InterruptedException {
-    throw new IOException("Not implemented");
+    List<org.apache.hadoop.yarn.api.records.QueueInfo> queues = 
+      new ArrayList<org.apache.hadoop.yarn.api.records.QueueInfo>();
+
+    org.apache.hadoop.yarn.api.records.QueueInfo rootQueue = 
+      applicationsManager.getQueueInfo(
+          getQueueInfoRequest(ROOT, false, true, true)).getQueueInfo();
+    getChildQueues(rootQueue, queues);
+
+    return TypeConverter.fromYarn(queues);
   }
 
 
   public QueueInfo[] getRootQueues() throws IOException, InterruptedException {
-    throw new IOException("Not Implemented");
+    List<org.apache.hadoop.yarn.api.records.QueueInfo> queues = 
+      new ArrayList<org.apache.hadoop.yarn.api.records.QueueInfo>();
+
+    org.apache.hadoop.yarn.api.records.QueueInfo rootQueue = 
+      applicationsManager.getQueueInfo(
+          getQueueInfoRequest(ROOT, false, true, false)).getQueueInfo();
+    getChildQueues(rootQueue, queues);
+
+    return TypeConverter.fromYarn(queues);
   }
 
+  public QueueInfo[] getChildQueues(String parent) throws IOException,
+      InterruptedException {
+      List<org.apache.hadoop.yarn.api.records.QueueInfo> queues = 
+          new ArrayList<org.apache.hadoop.yarn.api.records.QueueInfo>();
+        
+        org.apache.hadoop.yarn.api.records.QueueInfo parentQueue = 
+          applicationsManager.getQueueInfo(
+              getQueueInfoRequest(parent, false, true, false)).getQueueInfo();
+        getChildQueues(parentQueue, queues);
+        
+        return TypeConverter.fromYarn(queues);
+  }
 
   public String getStagingAreaDir() throws IOException, InterruptedException {
 //    Path path = new Path(MRJobConstants.JOB_SUBMIT_DIR);

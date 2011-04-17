@@ -162,6 +162,15 @@ message YarnClusterMetricsProto {
   optional int32 num_node_managers = 1;
 }
 
+message QueueInfoProto {
+  optional string queueName = 1;
+  optional float capacity = 2;
+  optional float maximumCapacity = 3;
+  optional float currentCapacity = 4;
+  repeated QueueInfoProto childQueues = 5;
+  repeated ApplicationProto applications = 6;
+}
+
 
 ////////////////////////////////////////////////////////////////////////
 ////// From container_manager //////////////////////////////////////////

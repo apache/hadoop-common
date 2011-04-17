@@ -527,11 +527,12 @@ public class CLI extends Configured implements Tool {
   throws IOException, InterruptedException {
     System.out.println("Total jobs:" + jobs.length);
     System.out.println("JobId\tState\tStartTime\t" +
-    "UserName\tPriority\tSchedulingInfo");
+    "UserName\tQueue\tPriority\tSchedulingInfo");
     for (JobStatus job : jobs) {
-      System.out.printf("%s\t%s\t%d\t%s\t%s\t%s\n", job.getJobID().toString(),
+      System.out.printf("%s\t%s\t%d\t%s\t%s\t%s\t%s\n", job.getJobID().toString(),
           job.getState(), job.getStartTime(),
-          job.getUsername(), job.getPriority().name(), job.getSchedulingInfo());
+          job.getUsername(), job.getQueue(), 
+          job.getPriority().name(), job.getSchedulingInfo());
     }
 }
 

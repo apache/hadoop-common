@@ -442,9 +442,10 @@ public class JobInProgress {
       this.priority = conf.getJobPriority();
       this.profile = new JobProfile(conf.getUser(), this.jobId, jobFile
           .toString(), url, conf.getJobName(), conf.getQueueName());
-      this.status = new JobStatus(this.jobId, 0.0f, 0.0f, JobStatus.PREP,
-          profile.getUser(), profile.getJobName(), profile.getJobFile(),
-          profile.getURL().toString());
+      this.status = new JobStatus(this.jobId, 0.0f, 0.0f, 0.0f, 0.0f, 
+          JobStatus.PREP, JobPriority.NORMAL,
+          profile.getUser(), profile.getJobName(), profile.getQueueName(), 
+          profile.getJobFile(), profile.getURL().toString());
       this.jobtracker.getInstrumentation().addPrepJob(conf, this.jobId);
       status.setStartTime(startTime);
       this.status.setJobPriority(this.priority);

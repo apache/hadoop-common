@@ -33,6 +33,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -78,6 +79,23 @@ public class TestAMRMRPCResponseId extends TestCase {
     @Override
     public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
+      return null;
+    }
+
+    @Override
+    public void addApplication(ApplicationId applicationId, String user,
+        String queue, Priority priority) throws IOException {
+    }
+
+    @Override
+    public void removeApplication(ApplicationId applicationId)
+        throws IOException {
+    }
+
+    @Override
+    public QueueInfo getQueueInfo(String queueName,
+        boolean includeApplications, boolean includeChildQueues,
+        boolean recursive) throws IOException {
       return null;
     }
   }

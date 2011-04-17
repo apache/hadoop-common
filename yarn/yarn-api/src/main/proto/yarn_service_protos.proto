@@ -88,9 +88,19 @@ message GetClusterNodesResponseProto {
   repeated NodeManagerInfoProto nodeManagers = 1; 
 }
 
+message GetQueueInfoRequestProto {
+  optional string queueName = 1;
+  optional bool includeApplications = 2;
+  optional bool includeChildQueues = 3;
+  optional bool recursive = 4;
+}
+
+message GetQueueInfoResponseProto {
+  optional QueueInfoProto queueInfo = 1;
+}
 
 //////////////////////////////////////////////////////
-/////// client_RM_Protocol ///////////////////////////
+/////// client_NM_Protocol ///////////////////////////
 //////////////////////////////////////////////////////
 
 message StartContainerRequestProto {

@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 
 /**
@@ -43,5 +44,38 @@ public interface YarnScheduler {
    */
   List<Container> allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release)
-      throws IOException;
+  throws IOException;
+  
+  /**
+   * A new application has been submitted to the ResourceManager
+   * @param applicationId application which has been submitted
+   * @param user application user
+   * @param queue queue to which the applications is being submitted
+   * @param priority application priority
+   */
+  public void addApplication(ApplicationId applicationId, String user, 
+      String queue, Priority priority) 
+  throws IOException;
+  
+  /**
+   * A submitted application has completed.
+   * @param applicationId completed application
+   */
+  public void removeApplication(ApplicationId applicationId)
+  throws IOException;
+
+
+  /**
+   * Get queue information
+   * @param queueName queue name
+   * @param includeApplications include applications?
+   * @param includeChildQueues include child queues?
+   * @param recursive get children queues?
+   * @return queue information
+   * @throws IOException
+   */
+  public QueueInfo getQueueInfo(String queueName, boolean includeApplications, 
+      boolean includeChildQueues, boolean recursive) 
+  throws IOException;
+
 }

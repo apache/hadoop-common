@@ -39,12 +39,10 @@ public class GetClusterNodesResponsePBImpl extends
   
   @Override
   public void setNodeManagerList(List<NodeManagerInfo> nodeManagers) {
-    maybeInitBuilder();
     if (nodeManagers == null) {
       builder.clearNodeManagers();
     }
     this.nodeManagerInfoList = nodeManagers;
-  
   }
 
   @Override

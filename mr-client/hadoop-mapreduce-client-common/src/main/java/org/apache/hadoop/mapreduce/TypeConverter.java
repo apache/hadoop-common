@@ -341,15 +341,19 @@ public class TypeConverter {
   public static JobStatus.State fromYarn(ApplicationState state) {
     switch (state) {
     case ALLOCATED:
-    case LAUNCHED:
+    case ALLOCATING:
     case PENDING:
+    case LAUNCHING:
       return State.PREP;
     case PAUSED:
+    case LAUNCHED:
     case RUNNING:
       return State.RUNNING;
     case COMPLETED:
+    case CLEANUP:
       return State.SUCCEEDED;
     case FAILED:
+    case EXPIRED_PENDING:
       return State.FAILED;
     case KILLED:
       return State.KILLED;
@@ -373,7 +377,8 @@ public class TypeConverter {
   public static JobStatus fromYarn(Application application) {
     String trackingUrl = "";
     try {
-      if (application.getMasterHost() != null) {
+      if (application.getMasterHost() != null && 
+          !application.getMasterHost().isEmpty()) {
         URL url = 
           new URL("http", application.getMasterHost(),
               application.getMasterPort(), "");
@@ -388,9 +393,10 @@ public class TypeConverter {
           0.0f, 0.0f, 0.0f, 0.0f, 
           TypeConverter.fromYarn(application.getState()), 
           org.apache.hadoop.mapreduce.JobPriority.NORMAL, 
-          application.getUser(), application.getName(), "", 
-          trackingUrl
+          application.getUser(), application.getName(), 
+          application.getQueue(), "", trackingUrl
       ); 
+    jobStatus.setSchedulingInfo(trackingUrl); // Set AM tracking url
     return jobStatus;
   }
 
@@ -400,6 +406,23 @@ public class TypeConverter {
       jobStatuses.add(TypeConverter.fromYarn(application));
     }
     return jobStatuses.toArray(new JobStatus[jobStatuses.size()]);
+  }
+
+  
+  public static QueueInfo fromYarn(org.apache.hadoop.yarn.api.records.QueueInfo 
+      queueInfo) {
+    return new QueueInfo(queueInfo.getQueueName(), 
+        queueInfo.toString(), QueueState.RUNNING, 
+        TypeConverter.fromYarn(queueInfo.getApplications()));
+  }
+  
+  public static QueueInfo[] fromYarn(
+      List<org.apache.hadoop.yarn.api.records.QueueInfo> queues) {
+    List<QueueInfo> queueInfos = new ArrayList<QueueInfo>(queues.size());
+    for (org.apache.hadoop.yarn.api.records.QueueInfo queue : queues) {
+      queueInfos.add(TypeConverter.fromYarn(queue));
+    }
+    return queueInfos.toArray(new QueueInfo[queueInfos.size()]);
   }
 
 }

@@ -32,17 +32,16 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.net.Node;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
-import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
@@ -76,13 +75,32 @@ public class FifoScheduler implements ResourceScheduler {
     new TreeMap<ApplicationId, Application>(
         new org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.Comparator());
 
-  private static final Queue DEFAULT_QUEUE = new Queue() {
+  private final Queue DEFAULT_QUEUE = new Queue() {
+    QueueInfo queueInfo;
+    
     @Override
     public String getQueueName() {
       return "default";
     }
+
+    @Override
+    public QueueInfo getQueueInfo(boolean includeApplications, 
+        boolean includeChildQueues, boolean recursive) {
+      queueInfo.setQueueName(DEFAULT_QUEUE.getQueueName());
+      queueInfo.setCapacity(100.0f);
+      queueInfo.setMaximumCapacity(100.0f);
+      queueInfo.setChildQueues(new ArrayList<QueueInfo>());
+
+      if (includeApplications) {
+        queueInfo.setApplications(getApplications());
+      } else {
+        queueInfo.setApplications(
+            new ArrayList<org.apache.hadoop.yarn.api.records.Application>());
+      }
+      return queueInfo;
+    }
   };
-  
+
   public FifoScheduler() {}
   
   public FifoScheduler(Configuration conf,
@@ -160,6 +178,7 @@ public class FifoScheduler implements ResourceScheduler {
     return applications.get(applicationId);
   }
 
+  @Override
   public synchronized void addApplication(ApplicationId applicationId, 
       String user, String unusedQueue, Priority unusedPriority) 
   throws IOException {
@@ -169,6 +188,7 @@ public class FifoScheduler implements ResourceScheduler {
         ", currently active: " + applications.size());
   }
 
+  @Override
   public synchronized void removeApplication(ApplicationId applicationId)
   throws IOException {
     Application application = getApplication(applicationId);
@@ -462,6 +482,25 @@ public class FifoScheduler implements ResourceScheduler {
     nodes.remove(nodeInfo.getHostName());
   }
   
+
+  @Override
+  public QueueInfo getQueueInfo(String queueName, boolean includeApplications,
+      boolean includeChildQueues, boolean recursive) {
+    QueueInfo queueInfo = 
+      DEFAULT_QUEUE.getQueueInfo(includeApplications, false, false);
+    return queueInfo;
+  }
+  
+  private synchronized List<org.apache.hadoop.yarn.api.records.Application> 
+  getApplications() {
+    List<org.apache.hadoop.yarn.api.records.Application> applications = 
+      new ArrayList<org.apache.hadoop.yarn.api.records.Application>();
+    for (Application application : this.applications.values()) {
+      applications.add(application.getApplicationInfo());
+    }
+    return applications;
+  }
+
   public synchronized boolean isTracked(NodeInfo nodeInfo) {
     NodeManager node = nodes.get(nodeInfo.getHostName());
     return (node == null? false: true);

@@ -18,5 +18,6 @@ service ClientRMProtocolService {
   rpc getClusterMetrics (GetClusterMetricsRequestProto) returns (GetClusterMetricsResponseProto);
   rpc getAllApplications (GetAllApplicationsRequestProto) returns (GetAllApplicationsResponseProto);
   rpc getClusterNodes (GetClusterNodesRequestProto) returns (GetClusterNodesResponseProto);
+  rpc getQueueInfo (GetQueueInfoRequestProto) returns (GetQueueInfoResponseProto);
 }
 

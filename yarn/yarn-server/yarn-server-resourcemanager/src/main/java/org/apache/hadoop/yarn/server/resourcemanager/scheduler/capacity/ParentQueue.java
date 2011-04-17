@@ -21,8 +21,10 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -31,9 +33,13 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -66,6 +72,13 @@ public class ParentQueue implements Queue {
   private volatile int numApplications;
   private volatile int numContainers;
 
+  private QueueInfo queueInfo; 
+  private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
+  applicationInfos;
+
+  private final RecordFactory recordFactory = 
+    RecordFactoryProvider.getRecordFactory(null);
+
   public ParentQueue(CapacitySchedulerContext cs, 
       String queueName, Comparator<Queue> comparator, Queue parent) {
     minimumAllocation = cs.getMinimumAllocation();
@@ -91,6 +104,16 @@ public class ParentQueue implements Queue {
     
     this.childQueues = new TreeSet<Queue>(comparator);
     
+    this.queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
+    this.queueInfo.setCapacity(capacity);
+    this.queueInfo.setMaximumCapacity(maximumCapacity);
+    this.queueInfo.setQueueName(queueName);
+    this.queueInfo.setChildQueues(new ArrayList<QueueInfo>());
+    
+    this.applicationInfos = 
+      new HashMap<ApplicationId, 
+      org.apache.hadoop.yarn.api.records.Application>();
+
     LOG.info("Initialized parent-queue " + queueName + 
         " name=" + queueName + 
         ", fullname=" + getQueuePath() + 
@@ -188,6 +211,33 @@ public class ParentQueue implements Queue {
     return numApplications;
   }
 
+  @Override
+  public synchronized QueueInfo getQueueInfo(boolean includeApplications, 
+      boolean includeChildQueues, boolean recursive) {
+    queueInfo.setCurrentCapacity(usedCapacity);
+
+    if (includeApplications) {
+      queueInfo.setApplications( 
+        new ArrayList<org.apache.hadoop.yarn.api.records.Application>(
+            applicationInfos.values()));
+    } else {
+      queueInfo.setApplications(
+          new ArrayList<org.apache.hadoop.yarn.api.records.Application>());
+    }
+
+    List<QueueInfo> childQueuesInfo = new ArrayList<QueueInfo>();
+    if (includeChildQueues) {
+      for (Queue child : childQueues) {
+        // Get queue information recursively?
+        childQueuesInfo.add(
+            child.getQueueInfo(includeApplications, recursive, recursive));
+      }
+    }
+    queueInfo.setChildQueues(childQueuesInfo);
+    
+    return queueInfo;
+}
+
   public String toString() {
     return queueName + ":" + capacity + ":" + absoluteCapacity + ":" + 
       getUsedCapacity() + ":" + getUtilization() + ":" + 
@@ -207,6 +257,9 @@ public class ParentQueue implements Queue {
     
     ++numApplications;
    
+    applicationInfos.put(application.getApplicationId(), 
+        application.getApplicationInfo());
+
     LOG.info("Application submission -" +
     		" appId: " + application.getApplicationId() + 
         " user: " + user + 
@@ -229,7 +282,8 @@ public class ParentQueue implements Queue {
     }
     
     --numApplications;
-    
+    applicationInfos.remove(application.getApplicationId());
+
     LOG.info("Application completion -" +
         " appId: " + application.getApplicationId() + 
         " user: " + application.getUser() + 

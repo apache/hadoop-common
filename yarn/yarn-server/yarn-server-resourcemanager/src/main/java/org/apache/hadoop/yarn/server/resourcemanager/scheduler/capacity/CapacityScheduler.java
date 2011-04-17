@@ -38,6 +38,7 @@ import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -136,6 +137,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   private void initializeQueues(CapacitySchedulerConfiguration conf) {
     root = parseQueue(conf, null, ROOT);
+    queues.put(ROOT, root);
     LOG.info("Initialized root queue " + root);
   }
 
@@ -170,15 +172,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     return queue;
   }
   
-  /**
-   * Add an application to the capacity scheduler. This application needs to be 
-   * tracked. 
-   * @param applicationId the application id of this application
-   * @param user the user who owns the application
-   * @param queueName the queue which the application belongs to
-   * @param priority the priority of the application
-   * @throws IOException
-   */
+  @Override
   public void addApplication(ApplicationId applicationId, 
       String user, String queueName, Priority priority)
   throws IOException {
@@ -209,12 +203,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
         ", currently active: " + applications.size());
   }
 
-  /**
-   * Remove an application. Releases the resources of the application and 
-   * then makes sure its removed from data structures of the scheduler.
-   * @param applicationId the applicationId of the application
-   * @throws IOException
-   */
+  @Override
   public void removeApplication(ApplicationId applicationId)
   throws IOException {
     Application application = getApplication(applicationId);
@@ -276,6 +265,18 @@ implements ResourceScheduler, CapacitySchedulerContext {
         " #release=" + release.size() +
         " #allContainers=" + allContainers.size());
     return allContainers;
+  }
+
+  @Override
+  public synchronized QueueInfo getQueueInfo(String queueName, 
+      boolean includeApplications, boolean includeChildQueues, boolean recursive) 
+  throws IOException {
+    Queue queue = this.queues.get(queueName);
+
+    if (queue == null) {
+      throw new IOException("Unknown queue: " + queueName);
+    }
+    return queue.getQueueInfo(includeApplications, includeChildQueues, recursive);
   }
 
   private void normalizeRequests(List<ResourceRequest> asks) {

@@ -34,6 +34,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -69,6 +70,23 @@ public class TestAMLaunchFailure extends TestCase {
     public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       return Arrays.asList(container);
+    }
+
+    @Override
+    public void addApplication(ApplicationId applicationId, String user,
+        String queue, Priority priority) throws IOException {
+    }
+
+    @Override
+    public void removeApplication(ApplicationId applicationId)
+        throws IOException {
+    }
+
+    @Override
+    public QueueInfo getQueueInfo(String queueName,
+        boolean includeApplications, boolean includeChildQueues,
+        boolean recursive) throws IOException {
+      return null;
     }
   }
 

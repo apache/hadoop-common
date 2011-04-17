@@ -43,11 +43,14 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationResponse;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -58,6 +61,7 @@ import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ResourceContext;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.service.AbstractService;
 
 
@@ -67,18 +71,22 @@ import org.apache.hadoop.yarn.service.AbstractService;
  */
 public class ClientRMService extends AbstractService implements ClientRMProtocol {
   private static final Log LOG = LogFactory.getLog(ClientRMService.class);
-  private ResourceContext clusterInfo;
-  private ApplicationsManager applicationsManager;
+  
+  final private ResourceContext clusterInfo;
+  final private ApplicationsManager applicationsManager;
+  final private ResourceScheduler scheduler;
+  
   private String clientServiceBindAddress;
   private Server server;
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   InetSocketAddress clientBindAddress;
   
   public ClientRMService(ApplicationsManager applicationsManager, 
-        ResourceContext clusterInfo) {
+        ResourceContext clusterInfo, ResourceScheduler scheduler) {
     super(ClientRMService.class.getName());
     this.clusterInfo = clusterInfo;
     this.applicationsManager = applicationsManager;
+    this.scheduler = scheduler;
   }
   
   @Override
@@ -175,6 +183,26 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
       nodes.add(createNodeManagerInfo(nodeInfo));
     }
     response.setNodeManagerList(nodes);
+    return response;
+  }
+
+  @Override
+  public GetQueueInfoResponse getQueueInfo(GetQueueInfoRequest request)
+      throws YarnRemoteException {
+    GetQueueInfoResponse response =
+      recordFactory.newRecordInstance(GetQueueInfoResponse.class);
+    try {
+      QueueInfo queueInfo = 
+        scheduler.getQueueInfo(request.getQueueName(), 
+            request.getIncludeApplications(), 
+            request.getIncludeChildQueues(), 
+            request.getRecursive());
+      response.setQueueInfo(queueInfo);
+    } catch (IOException ioe) {
+      LOG.info("Failed to getQueueInfo for " + request.getQueueName(), ioe);
+      throw RPCUtil.getRemoteException(ioe);
+    }
+    
     return response;
   }
 

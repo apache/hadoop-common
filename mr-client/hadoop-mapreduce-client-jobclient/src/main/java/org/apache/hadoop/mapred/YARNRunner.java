@@ -136,12 +136,6 @@ public class YARNRunner implements ClientProtocol {
   }
 
   @Override
-  public QueueInfo[] getChildQueues(String arg0) throws IOException,
-      InterruptedException {
-    return resMgrDelegate.getChildQueues(arg0);
-  }
-
-  @Override
   public ClusterMetrics getClusterMetrics() throws IOException,
       InterruptedException {  
     return resMgrDelegate.getClusterMetrics();
@@ -164,9 +158,9 @@ public class YARNRunner implements ClientProtocol {
   }
 
   @Override
-  public QueueInfo getQueue(String arg0) throws IOException,
+  public QueueInfo getQueue(String queueName) throws IOException,
       InterruptedException {
-    return resMgrDelegate.getQueue(arg0);
+    return resMgrDelegate.getQueue(queueName);
   }
 
   @Override
@@ -183,6 +177,12 @@ public class YARNRunner implements ClientProtocol {
   @Override
   public QueueInfo[] getRootQueues() throws IOException, InterruptedException {
     return resMgrDelegate.getRootQueues();
+  }
+
+  @Override
+  public QueueInfo[] getChildQueues(String parent) throws IOException,
+      InterruptedException {
+    return resMgrDelegate.getChildQueues(parent);
   }
 
   @Override

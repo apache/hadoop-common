@@ -34,6 +34,8 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
@@ -314,5 +316,26 @@ public class Application {
   
   synchronized public List<NodeInfo> getAllNodesForApplication() {
     return new ArrayList<NodeInfo>(applicationOnNodes);
+  }
+
+
+  synchronized public org.apache.hadoop.yarn.api.records.Application 
+  getApplicationInfo() {
+    org.apache.hadoop.yarn.api.records.Application application = 
+      recordFactory.newRecordInstance(
+          org.apache.hadoop.yarn.api.records.Application.class);
+    application.setApplicationId(applicationId);
+    application.setMasterHost("");
+    application.setName("");
+    application.setQueue(queue.getQueueName());
+    application.setState(ApplicationState.RUNNING);
+    application.setUser(user);
+
+    ApplicationStatus status = 
+      recordFactory.newRecordInstance(ApplicationStatus.class);
+    status.setApplicationId(applicationId);
+    application.setStatus(status);
+
+    return application;
   }
 }

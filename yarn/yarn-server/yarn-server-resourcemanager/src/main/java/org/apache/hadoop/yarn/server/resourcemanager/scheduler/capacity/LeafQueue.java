@@ -33,11 +33,14 @@ import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Unstable;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
@@ -55,7 +58,7 @@ public class LeafQueue implements Queue {
   private final Queue parent;
   private final float capacity;
   private final float absoluteCapacity;
-  private final float maxCapacity;
+  private final float maximumCapacity;
   private final float absoluteMaxCapacity;
   private final int userLimit;
   private final float userLimitFactor;
@@ -77,6 +80,13 @@ public class LeafQueue implements Queue {
 
   private Map<String, User> users = new HashMap<String, User>();
   
+  private QueueInfo queueInfo; 
+  private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
+  applicationInfos;
+  
+  private final RecordFactory recordFactory = 
+    RecordFactoryProvider.getRecordFactory(null);
+
   public LeafQueue(CapacitySchedulerContext cs, 
       String queueName, Queue parent, 
       Comparator<Application> applicationComparator) {
@@ -90,10 +100,10 @@ public class LeafQueue implements Queue {
       (float)cs.getConfiguration().getCapacity(getQueuePath()) / 100;
     this.absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
     
-    this.maxCapacity = cs.getConfiguration().getMaximumCapacity(getQueuePath());
+    this.maximumCapacity = cs.getConfiguration().getMaximumCapacity(getQueuePath());
     this.absoluteMaxCapacity = 
-      (maxCapacity == CapacitySchedulerConfiguration.UNDEFINED) ? 
-          Float.MAX_VALUE : (parent.getAbsoluteCapacity() * maxCapacity) / 100;
+      (maximumCapacity == CapacitySchedulerConfiguration.UNDEFINED) ? 
+          Float.MAX_VALUE : (parent.getAbsoluteCapacity() * maximumCapacity) / 100;
 
     this.userLimit = cs.getConfiguration().getUserLimit(getQueuePath());
 
@@ -105,12 +115,22 @@ public class LeafQueue implements Queue {
     this.maxApplicationsPerUser = 
       (int)(maxApplications * (userLimit / 100.0f) * userLimitFactor);
 
+    this.queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
+    this.queueInfo.setCapacity(capacity);
+    this.queueInfo.setMaximumCapacity(maximumCapacity);
+    this.queueInfo.setQueueName(queueName);
+    this.queueInfo.setChildQueues(new ArrayList<QueueInfo>());
+    
+    this.applicationInfos = 
+      new HashMap<ApplicationId, 
+      org.apache.hadoop.yarn.api.records.Application>();
+
     LOG.info("DEBUG --- LeafQueue:" +
     		" name=" + queueName + 
     		", fullname=" + getQueuePath() + 
         ", capacity=" + capacity + 
     		", asboluteCapacity=" + absoluteCapacity + 
-        ", maxCapacity=" + maxCapacity +
+        ", maxCapacity=" + maximumCapacity +
     		", asboluteMaxCapacity=" + absoluteMaxCapacity +
     		", userLimit=" + userLimit + ", userLimitFactor=" + userLimitFactor + 
     		", maxApplications=" + maxApplications + 
@@ -131,7 +151,7 @@ public class LeafQueue implements Queue {
 
   @Override
   public float getMaximumCapacity() {
-    return maxCapacity;
+    return maximumCapacity;
   }
 
   @Override
@@ -195,6 +215,23 @@ public class LeafQueue implements Queue {
     return numContainers;
   }
 
+  @Override
+  public synchronized QueueInfo getQueueInfo(boolean includeApplications, 
+      boolean includeChildQueues, boolean recursive) {
+    queueInfo.setCurrentCapacity(usedCapacity);
+    
+    if (includeApplications) {
+      queueInfo.setApplications( 
+        new ArrayList<org.apache.hadoop.yarn.api.records.Application>(
+            applicationInfos.values()));
+    } else {
+      queueInfo.setApplications(
+          new ArrayList<org.apache.hadoop.yarn.api.records.Application>());
+    }
+    
+    return queueInfo;
+  }
+
   public String toString() {
     return queueName + ":" + capacity + ":" + absoluteCapacity + ":" + 
       getUsedCapacity() + ":" + getUtilization() + ":" + 
@@ -238,7 +275,9 @@ public class LeafQueue implements Queue {
       // Accept 
       user.submitApplication();
       applications.add(application);
-      
+      applicationInfos.put(application.getApplicationId(), 
+          application.getApplicationInfo());
+
       LOG.info("Application submission -" +
           " appId: " + application.getApplicationId() +
           " user: " + user + "," + " leaf-queue: " + getQueueName() +
@@ -263,6 +302,8 @@ public class LeafQueue implements Queue {
         users.remove(application.getUser());
       }
       
+      applicationInfos.remove(application.getApplicationId());
+
       LOG.info("Application completion -" +
           " appId: " + application.getApplicationId() + 
           " user: " + application.getUser() + 

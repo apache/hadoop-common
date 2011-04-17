@@ -31,6 +31,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -94,6 +95,20 @@ public class TestSchedulerNegotiator extends TestCase {
 
     @Override
     public void handle(ASMEvent<ApplicationTrackerEventType> event) {
+    }
+    @Override
+    public void addApplication(ApplicationId applicationId, String user,
+        String queue, Priority priority) throws IOException {
+    }
+    @Override
+    public void removeApplication(ApplicationId applicationId)
+        throws IOException {
+    }
+    @Override
+    public QueueInfo getQueueInfo(String queueName,
+        boolean includeApplications, boolean includeChildQueues,
+        boolean recursive) throws IOException {
+      return null;
     }
   }
   
