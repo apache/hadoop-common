@@ -30,6 +30,7 @@ Trunk (unreleased changes)
    
     Add fail count to the command line of the application master. (mahadev)
 
+    MAPREDUCE-2440. Name clashes in TypeConverter (luke via mahadev)
   
   INCOMPATIBLE CHANGES
 

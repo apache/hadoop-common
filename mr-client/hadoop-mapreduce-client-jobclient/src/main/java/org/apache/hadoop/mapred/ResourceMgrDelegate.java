@@ -108,7 +108,7 @@ public class ResourceMgrDelegate {
       recordFactory.newRecordInstance(GetClusterNodesRequest.class);
     GetClusterNodesResponse response = 
       applicationsManager.getClusterNodes(request);
-    return TypeConverter.fromYarn(response.getNodeManagerList());
+    return TypeConverter.fromYarnNodes(response.getNodeManagerList());
   }
 
 
@@ -117,7 +117,7 @@ public class ResourceMgrDelegate {
       recordFactory.newRecordInstance(GetAllApplicationsRequest.class);
     GetAllApplicationsResponse response = 
       applicationsManager.getAllApplications(request);
-    return TypeConverter.fromYarn(response.getApplicationList());
+    return TypeConverter.fromYarnApps(response.getApplicationList());
   }
 
 
@@ -205,7 +205,7 @@ public class ResourceMgrDelegate {
           getQueueInfoRequest(ROOT, false, true, true)).getQueueInfo();
     getChildQueues(rootQueue, queues);
 
-    return TypeConverter.fromYarn(queues);
+    return TypeConverter.fromYarnQueueInfo(queues);
   }
 
 
@@ -218,7 +218,7 @@ public class ResourceMgrDelegate {
           getQueueInfoRequest(ROOT, false, true, false)).getQueueInfo();
     getChildQueues(rootQueue, queues);
 
-    return TypeConverter.fromYarn(queues);
+    return TypeConverter.fromYarnQueueInfo(queues);
   }
 
   public QueueInfo[] getChildQueues(String parent) throws IOException,
@@ -231,7 +231,7 @@ public class ResourceMgrDelegate {
               getQueueInfoRequest(parent, false, true, false)).getQueueInfo();
         getChildQueues(parentQueue, queues);
         
-        return TypeConverter.fromYarn(queues);
+        return TypeConverter.fromYarnQueueInfo(queues);
   }
 
   public String getStagingAreaDir() throws IOException, InterruptedException {

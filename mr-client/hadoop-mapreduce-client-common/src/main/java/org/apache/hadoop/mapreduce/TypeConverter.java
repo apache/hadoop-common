@@ -366,7 +366,7 @@ public class TypeConverter {
     return taskTracker;
   }
 
-  public static TaskTrackerInfo[] fromYarn(List<NodeManagerInfo> nodes) {
+  public static TaskTrackerInfo[] fromYarnNodes(List<NodeManagerInfo> nodes) {
     List<TaskTrackerInfo> taskTrackers = new ArrayList<TaskTrackerInfo>();
     for (NodeManagerInfo node : nodes) {
       taskTrackers.add(fromYarn(node));
@@ -400,7 +400,7 @@ public class TypeConverter {
     return jobStatus;
   }
 
-  public static JobStatus[] fromYarn(List<Application> applications) {
+  public static JobStatus[] fromYarnApps(List<Application> applications) {
     List<JobStatus> jobStatuses = new ArrayList<JobStatus>();
     for (Application application : applications) {
       jobStatuses.add(TypeConverter.fromYarn(application));
@@ -413,10 +413,10 @@ public class TypeConverter {
       queueInfo) {
     return new QueueInfo(queueInfo.getQueueName(), 
         queueInfo.toString(), QueueState.RUNNING, 
-        TypeConverter.fromYarn(queueInfo.getApplications()));
+        TypeConverter.fromYarnApps(queueInfo.getApplications()));
   }
   
-  public static QueueInfo[] fromYarn(
+  public static QueueInfo[] fromYarnQueueInfo(
       List<org.apache.hadoop.yarn.api.records.QueueInfo> queues) {
     List<QueueInfo> queueInfos = new ArrayList<QueueInfo>(queues.size());
     for (org.apache.hadoop.yarn.api.records.QueueInfo queue : queues) {
