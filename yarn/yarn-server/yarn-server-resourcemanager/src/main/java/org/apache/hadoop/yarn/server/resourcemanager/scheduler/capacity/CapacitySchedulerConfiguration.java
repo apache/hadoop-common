@@ -23,6 +23,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
 
 public class CapacitySchedulerConfiguration extends Configuration {
@@ -56,7 +57,10 @@ public class CapacitySchedulerConfiguration extends Configuration {
   
   @Private
   public static final String USER_LIMIT_FACTOR = "user-limit-factor";
-  
+
+  @Private
+  public static final String STATE = "state";
+
   private static final int MINIMUM_MEMORY = 1024;
 
   @Private
@@ -135,6 +139,11 @@ public class CapacitySchedulerConfiguration extends Configuration {
     setFloat(getQueuePrefix(queue) + USER_LIMIT_FACTOR, userLimitFactor); 
   }
   
+  public QueueState getState(String queue) {
+    String state = get(getQueuePrefix(queue) + STATE);
+    return (state != null) ? QueueState.valueOf(state.toUpperCase()) : QueueState.RUNNING;
+  }
+
   public void setCapacity(String queue, int capacity) {
     setInt(getQueuePrefix(queue) + CAPACITY, capacity);
     LOG.info("CSConf - setCapacity: queuePrefix=" + getQueuePrefix(queue) + 
@@ -160,4 +169,5 @@ public class CapacitySchedulerConfiguration extends Configuration {
     return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
              createResource(minimumMemory);
   }
+  
 }

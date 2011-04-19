@@ -26,6 +26,7 @@ import org.apache.hadoop.classification.InterfaceStability.Stable;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -107,6 +108,12 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    * @return queue utilization
    */
   public float getUtilization();
+  
+  /**
+   * Get the current run-state of the queue
+   * @return current run-state
+   */
+  public QueueState getState();
   
   /**
    * Get child queues

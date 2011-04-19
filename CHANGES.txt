@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    Added functionality to stop/start queues. (acmurthy)
+    
     Added functionality to refresh queues at runtime via the 'bin/yarn
     rmadmin' command. (acmurthy) 
     

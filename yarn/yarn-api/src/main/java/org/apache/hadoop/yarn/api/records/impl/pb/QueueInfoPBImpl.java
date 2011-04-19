@@ -7,9 +7,13 @@ import java.util.List;
 import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ProtoBase;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationProto;
+import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueInfoProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueInfoProtoOrBuilder;
+import org.apache.hadoop.yarn.proto.YarnProtos.QueueStateProto;
+import org.apache.hadoop.yarn.util.ProtoUtils;
 
 public class QueueInfoPBImpl extends ProtoBase<QueueInfoProto> implements
     QueueInfo {
@@ -67,6 +71,15 @@ public class QueueInfoPBImpl extends ProtoBase<QueueInfoProto> implements
   }
 
   @Override
+  public QueueState getQueueState() {
+    QueueInfoProtoOrBuilder p = viaProto ? proto : builder;
+    if (!p.hasState()) {
+      return null;
+    }
+    return convertFromProtoFormat(p.getState());
+  }
+
+  @Override
   public void setApplications(List<Application> applications) {
     if (applications == null) {
       builder.clearApplications();
@@ -107,6 +120,16 @@ public class QueueInfoPBImpl extends ProtoBase<QueueInfoProto> implements
       builder.clearQueueName();
     }
     builder.setQueueName(queueName);
+  }
+
+  @Override
+  public void setQueueState(QueueState queueState) {
+    maybeInitBuilder();
+    if (queueState == null) {
+      builder.clearState();
+      return;
+    }
+    builder.setState(convertToProtoFormat(queueState));
   }
 
   @Override
@@ -250,6 +273,14 @@ public class QueueInfoPBImpl extends ProtoBase<QueueInfoProto> implements
   
   private QueueInfoProto convertToProtoFormat(QueueInfo q) {
     return ((QueueInfoPBImpl)q).getProto();
+  }
+
+  private QueueState convertFromProtoFormat(QueueStateProto q) {
+    return ProtoUtils.convertFromProtoFormat(q);
+  }
+  
+  private QueueStateProto convertToProtoFormat(QueueState queueState) {
+    return ProtoUtils.convertToProtoFormat(queueState);
   }
 
 }

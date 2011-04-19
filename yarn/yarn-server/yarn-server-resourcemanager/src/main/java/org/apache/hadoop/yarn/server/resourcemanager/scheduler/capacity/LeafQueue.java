@@ -39,6 +39,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -85,6 +86,8 @@ public class LeafQueue implements Queue {
   private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
   applicationInfos;
   
+  private QueueState state;
+  
   private final RecordFactory recordFactory = 
     RecordFactoryProvider.getRecordFactory(null);
 
@@ -123,10 +126,13 @@ public class LeafQueue implements Queue {
       new HashMap<ApplicationId, 
       org.apache.hadoop.yarn.api.records.Application>();
 
+    QueueState state = cs.getConfiguration().getState(getQueuePath());
+    
     setupQueueConfigs(capacity, absoluteCapacity, 
         maximumCapacity, absoluteMaxCapacity, 
         userLimit, userLimitFactor, 
-        maxApplications, maxApplicationsPerUser);
+        maxApplications, maxApplicationsPerUser,
+        state);
 
     LOG.info("DEBUG --- LeafQueue:" +
     		" name=" + queueName + 
@@ -139,7 +145,8 @@ public class LeafQueue implements Queue {
           float capacity, float absoluteCapacity, 
           float maxCapacity, float absoluteMaxCapacity,
           int userLimit, float userLimitFactor,
-          int maxApplications, int maxApplicationsPerUser)
+          int maxApplications, int maxApplicationsPerUser,
+          QueueState state)
   {
     this.capacity = capacity; 
     this.absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
@@ -152,9 +159,12 @@ public class LeafQueue implements Queue {
 
     this.maxApplications = maxApplications;
     this.maxApplicationsPerUser = maxApplicationsPerUser;
+
+    this.state = state;
     
     this.queueInfo.setCapacity(capacity);
     this.queueInfo.setMaximumCapacity(maximumCapacity);
+    this.queueInfo.setQueueState(state);
     
     LOG.info(queueName +
         ", capacity=" + capacity + 
@@ -163,7 +173,8 @@ public class LeafQueue implements Queue {
         ", asboluteMaxCapacity=" + absoluteMaxCapacity +
         ", userLimit=" + userLimit + ", userLimitFactor=" + userLimitFactor + 
         ", maxApplications=" + maxApplications + 
-        ", maxApplicationsPerUser=" + maxApplicationsPerUser);
+        ", maxApplicationsPerUser=" + maxApplicationsPerUser + 
+        ", state=" + state);
   }
       
 
@@ -244,6 +255,11 @@ public class LeafQueue implements Queue {
   }
 
   @Override
+  public QueueState getState() {
+    return state;
+  }
+
+  @Override
   public synchronized QueueInfo getQueueInfo(boolean includeApplications, 
       boolean includeChildQueues, boolean recursive) {
     queueInfo.setCurrentCapacity(usedCapacity);
@@ -289,7 +305,8 @@ public class LeafQueue implements Queue {
     setupQueueConfigs(leafQueue.capacity, leafQueue.absoluteCapacity, 
         leafQueue.maximumCapacity, leafQueue.absoluteMaxCapacity, 
         leafQueue.userLimit, leafQueue.userLimitFactor, 
-        leafQueue.maxApplications, leafQueue.maxApplicationsPerUser);
+        leafQueue.maxApplications, leafQueue.maxApplicationsPerUser,
+        leafQueue.state);
     
     update(clusterResource);
   }
@@ -299,7 +316,15 @@ public class LeafQueue implements Queue {
       String queue, Priority priority) 
   throws AccessControlException {
     // Careful! Locking order is important!
+    User user = null;
+    
     synchronized (this) {
+      
+      if (state != QueueState.RUNNING) {
+        throw new AccessControlException("Queue " + getQueuePath() +
+            " is STOPPED. Cannot accept submission of application: " +
+            application.getApplicationId());
+      }
       
       // Check submission limits for queues
       if (getNumApplications() >= maxApplications) {
@@ -310,7 +335,7 @@ public class LeafQueue implements Queue {
       }
 
       // Check submission limits for the user on this queue
-      User user = getUser(userName);
+      user = getUser(userName);
       if (user.getApplications() >= maxApplicationsPerUser) {
         throw new AccessControlException("Queue " + getQueuePath() + 
             " already has " + user.getApplications() + 
@@ -318,49 +343,65 @@ public class LeafQueue implements Queue {
             " cannot accept submission of application: " + 
             application.getApplicationId());
       }
-      
-      // Accept 
-      user.submitApplication();
-      applications.add(application);
-      applicationInfos.put(application.getApplicationId(), 
-          application.getApplicationInfo());
 
-      LOG.info("Application submission -" +
-          " appId: " + application.getApplicationId() +
-          " user: " + user + "," + " leaf-queue: " + getQueueName() +
-          " #user-applications: " + user.getApplications() + 
-          " #queue-applications: " + getNumApplications());
+      // Add the application to our data-structures
+      addApplication(application, user);
     }
 
     // Inform the parent queue
-    parent.submitApplication(application, userName, queue, priority);
+    try {
+      parent.submitApplication(application, userName, queue, priority);
+    } catch (AccessControlException ace) {
+      LOG.info("Failed to submit application to parent-queue: " + 
+          parent.getQueuePath(), ace);
+      removeApplication(application, user);
+      throw ace;
+    }
   }
 
+  private synchronized void addApplication(Application application, User user) {
+    // Accept 
+    user.submitApplication();
+    applications.add(application);
+    applicationInfos.put(application.getApplicationId(), 
+        application.getApplicationInfo());
+
+    LOG.info("Application added -" +
+        " appId: " + application.getApplicationId() +
+        " user: " + user + "," + " leaf-queue: " + getQueueName() +
+        " #user-applications: " + user.getApplications() + 
+        " #queue-applications: " + getNumApplications());
+
+  }
+  
   @Override
   public void finishApplication(Application application, String queue) 
   throws AccessControlException {
     // Careful! Locking order is important!
     synchronized (this) {
-      applications.remove(application);
-      
-      User user = getUser(application.getUser());
-      user.finishApplication();
-      if (user.getApplications() == 0) {
-        users.remove(application.getUser());
-      }
-      
-      applicationInfos.remove(application.getApplicationId());
-
-      LOG.info("Application completion -" +
-          " appId: " + application.getApplicationId() + 
-          " user: " + application.getUser() + 
-          " queue: " + getQueueName() +
-          " #user-applications: " + user.getApplications() + 
-          " #queue-applications: " + getNumApplications());
+      removeApplication(application, getUser(application.getUser()));
     }
     
     // Inform the parent queue
     parent.finishApplication(application, queue);
+  }
+  
+  public synchronized void removeApplication(Application application, User user) {
+    applications.remove(application);
+    
+    user.finishApplication();
+    if (user.getApplications() == 0) {
+      users.remove(application.getUser());
+    }
+    
+    applicationInfos.remove(application.getApplicationId());
+
+    LOG.info("Application removed -" +
+        " appId: " + application.getApplicationId() + 
+        " user: " + application.getUser() + 
+        " queue: " + getQueueName() +
+        " #user-applications: " + user.getApplications() + 
+        " #queue-applications: " + getNumApplications());
   }
   
   @Override

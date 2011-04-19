@@ -1,0 +1,38 @@
+<configuration>
+
+  <property>
+    <name>yarn.capacity-scheduler.maximum-applications</name>
+    <value>10000</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.queues</name>
+    <value>default</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.capacity</name>
+    <value>100</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.default.capacity</name>
+    <value>100</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.default.user-limit-factor</name>
+    <value>1</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.default.maximum-capacity</name>
+    <value>-1</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.default.state</name>
+    <value>RUNNING</value>
+  </property>
+
+</configuration>

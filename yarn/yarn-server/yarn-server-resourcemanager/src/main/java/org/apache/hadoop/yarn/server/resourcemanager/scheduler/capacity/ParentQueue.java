@@ -38,12 +38,14 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.LeafQueue.User;
 
 @Private
 @Evolving
@@ -75,6 +77,8 @@ public class ParentQueue implements Queue {
   private volatile int numApplications;
   private volatile int numContainers;
 
+  private QueueState state;
+  
   private QueueInfo queueInfo; 
   private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
   applicationInfos;
@@ -103,12 +107,14 @@ public class ParentQueue implements Queue {
       (maximumCapacity == CapacitySchedulerConfiguration.UNDEFINED) ? 
           Float.MAX_VALUE :  (parentAbsoluteCapacity * maximumCapacity) / 100;
     
+    QueueState state = cs.getConfiguration().getState(getQueuePath());
+    
     this.queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
     this.queueInfo.setQueueName(queueName);
     this.queueInfo.setChildQueues(new ArrayList<QueueInfo>());
 
     setupQueueConfigs(capacity, absoluteCapacity, 
-        maximumCapacity, absoluteMaxCapacity);
+        maximumCapacity, absoluteMaxCapacity, state);
     
     this.queueComparator = comparator;
     this.childQueues = new TreeSet<Queue>(comparator);
@@ -125,21 +131,26 @@ public class ParentQueue implements Queue {
 
   private synchronized void setupQueueConfigs(
           float capacity, float absoluteCapacity, 
-          float maximumCapacity, float absoluteMaxCapacity
+          float maximumCapacity, float absoluteMaxCapacity,
+          QueueState state
   ) {
     this.capacity = capacity;
     this.absoluteCapacity = absoluteCapacity;
     this.maximumCapacity = maximumCapacity;
     this.absoluteMaxCapacity = absoluteMaxCapacity;
 
+    this.state = state;
+    
     this.queueInfo.setCapacity(capacity);
     this.queueInfo.setMaximumCapacity(maximumCapacity);
+    this.queueInfo.setQueueState(state);
 
     LOG.info(queueName +
         ", capacity=" + capacity +
         ", asboluteCapacity=" + absoluteCapacity +
         ", maxCapacity=" + maximumCapacity +
-        ", asboluteMaxCapacity=" + absoluteMaxCapacity);
+        ", asboluteMaxCapacity=" + absoluteMaxCapacity + 
+        ", state=" + state);
   }
 
   private static float PRECISION = 0.005f; // 0.05% precision
@@ -234,6 +245,11 @@ public class ParentQueue implements Queue {
   }
 
   @Override
+  public QueueState getState() {
+    return state;
+  }
+
+  @Override
   public synchronized QueueInfo getQueueInfo(boolean includeApplications, 
       boolean includeChildQueues, boolean recursive) {
     queueInfo.setCurrentCapacity(usedCapacity);
@@ -303,7 +319,8 @@ public class ParentQueue implements Queue {
 
     // Set new configs
     setupQueueConfigs(parentQueue.capacity, parentQueue.absoluteCapacity,
-        parentQueue.maximumCapacity, parentQueue.absoluteMaxCapacity);
+        parentQueue.maximumCapacity, parentQueue.absoluteMaxCapacity,
+        parentQueue.state);
 
     // Update
     update(clusterResource);
@@ -321,53 +338,84 @@ public class ParentQueue implements Queue {
   public void submitApplication(Application application, String user,
       String queue, Priority priority) 
   throws AccessControlException {
-    // Sanity check
-    if (queue.equals(queueName)) {
-      throw new AccessControlException("Cannot submit application " +
-          "to non-leaf queue: " + queueName);
+    
+    synchronized (this) {
+      // Sanity check
+      if (queue.equals(queueName)) {
+        throw new AccessControlException("Cannot submit application " +
+            "to non-leaf queue: " + queueName);
+      }
+      
+      if (state != QueueState.RUNNING) {
+        throw new AccessControlException("Queue " + getQueuePath() +
+            " is STOPPED. Cannot accept submission of application: " +
+            application.getApplicationId());
+      }
+
+      addApplication(application, user);
     }
     
-    ++numApplications;
-   
-    applicationInfos.put(application.getApplicationId(), 
-        application.getApplicationInfo());
-
-    LOG.info("Application submission -" +
-    		" appId: " + application.getApplicationId() + 
-        " user: " + user + 
-        " leaf-queue of parent: " + getQueueName() + 
-        " #applications: " + getNumApplications());
-
     // Inform the parent queue
     if (parent != null) {
-      parent.submitApplication(application, user, queue, priority);
+      try {
+        parent.submitApplication(application, user, queue, priority);
+      } catch (AccessControlException ace) {
+        LOG.info("Failed to submit application to parent-queue: " + 
+            parent.getQueuePath(), ace);
+        removeApplication(application, user);
+        throw ace;
+      }
     }
   }
 
+  private synchronized void addApplication(Application application, 
+      String user) {
+  
+    ++numApplications;
+
+    applicationInfos.put(application.getApplicationId(), 
+        application.getApplicationInfo());
+
+    LOG.info("Application added -" +
+        " appId: " + application.getApplicationId() + 
+        " user: " + user + 
+        " leaf-queue of parent: " + getQueueName() + 
+        " #applications: " + getNumApplications());
+  }
+  
   @Override
   public void finishApplication(Application application, String queue) 
   throws AccessControlException {
-    // Sanity check
-    if (queue.equals(queueName)) {
-      throw new AccessControlException("Cannot finish application " +
-          "from non-leaf queue: " + queueName);
+    
+    synchronized (this) {
+      // Sanity check
+      if (queue.equals(queueName)) {
+        throw new AccessControlException("Cannot finish application " +
+            "from non-leaf queue: " + queueName);
+      }
+
+      removeApplication(application, application.getUser());
     }
     
-    --numApplications;
-    applicationInfos.remove(application.getApplicationId());
-
-    LOG.info("Application completion -" +
-        " appId: " + application.getApplicationId() + 
-        " user: " + application.getUser() + 
-        " leaf-queue of parent: " + getQueueName() + 
-        " #applications: " + getNumApplications());
-
     // Inform the parent queue
     if (parent != null) {
       parent.finishApplication(application, queue);
     }
   }
 
+  public synchronized void removeApplication(Application application, 
+      String user) {
+    
+    --numApplications;
+    applicationInfos.remove(application.getApplicationId());
+
+    LOG.info("Application removed -" +
+        " appId: " + application.getApplicationId() + 
+        " user: " + user + 
+        " leaf-queue of parent: " + getQueueName() + 
+        " #applications: " + getNumApplications());
+  }
+  
   synchronized void setUsedCapacity(float usedCapacity) {
     this.usedCapacity = usedCapacity;
   }

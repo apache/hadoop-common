@@ -20,4 +20,7 @@ public interface QueueInfo {
   
   List<Application> getApplications();
   void setApplications(List<Application> applications);
+  
+  QueueState getQueueState();
+  void setQueueState(QueueState queueState);
 }

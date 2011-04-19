@@ -6,11 +6,13 @@ import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.YarnContainerTags;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceTypeProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceVisibilityProto;
+import org.apache.hadoop.yarn.proto.YarnProtos.QueueStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.YarnContainerTagsProto;
 
 import com.google.protobuf.ByteString;
@@ -89,4 +91,15 @@ public class ProtoUtils {
     return bs;
   }
   
+  /*
+   * QueueState
+   */
+  private static String QUEUE_STATE_PREFIX = "Q_";
+  public static QueueStateProto convertToProtoFormat(QueueState e) {
+    return QueueStateProto.valueOf(QUEUE_STATE_PREFIX + e.name());
+  }
+  public static QueueState convertFromProtoFormat(QueueStateProto e) {
+    return QueueState.valueOf(e.name().replace(QUEUE_STATE_PREFIX, ""));
+  }
+
 }
