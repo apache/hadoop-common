@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -52,15 +53,17 @@ public class ParentQueue implements Queue {
 
   private final Queue parent;
   private final String queueName;
-  private final float capacity;
-  private final float maximumCapacity;
-  private final float absoluteCapacity;
-  private final float absoluteMaxCapacity;
+  
+  private float capacity;
+  private float maximumCapacity;
+  private float absoluteCapacity;
+  private float absoluteMaxCapacity;
 
   private float usedCapacity = 0.0f;
   private float utilization = 0.0f;
 
   private final Set<Queue> childQueues;
+  private final Comparator<Queue> queueComparator;
   
   private Resource usedResources = 
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
@@ -87,55 +90,74 @@ public class ParentQueue implements Queue {
     this.queueName = queueName;
     this.rootQueue = (parent == null);
     
-    LOG.info("PQ: parent=" + parent + ", qName=" + queueName + 
-        " qPath=" + getQueuePath() + ", root=" + rootQueue);
-    this.capacity = 
+    float capacity = 
       (float)cs.getConfiguration().getCapacity(getQueuePath()) / 100;
 
     float parentAbsoluteCapacity = 
       (parent == null) ? 1.0f : parent.getAbsoluteCapacity();
-    this.absoluteCapacity = parentAbsoluteCapacity * capacity; 
+    float absoluteCapacity = parentAbsoluteCapacity * capacity; 
 
-    this.maximumCapacity = 
+    float maximumCapacity = 
       cs.getConfiguration().getMaximumCapacity(getQueuePath());
-    this.absoluteMaxCapacity = 
+    float absoluteMaxCapacity = 
       (maximumCapacity == CapacitySchedulerConfiguration.UNDEFINED) ? 
           Float.MAX_VALUE :  (parentAbsoluteCapacity * maximumCapacity) / 100;
     
-    this.childQueues = new TreeSet<Queue>(comparator);
-    
     this.queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
-    this.queueInfo.setCapacity(capacity);
-    this.queueInfo.setMaximumCapacity(maximumCapacity);
     this.queueInfo.setQueueName(queueName);
     this.queueInfo.setChildQueues(new ArrayList<QueueInfo>());
+
+    setupQueueConfigs(capacity, absoluteCapacity, 
+        maximumCapacity, absoluteMaxCapacity);
     
+    this.queueComparator = comparator;
+    this.childQueues = new TreeSet<Queue>(comparator);
+
     this.applicationInfos = 
       new HashMap<ApplicationId, 
       org.apache.hadoop.yarn.api.records.Application>();
 
+
     LOG.info("Initialized parent-queue " + queueName + 
         " name=" + queueName + 
-        ", fullname=" + getQueuePath() + 
-        ", capacity=" + capacity + 
-        ", asboluteCapacity=" + absoluteCapacity + 
+        ", fullname=" + getQueuePath()); 
+  }
+
+  private synchronized void setupQueueConfigs(
+          float capacity, float absoluteCapacity, 
+          float maximumCapacity, float absoluteMaxCapacity
+  ) {
+    this.capacity = capacity;
+    this.absoluteCapacity = absoluteCapacity;
+    this.maximumCapacity = maximumCapacity;
+    this.absoluteMaxCapacity = absoluteMaxCapacity;
+
+    this.queueInfo.setCapacity(capacity);
+    this.queueInfo.setMaximumCapacity(maximumCapacity);
+
+    LOG.info(queueName +
+        ", capacity=" + capacity +
+        ", asboluteCapacity=" + absoluteCapacity +
         ", maxCapacity=" + maximumCapacity +
         ", asboluteMaxCapacity=" + absoluteMaxCapacity);
   }
 
-  public void setChildQueues(Collection<Queue> childQueues) {
+  private static float PRECISION = 0.005f; // 0.05% precision
+  void setChildQueues(Collection<Queue> childQueues) {
     
     // Validate
     float childCapacities = 0;
     for (Queue queue : childQueues) {
       childCapacities += queue.getCapacity();
     }
-    if (childCapacities != 1.0f) {
+    float delta = Math.abs(1.0f - childCapacities);  // crude way to check
+    if (delta > PRECISION) {
       throw new IllegalArgumentException("Illegal" +
       		" capacity of " + childCapacities + 
       		" for children of queue " + queueName);
     }
     
+    this.childQueues.clear();
     this.childQueues.addAll(childQueues);
     LOG.info("DEBUG --- setChildQueues: " + getChildQueuesToPrint());
   }
@@ -243,6 +265,56 @@ public class ParentQueue implements Queue {
       getUsedCapacity() + ":" + getUtilization() + ":" + 
       getNumApplications() + ":" + getNumContainers() + ":" + 
       childQueues.size() + " child-queues";
+  }
+  
+  @Override
+  public synchronized void reinitialize(Queue queue, Resource clusterResource)
+  throws IOException {
+    // Sanity check
+    if (!(queue instanceof ParentQueue) ||
+        !queue.getQueuePath().equals(getQueuePath())) {
+      throw new IOException("Trying to reinitialize " + getQueuePath() +
+          " from " + queue.getQueuePath());
+    }
+
+    ParentQueue parentQueue = (ParentQueue)queue;
+
+    // Re-configure existing child queues and add new ones
+    // The CS has already checked to ensure all existing child queues are present!
+    Map<String, Queue> currentChildQueues = getQueues(childQueues);
+    Map<String, Queue> newChildQueues = getQueues(parentQueue.childQueues);
+    for (Map.Entry<String, Queue> e : newChildQueues.entrySet()) {
+      String newChildQueueName = e.getKey();
+      Queue newChildQueue = e.getValue();
+
+      Queue childQueue = currentChildQueues.get(newChildQueueName);
+      if (childQueue != null){
+        childQueue.reinitialize(newChildQueue, clusterResource);
+        LOG.info(getQueueName() + ": re-configured queue: " + childQueue);
+      } else {
+        currentChildQueues.put(newChildQueueName, newChildQueue);
+        LOG.info(getQueueName() + ": added new child queue: " + newChildQueue);
+      }
+    }
+
+    // Re-sort all queues
+    childQueues.clear();
+    childQueues.addAll(currentChildQueues.values());
+
+    // Set new configs
+    setupQueueConfigs(parentQueue.capacity, parentQueue.absoluteCapacity,
+        parentQueue.maximumCapacity, parentQueue.absoluteMaxCapacity);
+
+    // Update
+    update(clusterResource);
+  }
+
+  Map<String, Queue> getQueues(Set<Queue> queues) {
+    Map<String, Queue> queuesMap = new HashMap<String, Queue>();
+    for (Queue queue : queues) {
+      queuesMap.put(queue.getQueueName(), queue);
+    }
+    return queuesMap;
   }
   
   @Override

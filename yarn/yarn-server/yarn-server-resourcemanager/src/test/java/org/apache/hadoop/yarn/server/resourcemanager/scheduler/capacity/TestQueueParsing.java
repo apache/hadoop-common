@@ -29,7 +29,7 @@ public class TestQueueParsing {
   private static final Log LOG = LogFactory.getLog(TestQueueParsing.class);
   
   @Test
-  public void testQueueParsing() {
+  public void testQueueParsing() throws Exception {
     CapacitySchedulerConfiguration conf = new CapacitySchedulerConfiguration();
     setupQueueConfiguration(conf);
 

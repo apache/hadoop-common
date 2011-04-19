@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.apache.hadoop.classification.InterfaceAudience.Private;
@@ -160,4 +161,13 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    * @return number of applications
    */
   public int getNumApplications();
+
+  
+  /**
+   * Reinitialize the queue.
+   * @param queue new queue to re-initalize from
+   * @param clusterResource resources in the cluster
+   */
+  public void reinitialize(Queue queue, Resource clusterResource) 
+  throws IOException;
 }

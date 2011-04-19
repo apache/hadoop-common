@@ -30,6 +30,8 @@ public class YarnConfiguration extends Configuration {
   public static final String SCHEDULER_ADDRESS = RM_PREFIX
       + "scheduler.address";    
   
+  public static final String ADMIN_ADDRESS = RM_PREFIX + "admin.address";
+
   public static final String AM_EXPIRY_INTERVAL = RM_PREFIX
   + "application.expiry.interval";
   
@@ -46,6 +48,8 @@ public class YarnConfiguration extends Configuration {
   public static final long DEFAULT_NM_EXPIRY_INTERVAL = 600000L;
   
   public static final String DEFAULT_SCHEDULER_BIND_ADDRESS = "0.0.0.0:8030";
+
+  public static final String DEFAULT_ADMIN_BIND_ADDRESS = "0.0.0.0:8141";
 
   public static final String APPSMANAGER_ADDRESS = RM_PREFIX
       + "appsManager.address";

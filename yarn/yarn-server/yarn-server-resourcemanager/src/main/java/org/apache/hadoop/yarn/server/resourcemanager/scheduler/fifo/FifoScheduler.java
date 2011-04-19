@@ -103,16 +103,10 @@ public class FifoScheduler implements ResourceScheduler {
 
   public FifoScheduler() {}
   
-  public FifoScheduler(Configuration conf,
-      ContainerTokenSecretManager containerTokenSecretManager) 
-  {
-    reinitialize(conf, containerTokenSecretManager);
-  }
-  
-  
   @Override
   public void reinitialize(Configuration conf,
       ContainerTokenSecretManager containerTokenSecretManager) 
+  throws IOException 
   {
     this.conf = conf;
     this.containerTokenSecretManager = containerTokenSecretManager;

@@ -26,8 +26,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
-import org.apache.hadoop.yarn.factories.RecordFactory;
-import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.Task;
@@ -41,7 +39,6 @@ import junit.framework.TestCase;
 
 public class TestFifoScheduler extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestFifoScheduler.class);
-  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
   private ResourceManager resourceManager = null;
   

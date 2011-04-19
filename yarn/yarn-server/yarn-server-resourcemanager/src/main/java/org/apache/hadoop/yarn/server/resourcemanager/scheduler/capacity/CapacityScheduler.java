@@ -33,7 +33,6 @@ import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.net.Node;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
@@ -42,13 +41,11 @@ import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
@@ -98,6 +95,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     new TreeMap<ApplicationId, Application>(
         new org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.Comparator());
 
+  private boolean initialized = false;
 
   public Queue getRootQueue() {
     return root;
@@ -119,13 +117,28 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public void reinitialize(Configuration conf,
-      ContainerTokenSecretManager containerTokenSecretManager) {
-    this.conf = new CapacitySchedulerConfiguration(conf);
-    this.minimumAllocation = this.conf.getMinimumAllocation();
-    this.containerTokenSecretManager = containerTokenSecretManager;
+  public synchronized void reinitialize(Configuration conf,
+          ContainerTokenSecretManager containerTokenSecretManager) 
+  throws IOException {
+    if (!initialized) {
+      this.conf = new CapacitySchedulerConfiguration(conf);
+      this.minimumAllocation = this.conf.getMinimumAllocation();
+      this.containerTokenSecretManager = containerTokenSecretManager;
 
-    initializeQueues(this.conf);
+      initializeQueues(this.conf);
+      initialized = true;
+    } else {
+
+      CapacitySchedulerConfiguration oldConf = this.conf; 
+      this.conf = new CapacitySchedulerConfiguration(conf);
+      try {
+        LOG.info("Re-initializing queues...");
+        reinitializeQueues(this.conf);
+      } catch (Throwable t) {
+        this.conf = oldConf;
+        throw new IOException("Failed to re-init queues", t);
+      }
+    }
   }
 
   @Private
@@ -136,13 +149,40 @@ implements ResourceScheduler, CapacitySchedulerContext {
     CapacitySchedulerConfiguration.PREFIX + ROOT;
 
   private void initializeQueues(CapacitySchedulerConfiguration conf) {
-    root = parseQueue(conf, null, ROOT);
-    queues.put(ROOT, root);
+    root = parseQueue(conf, null, ROOT, queues);
     LOG.info("Initialized root queue " + root);
   }
 
+  private synchronized void reinitializeQueues(CapacitySchedulerConfiguration conf) 
+  throws IOException {
+    // Parse new queues
+    Map<String, Queue> newQueues = new HashMap<String, Queue>();
+    Queue newRoot = parseQueue(conf, null, ROOT, newQueues);
+    
+    // Ensure all existing queues are still present
+    validateExistingQueues(queues, newQueues);
+    
+    // Re-configure queues
+    root.reinitialize(newRoot, clusterResource);
+  }
+  
+  /**
+   * Ensure all existing queues are present. Queues cannot be deleted
+   * @param queues existing queues
+   * @param newQueues new queues
+   */
+  private void validateExistingQueues(
+      Map<String, Queue> queues, Map<String, Queue> newQueues) 
+  throws IOException {
+    for (String queue : queues.keySet()) {
+      if (!newQueues.containsKey(queue)) {
+        throw new IOException(queue + " cannot be found during refresh!");
+      }
+    }
+  }
+
   private Queue parseQueue(CapacitySchedulerConfiguration conf, 
-      Queue parent, String queueName) {
+      Queue parent, String queueName, Map<String, Queue> queues) {
     Queue queue;
     String[] childQueueNames = 
       conf.getQueues((parent == null) ? 
@@ -155,19 +195,16 @@ implements ResourceScheduler, CapacitySchedulerContext {
       List<Queue> childQueues = new ArrayList<Queue>();
       for (String childQueueName : childQueueNames) {
         Queue childQueue = 
-          parseQueue(
-              conf, 
-              parentQueue, 
-              childQueueName);
+          parseQueue(conf, parentQueue, childQueueName, queues);
         childQueues.add(childQueue);
-
-        queues.put(childQueueName, childQueue);
       }
       parentQueue.setChildQueues(childQueues);
 
       queue = parentQueue;
     }
 
+    queues.put(queueName, queue);
+    
     LOG.info("Initialized queue: " + queue);
     return queue;
   }
@@ -268,10 +305,14 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public synchronized QueueInfo getQueueInfo(String queueName, 
+  public QueueInfo getQueueInfo(String queueName, 
       boolean includeApplications, boolean includeChildQueues, boolean recursive) 
   throws IOException {
-    Queue queue = this.queues.get(queueName);
+    Queue queue = null;
+    
+    synchronized (this) {
+     queue = this.queues.get(queueName); 
+    }
 
     if (queue == null) {
       throw new IOException("Unknown queue: " + queueName);

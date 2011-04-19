@@ -136,7 +136,8 @@ public class TestRMWebApp {
   }
 
   public static ResourceManager mockRm(int apps, int racks, int nodes,
-                                       int mbsPerNode) {
+                                       int mbsPerNode)
+  throws Exception {
     ResourceManager rm = mock(ResourceManager.class);
     ApplicationsManager asm = mockAsm(apps);
     RMResourceTrackerImpl rt = mockResource(racks, nodes, mbsPerNode);
@@ -147,7 +148,7 @@ public class TestRMWebApp {
     return rm;
   }
 
-  public static CapacityScheduler mockCS() {
+  public static CapacityScheduler mockCS() throws Exception {
     // stolen from TestCapacityScheduler
     CapacitySchedulerConfiguration conf = new CapacitySchedulerConfiguration();
     setupQueueConfiguration(conf);
@@ -206,7 +207,7 @@ public class TestRMWebApp {
     conf.setCapacity(C13, 40);
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
     // For manual testing
     WebApps.$for("yarn", new TestRMWebApp()).at(8888).inDevMode().
         start(new RMWebApp(mockRm(42, 8, 8, 8*GiB))).joinThread();

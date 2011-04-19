@@ -29,6 +29,11 @@
     <value>0.0.0.0:8030</value>
   </property>
 
+ <property>
+    <name>yarn.server.resourcemanager.admin.address</name>
+    <value>0.0.0.0:8141</value>
+  </property>
+
   <property>
     <name>yarn.server.resourcemanager.application.max.retries</name>
     <value>1</value>

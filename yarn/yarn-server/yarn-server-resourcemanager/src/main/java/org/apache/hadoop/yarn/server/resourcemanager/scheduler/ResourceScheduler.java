@@ -44,5 +44,5 @@ public interface ResourceScheduler extends ResourceListener, YarnScheduler,
    * @throws IOException
    */
   void reinitialize(Configuration conf, 
-      ContainerTokenSecretManager secretManager);    
+      ContainerTokenSecretManager secretManager) throws IOException;    
 }

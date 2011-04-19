@@ -61,11 +61,10 @@ esac
 if [ $# = 0 ]; then
   echo "Usage: hadoop [--config confdir] COMMAND"
   echo "where COMMAND is one of:"
-  echo "  resourcemanager           run the ResourceManager" 
+  echo "  resourcemanager      run the ResourceManager" 
   echo "  nodemanager          run a nodemanager on each slave" 
   echo "  historyserver        run job history servers as a standalone daemon"
-  echo "  job                  manipulate MapReduce jobs"
-  echo "  queue                get information regarding JobQueues" 
+  echo "  rmadmin              admin tools" 
   echo "  version              print the version"
   echo "  jar <jar>            run a jar file"
   echo "  classpath            prints the class path needed to get the"
@@ -281,6 +280,9 @@ if [ "$COMMAND" = "classpath" ] ; then
   fi
   echo $CLASSPATH
   exit
+elif [ "$COMMAND" = "rmadmin" ] ; then
+  CLASS='org.apache.hadoop.yarn.server.resourcemanager.tools.RMAdmin'
+  YARN_OPTS="$YARN_OPTS $YARN_CLIENT_OPTS"
 elif [ "$COMMAND" = "resourcemanager" ] ; then
   CLASSPATH=${CLASSPATH}:$YARN_CONF_DIR/rm-config/log4j.properties
   CLASS='org.apache.hadoop.yarn.server.resourcemanager.ResourceManager'
@@ -296,12 +298,6 @@ elif [ "$COMMAND" = "nodemanager" ] ; then
 elif [ "$COMMAND" = "historyserver" ] ; then
   CLASS=org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer
   YARN_OPTS="$YARN_OPTS $YARN_JOB_HISTORYSERVER_OPTS"
-elif [ "$COMMAND" = "job" ] ; then
-  CLASS=org.apache.hadoop.mapred.JobClient
-  YARN_OPTS="$YARN_OPTS $YARN_CLIENT_OPTS"
-elif [ "$COMMAND" = "queue" ] ; then
-  CLASS=org.apache.hadoop.mapred.JobQueueClient
-  YARN_OPTS="$YARN_OPTS $YARN_CLIENT_OPTS"
 elif [ "$COMMAND" = "version" ] ; then
   CLASS=org.apache.hadoop.util.VersionInfo
   YARN_OPTS="$YARN_OPTS $YARN_CLIENT_OPTS"

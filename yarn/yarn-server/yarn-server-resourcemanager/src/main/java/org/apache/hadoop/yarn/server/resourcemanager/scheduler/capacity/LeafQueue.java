@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -56,15 +57,15 @@ public class LeafQueue implements Queue {
   
   private final String queueName;
   private final Queue parent;
-  private final float capacity;
-  private final float absoluteCapacity;
-  private final float maximumCapacity;
-  private final float absoluteMaxCapacity;
-  private final int userLimit;
-  private final float userLimitFactor;
+  private float capacity;
+  private float absoluteCapacity;
+  private float maximumCapacity;
+  private float absoluteMaxCapacity;
+  private int userLimit;
+  private float userLimitFactor;
   
-  private final int maxApplications;
-  private final int maxApplicationsPerUser;
+  private int maxApplications;
+  private int maxApplicationsPerUser;
   
   private Resource usedResources = 
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
@@ -96,28 +97,25 @@ public class LeafQueue implements Queue {
     this.minimumAllocation = cs.getMinimumAllocation();
     this.containerTokenSecretManager = cs.getContainerTokenSecretManager();
 
-    this.capacity = 
+    float capacity = 
       (float)cs.getConfiguration().getCapacity(getQueuePath()) / 100;
-    this.absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
+    float absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
     
-    this.maximumCapacity = cs.getConfiguration().getMaximumCapacity(getQueuePath());
-    this.absoluteMaxCapacity = 
+    float maximumCapacity = cs.getConfiguration().getMaximumCapacity(getQueuePath());
+    float absoluteMaxCapacity = 
       (maximumCapacity == CapacitySchedulerConfiguration.UNDEFINED) ? 
           Float.MAX_VALUE : (parent.getAbsoluteCapacity() * maximumCapacity) / 100;
 
-    this.userLimit = cs.getConfiguration().getUserLimit(getQueuePath());
-
-    this.userLimitFactor = 
+    int userLimit = cs.getConfiguration().getUserLimit(getQueuePath());
+    float userLimitFactor = 
       cs.getConfiguration().getUserLimitFactor(getQueuePath());
     
     int maxSystemJobs = cs.getConfiguration().getMaximumSystemApplications();
-    this.maxApplications = (int)(maxSystemJobs * absoluteCapacity);
-    this.maxApplicationsPerUser = 
+    int maxApplications = (int)(maxSystemJobs * absoluteCapacity);
+    int maxApplicationsPerUser = 
       (int)(maxApplications * (userLimit / 100.0f) * userLimitFactor);
 
     this.queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
-    this.queueInfo.setCapacity(capacity);
-    this.queueInfo.setMaximumCapacity(maximumCapacity);
     this.queueInfo.setQueueName(queueName);
     this.queueInfo.setChildQueues(new ArrayList<QueueInfo>());
     
@@ -125,20 +123,50 @@ public class LeafQueue implements Queue {
       new HashMap<ApplicationId, 
       org.apache.hadoop.yarn.api.records.Application>();
 
+    setupQueueConfigs(capacity, absoluteCapacity, 
+        maximumCapacity, absoluteMaxCapacity, 
+        userLimit, userLimitFactor, 
+        maxApplications, maxApplicationsPerUser);
+
     LOG.info("DEBUG --- LeafQueue:" +
     		" name=" + queueName + 
-    		", fullname=" + getQueuePath() + 
-        ", capacity=" + capacity + 
-    		", asboluteCapacity=" + absoluteCapacity + 
-        ", maxCapacity=" + maximumCapacity +
-    		", asboluteMaxCapacity=" + absoluteMaxCapacity +
-    		", userLimit=" + userLimit + ", userLimitFactor=" + userLimitFactor + 
-    		", maxApplications=" + maxApplications + 
-    		", maxApplicationsPerUser=" + maxApplicationsPerUser);
+    		", fullname=" + getQueuePath());
     
     this.applications = new TreeSet<Application>(applicationComparator);
   }
   
+  private synchronized void setupQueueConfigs(
+          float capacity, float absoluteCapacity, 
+          float maxCapacity, float absoluteMaxCapacity,
+          int userLimit, float userLimitFactor,
+          int maxApplications, int maxApplicationsPerUser)
+  {
+    this.capacity = capacity; 
+    this.absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
+
+    this.maximumCapacity = maxCapacity;
+    this.absoluteMaxCapacity = absoluteMaxCapacity;
+    
+    this.userLimit = userLimit;
+    this.userLimitFactor = userLimitFactor;
+
+    this.maxApplications = maxApplications;
+    this.maxApplicationsPerUser = maxApplicationsPerUser;
+    
+    this.queueInfo.setCapacity(capacity);
+    this.queueInfo.setMaximumCapacity(maximumCapacity);
+    
+    LOG.info(queueName +
+        ", capacity=" + capacity + 
+        ", asboluteCapacity=" + absoluteCapacity + 
+        ", maxCapacity=" + maxCapacity +
+        ", asboluteMaxCapacity=" + absoluteMaxCapacity +
+        ", userLimit=" + userLimit + ", userLimitFactor=" + userLimitFactor + 
+        ", maxApplications=" + maxApplications + 
+        ", maxApplicationsPerUser=" + maxApplicationsPerUser);
+  }
+      
+
   @Override
   public float getCapacity() {
     return capacity;
@@ -247,6 +275,25 @@ public class LeafQueue implements Queue {
     return user;
   }
   
+  @Override
+  public synchronized void reinitialize(Queue queue, Resource clusterResource) 
+  throws IOException {
+    // Sanity check
+    if (!(queue instanceof LeafQueue) || 
+        !queue.getQueuePath().equals(getQueuePath())) {
+      throw new IOException("Trying to reinitialize " + getQueuePath() + 
+          " from " + queue.getQueuePath());
+    }
+    
+    LeafQueue leafQueue = (LeafQueue)queue;
+    setupQueueConfigs(leafQueue.capacity, leafQueue.absoluteCapacity, 
+        leafQueue.maximumCapacity, leafQueue.absoluteMaxCapacity, 
+        leafQueue.userLimit, leafQueue.userLimitFactor, 
+        leafQueue.maxApplications, leafQueue.maxApplicationsPerUser);
+    
+    update(clusterResource);
+  }
+
   @Override
   public void submitApplication(Application application, String userName,
       String queue, Priority priority) 

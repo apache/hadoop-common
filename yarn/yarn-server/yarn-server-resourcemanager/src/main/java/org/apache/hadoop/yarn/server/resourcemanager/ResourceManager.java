@@ -66,6 +66,7 @@ public class ResourceManager extends CompositeService {
   private RMResourceTrackerImpl rmResourceTracker;
   private ClientRMService clientRM;
   private ApplicationMasterService masterService;
+  private AdminService adminService;
   private AtomicBoolean shutdown = new AtomicBoolean(false);
   private WebApp webApp;
   private final ASMContext asmContext;
@@ -103,7 +104,11 @@ public class ResourceManager extends CompositeService {
           conf.getClass(YarnConfiguration.RESOURCE_SCHEDULER, 
               FifoScheduler.class, ResourceScheduler.class), 
           this.conf);
-    this.scheduler.reinitialize(this.conf, this.containerTokenSecretManager);
+    try {
+      this.scheduler.reinitialize(this.conf, this.containerTokenSecretManager);
+    } catch (IOException ioe) {
+      throw new RuntimeException("Failed to initialize scheduler", ioe);
+    }
     /* add the scheduler to be notified of events from the applications managers */
     this.asmContext.getDispatcher().register(ApplicationTrackerEventType.class, this.scheduler);
     //TODO change this to be random
@@ -121,6 +126,10 @@ public class ResourceManager extends CompositeService {
     
     masterService = createApplicationMasterService();
     addService(masterService) ;
+    
+    adminService = createAdminService(conf, scheduler);
+    addService(adminService);
+
     super.init(conf);
   }
   
@@ -187,6 +196,12 @@ public class ResourceManager extends CompositeService {
       this.appTokenSecretManager, applicationsManager, scheduler, this.asmContext);
   }
   
+
+  protected AdminService createAdminService(Configuration conf, 
+      ResourceScheduler scheduler) {
+    return new AdminService(conf, scheduler);
+  }
+
   /**
    * return applications manager.
    * @return

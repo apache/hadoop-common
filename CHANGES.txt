@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    Added functionality to refresh queues at runtime via the 'bin/yarn
+    rmadmin' command. (acmurthy) 
+    
     Fixed computation of user-limits at runtime. (acmurthy) 
     
     Implement 'bin/mapred queue [-info [-showJobs]] [-list] and enhanced 

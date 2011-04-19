@@ -217,8 +217,7 @@ public class TestRMContainerAllocator {
   }
 
   private FifoScheduler createScheduler() throws YarnRemoteException {
-    FifoScheduler fsc = new FifoScheduler(new Configuration(),
-        new ContainerTokenSecretManager()) {
+    FifoScheduler fsc = new FifoScheduler() {
       //override this to copy the objects
       //otherwise FifoScheduler updates the numContainers in same objects as kept by
       //RMContainerAllocator
@@ -241,6 +240,7 @@ public class TestRMContainerAllocator {
       }
     };
     try {
+      fsc.reinitialize(new Configuration(), new ContainerTokenSecretManager());
       fsc.addApplication(recordFactory.newRecordInstance(ApplicationId.class), "test", null, null);
     } catch(IOException ie) {
       LOG.info("add application failed with ", ie);
