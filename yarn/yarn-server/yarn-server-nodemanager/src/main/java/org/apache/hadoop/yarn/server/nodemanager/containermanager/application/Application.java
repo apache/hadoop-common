@@ -24,9 +24,11 @@ import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 
 
 public interface Application extends EventHandler<ApplicationEvent> {
@@ -38,6 +40,8 @@ public interface Application extends EventHandler<ApplicationEvent> {
   Map<Path,String> getLocalizedResources();
 
   String getUser();
+
+  Map<ContainerId, Container> getContainers();
 
   ApplicationId getAppId();
 

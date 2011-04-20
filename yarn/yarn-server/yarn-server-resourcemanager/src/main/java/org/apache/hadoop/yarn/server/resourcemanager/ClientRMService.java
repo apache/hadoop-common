@@ -209,7 +209,7 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
   private NodeManagerInfo createNodeManagerInfo(NodeInfo nodeInfo) {
     NodeManagerInfo node = 
       recordFactory.newRecordInstance(NodeManagerInfo.class);
-    node.setNodeName(nodeInfo.getHostName());
+    node.setNodeAddress(nodeInfo.getNodeAddress());
     node.setRackName(nodeInfo.getRackName());
     node.setCapability(nodeInfo.getTotalCapability());
     node.setUsed(nodeInfo.getUsedResource());

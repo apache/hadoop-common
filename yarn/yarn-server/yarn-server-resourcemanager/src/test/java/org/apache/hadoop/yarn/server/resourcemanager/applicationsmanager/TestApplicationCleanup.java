@@ -262,7 +262,7 @@ public class TestApplicationCleanup extends TestCase {
     Resource capability = recordFactory.newRecordInstance(Resource.class);
     capability.setMemory(1024);
     NodeManager nodeManager =
-      new NodeManagerImpl(nodeId, hostName, node, capability);
+      new NodeManagerImpl(nodeId, hostName, "localhost:0", node, capability);
     scheduler.addNode(nodeManager);
     return nodeManager;
   }

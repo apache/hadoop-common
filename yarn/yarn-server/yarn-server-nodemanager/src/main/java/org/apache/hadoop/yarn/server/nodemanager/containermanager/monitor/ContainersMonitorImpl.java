@@ -465,6 +465,16 @@ public class ContainersMonitorImpl extends AbstractService implements
   }
 
   @Override
+  public long getVmemAllocatedForContainers() {
+    return this.maxVmemAllottedForContainers;
+  }
+
+  @Override
+  public long getPmemAllocatedForContainers() {
+    return this.maxPmemAllottedForContainers;
+  }
+
+  @Override
   public void handle(ContainersMonitorEvent monitoringEvent) {
 
     if (!(doCheckPhysicalMemory() || doCheckVirtualMemory())) {

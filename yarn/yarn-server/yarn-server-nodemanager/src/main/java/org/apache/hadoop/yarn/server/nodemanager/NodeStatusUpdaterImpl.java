@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -63,14 +64,17 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
 
   private final Object heartbeatMonitor = new Object();
 
-  private Context context;
-  private Dispatcher dispatcher;
+  private final Context context;
+  private final Dispatcher dispatcher;
 
   private long heartBeatInterval;
   private ResourceTracker resourceTracker;
   private String rmAddress;
   private Resource totalResource;
-  private String nodeName;
+  private String containerManagerBindAddress;
+  private String hostName;
+  private int containerManagerPort;
+  private int httpPort;
   private NodeId nodeId;
   private byte[] secretKeyBytes = new byte[0];
   private boolean isStopped;
@@ -102,15 +106,24 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
 
   @Override
   public void start() {
-    String bindAddress =
+    String cmBindAddressStr =
         getConfig().get(NMConfig.NM_BIND_ADDRESS,
             NMConfig.DEFAULT_NM_BIND_ADDRESS);
-    InetSocketAddress addr = NetUtils.createSocketAddr(bindAddress);
+    InetSocketAddress cmBindAddress =
+        NetUtils.createSocketAddr(cmBindAddressStr);
+    String httpBindAddressStr =
+      getConfig().get(NMConfig.NM_HTTP_BIND_ADDRESS,
+          NMConfig.DEFAULT_NM_HTTP_BIND_ADDRESS);
+    InetSocketAddress httpBindAddress =
+      NetUtils.createSocketAddr(httpBindAddressStr);
     try {
-      this.nodeName =
-          addr.getAddress().getLocalHost().getHostAddress() + ":"
-              + addr.getPort();
-      LOG.info("Configured ContainerManager Address is " + this.nodeName);
+      this.hostName = InetAddress.getLocalHost().getHostAddress();
+      this.containerManagerPort = cmBindAddress.getPort();
+      this.httpPort = httpBindAddress.getPort();
+      this.containerManagerBindAddress =
+          this.hostName + ":" + this.containerManagerPort;
+      LOG.info("Configured ContainerManager Address is "
+          + this.containerManagerBindAddress);
       // Registration has to be in start so that ContainerManager can get the
       // perNM tokens needed to authenticate ContainerTokens.
       registerWithRM();
@@ -143,7 +156,9 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
     LOG.info("Connected to ResourceManager at " + this.rmAddress);
     
     RegisterNodeManagerRequest request = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request.setNode(this.nodeName);
+    request.setHost(this.hostName);
+    request.setContainerManagerPort(this.containerManagerPort);
+    request.setHttpPort(this.httpPort);
     request.setResource(this.totalResource);
     RegistrationResponse regResponse =
         this.resourceTracker.registerNodeManager(request).getRegistrationResponse();
@@ -152,13 +167,13 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
       this.secretKeyBytes = regResponse.getSecretKey().array();
     }
 
-    LOG.info("Registered with ResourceManager as " + this.nodeName
+    LOG.info("Registered with ResourceManager as " + this.containerManagerBindAddress
         + " with total resource of " + this.totalResource);
   }
 
   @Override
-  public String getNodeName() {
-    return this.nodeName;
+  public String getContainerManagerBindAddress() {
+    return this.containerManagerBindAddress;
   }
 
   @Override
@@ -192,7 +207,7 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
 
         // Clone the container to send it to the RM
         org.apache.hadoop.yarn.api.records.Container c = container.cloneAndGetContainer();
-        c.setHostName(this.nodeName);
+        c.setHostName(this.containerManagerBindAddress);
         applicationContainers.add(c);
         ++numActiveContainers;
         LOG.info("Sending out status for container: " + c);
@@ -206,7 +221,7 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
       }
     }
 
-    LOG.debug(this.nodeName + " sending out status for " + numActiveContainers
+    LOG.debug(this.containerManagerBindAddress + " sending out status for " + numActiveContainers
         + " containers");
 
     NodeHealthStatus nodeHealthStatus = this.context.getNodeHealthStatus();

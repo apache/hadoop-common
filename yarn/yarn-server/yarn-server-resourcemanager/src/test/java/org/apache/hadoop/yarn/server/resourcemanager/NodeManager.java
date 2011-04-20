@@ -73,8 +73,9 @@ public class NodeManager implements ContainerManager {
   final Map<String, List<Container>> containers = 
     new HashMap<String, List<Container>>();
   
-  public NodeManager(String hostName, String rackName, int memory, 
-      RMResourceTrackerImpl resourceTracker) throws IOException {
+  public NodeManager(String hostName, int containerManagerPort, int httpPort,
+      String rackName, int memory, RMResourceTrackerImpl resourceTracker)
+      throws IOException {
     this.hostName = hostName;
     this.rackName = rackName;
     this.resourceTracker = resourceTracker;
@@ -85,7 +86,9 @@ public class NodeManager implements ContainerManager {
         available, capability);
 
     RegisterNodeManagerRequest request = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request.setNode(hostName);
+    request.setHost(hostName);
+    request.setContainerManagerPort(containerManagerPort);
+    request.setHttpPort(httpPort);
     request.setResource(capability);
     RegistrationResponse response =
         resourceTracker.registerNodeManager(request).getRegistrationResponse();

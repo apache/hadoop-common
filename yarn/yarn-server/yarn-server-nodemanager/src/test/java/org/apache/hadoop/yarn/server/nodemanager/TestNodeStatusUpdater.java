@@ -74,7 +74,9 @@ public class TestNodeStatusUpdater {
 
     @Override
     public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest request) throws YarnRemoteException {
-      String node = request.getNode();
+      String host = request.getHost();
+      int cmPort = request.getContainerManagerPort();
+      String node = host + ":" + cmPort;
       Resource resource = request.getResource();
       LOG.info("Registering " + node);
       try {

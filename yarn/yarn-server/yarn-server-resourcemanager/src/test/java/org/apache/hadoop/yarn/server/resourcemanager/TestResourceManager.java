@@ -52,11 +52,12 @@ public class TestResourceManager extends TestCase {
   public void tearDown() throws Exception {
   }
 
-  private org.apache.hadoop.yarn.server.resourcemanager.NodeManager 
-  registerNode(String hostName, String rackName, int memory) 
-  throws IOException {
+  private org.apache.hadoop.yarn.server.resourcemanager.NodeManager
+      registerNode(String hostName, int containerManagerPort, int httpPort,
+          String rackName, int memory) throws IOException {
     return new org.apache.hadoop.yarn.server.resourcemanager.NodeManager(
-        hostName, rackName, memory, resourceManager.getResourceTracker());
+        hostName, containerManagerPort, httpPort, rackName, memory,
+        resourceManager.getResourceTracker());
   }
   
   @Test
@@ -68,13 +69,13 @@ public class TestResourceManager extends TestCase {
     // Register node1
     String host1 = "host1";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm1 = 
-      registerNode(host1, NetworkTopology.DEFAULT_RACK, memory);
+      registerNode(host1, 1234, 2345, NetworkTopology.DEFAULT_RACK, memory);
     nm1.heartbeat();
     
     // Register node2
     String host2 = "host2";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm2 = 
-      registerNode(host2, NetworkTopology.DEFAULT_RACK, memory);
+      registerNode(host2, 1234, 2345, NetworkTopology.DEFAULT_RACK, memory);
     nm2.heartbeat();
 
     LOG.info("--- END: testResourceManagerInitialization ---");
@@ -89,13 +90,13 @@ public class TestResourceManager extends TestCase {
     // Register node1
     String host1 = "host1";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm1 = 
-      registerNode(host1, NetworkTopology.DEFAULT_RACK, memory);
+      registerNode(host1, 1234, 2345, NetworkTopology.DEFAULT_RACK, memory);
     nm1.heartbeat();
     
     // Register node 2
     String host2 = "host1";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm2 = 
-      registerNode(host2, NetworkTopology.DEFAULT_RACK, memory);
+      registerNode(host2, 1234, 2345, NetworkTopology.DEFAULT_RACK, memory);
     nm2.heartbeat();
     
     // Submit an application
@@ -114,21 +115,21 @@ public class TestResourceManager extends TestCase {
     // Register node1
     String host1 = "host1";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm1 = 
-      registerNode(host1, NetworkTopology.DEFAULT_RACK, memory);
+      registerNode(host1, 1234, 2345, NetworkTopology.DEFAULT_RACK, memory);
     nm1.heartbeat();
     
     // Register node2
     String host2 = "host2";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm2 = 
-      registerNode(host2, NetworkTopology.DEFAULT_RACK, memory/2);
+      registerNode(host2, 1234, 2345, NetworkTopology.DEFAULT_RACK, memory/2);
     nm2.heartbeat();
 
     // Submit an application
     Application application = new Application("user1", resourceManager);
     application.submit();
     
-    application.addNodeManager(host1, nm1);
-    application.addNodeManager(host2, nm2);
+    application.addNodeManager(host1, 1234, nm1);
+    application.addNodeManager(host2, 1234, nm2);
     
     // Application resource requirements
     final int memory1 = 1024;

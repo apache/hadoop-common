@@ -59,7 +59,7 @@ class NodesPage extends RmView {
         tbody.tr().
             td(ni.getRackName()).
             td(String.valueOf(ni.getNodeID().getId())).
-            td(ni.getHostName()).
+            td().a("http://" + ni.getHttpAddress(), ni.getHttpAddress())._().
             td(ni.getNodeHealthStatus().getIsNodeHealthy() ? "Healthy"
                 : "Unhealthy").
             td(String.valueOf(ni.getNodeHealthStatus()

@@ -24,7 +24,7 @@ public interface NodeStatusUpdater extends Service {
 
   byte[] getRMNMSharedSecret();
 
-  String getNodeName();
+  String getContainerManagerBindAddress();
 
   void sendOutofBandHeartBeat();
 

@@ -7,8 +7,10 @@ import "yarn_protos.proto";
 import "yarn_server_common_protos.proto";
 
 message RegisterNodeManagerRequestProto {
-  optional string node = 1;
-  optional ResourceProto resource = 2;
+  optional string host = 1;
+  optional int32 container_manager_port = 2;
+  optional int32 http_port = 3;
+  optional ResourceProto resource = 4;
 }
 message RegisterNodeManagerResponseProto {
   optional RegistrationResponseProto registration_response = 1;

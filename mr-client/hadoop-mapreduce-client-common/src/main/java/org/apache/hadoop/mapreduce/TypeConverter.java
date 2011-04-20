@@ -362,7 +362,7 @@ public class TypeConverter {
   }
 
   public static TaskTrackerInfo fromYarn(NodeManagerInfo node) {
-    TaskTrackerInfo taskTracker = new TaskTrackerInfo(node.getNodeName());
+    TaskTrackerInfo taskTracker = new TaskTrackerInfo(node.getNodeAddress());
     return taskTracker;
   }
 

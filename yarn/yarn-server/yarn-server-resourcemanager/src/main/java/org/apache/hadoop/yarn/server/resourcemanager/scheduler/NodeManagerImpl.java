@@ -53,7 +53,8 @@ public class NodeManagerImpl implements NodeManager {
   private static final Log LOG = LogFactory.getLog(NodeManager.class);
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private final NodeId nodeId;
-  private final String hostName;
+  private final String nodeAddress; // The containerManager address
+  private final String httpAddress;
   private Resource totalCapability;
   private Resource availableResource = recordFactory.newRecordInstance(Resource.class);
   private Resource usedResource = recordFactory.newRecordInstance(Resource.class);
@@ -77,7 +78,7 @@ public class NodeManagerImpl implements NodeManager {
   
   /* set of containers that need to be cleaned */
   private final Set<Container> containersToClean = 
-    new TreeSet<Container>(new org.apache.hadoop.yarn.server.resourcemanager.resource.Container.Comparator());
+    new TreeSet<Container>(new org.apache.hadoop.yarn.server.resourcemanager.resource.Container.ContainerComparator());
 
   
   /* the list of applications that have finished and need to be purged */
@@ -85,11 +86,12 @@ public class NodeManagerImpl implements NodeManager {
   
   private volatile int numContainers;
   
-  public NodeManagerImpl(NodeId nodeId, String hostname, 
-      Node node, Resource capability) {
+  public NodeManagerImpl(NodeId nodeId, String nodeAddress,
+      String httpAddress, Node node, Resource capability) {
     this.nodeId = nodeId;   
     this.totalCapability = capability; 
-    this.hostName = hostname;
+    this.nodeAddress = nodeAddress;
+    this.httpAddress = httpAddress;
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
         availableResource, capability);
     this.node = node;
@@ -121,7 +123,7 @@ public class NodeManagerImpl implements NodeManager {
     }
 
     LOG.info("addContainers:" +
-        " node=" + getHostName() + 
+        " node=" + getNodeAddress() + 
         " #containers=" + containers.size() + 
         " available=" + getAvailableResource().getMemory() + 
         " used=" + getUsedResource().getMemory());
@@ -166,7 +168,7 @@ public class NodeManagerImpl implements NodeManager {
       if (allocatedContainers.remove(container.getId()) != null) {
         activeContainers.put(container.getId(), container);
         LOG.info("Activated container " + container.getId() + " on node " + 
-         getHostName());
+         getNodeAddress());
       }
 
       if (container.getState() == ContainerState.COMPLETE) {
@@ -176,7 +178,7 @@ public class NodeManagerImpl implements NodeManager {
         }
         completedContainers.add(container);
         LOG.info("Removed completed container " + container.getId() + " on node " + 
-            getHostName());
+            getNodeAddress());
       }
       else if (container.getState() != ContainerState.COMPLETE && 
           (!allocatedContainers.containsKey(container.getId())) && 
@@ -198,10 +200,10 @@ public class NodeManagerImpl implements NodeManager {
     
     allocatedContainers.put(container.getId(), container);
     LOG.info("Allocated container " + container.getId() + 
-        " to node " + getHostName());
+        " to node " + getNodeAddress());
     
     LOG.info("Assigned container " + container.getId() + 
-        " of capacity " + container.getResource() + " on host " + getHostName() + 
+        " of capacity " + container.getResource() + " on host " + getNodeAddress() + 
         ", which currently has " + numContainers + " containers, " + 
         getUsedResource() + " used and " + 
         getAvailableResource() + " available");
@@ -239,7 +241,7 @@ public class NodeManagerImpl implements NodeManager {
     updateResource(container);
 
     LOG.info("Released container " + container.getId() + 
-        " of capacity " + container.getResource() + " on host " + getHostName() + 
+        " of capacity " + container.getResource() + " on host " + getNodeAddress() + 
         ", which currently has " + numContainers + " containers, " + 
         getUsedResource() + " used and " + getAvailableResource()
         + " available" + ", release resources=" + true);
@@ -252,8 +254,13 @@ public class NodeManagerImpl implements NodeManager {
   }
 
   @Override
-  public String getHostName() {
-    return this.hostName;
+  public String getNodeAddress() {
+    return this.nodeAddress;
+  }
+
+  @Override
+  public String getHttpAddress() {
+    return this.httpAddress;
   }
 
   @Override
@@ -283,7 +290,8 @@ public class NodeManagerImpl implements NodeManager {
 
   public synchronized void addAvailableResource(Resource resource) {
     if (resource == null) {
-      LOG.error("Invalid resource addition of null resource for " + this.hostName);
+      LOG.error("Invalid resource addition of null resource for "
+          + this.nodeAddress);
       return;
     }
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
@@ -294,7 +302,8 @@ public class NodeManagerImpl implements NodeManager {
 
   public synchronized void deductAvailableResource(Resource resource) {
     if (resource == null) {
-      LOG.error("Invalid deduction of null resource for "+ this.hostName);
+      LOG.error("Invalid deduction of null resource for "
+          + this.nodeAddress);
     }
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
         availableResource, resource);
@@ -333,7 +342,7 @@ public class NodeManagerImpl implements NodeManager {
 
   @Override
   public String toString() {
-    return "host: " + getHostName() + " #containers=" + getNumContainers() +  
+    return "host: " + getNodeAddress() + " #containers=" + getNumContainers() +  
       " available=" + getAvailableResource().getMemory() + 
       " used=" + getUsedResource().getMemory();
   }

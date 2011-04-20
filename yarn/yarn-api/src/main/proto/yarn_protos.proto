@@ -115,11 +115,12 @@ message ApplicationProto {
 }
 
 message NodeManagerInfoProto {
-  optional string nodeName = 1;
-  optional string rackName = 2;
-  optional ResourceProto used = 3;
-  optional ResourceProto capability = 4;
-  optional int32 numContainers = 5;
+  optional string nodeAddress = 1;
+  optional string httpAddress = 2;
+  optional string rackName = 3;
+  optional ResourceProto used = 4;
+  optional ResourceProto capability = 5;
+  optional int32 numContainers = 6;
 }
 
 

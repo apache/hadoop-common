@@ -209,8 +209,8 @@ public class TestRMContainerAllocator {
     nodeId.setId(0);
     Resource resource = recordFactory.newRecordInstance(Resource.class);
     resource.setMemory(memory);
-    NodeManager nodeManager = new NodeManagerImpl(nodeId, nodeName,
-        RMResourceTrackerImpl.resolve(nodeName), resource
+    NodeManager nodeManager = new NodeManagerImpl(nodeId, nodeName, 
+        "localhost:0", RMResourceTrackerImpl.resolve(nodeName), resource
         );
     scheduler.addNode(nodeManager); // Node registration
     return nodeManager;

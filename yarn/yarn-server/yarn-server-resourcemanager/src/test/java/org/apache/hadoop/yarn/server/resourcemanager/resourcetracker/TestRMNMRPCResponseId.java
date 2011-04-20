@@ -87,7 +87,9 @@ public class TestRMNMRPCResponseId extends TestCase {
     String node = "localhost";
     Resource capability = recordFactory.newRecordInstance(Resource.class);
     RegisterNodeManagerRequest request = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request.setNode(node);
+    request.setHost(node);
+    request.setContainerManagerPort(0);
+    request.setHttpPort(0);
     request.setResource(capability);
     rmResourceTrackerImpl.registerNodeManager(request);
     org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);

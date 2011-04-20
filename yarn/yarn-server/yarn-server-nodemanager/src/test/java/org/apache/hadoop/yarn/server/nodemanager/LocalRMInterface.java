@@ -36,7 +36,9 @@ public class LocalRMInterface implements ResourceTracker {
   
   @Override
   public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest request) throws YarnRemoteException {
-    String node = request.getNode();
+    String host = request.getHost();
+    int cmPort = request.getContainerManagerPort();
+    String node = host + ":" + cmPort;
     Resource resource = request.getResource();
     RegistrationResponse registrationResponse = recordFactory.newRecordInstance(RegistrationResponse.class);
     registrationResponse.setNodeId(recordFactory.newRecordInstance(NodeId.class));

@@ -1,8 +1,10 @@
 package org.apache.hadoop.yarn.api.records;
 
 public interface NodeManagerInfo {
-  String getNodeName();
-  void setNodeName(String nodeName);
+  String getNodeAddress();
+  void setNodeAddress(String nodeAddress);
+  String getHttpAddress();
+  void setHttpAddress(String httpAddress);
   String getRackName();
   void setRackName(String rackName);
   Resource getUsed();        

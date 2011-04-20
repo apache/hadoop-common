@@ -137,18 +137,24 @@ public class TestNMExpiry extends TestCase {
 
   @Test
   public void testNMExpiry() throws Exception {
-    String hostname1 = "localhost:1";
-    String hostname2 = "localhost:2";
-    String hostname3 = "localhost:3";
+    String hostname1 = "localhost1";
+    String hostname2 = "localhost2";
+    String hostname3 = "localhost3";
     Resource capability = recordFactory.newRecordInstance(Resource.class);
     RegisterNodeManagerRequest request1 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request1.setNode(hostname1);
+    request1.setHost(hostname1);
+    request1.setContainerManagerPort(0);
+    request1.setHttpPort(0);
     request1.setResource(capability);
     RegisterNodeManagerRequest request2 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request2.setNode(hostname2);
+    request2.setHost(hostname2);
+    request2.setContainerManagerPort(0);
+    request2.setHttpPort(0);
     request2.setResource(capability);
     RegisterNodeManagerRequest request3 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request3.setNode(hostname3);
+    request3.setHost(hostname3);
+    request3.setContainerManagerPort(0);
+    request3.setHttpPort(0);
     request3.setResource(capability);
     resourceTracker.registerNodeManager(request1);
     resourceTracker.registerNodeManager(request2);

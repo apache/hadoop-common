@@ -16,24 +16,29 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.yarn.server.nodemanager;
+package org.apache.hadoop.yarn.server.nodemanager.webapp;
 
-import java.util.List;
+import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
 
-import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerManagerEvent;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerManagerEventType;
+public class NavBlock extends HtmlBlock implements NMWebParams {
 
-public class CMgrCompletedAppsEvent extends ContainerManagerEvent {
-
-  private final List<ApplicationId> appsToCleanup;
-
-  public CMgrCompletedAppsEvent(List<ApplicationId> appsToCleanup) {
-    super(ContainerManagerEventType.FINISH_APPS);
-    this.appsToCleanup = appsToCleanup;
+  @Override
+  protected void render(Block html) {
+    html
+      .div("#nav")
+        .h3()._("NodeManager")._() // TODO: Problem if no header like this
+        .ul()
+          .li()
+            .a(url($(NM_HTTP_URL), "yarn", "node"), "Node Information")._()
+          .li()
+            .a(url($(NM_HTTP_URL), "yarn", "allApplications"), "List of Applications")
+            ._()
+          .li()
+            .a(url($(NM_HTTP_URL), "yarn","allContainers"), "List of Containers")._()
+        ._()
+        .h3()._("Tools")._()
+      ._()
+      .div("#themeswitcher")._();
   }
 
-  public List<ApplicationId> getAppsToCleanup() {
-    return this.appsToCleanup;
-  }
 }

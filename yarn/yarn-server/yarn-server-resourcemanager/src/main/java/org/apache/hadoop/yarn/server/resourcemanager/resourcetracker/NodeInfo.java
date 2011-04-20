@@ -34,10 +34,15 @@ public interface NodeInfo {
    */
   public NodeId getNodeID();
   /**
-   * the hostname for this node.
-   * @return the hostname for this node.
+   * the ContainerManager address for this node.
+   * @return the ContainerManager address for this node.
    */
-  public String getHostName();
+  public String getNodeAddress();
+  /**
+   * the http-Address for this node.
+   * @return the http-url address for this node
+   */
+  public String getHttpAddress();
   /**
    * the health-status for this node
    * @return the health-status for this node.

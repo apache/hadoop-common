@@ -40,6 +40,7 @@ import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
@@ -58,6 +59,9 @@ import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 public class FifoScheduler implements ResourceScheduler {
   
   private static final Log LOG = LogFactory.getLog(FifoScheduler.class);
+
+  private final RecordFactory recordFactory = 
+    RecordFactoryProvider.getRecordFactory(null);
   
   Configuration conf;
   private ContainerTokenSecretManager containerTokenSecretManager;
@@ -73,7 +77,7 @@ public class FifoScheduler implements ResourceScheduler {
     
   Map<ApplicationId, Application> applications = 
     new TreeMap<ApplicationId, Application>(
-        new org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.Comparator());
+        new org.apache.hadoop.yarn.util.BuilderUtils.ApplicationIdComparator());
 
   private final Queue DEFAULT_QUEUE = new Queue() {
     QueueInfo queueInfo;
@@ -209,7 +213,7 @@ public class FifoScheduler implements ResourceScheduler {
    */
   private synchronized void assignContainers(NodeInfo node) {
     LOG.debug("assignContainers:" +
-    		" node=" + node.getHostName() + 
+    		" node=" + node.getNodeAddress() + 
         " #applications=" + applications.size());
     
     // Try to assign containers to applications in fifo order
@@ -266,7 +270,7 @@ public class FifoScheduler implements ResourceScheduler {
     
     if (type == NodeType.DATA_LOCAL) {
       ResourceRequest nodeLocalRequest = 
-        application.getResourceRequest(priority, node.getHostName());
+        application.getResourceRequest(priority, node.getNodeAddress());
       if (nodeLocalRequest != null) {
         maxContainers = Math.min(maxContainers, nodeLocalRequest.getNumContainers());
       }
@@ -293,7 +297,7 @@ public class FifoScheduler implements ResourceScheduler {
     
 
     LOG.debug("assignContainersOnNode:" +
-        " node=" + node.getHostName() + 
+        " node=" + node.getNodeAddress() + 
         " application=" + application.getApplicationId().getId() +
         " priority=" + priority.getPriority() + 
         " #assigned=" + 
@@ -307,7 +311,7 @@ public class FifoScheduler implements ResourceScheduler {
       Application application, Priority priority) {
     int assignedContainers = 0;
     ResourceRequest request = 
-      application.getResourceRequest(priority, node.getHostName());
+      application.getResourceRequest(priority, node.getNodeAddress());
     if (request != null) {
       int assignableContainers = 
         Math.min(
@@ -356,7 +360,7 @@ public class FifoScheduler implements ResourceScheduler {
       Priority priority, int assignableContainers, 
       ResourceRequest request, NodeType type) {
     LOG.debug("assignContainers:" +
-    		" node=" + node.getHostName() + 
+    		" node=" + node.getNodeAddress() + 
     		" application=" + application.getApplicationId().getId() + 
         " priority=" + priority.getPriority() + 
         " assignableContainers=" + assignableContainers +
@@ -379,9 +383,9 @@ public class FifoScheduler implements ResourceScheduler {
       for (int i=0; i < assignedContainers; ++i) {
         Container container =
             org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-                .create(application.getApplicationId(), 
+                .create(recordFactory, application.getApplicationId(), 
                     application.getNewContainerId(),
-                    node.getHostName(), capability);
+                    node.getNodeAddress(), capability);
         // If security is enabled, send the container-tokens too.
         if (UserGroupInformation.isSecurityEnabled()) {
           ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
@@ -473,7 +477,7 @@ public class FifoScheduler implements ResourceScheduler {
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
         clusterResource, nodeInfo.getTotalCapability());
     //TODO inform the the applications that the containers are completed/failed
-    nodes.remove(nodeInfo.getHostName());
+    nodes.remove(nodeInfo.getNodeAddress());
   }
   
 
@@ -496,13 +500,13 @@ public class FifoScheduler implements ResourceScheduler {
   }
 
   public synchronized boolean isTracked(NodeInfo nodeInfo) {
-    NodeManager node = nodes.get(nodeInfo.getHostName());
+    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
     return (node == null? false: true);
   }
  
   @Override
   public synchronized void addNode(NodeManager nodeManager) {
-    nodes.put(nodeManager.getHostName(), nodeManager);
+    nodes.put(nodeManager.getNodeAddress(), nodeManager);
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
         clusterResource, nodeManager.getTotalCapability());
   }
@@ -517,8 +521,8 @@ public class FifoScheduler implements ResourceScheduler {
   
   private synchronized NodeResponse nodeUpdateInternal(NodeInfo nodeInfo, 
       Map<String,List<Container>> containers) {
-    NodeManager node = nodes.get(nodeInfo.getHostName());
-    LOG.debug("nodeUpdate: node=" + nodeInfo.getHostName() + 
+    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
+    LOG.debug("nodeUpdate: node=" + nodeInfo.getNodeAddress() + 
         " available=" + nodeInfo.getAvailableResource().getMemory());
     return node.statusUpdate(containers);
     
@@ -526,14 +530,14 @@ public class FifoScheduler implements ResourceScheduler {
 
   public synchronized void addAllocatedContainers(NodeInfo nodeInfo, 
       ApplicationId applicationId, List<Container> containers) {
-    NodeManager node = nodes.get(nodeInfo.getHostName());
+    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
     node.allocateContainer(applicationId, containers);
   }
 
   public synchronized void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
     for (NodeInfo node: nodesToNotify) {
-      NodeManager nodeManager = nodes.get(node.getHostName());
+      NodeManager nodeManager = nodes.get(node.getNodeAddress());
       nodeManager.notifyFinishedApplication(applicationId);
     }
   }

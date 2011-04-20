@@ -115,6 +115,11 @@ public class ApplicationImpl implements Application {
   }
 
   @Override
+  public Map<ContainerId, Container> getContainers() {
+    return this.containers;
+  }
+
+  @Override
   public Map<String, String> getEnvironment() {
     return env;
   }
@@ -346,10 +351,10 @@ public class ApplicationImpl implements Application {
       if (app.containers.isEmpty()) {
         // All containers are cleanedup.
         app.handleAppFinishWithContainersCleanedup();
-        return ApplicationState.FINISHING_CONTAINERS_WAIT;
+        return ApplicationState.APPLICATION_RESOURCES_CLEANINGUP;
       }
 
-      return ApplicationState.APPLICATION_RESOURCES_CLEANINGUP;
+      return ApplicationState.FINISHING_CONTAINERS_WAIT;
     }
 
   }

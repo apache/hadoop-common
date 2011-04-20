@@ -148,7 +148,7 @@ public class ApplicationsManagerImpl extends CompositeService
   @Override
   public ApplicationId getNewApplicationID() {
     ApplicationId applicationId =
-      org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.create(
+      org.apache.hadoop.yarn.util.BuilderUtils.newApplicationId(recordFactory,
           ResourceManager.clusterTimeStamp, applicationCounter.incrementAndGet());
     LOG.info("Allocated new applicationId: " + applicationId.getId());
     return applicationId;

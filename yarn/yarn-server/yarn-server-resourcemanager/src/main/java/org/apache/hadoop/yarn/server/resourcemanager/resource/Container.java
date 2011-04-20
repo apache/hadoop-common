@@ -24,19 +24,12 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.util.BuilderUtils;
 
 public class Container {
   
-  private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  public static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
-  private static ContainerId getNewContainerId(ApplicationId applicationId, 
-      int containerId) {
-    ContainerId id = recordFactory.newRecordInstance(ContainerId.class);
-    id.setAppId(applicationId);
-    id.setId(containerId);
-    return id;
-  }
-  
   public static org.apache.hadoop.yarn.api.records.Container create(
       org.apache.hadoop.yarn.api.records.Container c) {
     org.apache.hadoop.yarn.api.records.Container container = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
@@ -48,9 +41,11 @@ public class Container {
   }
 
   public static org.apache.hadoop.yarn.api.records.Container create(
-      ApplicationId applicationId, int containerId, 
-      String hostName, Resource resource) {
-    ContainerId containerID = getNewContainerId(applicationId, containerId);
+      RecordFactory recordFactory, ApplicationId applicationId,
+      int containerId, String hostName, Resource resource) {
+    ContainerId containerID =
+        BuilderUtils
+            .newContainerId(recordFactory, applicationId, containerId);
     return create(containerID, hostName, resource);
   }
 
@@ -65,7 +60,7 @@ public class Container {
     return container;
   }
   
-  public static class Comparator 
+  public static class ContainerComparator 
   implements java.util.Comparator<org.apache.hadoop.yarn.api.records.Container> {
 
     @Override

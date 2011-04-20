@@ -18,10 +18,13 @@
 
 package org.apache.hadoop.yarn.util;
 
+import static org.apache.hadoop.yarn.util.StringHelper._split;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.NumberFormat;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -29,7 +32,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.URL;
+import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+
 
 /**
  * This class contains a set of utilities which help converting data structures
@@ -37,6 +42,8 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
  *
  */
 public class ConverterUtils {
+
+  public static final String APPLICATION_PREFIX = "application";
 
   /**
    * return a hadoop path from a given url
@@ -111,9 +118,26 @@ public class ConverterUtils {
 
   public static String toString(ApplicationId appId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("application_").append(appId.getClusterTimestamp()).append("_");
+    sb.append(APPLICATION_PREFIX + "_").append(appId.getClusterTimestamp())
+        .append("_");
     sb.append(appIdFormat.get().format(appId.getId()));
     return sb.toString();
+  }
+
+  public static ApplicationId toApplicationId(RecordFactory recordFactory,
+      String appIdStr) {
+    Iterator<String> it = _split(appIdStr).iterator();
+    it.next(); // prefix. TODO: Validate application prefix
+    return toApplicationId(recordFactory, it);
+  }
+
+  private static ApplicationId toApplicationId(RecordFactory recordFactory,
+      Iterator<String> it) {
+    ApplicationId appId =
+        recordFactory.newRecordInstance(ApplicationId.class);
+    appId.setClusterTimestamp(Long.parseLong(it.next()));
+    appId.setId(Integer.parseInt(it.next()));
+    return appId;
   }
 
   public static String toString(ContainerId cId) {
@@ -123,5 +147,17 @@ public class ConverterUtils {
     sb.append(appIdFormat.get().format(appId.getId())).append("_");
     sb.append(containerIdFormat.get().format(cId.getId()));
     return sb.toString();
+  }
+
+  public static ContainerId toContainerId(RecordFactory recordFactory,
+      String containerIdStr) {
+    Iterator<String> it = _split(containerIdStr).iterator();
+    it.next(); // prefix. TODO: Validate container prefix
+    ApplicationId appID = toApplicationId(recordFactory, it);
+    ContainerId containerId =
+        recordFactory.newRecordInstance(ContainerId.class);
+    containerId.setAppId(appID);
+    containerId.setId(Integer.parseInt(it.next()));
+    return containerId;
   }
 }

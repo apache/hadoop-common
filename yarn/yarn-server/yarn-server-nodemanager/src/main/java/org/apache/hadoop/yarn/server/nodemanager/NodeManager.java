@@ -37,13 +37,14 @@ import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
-import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.YarnServerConfig;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitor;
+import org.apache.hadoop.yarn.server.nodemanager.webapp.WebServer;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
 
@@ -62,7 +63,7 @@ public class NodeManager extends CompositeService {
     addService(del);
 
     // NodeManager level dispatcher
-    Dispatcher dispatcher = new AsyncDispatcher();
+    AsyncDispatcher dispatcher = new AsyncDispatcher();
 
     NodeHealthCheckerService healthChecker = null;
     if (NodeHealthCheckerService.shouldRun(conf)) {
@@ -84,10 +85,12 @@ public class NodeManager extends CompositeService {
         createContainerManager(context, exec, del, nodeStatusUpdater);
     addService(containerManager);
 
-    Service webServer = createWebServer();
+    Service webServer =
+        createWebServer(context, containerManager.getContainersMonitor());
     addService(webServer);
 
     dispatcher.register(ContainerManagerEventType.class, containerManager);
+    addService(dispatcher);
   }
 
   protected NodeStatusUpdater createNodeStatusUpdater(Context context,
@@ -105,8 +108,9 @@ public class NodeManager extends CompositeService {
     return new ContainerManagerImpl(context, exec, del, nodeStatusUpdater);
   }
 
-  protected WebServer createWebServer() {
-    return new WebServer();
+  protected WebServer createWebServer(Context nmContext,
+      ResourceView resourceView) {
+    return new WebServer(nmContext, resourceView);
   }
 
   protected void doSecureLogin() throws IOException {

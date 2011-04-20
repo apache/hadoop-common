@@ -162,7 +162,10 @@ ResourceTracker, ResourceContext {
 
   @Override
   public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest request) throws YarnRemoteException {
-    String node = request.getNode();
+    String host = request.getHost();
+    int cmPort = request.getContainerManagerPort();
+    String node = host + ":" + cmPort;
+    String httpAddress = host + ":" + request.getHttpPort();
     Resource capability = request.getResource();
   
     NodeId nodeId = getNodeId(node);
@@ -172,7 +175,7 @@ ResourceTracker, ResourceContext {
       if (!nodeManagers.containsKey(nodeId)) {
         /* we do the resolving here, so that scheduler does not have to do it */
         NodeManager nodeManager =
-            new NodeManagerImpl(nodeId, node.toString(),
+            new NodeManagerImpl(nodeId, node.toString(), httpAddress,
                 resolve(node.toString()),
                 capability);
         // Inform the scheduler
@@ -187,8 +190,9 @@ ResourceTracker, ResourceContext {
       }
     }
     addForTracking(nodeId);
-    LOG.info("NodeManager from node " + node + " registered with capability: " + 
-        capability.getMemory() + ", assigned nodeId " + nodeId.getId());
+    LOG.info("NodeManager from node " + node + "(web-url: " + httpAddress
+        + ") registered with capability: " + capability.getMemory()
+        + ", assigned nodeId " + nodeId.getId());
 
     RegistrationResponse regResponse = recordFactory.newRecordInstance(RegistrationResponse.class);
     regResponse.setNodeId(nodeId);

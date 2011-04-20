@@ -121,7 +121,7 @@ public abstract class TaskAttemptImpl implements
       EventHandler<TaskAttemptEvent> {
 
   private static final Log LOG = LogFactory.getLog(TaskAttemptImpl.class);
-  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  private final static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   protected final Configuration conf;
   protected final Path jobFile;
@@ -610,7 +610,7 @@ public abstract class TaskAttemptImpl implements
         }
         container.setLocalResource(
             name.toUri().getPath(),
-            BuilderUtils.newLocalResource(
+            BuilderUtils.newLocalResource(recordFactory,
                 uris[i], type, 
                 visibilities[i]
                   ? LocalResourceVisibility.PUBLIC

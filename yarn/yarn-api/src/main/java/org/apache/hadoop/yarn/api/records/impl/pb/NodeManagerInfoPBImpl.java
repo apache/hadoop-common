@@ -41,9 +41,15 @@ public class NodeManagerInfoPBImpl extends ProtoBase<NodeManagerInfoProto>
   }
 
   @Override
-  public String getNodeName() {
+  public String getNodeAddress() {
     NodeManagerInfoProtoOrBuilder p = viaProto ? proto : builder;
-    return (p.hasNodeName()) ? p.getNodeName() : null;
+    return (p.hasNodeAddress()) ? p.getNodeAddress() : null;
+  }
+
+  @Override
+  public String getHttpAddress() {
+    NodeManagerInfoProtoOrBuilder p = viaProto ? proto : builder;
+    return (p.hasHttpAddress()) ? p.getHttpAddress() : null;
   }
 
   @Override
@@ -81,13 +87,23 @@ public class NodeManagerInfoPBImpl extends ProtoBase<NodeManagerInfoProto>
   }
 
   @Override
-  public void setNodeName(String nodeName) {
+  public void setNodeAddress(String nodeAddress) {
     maybeInitBuilder();
-    if (nodeName == null) {
-      builder.clearNodeName();
+    if (nodeAddress == null) {
+      builder.clearNodeAddress();
       return;
     }
-    builder.setNodeName(nodeName);
+    builder.setNodeAddress(nodeAddress);
+  }
+
+  @Override
+  public void setHttpAddress(String httpAddress) {
+    maybeInitBuilder();
+    if (httpAddress == null) {
+      builder.clearHttpAddress();
+      return;
+    }
+    builder.setHttpAddress(httpAddress);
   }
 
   @Override

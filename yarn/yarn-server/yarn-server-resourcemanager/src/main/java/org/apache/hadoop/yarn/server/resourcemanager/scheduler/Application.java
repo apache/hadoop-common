@@ -197,9 +197,9 @@ public class Application {
   }
 
   synchronized public ResourceRequest getResourceRequest(Priority priority, 
-      String node) {
+      String nodeAddress) {
     Map<String, ResourceRequest> nodeRequests = requests.get(priority);
-    return (nodeRequests == null) ? null : nodeRequests.get(node);
+    return (nodeRequests == null) ? null : nodeRequests.get(nodeAddress);
   }
 
   synchronized public void completedContainer(Container container) {

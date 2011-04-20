@@ -52,11 +52,12 @@ public class TestFifoScheduler extends TestCase {
   public void tearDown() throws Exception {
   }
   
-  private org.apache.hadoop.yarn.server.resourcemanager.NodeManager 
-  registerNode(String hostName, String rackName, int memory) 
-  throws IOException {
+  private org.apache.hadoop.yarn.server.resourcemanager.NodeManager
+      registerNode(String hostName, int containerManagerPort, int nmHttpPort,
+          String rackName, int memory) throws IOException {
     return new org.apache.hadoop.yarn.server.resourcemanager.NodeManager(
-        hostName, rackName, memory, resourceManager.getResourceTracker());
+        hostName, containerManagerPort, nmHttpPort, rackName, memory,
+        resourceManager.getResourceTracker());
   }
   
 
@@ -71,13 +72,13 @@ public class TestFifoScheduler extends TestCase {
     // Register node1
     String host_0 = "host_0";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm_0 = 
-      registerNode(host_0, NetworkTopology.DEFAULT_RACK, 4 * GB);
+      registerNode(host_0, 1234, 2345, NetworkTopology.DEFAULT_RACK, 4 * GB);
     nm_0.heartbeat();
     
     // Register node2
     String host_1 = "host_1";
     org.apache.hadoop.yarn.server.resourcemanager.NodeManager nm_1 = 
-      registerNode(host_1, NetworkTopology.DEFAULT_RACK, 2 * GB);
+      registerNode(host_1, 1234, 2345, NetworkTopology.DEFAULT_RACK, 2 * GB);
     nm_1.heartbeat();
 
     // ResourceRequest priorities
@@ -90,8 +91,8 @@ public class TestFifoScheduler extends TestCase {
     Application application_0 = new Application("user_0", resourceManager);
     application_0.submit();
     
-    application_0.addNodeManager(host_0, nm_0);
-    application_0.addNodeManager(host_1, nm_1);
+    application_0.addNodeManager(host_0, 1234, nm_0);
+    application_0.addNodeManager(host_1, 1234, nm_1);
 
     Resource capability_0_0 = 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(
@@ -111,8 +112,8 @@ public class TestFifoScheduler extends TestCase {
     Application application_1 = new Application("user_1", resourceManager);
     application_1.submit();
     
-    application_1.addNodeManager(host_0, nm_0);
-    application_1.addNodeManager(host_1, nm_1);
+    application_1.addNodeManager(host_0, 1234, nm_0);
+    application_1.addNodeManager(host_1, 1234, nm_1);
     
     Resource capability_1_0 = 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(

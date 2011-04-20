@@ -77,21 +77,52 @@ public class RegisterNodeManagerRequestPBImpl extends ProtoBase<RegisterNodeMana
       builder.clearResource();
     this.resource = resource;
   }
+
   @Override
-  public String getNode() {
+  public int getContainerManagerPort() {
     RegisterNodeManagerRequestProtoOrBuilder p = viaProto ? proto : builder;
-    if (!p.hasNode()) {
-      return null;
+    if (!p.hasContainerManagerPort()) {
+      return 0;
     }
-    return (p.getNode());
+    return (p.getContainerManagerPort());
   }
 
   @Override
-  public void setNode(String node) {
+  public void setContainerManagerPort(int port) {
     maybeInitBuilder();
-    if (node == null) 
-      builder.clearNode();
-    builder.setNode((node));
+    builder.setContainerManagerPort(port);
+  }
+
+  @Override
+  public int getHttpPort() {
+    RegisterNodeManagerRequestProtoOrBuilder p = viaProto ? proto : builder;
+    if (!p.hasHttpPort()) {
+      return 0;
+    }
+    return (p.getHttpPort());
+  }
+
+  @Override
+  public void setHttpPort(int httpPort) {
+    maybeInitBuilder();
+    builder.setHttpPort(httpPort);
+  }
+
+  @Override
+  public String getHost() {
+    RegisterNodeManagerRequestProtoOrBuilder p = viaProto ? proto : builder;
+    if (!p.hasHost()) {
+      return null;
+    }
+    return (p.getHost());
+  }
+
+  @Override
+  public void setHost(String host) {
+    maybeInitBuilder();
+    if (host == null) 
+      builder.clearHost();
+    builder.setHost((host));
   }
 
   private ResourcePBImpl convertFromProtoFormat(ResourceProto p) {

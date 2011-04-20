@@ -80,7 +80,7 @@ public class Application {
         new org.apache.hadoop.yarn.server.resourcemanager.resource.ResourceRequest.Comparator());
   final private Set<Container> release = 
     new TreeSet<Container>(
-        new org.apache.hadoop.yarn.server.resourcemanager.resource.Container.Comparator());
+        new org.apache.hadoop.yarn.server.resourcemanager.resource.Container.ContainerComparator());
 
   final private Map<String, NodeManager> nodes = 
     new HashMap<String, NodeManager>();
@@ -142,8 +142,9 @@ public class Application {
     }
   }
   
-  public synchronized void addNodeManager(String host, NodeManager nodeManager) {
-    nodes.put(host, nodeManager);
+  public synchronized void addNodeManager(String host,
+      int containerManagerPort, NodeManager nodeManager) {
+    nodes.put(host + ":" + containerManagerPort, nodeManager);
   }
   
   private synchronized NodeManager getNodeManager(String host) {

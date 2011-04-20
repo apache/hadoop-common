@@ -16,14 +16,11 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.yarn.server.nodemanager;
+package org.apache.hadoop.yarn.server.nodemanager.webapp;
 
-import org.apache.hadoop.yarn.service.AbstractService;
-
-public class WebServer extends AbstractService{
-
-  public WebServer() {
-    super(WebServer.class.getName());
-  }
-
+public interface NMWebParams {
+  public static final String NM_NODENAME = "nm.id";
+  public static final String NM_HTTP_URL = "nm.http-url";
+  public static final String APPLICATION_ID = "nm.appId";
+  public static final String CONTAINER_ID = "nm.containerId";
 }

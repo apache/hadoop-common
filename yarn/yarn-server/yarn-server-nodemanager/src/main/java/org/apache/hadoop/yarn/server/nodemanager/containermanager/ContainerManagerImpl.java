@@ -90,6 +90,7 @@ public class ContainerManagerImpl extends CompositeService implements
   private static final Log LOG = LogFactory.getLog(ContainerManagerImpl.class);
 
   final Context context;
+  private final ContainersMonitor containersMonitor;
   private Server server;
   private InetSocketAddress cmAddr;
   private final ResourceLocalizationService rsrcLocalizationSrvc;
@@ -103,7 +104,7 @@ public class ContainerManagerImpl extends CompositeService implements
   
   protected AsyncDispatcher dispatcher;
 
-  private DeletionService deletionService;
+  private final DeletionService deletionService;
 
   public ContainerManagerImpl(Context context, ContainerExecutor exec,
       DeletionService deletionContext, NodeStatusUpdater nodeStatusUpdater) {
@@ -132,9 +133,9 @@ public class ContainerManagerImpl extends CompositeService implements
     auxiluaryServices.register(this);
     addService(auxiluaryServices);
 
-    ContainersMonitor containersMonitor =
+    this.containersMonitor =
         new ContainersMonitorImpl(exec, dispatcher);
-    addService(containersMonitor);
+    addService(this.containersMonitor);
 
     dispatcher.register(ContainerEventType.class,
         new ContainerEventDispatcher());
@@ -145,6 +146,10 @@ public class ContainerManagerImpl extends CompositeService implements
     dispatcher.register(ContainersMonitorEventType.class, containersMonitor);
     dispatcher.register(ContainersLauncherEventType.class, containersLauncher);
     addService(dispatcher);
+  }
+
+  public ContainersMonitor getContainersMonitor() {
+    return this.containersMonitor;
   }
 
   protected ResourceLocalizationService createResourceLocalizationService(
@@ -179,7 +184,7 @@ public class ContainerManagerImpl extends CompositeService implements
       // RM gives the shared secret in registration during StatusUpdter#start()
       // itself.
       this.containerTokenSecretManager.setSecretKey(
-          this.nodeStatusUpdater.getNodeName(),
+          this.nodeStatusUpdater.getContainerManagerBindAddress(),
           this.nodeStatusUpdater.getRMNMSharedSecret());
     }
     server =

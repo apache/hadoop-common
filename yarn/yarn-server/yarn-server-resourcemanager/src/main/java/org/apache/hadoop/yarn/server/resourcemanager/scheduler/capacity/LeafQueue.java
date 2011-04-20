@@ -409,7 +409,7 @@ public class LeafQueue implements Queue {
   assignContainers(Resource clusterResource, NodeManager node) {
   
     LOG.info("DEBUG --- assignContainers:" +
-        " node=" + node.getHostName() + 
+        " node=" + node.getNodeAddress() + 
         " #applications=" + applications.size());
     
     // Try to assign containers to applications in fifo order
@@ -586,7 +586,7 @@ public class LeafQueue implements Queue {
   Resource assignNodeLocalContainers(Resource clusterResource, NodeManager node, 
       Application application, Priority priority) {
     ResourceRequest request = 
-      application.getResourceRequest(priority, node.getHostName());
+      application.getResourceRequest(priority, node.getNodeAddress());
     if (request != null) {
       if (canAssign(application, priority, node, NodeType.DATA_LOCAL)) {
         return assignContainer(clusterResource, node, application, priority, request, 
@@ -652,7 +652,7 @@ public class LeafQueue implements Queue {
     
     if (type == NodeType.DATA_LOCAL) {
       ResourceRequest nodeLocalRequest = 
-        application.getResourceRequest(priority, node.getHostName());
+        application.getResourceRequest(priority, node.getNodeAddress());
       if (nodeLocalRequest != null) {
         return nodeLocalRequest.getNumContainers() > 0;
       }
@@ -665,7 +665,7 @@ public class LeafQueue implements Queue {
       Application application, 
       Priority priority, ResourceRequest request, NodeType type) {
     LOG.info("DEBUG --- assignContainers:" +
-        " node=" + node.getHostName() + 
+        " node=" + node.getNodeAddress() + 
         " application=" + application.getApplicationId().getId() + 
         " priority=" + priority.getPriority() + 
         " request=" + request + " type=" + type);
@@ -684,9 +684,9 @@ public class LeafQueue implements Queue {
         new ArrayList<Container>();
       Container container =
         org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-        .create(application.getApplicationId(), 
+        .create(recordFactory, application.getApplicationId(), 
             application.getNewContainerId(),
-            node.getHostName(), capability);
+            node.getNodeAddress(), capability);
       
       // If security is enabled, send the container-tokens too.
       if (UserGroupInformation.isSecurityEnabled()) {

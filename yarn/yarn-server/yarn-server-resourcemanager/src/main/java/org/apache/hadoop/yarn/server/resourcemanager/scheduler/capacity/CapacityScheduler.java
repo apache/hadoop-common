@@ -93,7 +93,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   
   private Map<ApplicationId, Application> applications = 
     new TreeMap<ApplicationId, Application>(
-        new org.apache.hadoop.yarn.server.resourcemanager.resource.ApplicationID.Comparator());
+        new org.apache.hadoop.yarn.util.BuilderUtils.ApplicationIdComparator());
 
   private boolean initialized = false;
 
@@ -343,7 +343,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
     // Completed containers
     processCompletedContainers(nodeResponse.getCompletedContainers());
-    NodeManager nm = nodes.get(node.getHostName());
+    NodeManager nm = nodes.get(node.getNodeAddress());
     // Assign new containers
     root.assignContainers(clusterResource, nm);
 
@@ -428,17 +428,17 @@ implements ResourceScheduler, CapacitySchedulerContext {
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
         clusterResource, nodeInfo.getTotalCapability());
     //TODO inform the applications that the containers are completed/failed
-    nodes.remove(nodeInfo.getHostName());
+    nodes.remove(nodeInfo.getNodeAddress());
   }
   
   public synchronized boolean isTracked(NodeInfo nodeInfo) {
-    NodeManager node = nodes.get(nodeInfo.getHostName());
+    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
     return (node == null? false: true);
   }
  
   @Override
   public synchronized void addNode(NodeManager nodeManager) {
-    nodes.put(nodeManager.getHostName(), nodeManager);
+    nodes.put(nodeManager.getNodeAddress(), nodeManager);
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
         clusterResource, nodeManager.getTotalCapability());
   }
@@ -453,8 +453,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
   
   public synchronized NodeResponse nodeUpdateInternal(NodeInfo nodeInfo, 
       Map<String,List<Container>> containers) {
-    NodeManager node = nodes.get(nodeInfo.getHostName());
-    LOG.debug("nodeUpdate: node=" + nodeInfo.getHostName() + 
+    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
+    LOG.debug("nodeUpdate: node=" + nodeInfo.getNodeAddress() + 
         " available=" + nodeInfo.getAvailableResource().getMemory());
     return node.statusUpdate(containers);
     
@@ -462,14 +462,14 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   public synchronized void addAllocatedContainers(NodeInfo nodeInfo, 
       ApplicationId applicationId, List<Container> containers) {
-    NodeManager node = nodes.get(nodeInfo.getHostName());
+    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
     node.allocateContainer(applicationId, containers);
   }
 
   public synchronized void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
     for (NodeInfo node: nodesToNotify) {
-      NodeManager nodeManager = nodes.get(node.getHostName());
+      NodeManager nodeManager = nodes.get(node.getNodeAddress());
       nodeManager.notifyFinishedApplication(applicationId);
     }
   }

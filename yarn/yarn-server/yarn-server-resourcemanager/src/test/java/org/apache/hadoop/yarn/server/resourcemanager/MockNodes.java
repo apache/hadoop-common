@@ -77,6 +77,7 @@ public class MockNodes {
     final int nid = NODE_ID++;
     final NodeId nodeID = newNodeID(nid);
     final String hostName = "host"+ nid;
+    final String httpAddress = "localhost:0";
     final NodeHealthStatus nodeHealthStatus =
         recordFactory.newRecordInstance(NodeHealthStatus.class);
     final Resource used = newUsedResource(perNode);
@@ -89,8 +90,13 @@ public class MockNodes {
       }
 
       @Override
-      public String getHostName() {
+      public String getNodeAddress() {
         return hostName;
+      }
+
+      @Override
+      public String getHttpAddress() {
+        return httpAddress;
       }
 
       @Override
