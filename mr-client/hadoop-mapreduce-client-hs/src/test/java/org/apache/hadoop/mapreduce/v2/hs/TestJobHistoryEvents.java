@@ -58,6 +58,7 @@ public class TestJobHistoryEvents {
     JobId jobId = job.getID();
     LOG.info("JOBID is " + TypeConverter.fromYarn(jobId).toString());
     app.waitForState(job, JobState.SUCCEEDED);
+    app.stop();
     /*
      * Use HistoryContext to read logged events and verify the number of 
      * completed maps 

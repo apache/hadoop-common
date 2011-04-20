@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -36,9 +37,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -147,12 +148,33 @@ public class JobHistoryEventHandler extends AbstractService
   @Override
   public void stop() {
     stopped = true;
-    eventHandlingThread.interrupt();
+    //do not interrupt while event handling is in progress
+    synchronized(this) {
+      eventHandlingThread.interrupt();
+    }
+
     try {
       eventHandlingThread.join();
     } catch (InterruptedException ie) {
       LOG.info("Interruped Exception while stopping", ie);
     }
+    //write all the events remaining in queue
+    Iterator<JobHistoryEvent> it = eventQueue.iterator();
+    while(it.hasNext()) {
+      JobHistoryEvent ev = it.next();
+      LOG.info("In stop, writing event " + ev.getType());
+      handleEvent(ev);
+    }
+    
+    //close all file handles
+    for (MetaInfo mi : fileMap.values()) {
+      try {
+        mi.closeWriter();
+      } catch (IOException e) {
+        LOG.info("Exception while closing file " + e.getMessage());
+      }
+    }
+
     super.stop();
   }
 
@@ -219,7 +241,7 @@ public class JobHistoryEventHandler extends AbstractService
     }
   }
 
-  protected void handleEvent(JobHistoryEvent event) {
+  protected synchronized void handleEvent(JobHistoryEvent event) {
     // check for first event from a job
     if (event.getHistoryEvent().getEventType() == EventType.JOB_SUBMITTED) {
       try {
@@ -314,6 +336,7 @@ public class JobHistoryEventHandler extends AbstractService
     synchronized void writeEvent(HistoryEvent event) throws IOException {
       if (writer != null) {
         writer.write(event);
+        writer.flush();
       }
     }
   }

@@ -53,6 +53,7 @@ public class TestJobHistoryParsing {
     JobId jobId = job.getID();
     LOG.info("JOBID is " + TypeConverter.fromYarn(jobId).toString());
     app.waitForState(job, JobState.SUCCEEDED);
+    app.stop();
     
     String jobhistoryFileName = TypeConverter.fromYarn(jobId).toString();
     String user =

@@ -3,6 +3,7 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    Fix race condition in TestJobHistoryEvents and TestJobHistoryParsing. (sharad)
     
     Added functionality to stop/start queues. (acmurthy)
     
