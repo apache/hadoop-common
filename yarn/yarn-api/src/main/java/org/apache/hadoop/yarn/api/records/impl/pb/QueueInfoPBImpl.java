@@ -9,7 +9,6 @@ import org.apache.hadoop.yarn.api.records.ProtoBase;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationProto;
-import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueInfoProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueInfoProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueStateProto;

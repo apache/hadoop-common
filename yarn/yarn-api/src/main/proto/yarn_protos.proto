@@ -179,6 +179,16 @@ message QueueInfoProto {
   repeated ApplicationProto applications = 7;
 }
 
+enum QueueACLProto {
+  Q_SUBMIT_JOB = 1;
+  Q_ADMINISTER_QUEUE_JOBS = 2;
+  Q_ADMINISTER_QUEUE = 3;
+}
+
+message QueueUserACLInfoProto {
+  optional string queueName = 1;
+  repeated QueueACLProto userAcls = 2;
+}
 
 ////////////////////////////////////////////////////////////////////////
 ////// From container_manager //////////////////////////////////////////

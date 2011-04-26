@@ -3,6 +3,9 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+   
+    Add ACLs for queues and command-line utilities for viewing them.
+    (acmurthy)
 
     Add Containers' logs' view to NM UI and link it from AM UI. (vinodkv)
 

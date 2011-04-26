@@ -26,6 +26,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 
 /**
@@ -78,4 +79,10 @@ public interface YarnScheduler {
       boolean includeChildQueues, boolean recursive) 
   throws IOException;
 
+  /**
+   * Get acls for queues for current user.
+   * @return acls for queues for current user
+   * @throws IOException
+   */
+  public List<QueueUserACLInfo> getQueueUserAclInfo();
 }

@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,11 +35,14 @@ import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -80,16 +85,18 @@ public class FifoScheduler implements ResourceScheduler {
         new org.apache.hadoop.yarn.util.BuilderUtils.ApplicationIdComparator());
 
   private final Queue DEFAULT_QUEUE = new Queue() {
-    QueueInfo queueInfo;
+    
+    private static final String DEFAULT_QUEUE_NAME = "default";
     
     @Override
     public String getQueueName() {
-      return "default";
+      return DEFAULT_QUEUE_NAME;
     }
 
     @Override
     public QueueInfo getQueueInfo(boolean includeApplications, 
         boolean includeChildQueues, boolean recursive) {
+      QueueInfo queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
       queueInfo.setQueueName(DEFAULT_QUEUE.getQueueName());
       queueInfo.setCapacity(100.0f);
       queueInfo.setMaximumCapacity(100.0f);
@@ -102,6 +109,26 @@ public class FifoScheduler implements ResourceScheduler {
             new ArrayList<org.apache.hadoop.yarn.api.records.Application>());
       }
       return queueInfo;
+    }
+
+    @Override
+    public Map<QueueACL, AccessControlList> getQueueAcls() {
+      Map<QueueACL, AccessControlList> acls =
+        new HashMap<QueueACL, AccessControlList>();
+      for (QueueACL acl : QueueACL.values()) {
+        acls.put(acl, new AccessControlList("*"));
+      }
+      return acls;
+    }
+
+    @Override
+    public List<QueueUserACLInfo> getQueueUserAclInfo(
+        UserGroupInformation unused) {
+      QueueUserACLInfo queueUserAclInfo = 
+        recordFactory.newRecordInstance(QueueUserACLInfo.class);
+      queueUserAclInfo.setQueueName(DEFAULT_QUEUE_NAME);
+      queueUserAclInfo.setUserAcls(Arrays.asList(QueueACL.values()));
+      return Collections.singletonList(queueUserAclInfo);
     }
   };
 
@@ -484,11 +511,14 @@ public class FifoScheduler implements ResourceScheduler {
   @Override
   public QueueInfo getQueueInfo(String queueName, boolean includeApplications,
       boolean includeChildQueues, boolean recursive) {
-    QueueInfo queueInfo = 
-      DEFAULT_QUEUE.getQueueInfo(includeApplications, false, false);
-    return queueInfo;
+    return DEFAULT_QUEUE.getQueueInfo(includeApplications, false, false);
   }
   
+  @Override
+  public List<QueueUserACLInfo> getQueueUserAclInfo() {
+    return DEFAULT_QUEUE.getQueueUserAclInfo(null); 
+  }
+
   private synchronized List<org.apache.hadoop.yarn.api.records.Application> 
   getApplications() {
     List<org.apache.hadoop.yarn.api.records.Application> applications = 

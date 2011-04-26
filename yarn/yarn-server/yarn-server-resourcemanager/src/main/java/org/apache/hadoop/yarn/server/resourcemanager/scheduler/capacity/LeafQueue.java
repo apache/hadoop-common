@@ -21,6 +21,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -34,12 +35,15 @@ import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Unstable;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueState;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -87,7 +91,10 @@ public class LeafQueue implements Queue {
   applicationInfos;
   
   private QueueState state;
-  
+
+  private Map<QueueACL, AccessControlList> acls = 
+    new HashMap<QueueACL, AccessControlList>();
+
   private final RecordFactory recordFactory = 
     RecordFactoryProvider.getRecordFactory(null);
 
@@ -128,11 +135,14 @@ public class LeafQueue implements Queue {
 
     QueueState state = cs.getConfiguration().getState(getQueuePath());
     
+    Map<QueueACL, AccessControlList> acls = 
+      cs.getConfiguration().getAcls(getQueuePath());
+    
     setupQueueConfigs(capacity, absoluteCapacity, 
         maximumCapacity, absoluteMaxCapacity, 
         userLimit, userLimitFactor, 
         maxApplications, maxApplicationsPerUser,
-        state);
+        state, acls);
 
     LOG.info("DEBUG --- LeafQueue:" +
     		" name=" + queueName + 
@@ -146,7 +156,7 @@ public class LeafQueue implements Queue {
           float maxCapacity, float absoluteMaxCapacity,
           int userLimit, float userLimitFactor,
           int maxApplications, int maxApplicationsPerUser,
-          QueueState state)
+          QueueState state, Map<QueueACL, AccessControlList> acls)
   {
     this.capacity = capacity; 
     this.absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
@@ -162,9 +172,16 @@ public class LeafQueue implements Queue {
 
     this.state = state;
     
+    this.acls = acls;
+    
     this.queueInfo.setCapacity(capacity);
     this.queueInfo.setMaximumCapacity(maximumCapacity);
     this.queueInfo.setQueueState(state);
+    
+    StringBuilder aclsString = new StringBuilder();
+    for (Map.Entry<QueueACL, AccessControlList> e : acls.entrySet()) {
+      aclsString.append(e.getKey() + ":" + e.getValue().getAclString());
+    }
     
     LOG.info(queueName +
         ", capacity=" + capacity + 
@@ -174,9 +191,9 @@ public class LeafQueue implements Queue {
         ", userLimit=" + userLimit + ", userLimitFactor=" + userLimitFactor + 
         ", maxApplications=" + maxApplications + 
         ", maxApplicationsPerUser=" + maxApplicationsPerUser + 
-        ", state=" + state);
+        ", state=" + state +
+        ", acls=" + aclsString);
   }
-      
 
   @Override
   public float getCapacity() {
@@ -260,6 +277,11 @@ public class LeafQueue implements Queue {
   }
 
   @Override
+  public synchronized Map<QueueACL, AccessControlList> getQueueAcls() {
+    return new HashMap<QueueACL, AccessControlList>(acls);
+  }
+
+  @Override
   public synchronized QueueInfo getQueueInfo(boolean includeApplications, 
       boolean includeChildQueues, boolean recursive) {
     queueInfo.setCurrentCapacity(usedCapacity);
@@ -274,6 +296,26 @@ public class LeafQueue implements Queue {
     }
     
     return queueInfo;
+  }
+
+  @Override
+  public synchronized List<QueueUserACLInfo> 
+  getQueueUserAclInfo(UserGroupInformation user) {
+    QueueUserACLInfo userAclInfo = 
+      recordFactory.newRecordInstance(QueueUserACLInfo.class);
+    List<QueueACL> operations = new ArrayList<QueueACL>();
+    for (Map.Entry<QueueACL, AccessControlList> e : acls.entrySet()) {
+      QueueACL operation = e.getKey();
+      AccessControlList acl = e.getValue();
+      
+      if (acl.isUserAllowed(user)) {
+        operations.add(operation);
+      }
+    }
+    
+    userAclInfo.setQueueName(getQueueName());
+    userAclInfo.setUserAcls(operations);
+    return Collections.singletonList(userAclInfo);
   }
 
   public String toString() {
@@ -306,9 +348,22 @@ public class LeafQueue implements Queue {
         leafQueue.maximumCapacity, leafQueue.absoluteMaxCapacity, 
         leafQueue.userLimit, leafQueue.userLimitFactor, 
         leafQueue.maxApplications, leafQueue.maxApplicationsPerUser,
-        leafQueue.state);
+        leafQueue.state, leafQueue.acls);
     
     update(clusterResource);
+  }
+
+  @Override
+  public boolean hasAccess(QueueACL acl, UserGroupInformation user) {
+    // Check if the leaf-queue allows access
+    synchronized (this) {
+      if (acls.get(acl).isUserAllowed(user)) {
+        return true;
+      }
+    }
+
+    // Check if parent-queue allows access
+    return parent.hasAccess(acl, user);
   }
 
   @Override
@@ -316,10 +371,23 @@ public class LeafQueue implements Queue {
       String queue, Priority priority) 
   throws AccessControlException {
     // Careful! Locking order is important!
-    User user = null;
     
+    // Check queue ACLs
+    UserGroupInformation userUgi;
+    try {
+      userUgi = UserGroupInformation.getCurrentUser();
+    } catch (IOException ioe) {
+      throw new AccessControlException(ioe);
+    }
+    if (!hasAccess(QueueACL.SUBMIT_JOB, userUgi)) {
+      throw new AccessControlException("User " + userName + " cannot submit" +
+          " jobs to queue " + getQueuePath());
+    }
+    
+    User user = null;
     synchronized (this) {
       
+      // Check if the queue is accepting jobs
       if (state != QueueState.RUNNING) {
         throw new AccessControlException("Queue " + getQueuePath() +
             " is STOPPED. Cannot accept submission of application: " +

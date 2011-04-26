@@ -23,6 +23,7 @@ import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -194,6 +195,10 @@ public class TestAMRestart extends TestCase {
     public QueueInfo getQueueInfo(String queueName,
         boolean includeApplications, boolean includeChildQueues,
         boolean recursive) throws IOException {
+      return null;
+    }
+    @Override
+    public List<QueueUserACLInfo> getQueueUserAclInfo() {
       return null;
     }
   }

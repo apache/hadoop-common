@@ -8,6 +8,7 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetClusterMetricsResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueUserAclsInfoResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.FinishApplicationRequestPBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.FinishApplicationResponsePBImpl;
@@ -23,6 +24,8 @@ import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetNewApplicationIdReq
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetNewApplicationIdResponsePBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetQueueInfoRequestPBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetQueueInfoResponsePBImpl;
+import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetQueueUserAclsInfoRequestPBImpl;
+import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetQueueUserAclsInfoResponsePBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.SubmitApplicationRequestPBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.SubmitApplicationResponsePBImpl;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
@@ -41,6 +44,8 @@ import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetNewApplicationIdRequest
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetNewApplicationIdResponseProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetQueueInfoRequestProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetQueueInfoResponseProto;
+import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetQueueUserAclsInfoRequestProto;
+import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetQueueUserAclsInfoResponseProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.SubmitApplicationRequestProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.SubmitApplicationResponseProto;
 
@@ -152,6 +157,20 @@ public class ClientRMProtocolPBServiceImpl implements BlockingInterface {
     try {
       GetQueueInfoResponse response = real.getQueueInfo(request);
       return ((GetQueueInfoResponsePBImpl)response).getProto();
+    } catch (YarnRemoteException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
+  public GetQueueUserAclsInfoResponseProto getQueueUserAcls(
+      RpcController controller, GetQueueUserAclsInfoRequestProto proto)
+      throws ServiceException {
+    GetQueueUserAclsInfoRequestPBImpl request =
+      new GetQueueUserAclsInfoRequestPBImpl(proto);
+    try {
+      GetQueueUserAclsInfoResponse response = real.getQueueUserAcls(request);
+      return ((GetQueueUserAclsInfoResponsePBImpl)response).getProto();
     } catch (YarnRemoteException e) {
       throw new ServiceException(e);
     }

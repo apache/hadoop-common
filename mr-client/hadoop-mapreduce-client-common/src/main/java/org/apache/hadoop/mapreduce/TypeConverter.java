@@ -47,6 +47,8 @@ import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
+import org.apache.hadoop.yarn.api.records.QueueACL;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class TypeConverter {
@@ -423,6 +425,23 @@ public class TypeConverter {
       queueInfos.add(TypeConverter.fromYarn(queue));
     }
     return queueInfos.toArray(new QueueInfo[queueInfos.size()]);
+  }
+
+  public static QueueAclsInfo[] fromYarnQueueUserAclsInfo(
+      List<QueueUserACLInfo> userAcls) {
+    List<QueueAclsInfo> acls = new ArrayList<QueueAclsInfo>();
+    for (QueueUserACLInfo aclInfo : userAcls) {
+      List<String> operations = new ArrayList<String>();
+      for (QueueACL qAcl : aclInfo.getUserAcls()) {
+        operations.add(qAcl.toString());
+      }
+      
+      QueueAclsInfo acl = 
+        new QueueAclsInfo(aclInfo.getQueueName(), 
+            operations.toArray(new String[operations.size()]));
+      acls.add(acl);
+    }
+    return acls.toArray(new QueueAclsInfo[acls.size()]);
   }
 
 }

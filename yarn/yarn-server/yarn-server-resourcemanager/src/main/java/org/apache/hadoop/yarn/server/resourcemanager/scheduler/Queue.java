@@ -18,9 +18,16 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
+import java.util.List;
+import java.util.Map;
+
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
+import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 
 @Evolving
 @LimitedPrivate("yarn")
@@ -31,7 +38,12 @@ public interface Queue {
    */
   String getQueueName();
 
-
+  /**
+   * Get ACLs for the queue.
+   * @return ACLs for the queue
+   */
+  public Map<QueueACL, AccessControlList> getQueueAcls();
+  
   /**
    * Get queue information
    * @param includeApplications include applications?
@@ -41,4 +53,11 @@ public interface Queue {
    */
   QueueInfo getQueueInfo(boolean includeApplications, 
       boolean includeChildQueues, boolean recursive);
+  
+  /**
+   * Get queue ACLs for given <code>user</code>.
+   * @param user username
+   * @return queue ACLs for user
+   */
+  List<QueueUserACLInfo> getQueueUserAclInfo(UserGroupInformation user);
 }

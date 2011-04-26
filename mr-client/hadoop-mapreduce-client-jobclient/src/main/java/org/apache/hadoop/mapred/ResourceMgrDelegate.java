@@ -54,11 +54,13 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetClusterNodesResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueUserAclsInfoRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -192,7 +194,11 @@ public class ResourceMgrDelegate {
 
   public QueueAclsInfo[] getQueueAclsForCurrentUser() throws IOException,
       InterruptedException {
-    throw new IOException("Not implemented");
+    GetQueueUserAclsInfoRequest request = 
+      recordFactory.newRecordInstance(GetQueueUserAclsInfoRequest.class);
+    List<QueueUserACLInfo> userAcls = 
+      applicationsManager.getQueueUserAcls(request).getUserAclsInfoList();
+    return TypeConverter.fromYarnQueueUserAclsInfo(userAcls);
   }
 
 

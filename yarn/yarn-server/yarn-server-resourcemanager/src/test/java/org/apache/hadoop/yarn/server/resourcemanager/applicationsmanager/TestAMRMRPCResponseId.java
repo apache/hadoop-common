@@ -34,6 +34,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -96,6 +97,11 @@ public class TestAMRMRPCResponseId extends TestCase {
     public QueueInfo getQueueInfo(String queueName,
         boolean includeApplications, boolean includeChildQueues,
         boolean recursive) throws IOException {
+      return null;
+    }
+
+    @Override
+    public List<QueueUserACLInfo> getQueueUserAclInfo() {
       return null;
     }
   }

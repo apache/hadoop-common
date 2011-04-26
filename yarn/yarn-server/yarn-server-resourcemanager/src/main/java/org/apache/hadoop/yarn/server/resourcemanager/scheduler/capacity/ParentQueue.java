@@ -34,18 +34,21 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueState;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.LeafQueue.User;
 
 @Private
 @Evolving
@@ -83,6 +86,9 @@ public class ParentQueue implements Queue {
   private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
   applicationInfos;
 
+  private Map<QueueACL, AccessControlList> acls = 
+    new HashMap<QueueACL, AccessControlList>();
+
   private final RecordFactory recordFactory = 
     RecordFactoryProvider.getRecordFactory(null);
 
@@ -108,13 +114,16 @@ public class ParentQueue implements Queue {
           Float.MAX_VALUE :  (parentAbsoluteCapacity * maximumCapacity) / 100;
     
     QueueState state = cs.getConfiguration().getState(getQueuePath());
+
+    Map<QueueACL, AccessControlList> acls = 
+      cs.getConfiguration().getAcls(getQueuePath());
     
     this.queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
     this.queueInfo.setQueueName(queueName);
     this.queueInfo.setChildQueues(new ArrayList<QueueInfo>());
 
     setupQueueConfigs(capacity, absoluteCapacity, 
-        maximumCapacity, absoluteMaxCapacity, state);
+        maximumCapacity, absoluteMaxCapacity, state, acls);
     
     this.queueComparator = comparator;
     this.childQueues = new TreeSet<Queue>(comparator);
@@ -132,7 +141,7 @@ public class ParentQueue implements Queue {
   private synchronized void setupQueueConfigs(
           float capacity, float absoluteCapacity, 
           float maximumCapacity, float absoluteMaxCapacity,
-          QueueState state
+          QueueState state, Map<QueueACL, AccessControlList> acls
   ) {
     this.capacity = capacity;
     this.absoluteCapacity = absoluteCapacity;
@@ -140,17 +149,25 @@ public class ParentQueue implements Queue {
     this.absoluteMaxCapacity = absoluteMaxCapacity;
 
     this.state = state;
+
+    this.acls = acls;
     
     this.queueInfo.setCapacity(capacity);
     this.queueInfo.setMaximumCapacity(maximumCapacity);
     this.queueInfo.setQueueState(state);
+
+    StringBuilder aclsString = new StringBuilder();
+    for (Map.Entry<QueueACL, AccessControlList> e : acls.entrySet()) {
+      aclsString.append(e.getKey() + ":" + e.getValue().getAclString());
+    }
 
     LOG.info(queueName +
         ", capacity=" + capacity +
         ", asboluteCapacity=" + absoluteCapacity +
         ", maxCapacity=" + maximumCapacity +
         ", asboluteMaxCapacity=" + absoluteMaxCapacity + 
-        ", state=" + state);
+        ", state=" + state +
+        ", acls=" + aclsString);
   }
 
   private static float PRECISION = 0.005f; // 0.05% precision
@@ -250,6 +267,11 @@ public class ParentQueue implements Queue {
   }
 
   @Override
+  public Map<QueueACL, AccessControlList> getQueueAcls() {
+    return new HashMap<QueueACL, AccessControlList>(acls);
+  }
+
+  @Override
   public synchronized QueueInfo getQueueInfo(boolean includeApplications, 
       boolean includeChildQueues, boolean recursive) {
     queueInfo.setCurrentCapacity(usedCapacity);
@@ -274,7 +296,41 @@ public class ParentQueue implements Queue {
     queueInfo.setChildQueues(childQueuesInfo);
     
     return queueInfo;
-}
+  }
+
+  private synchronized QueueUserACLInfo getUserAclInfo(
+      UserGroupInformation user) {
+    QueueUserACLInfo userAclInfo = 
+      recordFactory.newRecordInstance(QueueUserACLInfo.class);
+    List<QueueACL> operations = new ArrayList<QueueACL>();
+    for (Map.Entry<QueueACL, AccessControlList> e : acls.entrySet()) {
+      QueueACL operation = e.getKey();
+      AccessControlList acl = e.getValue();
+      
+      if (acl.isUserAllowed(user)) {
+        operations.add(operation);
+      }
+    }
+    
+    userAclInfo.setQueueName(getQueueName());
+    userAclInfo.setUserAcls(operations);
+    return userAclInfo;
+  }
+  
+  @Override
+  public synchronized List<QueueUserACLInfo> getQueueUserAclInfo(
+      UserGroupInformation user) {
+    List<QueueUserACLInfo> userAcls = new ArrayList<QueueUserACLInfo>();
+    
+    // Add parent queue acls
+    userAcls.add(getUserAclInfo(user));
+    
+    // Add children queue acls
+    for (Queue child : childQueues) {
+      userAcls.addAll(child.getQueueUserAclInfo(user));
+    }
+    return userAcls;
+  }
 
   public String toString() {
     return queueName + ":" + capacity + ":" + absoluteCapacity + ":" + 
@@ -320,7 +376,7 @@ public class ParentQueue implements Queue {
     // Set new configs
     setupQueueConfigs(parentQueue.capacity, parentQueue.absoluteCapacity,
         parentQueue.maximumCapacity, parentQueue.absoluteMaxCapacity,
-        parentQueue.state);
+        parentQueue.state, parentQueue.acls);
 
     // Update
     update(clusterResource);
@@ -334,6 +390,21 @@ public class ParentQueue implements Queue {
     return queuesMap;
   }
   
+  @Override
+  public boolean hasAccess(QueueACL acl, UserGroupInformation user) {
+    synchronized (this) {
+      if (acls.get(acl).isUserAllowed(user)) {
+        return true;
+      }
+    }
+    
+    if (parent != null) {
+      return parent.hasAccess(acl, user);
+    }
+    
+    return false;
+  }
+
   @Override
   public void submitApplication(Application application, String user,
       String queue, Priority priority) 

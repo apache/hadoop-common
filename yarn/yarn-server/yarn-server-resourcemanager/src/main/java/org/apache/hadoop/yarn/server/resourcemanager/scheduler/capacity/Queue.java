@@ -24,8 +24,10 @@ import java.util.List;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Stable;
 import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
@@ -126,6 +128,15 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    * @return applications in the queue
    */
   public List<Application> getApplications();
+  
+  /**
+   * Check if the <code>user</code> has permission to perform the operation
+   * @param acl ACL
+   * @param user user
+   * @return <code>true</code> if the user has the permission, 
+   *         <code>false</code> otherwise
+   */
+  public boolean hasAccess(QueueACL acl, UserGroupInformation user);
   
   /**
    * Submit a new application to the queue.

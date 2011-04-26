@@ -99,6 +99,13 @@ message GetQueueInfoResponseProto {
   optional QueueInfoProto queueInfo = 1;
 }
 
+message GetQueueUserAclsInfoRequestProto {
+}
+
+message GetQueueUserAclsInfoResponseProto {
+  repeated QueueUserACLInfoProto queueUserAcls = 1; 
+}
+
 //////////////////////////////////////////////////////
 /////// client_NM_Protocol ///////////////////////////
 //////////////////////////////////////////////////////

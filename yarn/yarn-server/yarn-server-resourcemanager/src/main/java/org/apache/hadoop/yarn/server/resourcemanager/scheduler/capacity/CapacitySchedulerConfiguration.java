@@ -18,11 +18,16 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
 
@@ -85,6 +90,9 @@ public class CapacitySchedulerConfiguration extends Configuration {
   @Private
   public static float DEFAULT_USER_LIMIT_FACTOR = 1.0f;
   
+  @Private
+  public static String DEFAULT_ACL = "*";
+  
   public CapacitySchedulerConfiguration() {
     this(new Configuration());
   }
@@ -116,6 +124,12 @@ public class CapacitySchedulerConfiguration extends Configuration {
     return capacity;
   }
   
+  public void setCapacity(String queue, int capacity) {
+    setInt(getQueuePrefix(queue) + CAPACITY, capacity);
+    LOG.info("CSConf - setCapacity: queuePrefix=" + getQueuePrefix(queue) + 
+        ", capacity=" + capacity);
+  }
+
   public int getMaximumCapacity(String queue) {
     int maxCapacity = 
       getInt(getQueuePrefix(queue) + MAXIMUM_CAPACITY, UNDEFINED);
@@ -141,15 +155,26 @@ public class CapacitySchedulerConfiguration extends Configuration {
   
   public QueueState getState(String queue) {
     String state = get(getQueuePrefix(queue) + STATE);
-    return (state != null) ? QueueState.valueOf(state.toUpperCase()) : QueueState.RUNNING;
-  }
-
-  public void setCapacity(String queue, int capacity) {
-    setInt(getQueuePrefix(queue) + CAPACITY, capacity);
-    LOG.info("CSConf - setCapacity: queuePrefix=" + getQueuePrefix(queue) + 
-        ", capacity=" + capacity);
+    return (state != null) ? 
+        QueueState.valueOf(state.toUpperCase()) : QueueState.RUNNING;
   }
   
+  private static String getAclKey(QueueACL acl) {
+    return "acl_" + acl.toString().toLowerCase();
+  }
+  
+  public Map<QueueACL, AccessControlList> getAcls(String queue) {
+    Map<QueueACL, AccessControlList> acls = 
+      new HashMap<QueueACL, AccessControlList>();
+    String queuePrefix = getQueuePrefix(queue);
+    for (QueueACL acl : QueueACL.values()) {
+      acls.put(acl, 
+          new AccessControlList(get(queuePrefix + getAclKey(acl), 
+              DEFAULT_ACL)));
+    }
+    return acls;
+  }
+
   public String[] getQueues(String queue) {
     LOG.info("CSConf - getQueues called for: queuePrefix=" + getQueuePrefix(queue));
     String[] queues = getStrings(getQueuePrefix(queue) + QUEUES);

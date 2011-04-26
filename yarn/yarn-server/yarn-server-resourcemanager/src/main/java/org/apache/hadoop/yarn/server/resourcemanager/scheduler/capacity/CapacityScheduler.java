@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -34,10 +35,12 @@ import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
+import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -318,6 +321,19 @@ implements ResourceScheduler, CapacitySchedulerContext {
       throw new IOException("Unknown queue: " + queueName);
     }
     return queue.getQueueInfo(includeApplications, includeChildQueues, recursive);
+  }
+
+  @Override
+  public List<QueueUserACLInfo> getQueueUserAclInfo() {
+    UserGroupInformation user = null;
+    try {
+      user = UserGroupInformation.getCurrentUser();
+    } catch (IOException ioe) {
+      // should never happen
+      return new ArrayList<QueueUserACLInfo>();
+    }
+
+    return root.getQueueUserAclInfo(user);
   }
 
   private void normalizeRequests(List<ResourceRequest> asks) {

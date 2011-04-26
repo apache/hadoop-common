@@ -5,11 +5,6 @@ option java_generate_equals_and_hash = true;
 
 import "yarn_service_protos.proto";
 
-
-
-
-
-
 service ClientRMProtocolService {
   rpc getNewApplicationId (GetNewApplicationIdRequestProto) returns (GetNewApplicationIdResponseProto);
   rpc getApplicationMaster (GetApplicationMasterRequestProto) returns (GetApplicationMasterResponseProto);
@@ -19,5 +14,6 @@ service ClientRMProtocolService {
   rpc getAllApplications (GetAllApplicationsRequestProto) returns (GetAllApplicationsResponseProto);
   rpc getClusterNodes (GetClusterNodesRequestProto) returns (GetClusterNodesResponseProto);
   rpc getQueueInfo (GetQueueInfoRequestProto) returns (GetQueueInfoResponseProto);
+  rpc getQueueUserAcls (GetQueueUserAclsInfoRequestProto) returns (GetQueueUserAclsInfoResponseProto);
 }
 

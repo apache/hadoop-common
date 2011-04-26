@@ -14,6 +14,8 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueUserAclsInfoRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueUserAclsInfoResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationResponse;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
@@ -27,4 +29,5 @@ public interface ClientRMProtocol {
   public GetAllApplicationsResponse getAllApplications(GetAllApplicationsRequest request) throws YarnRemoteException;
   public GetClusterNodesResponse getClusterNodes(GetClusterNodesRequest request) throws YarnRemoteException;
   public GetQueueInfoResponse getQueueInfo(GetQueueInfoRequest request) throws YarnRemoteException;
+  public GetQueueUserAclsInfoResponse getQueueUserAcls(GetQueueUserAclsInfoRequest request) throws YarnRemoteException;
 }

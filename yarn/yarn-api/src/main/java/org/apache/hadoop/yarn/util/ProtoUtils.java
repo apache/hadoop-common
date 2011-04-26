@@ -6,12 +6,14 @@ import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.YarnContainerTags;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceTypeProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceVisibilityProto;
+import org.apache.hadoop.yarn.proto.YarnProtos.QueueACLProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.YarnContainerTagsProto;
 
@@ -100,6 +102,17 @@ public class ProtoUtils {
   }
   public static QueueState convertFromProtoFormat(QueueStateProto e) {
     return QueueState.valueOf(e.name().replace(QUEUE_STATE_PREFIX, ""));
+  }
+  
+  /*
+   * QueueACL
+   */
+  private static String QUEUE_ACL_PREFIX = "Q_";
+  public static QueueACLProto convertToProtoFormat(QueueACL e) {
+    return QueueACLProto.valueOf(QUEUE_ACL_PREFIX + e.name());
+  }
+  public static QueueACL convertFromProtoFormat(QueueACLProto e) {
+    return QueueACL.valueOf(e.name().replace(QUEUE_ACL_PREFIX, ""));
   }
 
 }

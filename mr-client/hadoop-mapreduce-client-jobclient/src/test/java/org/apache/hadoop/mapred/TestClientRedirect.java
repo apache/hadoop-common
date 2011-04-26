@@ -75,6 +75,8 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationIdResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetQueueInfoResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueUserAclsInfoRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.GetQueueUserAclsInfoResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationResponse;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -237,6 +239,13 @@ public class TestClientRedirect {
     @Override
     public GetQueueInfoResponse getQueueInfo(GetQueueInfoRequest request)
         throws YarnRemoteException {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
+    @Override
+    public GetQueueUserAclsInfoResponse getQueueUserAcls(
+        GetQueueUserAclsInfoRequest request) throws YarnRemoteException {
       // TODO Auto-generated method stub
       return null;
     }
