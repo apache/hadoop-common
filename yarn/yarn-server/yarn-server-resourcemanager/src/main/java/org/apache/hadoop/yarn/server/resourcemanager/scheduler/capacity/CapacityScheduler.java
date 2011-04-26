@@ -447,7 +447,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
       Container container) {
     // Reap containers
     LOG.info("Application " + applicationId + " released container " + container);
-    NodeManager nodeManager = nodes.get(container.getHostName());
+    NodeManager nodeManager = nodes.get(container.getContainerManagerAddress());
     return nodeManager.releaseContainer(container);
   }
   

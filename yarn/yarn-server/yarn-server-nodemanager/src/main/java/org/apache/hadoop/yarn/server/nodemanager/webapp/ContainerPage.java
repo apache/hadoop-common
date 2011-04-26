@@ -68,7 +68,10 @@ public class ContainerPage extends NMView implements NMWebParams {
     Container container = this.nmContext.getContainers().get(containerID);
     info("Container information")
       ._("ContainerID", $(CONTAINER_ID))
-      ._("ContainerState", container.getContainerState());
+      ._("ContainerState", container.getContainerState())
+      ._("logs",
+          url($(NM_HTTP_URL), "yarn", "containerlogs", $(CONTAINER_ID)),
+          "Link to logs");
     html._(InfoBlock.class);
     }
   }

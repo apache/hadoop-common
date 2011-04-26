@@ -297,7 +297,7 @@ public class Application {
       allocated.add(container);
 
       LOG.debug("allocate: applicationId=" + applicationId + 
-          " container=" + container.getId() + " host=" + container.getHostName());
+          " container=" + container.getId() + " host=" + container.getContainerManagerAddress());
     }
   }
 

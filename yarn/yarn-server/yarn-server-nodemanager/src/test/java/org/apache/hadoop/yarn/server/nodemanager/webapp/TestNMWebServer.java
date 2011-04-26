@@ -18,6 +18,10 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.webapp;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,19 +36,31 @@ import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
+import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
 import org.apache.hadoop.yarn.server.nodemanager.ResourceView;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
 import org.apache.hadoop.yarn.util.BuilderUtils;
+import org.apache.hadoop.yarn.util.ConverterUtils;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestNMWebServer {
 
+  private static final File testRootDir = new File("target-"
+      + TestNMWebServer.class.getName());
+
+  @Before
+  public void setup() {
+    testRootDir.mkdirs();
+  }
+
   @Test
-  public void testNMWebApp() throws InterruptedException {
+  public void testNMWebApp() throws InterruptedException, IOException {
     Context nmContext = new NodeManager.NMContext();
     ResourceView resourceView = new ResourceView() {
       @Override
@@ -58,10 +74,11 @@ public class TestNMWebServer {
     };
     WebServer server = new WebServer(nmContext, resourceView);
     Configuration conf = new Configuration();
+    conf.set(NMConfig.NM_LOCAL_DIR, testRootDir.getAbsolutePath());
     server.init(conf);
     server.start();
 
-    // Add a couple of applications and the corresponding containers
+    // Add an application and the corresponding containers
     RecordFactory recordFactory =
         RecordFactoryProvider.getRecordFactory(conf);
     Dispatcher dispatcher = new AsyncDispatcher();
@@ -71,35 +88,52 @@ public class TestNMWebServer {
     Map<String, LocalResource> resources =
         new HashMap<String, LocalResource>();
     ByteBuffer containerTokens = ByteBuffer.allocate(0);
-    ApplicationId appId1 =
+    ApplicationId appId =
         BuilderUtils.newApplicationId(recordFactory, clusterTimeStamp, 1);
-    ApplicationId appId2 =
-        BuilderUtils.newApplicationId(recordFactory, clusterTimeStamp, 2);
-    for (ApplicationId appId : new ApplicationId[] { appId1, appId2 }) {
       Application app =
           new ApplicationImpl(dispatcher, user, appId, env, resources,
               containerTokens);
       nmContext.getApplications().put(appId, app);
-    }
-    ContainerId container11 =
-        BuilderUtils.newContainerId(recordFactory, appId1, 0);
-    ContainerId container12 =
-        BuilderUtils.newContainerId(recordFactory, appId1, 1);
-    ContainerId container21 =
-        BuilderUtils.newContainerId(recordFactory, appId2, 0);
-    for (ContainerId containerId : new ContainerId[] { container11,
-        container12, container21 }) {
+    ContainerId container1 =
+        BuilderUtils.newContainerId(recordFactory, appId, 0);
+    ContainerId container2 =
+        BuilderUtils.newContainerId(recordFactory, appId, 1);
+    for (ContainerId containerId : new ContainerId[] { container1,
+        container2}) {
       // TODO: Use builder utils
       ContainerLaunchContext launchContext =
           recordFactory.newRecordInstance(ContainerLaunchContext.class);
       launchContext.setContainerId(containerId);
-      Container container = new ContainerImpl(dispatcher, launchContext);
+      launchContext.setUser(user);
+      Container container = new ContainerImpl(dispatcher, launchContext) {
+        public ContainerState getContainerState() {
+          return ContainerState.RUNNING;
+        };
+      };
       nmContext.getContainers().put(containerId, container);
       //TODO: Gross hack. Fix in code.
       nmContext.getApplications().get(containerId.getAppId()).getContainers()
           .put(containerId, container);
+      writeContainerLogs(conf, nmContext, containerId);
 
     }
+    // TODO: Pull logs and test contents.
 //    Thread.sleep(1000000);
+  }
+
+  private void writeContainerLogs(Configuration conf, Context nmContext,
+      ContainerId containerId)
+        throws IOException {
+    // ContainerLogDir should be created
+    File containerLogDir =
+        ContainerLogsPage.ContainersLogsBlock.getContainerLogDir(conf,
+            nmContext, containerId);
+    containerLogDir.mkdirs();
+    for (String fileType : new String[] { "stdout", "stderr", "syslog" }) {
+      Writer writer = new FileWriter(new File(containerLogDir, fileType));
+      writer.write(ConverterUtils.toString(containerId) + "\n Hello "
+          + fileType + "!");
+      writer.close();
+    }
   }
 }

@@ -238,7 +238,7 @@ public class TestContainerTokenSecretManager {
       public Void run() {
         ContainerManager client =
             (ContainerManager) yarnRPC.getProxy(ContainerManager.class,
-                NetUtils.createSocketAddr(allocatedContainer.getHostName()
+                NetUtils.createSocketAddr(allocatedContainer.getContainerManagerAddress()
                     ), conf);
         try {
           GetContainerStatusRequest request = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
@@ -277,7 +277,7 @@ public class TestContainerTokenSecretManager {
       public Void run() {
         try {
           yarnRPC.getProxy(ContainerManager.class, NetUtils
-              .createSocketAddr(allocatedContainer.getHostName()), conf);
+              .createSocketAddr(allocatedContainer.getContainerManagerAddress()), conf);
           fail("Connection initiation with illegally modified tokens is expected to fail.");
         } catch (YarnException e) {
           LOG.info("Error", e);

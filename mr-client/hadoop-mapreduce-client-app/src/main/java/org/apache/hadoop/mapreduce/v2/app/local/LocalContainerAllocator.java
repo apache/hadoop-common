@@ -70,6 +70,7 @@ public class LocalContainerAllocator extends RMCommunicator
       eventHandler.handle(new TaskAttemptContainerAssignedEvent(
           event.getAttemptID(), cID,
           "localhost",//put the AppMaster hostname (TODO)
+          "localhost:9999",// put the httpAddress
           null));
     }
   }

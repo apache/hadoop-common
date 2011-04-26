@@ -676,7 +676,7 @@ public class TestRuntimeEstimators {
     }
 
     @Override
-    public String getAssignedContainerMgrAddress() {
+    public String getNodeHttpAddress() {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 

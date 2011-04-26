@@ -148,7 +148,8 @@ public class TestAMRestart extends TestCase {
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       Container container = recordFactory.newRecordInstance(Container.class);
       container.setContainerToken(recordFactory.newRecordInstance(ContainerToken.class));
-      container.setHostName("localhost");
+      container.setContainerManagerAddress("localhost");
+      container.setNodeHttpAddress("localhost:9999");
       container.setId(recordFactory.newRecordInstance(ContainerId.class));
       container.getId().setAppId(appID);
       container.getId().setId(count);

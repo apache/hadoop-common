@@ -39,10 +39,11 @@ message ContainerTokenProto {
 
 message ContainerProto {
   optional ContainerIdProto id = 1;
-  optional string host_name = 2;
-  optional ResourceProto resource = 3;
-  optional ContainerStateProto state = 4;
-  optional ContainerTokenProto container_token =5;
+  optional string container_manager_address = 2;
+  optional string node_http_address = 3;
+  optional ResourceProto resource = 4;
+  optional ContainerStateProto state = 5;
+  optional ContainerTokenProto container_token = 6;
 }
 
 enum ApplicationStateProto {

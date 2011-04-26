@@ -322,7 +322,7 @@ public class Application {
       List<Container> containers) throws IOException {
     for (Iterator<Container> i=containers.iterator(); i.hasNext();) {
       Container container = i.next();
-      String host = container.getHostName();
+      String host = container.getContainerManagerAddress();
       
       if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.equals(
           requestSpec.get(priority), container.getResource())) { 

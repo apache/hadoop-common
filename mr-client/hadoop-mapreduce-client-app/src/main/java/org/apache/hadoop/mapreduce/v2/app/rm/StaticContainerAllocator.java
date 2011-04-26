@@ -143,7 +143,7 @@ public class StaticContainerAllocator extends AbstractService
         context.getEventHandler().handle(
             new TaskAttemptContainerAssignedEvent(
                 event.getAttemptID(),
-                containerID, containerMgr, null));
+                containerID, containerMgr, "localhost:9999", null));
         }
       }
     }

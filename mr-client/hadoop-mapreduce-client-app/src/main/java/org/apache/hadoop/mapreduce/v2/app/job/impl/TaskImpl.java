@@ -502,11 +502,11 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     TaskAttempt attempt = attempts.get(attemptId);
     //raise the completion event only if the container is assigned
     // to nextAttemptNumber
-    if (attempt.getAssignedContainerMgrAddress() != null) {
+    if (attempt.getNodeHttpAddress() != null) {
       TaskAttemptCompletionEvent tce = recordFactory.newRecordInstance(TaskAttemptCompletionEvent.class);
       tce.setEventId(-1);
       //TODO: XXXXXX  hardcoded port
-      tce.setMapOutputServerAddress("http://" + attempt.getAssignedContainerMgrAddress().split(":")[0] + ":8080");
+      tce.setMapOutputServerAddress("http://" + attempt.getNodeHttpAddress().split(":")[0] + ":8080");
       tce.setStatus(status);
       tce.setAttemptId(attempt.getID());
       tce.setAttemptRunTime(0); // TODO: set the exact run time of the task.

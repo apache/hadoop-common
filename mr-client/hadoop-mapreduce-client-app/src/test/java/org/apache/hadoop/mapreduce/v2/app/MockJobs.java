@@ -232,8 +232,8 @@ public class MockJobs extends MockApps {
       }
 
       @Override
-      public String getAssignedContainerMgrAddress() {
-        return "localhost";
+      public String getNodeHttpAddress() {
+        return "localhost:9999";
       }
 
       @Override

@@ -21,6 +21,8 @@ package org.apache.hadoop.yarn.server.nodemanager.webapp;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.ACCORDION;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.initID;
 
+import java.util.Date;
+
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.ResourceView;
 import org.apache.hadoop.yarn.webapp.SubView;
@@ -63,8 +65,8 @@ public class NodePage extends NMView {
               this.resourceView.getPmemAllocatedForContainers() + "bytes")
           ._("NodeHealthyStatus",
               this.context.getNodeHealthStatus().getIsNodeHealthy())
-          ._("LastNodeHealthTime",
-              this.context.getNodeHealthStatus().getLastHealthReportTime())
+          ._("LastNodeHealthTime", new Date(
+                this.context.getNodeHealthStatus().getLastHealthReportTime()))
           ._("NodeHealthReport",
               this.context.getNodeHealthStatus().getHealthReport());
       html._(InfoBlock.class);

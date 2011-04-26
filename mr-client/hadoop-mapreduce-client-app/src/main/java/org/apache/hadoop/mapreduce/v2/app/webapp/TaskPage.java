@@ -24,6 +24,8 @@ import com.google.inject.Inject;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
@@ -56,7 +58,7 @@ public class TaskPage extends AppView {
             th(".id", "Attempt").
             th(".progress", "Progress").
             th(".state", "State").
-            th(".node", "Node").
+            th(".logs", "Logs").
             th(".tsh", "Started").
             th(".tsh", "Finished").
             th(".tsh", "Elapsed").
@@ -65,15 +67,21 @@ public class TaskPage extends AppView {
       for (TaskAttempt ta : app.task.getAttempts().values()) {
         String taid = MRApps.toString(ta.getID());
         String progress = percent(ta.getProgress());
-        String node = ta.getAssignedContainerMgrAddress();
+        ContainerId containerId = ta.getAssignedContainerID();
+        String nodeHttpAddr = ta.getNodeHttpAddress();
         TaskAttemptReport report = ta.getReport();
         long elapsed = Times.elapsed(report.getStartTime(), report.getFinishTime());
+        String containerIdStr = ConverterUtils.toString(containerId);
         tbody.
           tr().
             td(".id", taid).
             td(".progress", progress).
             td(".state", ta.getState().toString()).
-            td(".node", node).
+            td()
+              .a(".logs",
+                  url("http://", nodeHttpAddr, "yarn", "containerlogs",
+                      containerIdStr),
+                  "Logs for " + containerIdStr)._().
             td(".ts", String.valueOf(report.getStartTime())).
             td(".ts", String.valueOf(report.getFinishTime())).
             td(".dt", String.valueOf(elapsed)).

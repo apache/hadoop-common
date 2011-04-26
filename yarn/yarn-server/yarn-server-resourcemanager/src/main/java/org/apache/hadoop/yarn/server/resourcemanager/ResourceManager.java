@@ -234,7 +234,7 @@ public class ResourceManager extends CompositeService {
       resourceManager = new ResourceManager();
       resourceManager.init(conf);
       resourceManager.start();
-    } catch (Exception e) {
+    } catch (Throwable e) {
       LOG.error("Error starting RM", e);
     } finally {
       if (resourceManager != null) {

@@ -20,6 +20,7 @@ package org.apache.hadoop.mapreduce.v2.app.job.impl;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -77,6 +78,7 @@ import org.apache.hadoop.mapreduce.v2.app.rm.ContainerRequestEvent;
 import org.apache.hadoop.mapreduce.v2.app.speculate.SpeculatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -366,6 +368,7 @@ public abstract class TaskAttemptImpl implements
 
   private ContainerId containerID;
   private String containerMgrAddress;
+  private String nodeHttpAddress;
   private WrappedJvmID jvmID;
   private ContainerToken containerToken;
   
@@ -679,13 +682,13 @@ public abstract class TaskAttemptImpl implements
     }
   }
 
-  /**If container Assigned then return container mgr address, otherwise null.
+  /**If container Assigned then return the node's address, otherwise null.
    */
   @Override
-  public String getAssignedContainerMgrAddress() {
+  public String getNodeHttpAddress() {
     readLock.lock();
     try {
-      return containerMgrAddress;
+      return nodeHttpAddress;
     } finally {
       readLock.unlock();
     }
@@ -844,6 +847,7 @@ public abstract class TaskAttemptImpl implements
         (TaskAttemptContainerAssignedEvent) event;
       taskAttempt.containerID = cEvent.getContainerID();
       taskAttempt.containerMgrAddress = cEvent.getContainerManagerAddress();
+      taskAttempt.nodeHttpAddress = cEvent.getNodeHttpAddress();
       taskAttempt.containerToken = cEvent.getContainerToken();
       // this is a _real_ Task (classic Hadoop mapred flavor):
       taskAttempt.remoteTask = taskAttempt.createRemoteTask();
@@ -925,11 +929,14 @@ public abstract class TaskAttemptImpl implements
       // for it
       taskAttempt.taskAttemptListener.register(
           taskAttempt.attemptId, taskAttempt.remoteTask, taskAttempt.jvmID);
+      InetSocketAddress nodeHttpInetAddr =
+          NetUtils.createSocketAddr(taskAttempt.nodeHttpAddress); // TODO:
+                                                                  // Costly?
       TaskAttemptStartedEvent tase =
         new TaskAttemptStartedEvent(TypeConverter.fromYarn(taskAttempt.attemptId),
             TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
             taskAttempt.launchTime,
-            "tracker", 0);
+            nodeHttpInetAddr.getHostName(), nodeHttpInetAddr.getPort());
       taskAttempt.eventHandler.handle
           (new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), tase));
       taskAttempt.eventHandler.handle

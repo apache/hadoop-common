@@ -383,22 +383,22 @@ public class FifoScheduler implements ResourceScheduler {
       for (int i=0; i < assignedContainers; ++i) {
         Container container =
             org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-                .create(recordFactory, application.getApplicationId(), 
-                    application.getNewContainerId(),
-                    node.getNodeAddress(), capability);
+                .create(recordFactory, application.getApplicationId(),
+                    application.getNewContainerId(), node.getNodeAddress(),
+                    node.getHttpAddress(), capability);
         // If security is enabled, send the container-tokens too.
         if (UserGroupInformation.isSecurityEnabled()) {
           ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
           ContainerTokenIdentifier tokenidentifier =
               new ContainerTokenIdentifier(container.getId(),
-                  container.getHostName(), container.getResource());
+                  container.getContainerManagerAddress(), container.getResource());
           containerToken.setIdentifier(
               ByteBuffer.wrap(tokenidentifier.getBytes()));
           containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
           containerToken.setPassword(
               ByteBuffer.wrap(containerTokenSecretManager
                   .createPassword(tokenidentifier)));
-          containerToken.setService(container.getHostName()); // TODO: port
+          containerToken.setService(container.getContainerManagerAddress());
           container.setContainerToken(containerToken);
         }
         containers.add(container);
@@ -515,7 +515,7 @@ public class FifoScheduler implements ResourceScheduler {
       Container container) {
     // Reap containers
     LOG.info("Application " + applicationId + " released container " + container);
-    NodeManager nodeManager = nodes.get(container.getHostName());
+    NodeManager nodeManager = nodes.get(container.getContainerManagerAddress());
     return nodeManager.releaseContainer(container);
   }
   

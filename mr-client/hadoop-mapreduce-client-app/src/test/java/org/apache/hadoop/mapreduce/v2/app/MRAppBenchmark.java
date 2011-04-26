@@ -126,7 +126,8 @@ public class MRAppBenchmark {
                   //System.out.println("Allocating " + containerCount);
                   getContext().getEventHandler().handle(
                       new TaskAttemptContainerAssignedEvent(event
-                          .getAttemptID(), cId, "dummy", null));
+                          .getAttemptID(), cId, "dummy", "localhost:9999",
+                          null));
                   concurrentRunningTasks++;
                 } else {
                   Thread.sleep(1000);

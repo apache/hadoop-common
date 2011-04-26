@@ -77,7 +77,7 @@ public class AllContainersPage extends NMView {
             .tr()
               .td()._("ContainerId")._()
               .td()._("ContainerState")._()
-              .td()._("logs-url")._()
+              .td()._("logs")._()
             ._()
           ._().tbody();
       for (Entry<ContainerId, Container> entry : this.nmContext
@@ -90,7 +90,9 @@ public class AllContainersPage extends NMView {
             .td().a(url($(NM_HTTP_URL), "yarn", "container", containerIdStr), 
                 containerIdStr)._()
             .td()._(container.getContainerState())._()
-            .td()._("TODO")._()
+            .td()
+                .a(url($(NM_HTTP_URL), "yarn", "containerlogs", containerIdStr),
+                   "logs")._()
           ._();
       }
       tableBody._()._()._();

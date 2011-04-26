@@ -257,7 +257,7 @@ public class MRApp extends MRAppMaster {
         cId.setId(containerCount++);
         getContext().getEventHandler().handle(
             new TaskAttemptContainerAssignedEvent(event.getAttemptID(), cId,
-                "dummy", null));
+                "dummy", "localhost:9999",null));
       }
     };
   }

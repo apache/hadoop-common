@@ -72,8 +72,8 @@ public class CompletedTaskAttempt implements TaskAttempt {
   }
 
   @Override
-  public String getAssignedContainerMgrAddress() {
-    return attemptInfo.getHostname();
+  public String getNodeHttpAddress() {
+    return attemptInfo.getHostname() + ":" + attemptInfo.getHttpPort();
   }
 
   @Override

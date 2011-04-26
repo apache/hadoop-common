@@ -72,6 +72,7 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
   private String rmAddress;
   private Resource totalResource;
   private String containerManagerBindAddress;
+  private String nodeHttpAddress;
   private String hostName;
   private int containerManagerPort;
   private int httpPort;
@@ -122,6 +123,7 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
       this.httpPort = httpBindAddress.getPort();
       this.containerManagerBindAddress =
           this.hostName + ":" + this.containerManagerPort;
+      this.nodeHttpAddress = this.hostName + ":" + this.httpPort;
       LOG.info("Configured ContainerManager Address is "
           + this.containerManagerBindAddress);
       // Registration has to be in start so that ContainerManager can get the
@@ -207,7 +209,8 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
 
         // Clone the container to send it to the RM
         org.apache.hadoop.yarn.api.records.Container c = container.cloneAndGetContainer();
-        c.setHostName(this.containerManagerBindAddress);
+        c.setContainerManagerAddress(this.containerManagerBindAddress);
+        c.setNodeHttpAddress(this.nodeHttpAddress); // TODO: don't set everytime.
         applicationContainers.add(c);
         ++numActiveContainers;
         LOG.info("Sending out status for container: " + c);

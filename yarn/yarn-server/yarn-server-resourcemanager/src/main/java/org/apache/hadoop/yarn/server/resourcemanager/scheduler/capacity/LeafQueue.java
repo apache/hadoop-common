@@ -683,22 +683,22 @@ public class LeafQueue implements Queue {
       List<Container> containers =
         new ArrayList<Container>();
       Container container =
-        org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-        .create(recordFactory, application.getApplicationId(), 
-            application.getNewContainerId(),
-            node.getNodeAddress(), capability);
+          org.apache.hadoop.yarn.server.resourcemanager.resource.Container
+              .create(recordFactory, application.getApplicationId(),
+                  application.getNewContainerId(), node.getNodeAddress(),
+                  node.getHttpAddress(), capability);
       
       // If security is enabled, send the container-tokens too.
       if (UserGroupInformation.isSecurityEnabled()) {
         ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
         ContainerTokenIdentifier tokenidentifier =
           new ContainerTokenIdentifier(container.getId(),
-              container.getHostName(), container.getResource());
+              container.getContainerManagerAddress(), container.getResource());
         containerToken.setIdentifier(ByteBuffer.wrap(tokenidentifier.getBytes()));
         containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
         containerToken.setPassword(ByteBuffer.wrap(containerTokenSecretManager
               .createPassword(tokenidentifier)));
-        containerToken.setService(container.getHostName()); // TODO: port
+        containerToken.setService(container.getContainerManagerAddress());
         container.setContainerToken(containerToken);
       }
       

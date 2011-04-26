@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.webapp;
 
+import java.util.Date;
+
 import com.google.inject.Inject;
 
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
@@ -62,8 +64,8 @@ class NodesPage extends RmView {
             td().a("http://" + ni.getHttpAddress(), ni.getHttpAddress())._().
             td(ni.getNodeHealthStatus().getIsNodeHealthy() ? "Healthy"
                 : "Unhealthy").
-            td(String.valueOf(ni.getNodeHealthStatus()
-                .getLastHealthReportTime())).
+            td(new Date(ni.getNodeHealthStatus()
+                .getLastHealthReportTime()).toString()).
             td(String.valueOf(ni.getNodeHealthStatus().getHealthReport())).
             td(String.valueOf(ni.getNumContainers())).
             td(String.valueOf(ni.getUsedResource().getMemory())).

@@ -26,16 +26,19 @@ import org.apache.hadoop.yarn.api.records.ContainerToken;
 
 public class TaskAttemptContainerAssignedEvent extends TaskAttemptEvent {
 
-  private ContainerId containerID;
-  private String containerManagerAddress;
-  private ContainerToken containerToken;
+  private final ContainerId containerID;
+  private final String containerManagerAddress;
+  private final String nodeHttpAddress;
+  private final ContainerToken containerToken;
 
   public TaskAttemptContainerAssignedEvent(TaskAttemptId id,
       ContainerId containerID, String containerManagerAddress,
+      String nodeHttpAddress,
       ContainerToken containerToken) {
     super(id, TaskAttemptEventType.TA_ASSIGNED);
     this.containerID = containerID;
     this.containerManagerAddress = containerManagerAddress;
+    this.nodeHttpAddress = nodeHttpAddress;
     this.containerToken = containerToken;
   }
 
@@ -49,5 +52,9 @@ public class TaskAttemptContainerAssignedEvent extends TaskAttemptEvent {
 
   public ContainerToken getContainerToken() {
     return this.containerToken;
+  }
+
+  public String getNodeHttpAddress() {
+    return this.nodeHttpAddress;
   }
 }

@@ -18,10 +18,10 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resource;
 
-import org.apache.hadoop.yarn.api.records.ContainerState;
-import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.util.BuilderUtils;
@@ -34,7 +34,8 @@ public class Container {
       org.apache.hadoop.yarn.api.records.Container c) {
     org.apache.hadoop.yarn.api.records.Container container = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
     container.setId(c.getId());
-    container.setHostName(c.getHostName());
+    container.setContainerManagerAddress(c.getContainerManagerAddress());
+    container.setNodeHttpAddress(c.getNodeHttpAddress());
     container.setResource(c.getResource());
     container.setState(c.getState());
     return container;
@@ -42,19 +43,24 @@ public class Container {
 
   public static org.apache.hadoop.yarn.api.records.Container create(
       RecordFactory recordFactory, ApplicationId applicationId,
-      int containerId, String hostName, Resource resource) {
+      int containerId, String containerManagerAddress, String nodeHttpAddress,
+      Resource resource) {
     ContainerId containerID =
         BuilderUtils
             .newContainerId(recordFactory, applicationId, containerId);
-    return create(containerID, hostName, resource);
+    return create(containerID, containerManagerAddress, nodeHttpAddress,
+        resource);
   }
 
   public static org.apache.hadoop.yarn.api.records.Container create(
-      ContainerId containerId,
-      String hostName, Resource resource) {
-    org.apache.hadoop.yarn.api.records.Container container = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
+      ContainerId containerId, String containerManagerAddress,
+      String nodeHttpAddress, Resource resource) {
+    org.apache.hadoop.yarn.api.records.Container container =
+        recordFactory
+            .newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
     container.setId(containerId);
-    container.setHostName(hostName);
+    container.setContainerManagerAddress(containerManagerAddress);
+    container.setNodeHttpAddress(nodeHttpAddress);
     container.setResource(resource);
     container.setState(ContainerState.INITIALIZING);
     return container;

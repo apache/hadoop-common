@@ -61,7 +61,8 @@ public class NodeManager implements ContainerManager {
   private static final Log LOG = LogFactory.getLog(NodeManager.class);
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
-  final private String hostName;
+  final private String containerManagerAddress;
+  final private String nodeHttpAddress;
   final private String rackName;
   final private NodeId nodeId;
   final private Resource capability;
@@ -76,7 +77,8 @@ public class NodeManager implements ContainerManager {
   public NodeManager(String hostName, int containerManagerPort, int httpPort,
       String rackName, int memory, RMResourceTrackerImpl resourceTracker)
       throws IOException {
-    this.hostName = hostName;
+    this.containerManagerAddress = hostName + ":" + containerManagerPort;
+    this.nodeHttpAddress = hostName + ":" + httpPort;
     this.rackName = rackName;
     this.resourceTracker = resourceTracker;
     this.capability = 
@@ -101,7 +103,7 @@ public class NodeManager implements ContainerManager {
   }
   
   public String getHostName() {
-    return hostName;
+    return containerManagerAddress;
   }
 
   public String getRackName() {
@@ -161,14 +163,15 @@ public class NodeManager implements ContainerManager {
       if (container.getId().compareTo(containerLaunchContext.getContainerId()) == 0) {
         throw new IllegalStateException(
             "Container " + containerLaunchContext.getContainerId() + 
-            " already setup on node " + hostName);
+            " already setup on node " + containerManagerAddress);
       }
     }
 
     Container container = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Container.create(
-          containerLaunchContext.getContainerId(), 
-          hostName, containerLaunchContext.getResource());
+        org.apache.hadoop.yarn.server.resourcemanager.resource.Container
+            .create(containerLaunchContext.getContainerId(),
+                containerManagerAddress, nodeHttpAddress,
+                containerLaunchContext.getResource());
     applicationContainers.add(container);
     
     org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
@@ -177,7 +180,7 @@ public class NodeManager implements ContainerManager {
         used, containerLaunchContext.getResource());
     
     LOG.info("DEBUG --- startContainer:" +
-        " node=" + hostName +
+        " node=" + containerManagerAddress +
         " application=" + applicationId + 
         " container=" + container +
         " available=" + available +
@@ -188,7 +191,7 @@ public class NodeManager implements ContainerManager {
   }
 
   synchronized public void checkResourceUsage() {
-    LOG.info("Checking resource usage for " + hostName);
+    LOG.info("Checking resource usage for " + containerManagerAddress);
     Assert.assertEquals(available.getMemory(), 
         nodeInfo.getAvailableResource().getMemory());
     Assert.assertEquals(used.getMemory(), 
@@ -233,7 +236,7 @@ public class NodeManager implements ContainerManager {
         used, container.getResource());
 
     LOG.info("DEBUG --- stopContainer:" +
-        " node=" + hostName +
+        " node=" + containerManagerAddress +
         " application=" + applicationId + 
         " container=" + containerID +
         " available=" + available +

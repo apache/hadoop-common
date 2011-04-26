@@ -32,7 +32,7 @@ public class NMConfig {
   /** host:port address to which to bind to **/
   public static final String NM_BIND_ADDRESS = NM_PREFIX + "address";
 
-  public static final String DEFAULT_NM_HTTP_BIND_ADDRESS = "localhost:9999";
+  public static final String DEFAULT_NM_HTTP_BIND_ADDRESS = "0.0.0.0:9999";
 
   /** host:port address to which webserver has to bind to **/
   public static final String NM_HTTP_BIND_ADDRESS = NM_PREFIX + "http-address";

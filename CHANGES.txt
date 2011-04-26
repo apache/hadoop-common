@@ -3,8 +3,13 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+
+    Add Containers' logs' view to NM UI and link it from AM UI. (vinodkv)
+
     Fix race condition in TestJobHistoryEvents and TestJobHistoryParsing. (sharad)
     
+    Introducing web-UI for NodeManager and linking it from RM UI. (vinodkv)
+
     Added functionality to stop/start queues. (acmurthy)
     
     Added functionality to refresh queues at runtime via the 'bin/yarn
@@ -22,11 +27,11 @@ Trunk (unreleased changes)
     Add HistoryCleanerService to Job History server. (Krishna Ramachandran
     via sharad)
 
-   Install sanitized poms for downstream sanity (Luke Lu via mahadev)
+    Install sanitized poms for downstream sanity (Luke Lu via mahadev)
 
-   WebApp for Job History (Krishna Ramachandran via mahadev)
+    WebApp for Job History (Krishna Ramachandran via mahadev)
   
-   Fix YarnRemoteException to give more details. (siddharth seth via mahadev)
+    Fix YarnRemoteException to give more details. (siddharth seth via mahadev)
 
     MAPREDUCE-2405. Implement uber-AppMaster (in-cluster LocalJobRunner for
     MRv2). (Greg Roelofs and Sharad Agarwal via mahadev)
@@ -38,6 +43,14 @@ Trunk (unreleased changes)
 
     MAPREDUCE-2440. Name clashes in TypeConverter (luke via mahadev)
   
+    Implementing Containers' memory monitoring. (vinodkv)
+
+    MAPREDUCE-2405: Implement uber-AppMaster (in-cluster LocalJobRunner for MRv2) (Greg Roelofs via mahadev)
+
+    Implement health-checks for the node - server side(ResourceManager) changes. (vinodkv)
+
+    MAPREDUCE-2414. Change MRv2 to use generic interfaces. (Siddharth Seth via acmurthy)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class

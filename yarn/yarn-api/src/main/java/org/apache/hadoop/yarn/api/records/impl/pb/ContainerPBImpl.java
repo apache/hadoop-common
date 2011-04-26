@@ -114,23 +114,43 @@ public class ContainerPBImpl extends ProtoBase<ContainerProto> implements Contai
     this.containerId = id;
   }
   @Override
-  public String getHostName() {
+  public String getContainerManagerAddress() {
     ContainerProtoOrBuilder p = viaProto ? proto : builder;
-    if (!p.hasHostName()) {
+    if (!p.hasContainerManagerAddress()) {
       return null;
     }
-    return (p.getHostName());
+    return (p.getContainerManagerAddress());
   }
 
   @Override
-  public void setHostName(String hostName) {
+  public void setContainerManagerAddress(String containerManagerAddress) {
     maybeInitBuilder();
-    if (hostName == null) {
-      builder.clearHostName();
+    if (containerManagerAddress == null) {
+      builder.clearContainerManagerAddress();
       return;
     }
-    builder.setHostName((hostName));
+    builder.setContainerManagerAddress((containerManagerAddress));
   }
+
+  @Override
+  public String getNodeHttpAddress() {
+    ContainerProtoOrBuilder p = viaProto ? proto : builder;
+    if (!p.hasNodeHttpAddress()) {
+      return null;
+    }
+    return (p.getNodeHttpAddress());
+  }
+
+  @Override
+  public void setNodeHttpAddress(String nodeHttpAddress) {
+    maybeInitBuilder();
+    if (nodeHttpAddress == null) {
+      builder.clearNodeHttpAddress();
+      return;
+    }
+    builder.setNodeHttpAddress(nodeHttpAddress);
+  }
+
   @Override
   public Resource getResource() {
     ContainerProtoOrBuilder p = viaProto ? proto : builder;
@@ -208,7 +228,7 @@ public class ContainerPBImpl extends ProtoBase<ContainerProto> implements Contai
   @Override
   public int compareTo(Container other) {
     if (this.getId().compareTo(other.getId()) == 0) {
-      if (this.getHostName().compareTo(other.getHostName()) == 0) {
+      if (this.getContainerManagerAddress().compareTo(other.getContainerManagerAddress()) == 0) {
         if (this.getResource().compareTo(other.getResource()) == 0) {
           if (this.getState().compareTo(other.getState()) == 0) {
             //ContainerToken
@@ -220,7 +240,7 @@ public class ContainerPBImpl extends ProtoBase<ContainerProto> implements Contai
           return this.getResource().compareTo(other.getResource());
         }
       } else {
-        return this.getHostName().compareTo(other.getHostName());
+        return this.getContainerManagerAddress().compareTo(other.getContainerManagerAddress());
       }
     } else {
       return this.getId().compareTo(other.getId());

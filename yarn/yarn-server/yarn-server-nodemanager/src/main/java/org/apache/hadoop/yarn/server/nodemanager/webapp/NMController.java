@@ -66,4 +66,8 @@ public class NMController extends Controller implements NMWebParams {
   public void container() {
     render(ContainerPage.class);
   }
+
+  public void logs() {
+    render(ContainerLogsPage.class);
+  }
 }

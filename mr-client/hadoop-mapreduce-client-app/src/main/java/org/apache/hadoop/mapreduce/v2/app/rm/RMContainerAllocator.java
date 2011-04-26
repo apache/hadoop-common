@@ -280,7 +280,7 @@ public class RMContainerAllocator extends RMCommunicator
   private void assign(Priority priority, List<Container> allocatedContainers) {
     for (Iterator<Container> i=allocatedContainers.iterator(); i.hasNext();) {
       Container allocatedContainer = i.next();
-      String host = allocatedContainer.getHostName();
+      String host = allocatedContainer.getContainerManagerAddress();
       Resource capability = allocatedContainer.getResource();
 
       LinkedList<ContainerRequestEvent> requestList =
@@ -322,14 +322,15 @@ public class RMContainerAllocator extends RMCommunicator
         // send the container-assigned event to task attempt
         eventHandler.handle(new TaskAttemptContainerAssignedEvent(
             assigned.getAttemptID(), allocatedContainer.getId(),
-            allocatedContainer.getHostName(),
+            allocatedContainer.getContainerManagerAddress(),
+            allocatedContainer.getNodeHttpAddress(),
             allocatedContainer.getContainerToken()));
 
         assignedMap.put(allocatedContainer.getId(), assigned.getAttemptID());
 
         LOG.info("Assigned container (" + allocatedContainer + ") " +
             " to task " + assigned.getAttemptID() + " at priority " + priority +
-            " on node " + allocatedContainer.getHostName());
+            " on node " + allocatedContainer.getContainerManagerAddress());
       }
     }
   }
