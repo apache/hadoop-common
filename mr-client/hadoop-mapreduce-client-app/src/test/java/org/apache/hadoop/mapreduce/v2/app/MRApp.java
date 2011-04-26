@@ -85,10 +85,20 @@ public class MRApp extends MRAppMaster {
   //if true, tasks complete automatically as soon as they are launched
   protected boolean autoComplete = false;
 
+  static ApplicationId applicationId;
+
+  static {
+    applicationId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+    applicationId.setClusterTimestamp(0);
+    applicationId.setId(0);
+  }
+
   public MRApp(int maps, int reduces, boolean autoComplete) {
-    
-    super(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(
-        ApplicationId.class));
+    this(maps, reduces, autoComplete, 1);
+  }
+
+  public MRApp(int maps, int reduces, boolean autoComplete, int startCount) {
+    super(applicationId, startCount);
     this.maps = maps;
     this.reduces = reduces;
     this.autoComplete = autoComplete;
@@ -163,10 +173,14 @@ public class MRApp extends MRAppMaster {
       JobReport jobReport = job.getReport();
       Assert.assertTrue("Job start time is not less than finish time",
           jobReport.getStartTime() < jobReport.getFinishTime());
+      System.out.println("Job start time :" + jobReport.getStartTime());
+      System.out.println("Job finish time :" + jobReport.getFinishTime());
       Assert.assertTrue("Job finish time is in future",
           jobReport.getFinishTime() < System.currentTimeMillis());
       for (Task task : job.getTasks().values()) {
         TaskReport taskReport = task.getReport();
+        System.out.println("Task start time : " + taskReport.getStartTime());
+        System.out.println("Task finish time : " + taskReport.getFinishTime());
         Assert.assertTrue("Task start time is not less than finish time",
             taskReport.getStartTime() < taskReport.getFinishTime());
         for (TaskAttempt attempt : task.getAttempts().values()) {
@@ -310,7 +324,8 @@ public class MRApp extends MRAppMaster {
     public TestJob(ApplicationId appID, EventHandler eventHandler,
         TaskAttemptListener taskAttemptListener, Clock clock) {
       super(appID, new Configuration(), eventHandler, taskAttemptListener,
-          new JobTokenSecretManager(), new Credentials(), clock);
+          new JobTokenSecretManager(), new Credentials(), clock, getStartCount(), 
+          getCompletedTaskFromPreviousRun());
 
       // This "this leak" is okay because the retained pointer is in an
       //  instance variable.

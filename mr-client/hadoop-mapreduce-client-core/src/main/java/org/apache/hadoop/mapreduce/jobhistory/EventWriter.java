@@ -68,6 +68,7 @@ class EventWriter {
   
   void flush() throws IOException { 
     encoder.flush();
+    out.hflush();
   }
 
   void close() throws IOException {

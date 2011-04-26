@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
@@ -40,6 +41,7 @@ import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.client.MRClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -56,6 +58,8 @@ import org.apache.hadoop.mapreduce.v2.app.job.impl.JobImpl;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncher;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncherImpl;
 import org.apache.hadoop.mapreduce.v2.app.local.LocalContainerAllocator;
+import org.apache.hadoop.mapreduce.v2.app.recover.Recovery;
+import org.apache.hadoop.mapreduce.v2.app.recover.RecoveryService;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.speculate.DefaultSpeculator;
@@ -102,9 +106,10 @@ public class MRAppMaster extends CompositeService {
 
   private static final Log LOG = LogFactory.getLog(MRAppMaster.class);
 
-  private final Clock clock;
-
-  private ApplicationId appID;
+  private Clock clock;
+  private final int startCount;
+  private final ApplicationId appID;
+  private Set<TaskId> completedTasksFromPreviousRun;
   private AppContext context;
   private Dispatcher dispatcher;
   private ClientService clientService;
@@ -117,21 +122,16 @@ public class MRAppMaster extends CompositeService {
       new JobTokenSecretManager();
 
   private Job job;
-  private int failCount = 0;
   
-  public MRAppMaster(ApplicationId applicationId) {
-    this(applicationId, new SystemClock());
+  public MRAppMaster(ApplicationId applicationId, int startCount) {
+    this(applicationId, new SystemClock(), startCount);
   }
-  
-  public MRAppMaster(ApplicationId applicationId, int failCount) {
-    this(applicationId);
-    this.failCount = failCount;
-  }
-  
-  public MRAppMaster(ApplicationId applicationId, Clock clock) {
+
+  public MRAppMaster(ApplicationId applicationId, Clock clock, int startCount) {
     super(MRAppMaster.class.getName());
     this.clock = clock;
     this.appID = applicationId;
+    this.startCount = startCount;
     LOG.info("Created MRAppMaster for application " + applicationId);
   }
 
@@ -139,8 +139,18 @@ public class MRAppMaster extends CompositeService {
   public void init(final Configuration conf) {
     context = new RunningAppContext(); 
 
-    dispatcher = new AsyncDispatcher();
-    addIfService(dispatcher);
+     if (conf.getBoolean(YarnMRJobConfig.RECOVERY_ENABLE, false) 
+         && startCount > 1) {
+      LOG.info("Recovery is enabled. Will try to recover from previous life.");
+      Recovery recoveryServ = new RecoveryService(appID, clock, startCount);
+      addIfService(recoveryServ);
+      dispatcher = recoveryServ.getDispatcher();
+      clock = recoveryServ.getClock();
+      completedTasksFromPreviousRun = recoveryServ.getCompletedTasks();
+    } else {
+      dispatcher = new AsyncDispatcher();
+      addIfService(dispatcher);
+    }
 
     //service to handle requests to TaskUmbilicalProtocol
     taskAttemptListener = createTaskAttemptListener(context);
@@ -259,7 +269,7 @@ public class MRAppMaster extends CompositeService {
     // create single job
     Job newJob = new JobImpl(appID, conf, dispatcher.getEventHandler(),
                       taskAttemptListener, jobTokenSecretManager, fsTokens, 
-                      clock);
+                      clock, startCount, completedTasksFromPreviousRun);
     ((RunningAppContext) context).jobs.put(newJob.getID(), newJob);
 
     dispatcher.register(JobFinishEvent.Type.class,
@@ -312,7 +322,8 @@ public class MRAppMaster extends CompositeService {
 
   protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
       AppContext context) {
-    JobHistoryEventHandler eventHandler = new JobHistoryEventHandler(context);
+    JobHistoryEventHandler eventHandler = new JobHistoryEventHandler(context, 
+        getStartCount());
     return eventHandler;
   }
 
@@ -385,12 +396,20 @@ public class MRAppMaster extends CompositeService {
     return appID;
   }
 
+  public int getStartCount() {
+    return startCount;
+  }
+
   public AppContext getContext() {
     return context;
   }
 
   public Dispatcher getDispatcher() {
     return dispatcher;
+  }
+
+  public Set<TaskId> getCompletedTaskFromPreviousRun() {
+    return completedTasksFromPreviousRun;
   }
 
   //Returns null if speculation is not enabled
@@ -503,7 +522,7 @@ public class MRAppMaster extends CompositeService {
       applicationId.setClusterTimestamp(Long.valueOf(args[0]));
       applicationId.setId(Integer.valueOf(args[1]));
       int failCount = Integer.valueOf(args[2]);
-      MRAppMaster appMaster = new MRAppMaster(applicationId, failCount);
+      MRAppMaster appMaster = new MRAppMaster(applicationId, ++failCount);
       YarnConfiguration conf = new YarnConfiguration(new JobConf());
       conf.addResource(new Path(YARNApplicationConstants.JOB_CONF_FILE));
       conf.set(MRJobConfig.USER_NAME, 

@@ -56,6 +56,7 @@ public class JobHistoryEventHandler extends AbstractService
     implements EventHandler<JobHistoryEvent> {
 
   private final AppContext context;
+  private final int startCount;
 
   private FileContext logDirFc; // log Dir FileContext
   private FileContext doneDirFc; // done Dir FileContext
@@ -80,9 +81,10 @@ public class JobHistoryEventHandler extends AbstractService
   public static final FsPermission HISTORY_FILE_PERMISSION =
     FsPermission.createImmutable((short) 0740); // rwxr-----
 
-  public JobHistoryEventHandler(AppContext context) {
+  public JobHistoryEventHandler(AppContext context, int startCount) {
     super("JobHistoryEventHandler");
     this.context = context;
+    this.startCount = startCount;
   }
 
   @Override
@@ -344,8 +346,10 @@ public class JobHistoryEventHandler extends AbstractService
   /**
    * Get the job history file path
    */
-  public static Path getJobHistoryFile(Path dir, JobId jobId) {
-    return new Path(dir, TypeConverter.fromYarn(jobId).toString());
+  private Path getJobHistoryFile(Path dir, JobId jobId) {
+    return new Path(dir, TypeConverter.fromYarn(jobId).toString() + "_" + 
+        startCount);
+
   }
 
 /*

@@ -989,30 +989,7 @@ public abstract class TaskAttemptImpl implements
       String taskType = 
           TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()).toString();
       LOG.info("In TaskAttemptImpl taskType: " + taskType);
-      if (taskType.equals("MAP")) {
-          MapAttemptFinishedEvent mfe =
-            new MapAttemptFinishedEvent(TypeConverter.fromYarn(taskAttempt.attemptId),
-            TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
-            TaskAttemptState.SUCCEEDED.toString(),
-            taskAttempt.finishTime,
-            taskAttempt.finishTime, "hostname",
-            TaskAttemptState.SUCCEEDED.toString(),
-            TypeConverter.fromYarn(taskAttempt.getCounters()),null);
-            taskAttempt.eventHandler.handle(
-              new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), mfe));
-      } else {
-          ReduceAttemptFinishedEvent rfe =
-            new ReduceAttemptFinishedEvent(TypeConverter.fromYarn(taskAttempt.attemptId),
-            TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
-            TaskAttemptState.SUCCEEDED.toString(),
-            taskAttempt.finishTime,
-            taskAttempt.finishTime,
-            taskAttempt.finishTime, "hostname",
-            TaskAttemptState.SUCCEEDED.toString(),
-            TypeConverter.fromYarn(taskAttempt.getCounters()),null);
-            taskAttempt.eventHandler.handle(
-              new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), rfe));
-      }
+      taskAttempt.logAttemptFinishedEvent(TaskAttemptState.SUCCEEDED);
           /*
       TaskAttemptFinishedEvent tfe =
           new TaskAttemptFinishedEvent(TypeConverter.fromYarn(taskAttempt.attemptId),
@@ -1047,33 +1024,37 @@ public abstract class TaskAttemptImpl implements
           taskAttempt.reportedStatus.diagnosticInfo.toString());
       taskAttempt.eventHandler.handle(
           new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), ta));
-      if (taskAttempt.attemptId.getTaskId().getTaskType() == TaskType.MAP) {
-        MapAttemptFinishedEvent mfe =
-           new MapAttemptFinishedEvent(TypeConverter.fromYarn(taskAttempt.attemptId),
-           TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
-           TaskAttemptState.FAILED.toString(),
-           taskAttempt.finishTime,
-           taskAttempt.finishTime, "hostname",
-           TaskAttemptState.FAILED.toString(),
-           TypeConverter.fromYarn(taskAttempt.getCounters()),null);
-           taskAttempt.eventHandler.handle(
-             new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), mfe));
-      } else {
-         ReduceAttemptFinishedEvent rfe =
-           new ReduceAttemptFinishedEvent(TypeConverter.fromYarn(taskAttempt.attemptId),
-           TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
-           TaskAttemptState.FAILED.toString(),
-           taskAttempt.finishTime,
-           taskAttempt.finishTime,
-           taskAttempt.finishTime, "hostname",
-           TaskAttemptState.FAILED.toString(),
-           TypeConverter.fromYarn(taskAttempt.getCounters()),null);
-           taskAttempt.eventHandler.handle(
-             new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), rfe));
-      }
+      taskAttempt.logAttemptFinishedEvent(TaskAttemptState.FAILED);
       taskAttempt.eventHandler.handle(new TaskTAttemptEvent(
           taskAttempt.attemptId,
           TaskEventType.T_ATTEMPT_FAILED));
+    }
+  }
+
+  private void logAttemptFinishedEvent(TaskAttemptState state) {
+    if (attemptId.getTaskId().getTaskType() == TaskType.MAP) {
+      MapAttemptFinishedEvent mfe =
+         new MapAttemptFinishedEvent(TypeConverter.fromYarn(attemptId),
+         TypeConverter.fromYarn(attemptId.getTaskId().getTaskType()),
+         state.toString(),
+         finishTime,
+         finishTime, "hostname",
+         state.toString(),
+         TypeConverter.fromYarn(getCounters()),null);
+         eventHandler.handle(
+           new JobHistoryEvent(attemptId.getTaskId().getJobId(), mfe));
+    } else {
+       ReduceAttemptFinishedEvent rfe =
+         new ReduceAttemptFinishedEvent(TypeConverter.fromYarn(attemptId),
+         TypeConverter.fromYarn(attemptId.getTaskId().getTaskType()),
+         state.toString(),
+         finishTime,
+         finishTime,
+         finishTime, "hostname",
+         state.toString(),
+         TypeConverter.fromYarn(getCounters()),null);
+         eventHandler.handle(
+           new JobHistoryEvent(attemptId.getTaskId().getJobId(), rfe));
     }
   }
 
@@ -1108,6 +1089,7 @@ public abstract class TaskAttemptImpl implements
           taskAttempt.reportedStatus.diagnosticInfo.toString());
       taskAttempt.eventHandler.handle(
           new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), tke));
+      taskAttempt.logAttemptFinishedEvent(TaskAttemptState.KILLED);
       taskAttempt.eventHandler.handle(new TaskTAttemptEvent(
           taskAttempt.attemptId,
           TaskEventType.T_ATTEMPT_KILLED));

@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -219,7 +220,8 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       EventHandler eventHandler, Path remoteJobConfFile, Configuration conf,
       TaskAttemptListener taskAttemptListener, OutputCommitter committer,
       Token<JobTokenIdentifier> jobToken,
-      Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock) {
+      Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock,
+      Set<TaskId> completedTasksFromPreviousRun, int startCount) {
     this.conf = conf;
     this.clock = clock;
     this.jobFile = remoteJobConfFile;
@@ -241,6 +243,18 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     this.committer = committer;
     this.fsTokens = fsTokens;
     this.jobToken = jobToken;
+
+    if (completedTasksFromPreviousRun != null 
+        && completedTasksFromPreviousRun.contains(taskId)) {
+      LOG.info("Task is from previous run " + taskId);
+      startCount = startCount - 1;
+    }
+
+    //attempt ids are generated based on MR app startCount so that attempts
+    //from previous lives don't overstep the current one.
+    //this assumes that a task won't have more than 1000 attempts in its single 
+    //life
+    nextAttemptNumber = (startCount - 1) * 1000;
 
     // This "this leak" is okay because the retained pointer is in an
     //  instance variable.

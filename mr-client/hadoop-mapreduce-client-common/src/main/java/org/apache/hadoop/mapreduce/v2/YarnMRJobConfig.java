@@ -53,4 +53,7 @@ public class YarnMRJobConfig {
       "address.webapp";
   public static final String DEFAULT_HS_WEBAPP_BIND_ADDRESS =
 	  "0.0.0.0:19888";
+
+  public static final String RECOVERY_ENABLE
+      = "yarn.mapreduce.job.recovery.enable";
 }

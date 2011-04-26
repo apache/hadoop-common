@@ -127,6 +127,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   
   //final fields
   private final Clock clock;
+  private final int startCount;
+  private final Set<TaskId> completedTasksFromPreviousRun;
   private final Lock readLock;
   private final Lock writeLock;
   private final JobId jobId;
@@ -341,11 +343,14 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   public JobImpl(ApplicationId appID, Configuration conf,
       EventHandler eventHandler, TaskAttemptListener taskAttemptListener,
       JobTokenSecretManager jobTokenSecretManager,
-      Credentials fsTokenCredentials, Clock clock) {
+      Credentials fsTokenCredentials, Clock clock, int startCount, 
+      Set<TaskId> completedTasksFromPreviousRun) {
 
     this.jobId = recordFactory.newRecordInstance(JobId.class);
     this.conf = conf;
     this.clock = clock;
+    this.completedTasksFromPreviousRun = completedTasksFromPreviousRun;
+    this.startCount = startCount;
     jobId.setAppId(appID);
     jobId.setId(appID.getId());
     oldJobId = TypeConverter.fromYarn(jobId);
@@ -900,7 +905,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
                 job.conf, splits[i], 
                 job.taskAttemptListener, 
                 job.committer, job.jobToken, job.fsTokens.getAllTokens(), 
-                job.clock);
+                job.clock, job.completedTasksFromPreviousRun, job.startCount);
         job.addTask(task);
       }
       LOG.info("Input size for job " + job.jobId + " = " + inputLength
@@ -915,7 +920,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
                 job.remoteJobConfFile, 
                 job.conf, job.numMapTasks, 
                 job.taskAttemptListener, job.committer, job.jobToken,
-                job.fsTokens.getAllTokens(), job.clock);
+                job.fsTokens.getAllTokens(), job.clock, 
+                job.completedTasksFromPreviousRun, job.startCount);
         job.addTask(task);
       }
       LOG.info("Number of reduces for job " + job.jobId + " = "
