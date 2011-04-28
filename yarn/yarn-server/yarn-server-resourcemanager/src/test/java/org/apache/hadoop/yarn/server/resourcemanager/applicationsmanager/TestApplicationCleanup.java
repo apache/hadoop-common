@@ -38,6 +38,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.api.records.Resource;
@@ -45,14 +46,14 @@ import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
-import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
@@ -77,15 +78,18 @@ public class TestApplicationCleanup extends TestCase {
   private ExtASM asm;
   private static final int memoryNeeded = 100;
 
-  private final ASMContext context = new ResourceManager.ASMContextImpl();
+  private final RMContext context = new ResourceManager.RMContextImpl(new MemStore());
 
   @Before
   public void setUp() {
     new DummyApplicationTracker();
     scheduler = new FifoScheduler();
     context.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
+    Configuration conf = new Configuration();
+    context.getDispatcher().init(conf);
+    context.getDispatcher().start();
     asm = new ExtASM(new ApplicationTokenSecretManager(), scheduler);
-    asm.init(new Configuration());
+    asm.init(conf);
   }
 
   @After
@@ -115,30 +119,8 @@ public class TestApplicationCleanup extends TestCase {
       private AtomicInteger notify = new AtomicInteger(0);
       private AppContext appContext;
 
-      public DummyApplicationMasterLauncher(ASMContext context) {
+      public DummyApplicationMasterLauncher(RMContext context) {
         context.getDispatcher().register(AMLauncherEventType.class, this);
-        new Responder().start();
-      }
-
-      private class Responder extends Thread {
-        public void run() {
-          synchronized(notify) {
-            try {
-              while (notify.get() == 0) {   
-                notify.wait();
-              }
-            } catch (InterruptedException e) {
-              e.printStackTrace();
-            }
-          }
-          context.getDispatcher().getEventHandler().
-          handle(new ASMEvent<ApplicationEventType>(
-          ApplicationEventType.LAUNCHED, appContext));
-          synchronized(waitForState) {
-            waitForState.addAndGet(1);
-            waitForState.notify();
-          }
-        }
       }
 
       @Override
@@ -152,11 +134,9 @@ public class TestApplicationCleanup extends TestCase {
           LOG.info("Launcher Launch called");
           launcherLaunchCalled = true;
           appContext = appEvent.getAppContext();
-          synchronized (notify) {
-            notify.addAndGet(1);
-            notify.notify();
-            LOG.info("Done notifying launcher ");
-          }
+          context.getDispatcher().getEventHandler().
+          handle(new ASMEvent<ApplicationEventType>(
+          ApplicationEventType.LAUNCHED, appContext));
           break;
         default:
           break;
@@ -167,27 +147,8 @@ public class TestApplicationCleanup extends TestCase {
     private class DummySchedulerNegotiator implements EventHandler<ASMEvent<SNEventType>> {
       private AtomicInteger snnotify = new AtomicInteger(0);
       AppContext acontext;
-      public  DummySchedulerNegotiator(ASMContext context) {
+      public  DummySchedulerNegotiator(RMContext context) {
         context.getDispatcher().register(SNEventType.class, this);
-        new Responder().start();
-      }
-
-      private class Responder extends Thread {
-        public void run() {
-          LOG.info("Waiting for notify");
-          synchronized(snnotify) {
-            try {
-              while(snnotify.get() == 0) {
-                snnotify.wait();
-              }
-            } catch (InterruptedException e) {
-              e.printStackTrace();
-            }
-          }
-          context.getDispatcher().getEventHandler().
-          handle(new ASMEvent<ApplicationEventType>(
-          ApplicationEventType.ALLOCATED, acontext));
-        }
       }
 
       @Override
@@ -200,11 +161,9 @@ public class TestApplicationCleanup extends TestCase {
         case SCHEDULE:
           schedulerScheduleCalled = true;
           acontext = appEvent.getAppContext();
-          LOG.info("Schedule received");
-          synchronized(snnotify) {
-            snnotify.addAndGet(1);
-            snnotify.notify();
-          }
+          context.getDispatcher().getEventHandler().
+          handle(new ASMEvent<ApplicationEventType>(
+          ApplicationEventType.ALLOCATED, acontext));
         default:
           break;
         }
@@ -229,19 +188,17 @@ public class TestApplicationCleanup extends TestCase {
     }
 
   }
-
-  private void waitForState(ApplicationState state, ApplicationMasterInfo masterInfo) {
-    synchronized(waitForState) {
-      try {
-        while(waitForState.get() == 0) {
-          waitForState.wait(10000L);
-        }
-      } catch (InterruptedException e) {
-        LOG.info("Interrupted thread " , e);
-      }
+  
+  private void waitForState(ApplicationState 
+      finalState, ApplicationMasterInfo masterInfo) throws Exception {
+    int count = 0;
+    while(masterInfo.getState() != finalState && count < 10) {
+      Thread.sleep(500);
+      count++;
     }
-    Assert.assertEquals(state, masterInfo.getState());
+    assertTrue(masterInfo.getState() == finalState);
   }
+  
 
   private ResourceRequest createNewResourceRequest(int capability, int i) {
     ResourceRequest request = recordFactory.newRecordInstance(ResourceRequest.class);
@@ -300,6 +257,9 @@ public class TestApplicationCleanup extends TestCase {
       (firstNodeMemory - (2*memoryNeeded)));
     ApplicationMasterInfo masterInfo = asm.getApplicationMasterInfo(appID);
     asm.finishApplication(appID);
+    while (asm.launcherCleanupCalled != true) {
+      Thread.sleep(500);
+    }
     assertTrue(asm.launcherCleanupCalled == true);
     assertTrue(asm.launcherLaunchCalled == true);
     assertTrue(asm.schedulerCleanupCalled == true);

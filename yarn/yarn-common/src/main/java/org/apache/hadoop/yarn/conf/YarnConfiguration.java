@@ -27,6 +27,11 @@ public class YarnConfiguration extends Configuration {
   
   public static final String AM_FAIL_COUNT_STRING = "<FAILCOUNT>";
   
+  public static final String ZK_ADDRESS = RM_PREFIX + "zookeeper.address";
+  
+  public static final String ZK_SESSION_TIMEOUT = RM_PREFIX 
+    + "zookeeper.session.timeout";
+  
   public static final String SCHEDULER_ADDRESS = RM_PREFIX
       + "scheduler.address";    
   
@@ -38,10 +43,12 @@ public class YarnConfiguration extends Configuration {
   public static final String AM_MAX_RETRIES = RM_PREFIX 
   + "application.max.retries";
   
+  public static final int DEFAULT_ZK_TIMEOUT = 60000;
+  
   public static final int DEFAULT_AM_MAX_RETRIES = 3;
   
   public static final long DEFAULT_AM_EXPIRY_INTERVAL = 60000L;
-
+  
   public static final String NM_EXPIRY_INTERVAL = RM_PREFIX 
   + "nodemanager.expiry.interval";
   
@@ -103,7 +110,9 @@ public class YarnConfiguration extends Configuration {
       "AppClientTokenEnv";
 
   public static final String RESOURCE_SCHEDULER = RM_PREFIX + "scheduler";
- 
+  
+  public static final String RM_STORE = RM_PREFIX + "store";
+  
   public YarnConfiguration() {
     super();
   }

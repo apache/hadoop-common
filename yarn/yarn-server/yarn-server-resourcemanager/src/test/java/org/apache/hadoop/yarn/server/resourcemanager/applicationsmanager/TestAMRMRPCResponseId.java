@@ -41,8 +41,9 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ApplicationMasterService;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.junit.After;
 import org.junit.Before;
@@ -54,11 +55,11 @@ public class TestAMRMRPCResponseId extends TestCase {
   DummyApplicationsManager applicationsManager;
   DummyScheduler scheduler;
 
-  private ASMContext context;
+  private RMContext context;
   private class DummyApplicationsManager extends ApplicationsManagerImpl {
     public DummyApplicationsManager(
         ApplicationTokenSecretManager applicationTokenSecretManager,
-        YarnScheduler scheduler, ASMContext asmContext) {
+        YarnScheduler scheduler, RMContext asmContext) {
       super(applicationTokenSecretManager, scheduler, asmContext);      
     }
     @Override
@@ -84,11 +85,6 @@ public class TestAMRMRPCResponseId extends TestCase {
     }
 
     @Override
-    public void addApplication(ApplicationId applicationId, String user,
-        String queue, Priority priority) throws IOException {
-    }
-
-    @Override
     public void removeApplication(ApplicationId applicationId)
         throws IOException {
     }
@@ -104,11 +100,19 @@ public class TestAMRMRPCResponseId extends TestCase {
     public List<QueueUserACLInfo> getQueueUserAclInfo() {
       return null;
     }
+
+    @Override
+    public void addApplication(ApplicationId applicationId,
+        ApplicationMaster master, String user, String queue, Priority priority)
+        throws IOException {
+      // TODO Auto-generated method stub
+      
+    }
   }
   
   @Before
   public void setUp() {
-    context = new ResourceManager.ASMContextImpl();
+    context = new ResourceManager.RMContextImpl(new MemStore());
     scheduler = new DummyScheduler();
     applicationsManager = new DummyApplicationsManager(new 
         ApplicationTokenSecretManager(), scheduler, context);
@@ -117,6 +121,8 @@ public class TestAMRMRPCResponseId extends TestCase {
     Configuration conf = new Configuration();
     applicationsManager.init(conf);
     amService.init(conf);
+    context.getDispatcher().init(conf);
+    context.getDispatcher().start();
   }
   
   @After

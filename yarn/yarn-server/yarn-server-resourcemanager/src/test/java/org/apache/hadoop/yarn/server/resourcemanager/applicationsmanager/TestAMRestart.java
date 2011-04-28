@@ -12,7 +12,6 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.net.Node;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
@@ -31,13 +30,13 @@ import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
-import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
@@ -55,7 +54,7 @@ import org.junit.Test;
 public class TestAMRestart extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestAMRestart.class);
   ApplicationsManagerImpl appImpl;
-  ASMContext asmContext = new ResourceManager.ASMContextImpl();
+  RMContext asmContext = new ResourceManager.RMContextImpl(new MemStore());
   ApplicationTokenSecretManager appTokenSecretManager = 
     new ApplicationTokenSecretManager();
   DummyResourceScheduler scheduler;
@@ -75,7 +74,7 @@ public class TestAMRestart extends TestCase {
   private class ExtApplicationsManagerImpl extends ApplicationsManagerImpl {
     public ExtApplicationsManagerImpl(
         ApplicationTokenSecretManager applicationTokenSecretManager,
-        YarnScheduler scheduler, ASMContext asmContext) {
+        YarnScheduler scheduler, RMContext asmContext) {
       super(applicationTokenSecretManager, scheduler, asmContext);
     }
 
@@ -183,10 +182,7 @@ public class TestAMRestart extends TestCase {
     public void reinitialize(Configuration conf,
         ContainerTokenSecretManager secretManager) {
     }
-    @Override
-    public void addApplication(ApplicationId applicationId, String user,
-        String queue, Priority priority) throws IOException {
-    }
+
     @Override
     public void removeApplication(ApplicationId applicationId)
         throws IOException {
@@ -201,6 +197,13 @@ public class TestAMRestart extends TestCase {
     public List<QueueUserACLInfo> getQueueUserAclInfo() {
       return null;
     }
+    @Override
+    public void addApplication(ApplicationId applicationId,
+        ApplicationMaster master, String user, String queue, Priority priority)
+        throws IOException {
+      // TODO Auto-generated method stub
+      
+    }
   }
 
   @Before
@@ -208,10 +211,13 @@ public class TestAMRestart extends TestCase {
     appID = recordFactory.newRecordInstance(ApplicationId.class);
     appID.setClusterTimestamp(System.currentTimeMillis());
     appID.setId(1);
+    Configuration conf = new Configuration();
     scheduler = new DummyResourceScheduler();
+    asmContext.getDispatcher().init(conf);
+    asmContext.getDispatcher().start();
     asmContext.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
     appImpl = new ExtApplicationsManagerImpl(appTokenSecretManager, scheduler, asmContext);
-    Configuration conf = new Configuration();
+    
     conf.setLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 1000L);
     conf.setInt(YarnConfiguration.AM_MAX_RETRIES, maxFailures);
     appImpl.init(conf);

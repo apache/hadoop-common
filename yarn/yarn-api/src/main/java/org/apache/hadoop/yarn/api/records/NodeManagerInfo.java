@@ -13,4 +13,6 @@ public interface NodeManagerInfo {
   void setCapability(Resource capability);
   int getNumContainers();
   void setNumContainers(int numContainers);
+  NodeId getNodeId();
+  void setNodeId(NodeId nodeId);
 }

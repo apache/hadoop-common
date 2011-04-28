@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import junit.framework.Assert;
 import junit.framework.TestCase;
 
@@ -25,18 +27,20 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -50,7 +54,7 @@ public class TestApplicationMasterExpiry extends TestCase {
   private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   AMTracker tracker;
   
-  private final ASMContext context = new ResourceManager.ASMContextImpl();
+  private final RMContext context = new ResourceManager.RMContextImpl(new MemStore());
   
   @Before
   public void setUp() {
@@ -60,6 +64,8 @@ public class TestApplicationMasterExpiry extends TestCase {
     new ApplicationEventTypeListener();
     tracker = new AMTracker(context); 
     Configuration conf = new Configuration();
+    context.getDispatcher().init(conf);
+    context.getDispatcher().start();
     conf.setLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 1000L);
     tracker.init(conf);
     tracker.start();
@@ -79,7 +85,7 @@ public class TestApplicationMasterExpiry extends TestCase {
     }
   }
   
-  private Object expiry = new Object();
+  private AtomicInteger expiry = new AtomicInteger();
   private boolean expired = false;
   
   private class ApplicationEventTypeListener implements EventHandler<ASMEvent<ApplicationEventType>> {
@@ -93,7 +99,7 @@ public class TestApplicationMasterExpiry extends TestCase {
         expired = true;
         LOG.info("Received expiry from application " + event.getAppContext().getApplicationID());
         synchronized(expiry) {
-          expiry.notify();
+          expiry.addAndGet(1);
         }
       }
     }
@@ -117,6 +123,16 @@ public class TestApplicationMasterExpiry extends TestCase {
     }
   }
   
+  private void waitForState(ApplicationMasterInfo masterInfo, ApplicationState 
+      finalState) throws Exception {
+    int count = 0;
+    while(masterInfo.getState() != finalState && count < 10) {
+      Thread.sleep(500);
+      count++;
+    }
+    assertTrue(masterInfo.getState() == finalState);
+  }
+
   @Test
   public void testAMExpiry() throws Exception {
     ApplicationSubmissionContext context = recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
@@ -130,10 +146,13 @@ public class TestApplicationMasterExpiry extends TestCase {
     ApplicationMasterInfo masterInfo = tracker.get(context.getApplicationId());
     this.context.getDispatcher().getEventHandler().handle(
         new ASMEvent<ApplicationEventType>(ApplicationEventType.ALLOCATED, masterInfo));
+    waitForState(masterInfo, ApplicationState.LAUNCHING);
     this.context.getDispatcher().getEventHandler().handle(
     new ASMEvent<ApplicationEventType>(ApplicationEventType.LAUNCHED, masterInfo));
     synchronized(expiry) {
-      expiry.wait(10000);
+      while (expiry.get() == 0) {
+        expiry.wait(1000);
+      }
     }
     Assert.assertTrue(expired);
   }

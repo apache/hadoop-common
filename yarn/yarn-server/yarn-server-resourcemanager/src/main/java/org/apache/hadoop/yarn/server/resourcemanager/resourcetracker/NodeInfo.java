@@ -19,8 +19,8 @@
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
-import org.apache.hadoop.yarn.server.api.records.NodeId;
 
 /**
  * Node managers information on available resources 

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.NodeId;
 
 
 public interface NodeStatus {

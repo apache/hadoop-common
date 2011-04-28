@@ -52,6 +52,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.event.Event;
@@ -60,7 +61,6 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
-import org.apache.hadoop.yarn.server.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -241,7 +241,9 @@ public class TestRMContainerAllocator {
     };
     try {
       fsc.reinitialize(new Configuration(), new ContainerTokenSecretManager());
-      fsc.addApplication(recordFactory.newRecordInstance(ApplicationId.class), "test", null, null);
+      fsc.addApplication(recordFactory.newRecordInstance(ApplicationId.class),
+          recordFactory.newRecordInstance(ApplicationMaster.class),
+          "test", null, null);
     } catch(IOException ie) {
       LOG.info("add application failed with ", ie);
       assert(false);

@@ -34,6 +34,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.Container;
@@ -53,9 +54,6 @@ import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 @Evolving
 public class Application {
   private static final Log LOG = LogFactory.getLog(Application.class);
-
-  private AtomicInteger containerCtr = new AtomicInteger(0);
-
   final ApplicationId applicationId;
   final Queue queue;
   final String user;
@@ -75,11 +73,14 @@ public class Application {
   /* Allocated by scheduler */
   List<Container> allocated = new ArrayList<Container>(); 
   Set<NodeInfo> applicationOnNodes = new HashSet<NodeInfo>();
+  ApplicationMaster master;
   
-  public Application(ApplicationId applicationId, Queue queue, String user) {
+  public Application(ApplicationId applicationId, ApplicationMaster master,
+      Queue queue, String user) {
     this.applicationId = applicationId;
     this.queue = queue;
     this.user = user; 
+    this.master = master;
   }
 
   public ApplicationId getApplicationId() {
@@ -99,7 +100,9 @@ public class Application {
   }
 
   public int getNewContainerId() {
-    return containerCtr.incrementAndGet();
+    int i = master.getContainerCount();
+    master.setContainerCount(++i);
+    return master.getContainerCount();
   }
 
   /**

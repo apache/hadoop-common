@@ -104,6 +104,7 @@ public class ApplicationMasterPBImpl extends ProtoBase<ApplicationMasterProto> i
     }
     builder.setHost((host));
   }
+  
   @Override
   public ApplicationId getApplicationId() {
     ApplicationMasterProtoOrBuilder p = viaProto ? proto : builder;
@@ -188,6 +189,31 @@ public class ApplicationMasterPBImpl extends ProtoBase<ApplicationMasterProto> i
     }
     builder.setClientToken((clientToken));
   }
+  
+  @Override
+  public int getAMFailCount() {
+    ApplicationMasterProtoOrBuilder p = viaProto ? proto : builder;
+    return (p.getAmFailCount());
+  }
+
+  @Override
+  public int getContainerCount() {
+    ApplicationMasterProtoOrBuilder p = viaProto ? proto : builder;
+    return (p.getContainerCount());
+  }
+
+  @Override
+  public void setAMFailCount(int amFailCount) {
+    maybeInitBuilder();
+    builder.setAmFailCount(amFailCount);
+  }
+
+  @Override
+  public void setContainerCount(int containerCount) {
+    maybeInitBuilder();
+    builder.setContainerCount(containerCount);
+  }
+
 
   private ApplicationStateProto convertToProtoFormat(ApplicationState e) {
     return ProtoUtils.convertToProtoFormat(e);
@@ -212,7 +238,5 @@ public class ApplicationMasterPBImpl extends ProtoBase<ApplicationMasterProto> i
   private ApplicationStatusProto convertToProtoFormat(ApplicationStatus t) {
     return ((ApplicationStatusPBImpl)t).getProto();
   }
-
-
 
 }  

@@ -55,6 +55,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-2414. Change MRv2 to use generic interfaces. (Siddharth Seth via acmurthy)
 
+    Implement restart for resource manager phase 1 - Helper classes to store and restore the data structures. (mahadev)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class

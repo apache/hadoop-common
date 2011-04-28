@@ -23,6 +23,7 @@ import java.util.List;
 
 
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
@@ -50,12 +51,13 @@ public interface YarnScheduler {
   /**
    * A new application has been submitted to the ResourceManager
    * @param applicationId application which has been submitted
+   * @param master the application master
    * @param user application user
    * @param queue queue to which the applications is being submitted
    * @param priority application priority
    */
-  public void addApplication(ApplicationId applicationId, String user, 
-      String queue, Priority priority) 
+  public void addApplication(ApplicationId applicationId, ApplicationMaster master,
+      String user, String queue, Priority priority) 
   throws IOException;
   
   /**

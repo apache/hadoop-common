@@ -37,6 +37,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
@@ -204,11 +205,11 @@ public class FifoScheduler implements ResourceScheduler {
   }
 
   @Override
-  public synchronized void addApplication(ApplicationId applicationId, 
+  public synchronized void addApplication(ApplicationId applicationId, ApplicationMaster master,
       String user, String unusedQueue, Priority unusedPriority) 
   throws IOException {
     applications.put(applicationId, 
-        new Application(applicationId, DEFAULT_QUEUE, user));
+        new Application(applicationId, master, DEFAULT_QUEUE, user));
     LOG.info("Application Submission: " + applicationId.getId() + " from " + user + 
         ", currently active: " + applications.size());
   }
@@ -473,7 +474,8 @@ public class FifoScheduler implements ResourceScheduler {
     switch(event.getType()) {
     case ADD:
       try {
-        addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getUser(),
+        addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getMaster(), 
+            event.getAppContext().getUser(),
             event.getAppContext().getQueue(), event.getAppContext().getSubmissionContext().getPriority());
       } catch(IOException ie) {
         LOG.error("Unable to add application " + event.getAppContext().getApplicationID(), ie);

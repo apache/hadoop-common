@@ -27,7 +27,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.security.client.ClientToAMSecretManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.service.AbstractService;
@@ -45,11 +45,11 @@ class ApplicationMasterLauncher extends AbstractService implements EventHandler<
   
   private ApplicationTokenSecretManager applicationTokenSecretManager;
   private ClientToAMSecretManager clientToAMSecretManager;
-  private final ASMContext context;
+  private final RMContext context;
   
   public ApplicationMasterLauncher(ApplicationTokenSecretManager 
       applicationTokenSecretManager, ClientToAMSecretManager clientToAMSecretManager,
-      ASMContext context) {
+      RMContext context) {
     super(ApplicationMasterLauncher.class.getName());
     this.context = context;
     this.handler = context.getDispatcher().getEventHandler();

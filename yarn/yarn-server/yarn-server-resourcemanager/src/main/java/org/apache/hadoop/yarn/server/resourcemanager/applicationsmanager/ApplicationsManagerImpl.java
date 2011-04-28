@@ -31,10 +31,8 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
-import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -42,7 +40,7 @@ import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.security.client.ClientToAMSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
@@ -70,13 +68,13 @@ public class ApplicationsManagerImpl extends CompositeService
     new ClientToAMSecretManager();
   private final EventHandler eventHandler;
   private final ApplicationTokenSecretManager applicationTokenSecretManager;
-  private final ASMContext asmContext; 
+  private final RMContext asmContext; 
   
   private final RecordFactory recordFactory = 
     RecordFactoryProvider.getRecordFactory(null);
 
   public ApplicationsManagerImpl(ApplicationTokenSecretManager 
-      applicationTokenSecretManager, YarnScheduler scheduler, ASMContext asmContext) {
+      applicationTokenSecretManager, YarnScheduler scheduler, RMContext asmContext) {
     super("ApplicationsManager");
     this.scheduler = scheduler;
     this.asmContext = asmContext;

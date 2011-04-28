@@ -1,10 +1,10 @@
-package org.apache.hadoop.yarn.server.api.records.impl.pb;
+package org.apache.hadoop.yarn.api.records.impl.pb;
 
 
+import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.ProtoBase;
-import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.NodeIdProto;
-import org.apache.hadoop.yarn.proto.YarnServerCommonProtos.NodeIdProtoOrBuilder;
-import org.apache.hadoop.yarn.server.api.records.NodeId;
+import org.apache.hadoop.yarn.proto.YarnProtos.NodeIdProto;
+import org.apache.hadoop.yarn.proto.YarnProtos.NodeIdProtoOrBuilder;
 
 
     

@@ -1,8 +1,10 @@
 package org.apache.hadoop.yarn.api.records.impl.pb;
 
+import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
 import org.apache.hadoop.yarn.api.records.ProtoBase;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.proto.YarnProtos.NodeIdProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.NodeManagerInfoProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.NodeManagerInfoProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnProtos.ResourceProto;
@@ -13,7 +15,7 @@ public class NodeManagerInfoPBImpl extends ProtoBase<NodeManagerInfoProto>
   NodeManagerInfoProto proto = NodeManagerInfoProto.getDefaultInstance();
   NodeManagerInfoProto.Builder builder = null;
   boolean viaProto = false;
-
+  NodeId nodeId;
   Resource used;
   Resource capability;
   
@@ -78,6 +80,28 @@ public class NodeManagerInfoPBImpl extends ProtoBase<NodeManagerInfoProto>
     return this.used;
   }
 
+  @Override
+  public NodeId getNodeId() {
+    if (this.nodeId != null) {
+      return this.nodeId;
+    }
+    
+    NodeManagerInfoProtoOrBuilder p = viaProto ? proto : builder;
+    if (!p.hasNodeId()) {
+      return null;
+    }
+    this.nodeId = convertFromProtoFormat(p.getNodeId());
+    return this.nodeId;
+  }
+  
+  @Override
+  public void setNodeId(NodeId nodeId) {
+    maybeInitBuilder();
+    if (nodeId == null)
+      builder.clearNodeId();
+    this.nodeId = nodeId;
+  }
+  
   @Override
   public void setCapability(Resource capability) {
     maybeInitBuilder();
@@ -170,7 +194,15 @@ public class NodeManagerInfoPBImpl extends ProtoBase<NodeManagerInfoProto>
     viaProto = false;
   }
 
-
+  
+  private NodeIdPBImpl convertFromProtoFormat(NodeIdProto p) {
+    return new NodeIdPBImpl(p);
+  }
+  
+  private NodeIdProto convertToProtoFormat(NodeId nodeId) {
+    return ((NodeIdPBImpl) nodeId).getProto();
+  }
+  
   private ResourcePBImpl convertFromProtoFormat(ResourceProto p) {
     return new ResourcePBImpl(p);
   }

@@ -37,6 +37,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
@@ -213,7 +214,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
   
   @Override
-  public void addApplication(ApplicationId applicationId, 
+  public void addApplication(ApplicationId applicationId, ApplicationMaster master,
       String user, String queueName, Priority priority)
   throws IOException {
     Queue queue = queues.get(queueName);
@@ -228,7 +229,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
           " submitted by user " + user + " to non-leaf queue: " + queueName);
     }
 
-    Application application = new Application(applicationId, queue, user); 
+    Application application = new Application(applicationId, master, queue, user); 
     try {
       queue.submitApplication(application, user, queueName, priority);
     } catch (AccessControlException ace) {
@@ -410,7 +411,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     switch(event.getType()) {
     case ADD:
       try {
-        addApplication(event.getAppContext().getApplicationID(), 
+        addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getMaster(),
             event.getAppContext().getUser(), event.getAppContext().getQueue(),
             event.getAppContext().getSubmissionContext().getPriority());
       } catch(IOException ie) {

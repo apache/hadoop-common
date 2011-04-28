@@ -76,6 +76,8 @@ message ApplicationMasterProto {
   optional ApplicationStatusProto status = 5;
   optional ApplicationStateProto state = 6;
   optional string client_token = 7;
+  optional int32 containerCount = 8;
+  optional int32 amFailCount = 9;
 }
 
 message URLProto {
@@ -115,6 +117,10 @@ message ApplicationProto {
   optional int32 masterPort = 8;
 }
 
+message NodeIdProto {
+  optional int32 id = 1;
+}
+
 message NodeManagerInfoProto {
   optional string nodeAddress = 1;
   optional string httpAddress = 2;
@@ -122,6 +128,7 @@ message NodeManagerInfoProto {
   optional ResourceProto used = 4;
   optional ResourceProto capability = 5;
   optional int32 numContainers = 6;
+  optional NodeIdProto nodeId = 7;
 }
 
 

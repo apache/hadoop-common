@@ -35,6 +35,7 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
@@ -58,6 +59,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   private final ApplicationSubmissionContext submissionContext;
   private ApplicationMaster master;
   private final EventHandler handler;
+  private final EventHandler syncHandler;
   private Container masterContainer;
   final private String user;
   private int numFailed = 0;
@@ -144,16 +146,19 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
 
 
 
-  public ApplicationMasterInfo(EventHandler handler, String user,
+  public ApplicationMasterInfo(RMContext context, String user,
   ApplicationSubmissionContext submissionContext, String clientToken) {
     this.user = user;
-    this.handler = handler;
+    this.handler = context.getDispatcher().getEventHandler();
+    this.syncHandler = context.getDispatcher().getSyncHandler();
     this.submissionContext = submissionContext;
     master = recordFactory.newRecordInstance(ApplicationMaster.class);
     master.setApplicationId(submissionContext.getApplicationId());
     master.setStatus(recordFactory.newRecordInstance(ApplicationStatus.class));
     master.getStatus().setApplicationId(submissionContext.getApplicationId());
     master.getStatus().setProgress(-1.0f);
+    master.setAMFailCount(0);
+    master.setContainerCount(0);
     stateMachine = stateMachineFactory.make(this);
     master.setState(ApplicationState.PENDING);
     master.setClientToken(clientToken);
@@ -296,7 +301,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     public void transition(ApplicationMasterInfo masterInfo,
     ASMEvent<ApplicationEventType> event) {
       /* notify tracking applications that an applicaiton has been added */
-      masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(
+      masterInfo.syncHandler.handle(new ASMEvent<ApplicationTrackerEventType>(
         ApplicationTrackerEventType.ADD, masterInfo));
       
       /* schedule for a slot */

@@ -1,4 +1,4 @@
-package org.apache.hadoop.yarn.server.api.records;
+package org.apache.hadoop.yarn.api.records;
 
 public interface NodeId {
   public abstract int getId();

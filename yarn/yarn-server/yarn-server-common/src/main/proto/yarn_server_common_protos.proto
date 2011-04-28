@@ -5,10 +5,6 @@ option java_generate_equals_and_hash = true;
 
 import "yarn_protos.proto";
 
-message NodeIdProto {
-  optional int32 id = 1;
-}
-
 message NodeHealthStatusProto {
   optional bool is_node_healthy = 1;
   optional string health_report = 2;

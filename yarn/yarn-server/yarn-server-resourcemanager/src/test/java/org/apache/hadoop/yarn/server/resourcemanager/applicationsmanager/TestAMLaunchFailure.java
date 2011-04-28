@@ -43,11 +43,12 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.junit.After;
 import org.junit.Before;
@@ -62,7 +63,7 @@ public class TestAMLaunchFailure extends TestCase {
   ApplicationTokenSecretManager applicationTokenSecretManager = 
     new ApplicationTokenSecretManager();
 
-  private ASMContext context;
+  private RMContext context;
 
   private static class DummyYarnScheduler implements YarnScheduler {
     private Container container = recordFactory.newRecordInstance(Container.class);
@@ -71,11 +72,6 @@ public class TestAMLaunchFailure extends TestCase {
     public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       return Arrays.asList(container);
-    }
-
-    @Override
-    public void addApplication(ApplicationId applicationId, String user,
-        String queue, Priority priority) throws IOException {
     }
 
     @Override
@@ -94,6 +90,14 @@ public class TestAMLaunchFailure extends TestCase {
     public List<QueueUserACLInfo> getQueueUserAclInfo() {
       return null;
     }
+
+    @Override
+    public void addApplication(ApplicationId applicationId,
+        ApplicationMaster master, String user, String queue, Priority priority)
+        throws IOException {
+      // TODO Auto-generated method stub
+      
+    }
   }
 
   private class DummyApplicationTracker implements EventHandler<ASMEvent<ApplicationTrackerEventType>> {
@@ -111,7 +115,7 @@ public class TestAMLaunchFailure extends TestCase {
       private AtomicInteger notify = new AtomicInteger();
       private AppContext app;
 
-      public DummyApplicationMasterLauncher(ASMContext context) {
+      public DummyApplicationMasterLauncher(RMContext context) {
         context.getDispatcher().register(AMLauncherEventType.class, this);
         new TestThread().start();
       }
@@ -163,9 +167,11 @@ public class TestAMLaunchFailure extends TestCase {
 
   @Before
   public void setUp() {
-    context = new ResourceManager.ASMContextImpl();
-    asmImpl = new ExtApplicationsManagerImpl(applicationTokenSecretManager, scheduler);
+    context = new ResourceManager.RMContextImpl(new MemStore());
     Configuration conf = new Configuration();
+    context.getDispatcher().init(conf);
+    context.getDispatcher().start();
+    asmImpl = new ExtApplicationsManagerImpl(applicationTokenSecretManager, scheduler);
     new DummyApplicationTracker();
     conf.setLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 3000L);
     conf.setInt(YarnConfiguration.AM_MAX_RETRIES, 1);

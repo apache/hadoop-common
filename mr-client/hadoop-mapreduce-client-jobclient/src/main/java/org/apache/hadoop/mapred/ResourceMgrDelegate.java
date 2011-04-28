@@ -299,7 +299,7 @@ public class ResourceMgrDelegate {
         appMaster.getState() != ApplicationState.COMPLETED) {
       appMaster = applicationsManager.getApplicationMaster(request).getApplicationMaster();
       try {
-        LOG.info("Waiting for appMaster to start..");
+        //LOG.info("Waiting for appMaster to start..");
         Thread.sleep(2000);
       } catch(InterruptedException ie) {
         //DO NOTHING

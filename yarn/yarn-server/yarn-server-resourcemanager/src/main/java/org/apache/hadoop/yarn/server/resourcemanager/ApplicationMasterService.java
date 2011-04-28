@@ -54,7 +54,7 @@ import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.security.SchedulerSecurityInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationMasterHandler;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
@@ -73,10 +73,10 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private Map<ApplicationId, AMResponse> responseMap = new HashMap<ApplicationId, AMResponse>();
   private final AMResponse reboot = recordFactory.newRecordInstance(AMResponse.class);
-  private final ASMContext asmContext;
+  private final RMContext asmContext;
   
   public ApplicationMasterService(ApplicationTokenSecretManager appTokenManager,
-      ApplicationMasterHandler applicationsManager, YarnScheduler scheduler, ASMContext asmContext) {
+      ApplicationMasterHandler applicationsManager, YarnScheduler scheduler, RMContext asmContext) {
     super(ApplicationMasterService.class.getName());
     this.appTokenManager = appTokenManager;
     this.applicationsManager = applicationsManager;

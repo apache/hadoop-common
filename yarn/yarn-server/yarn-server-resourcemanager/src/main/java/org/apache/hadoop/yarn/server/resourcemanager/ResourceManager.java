@@ -32,8 +32,11 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.SyncDispatcher;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.NodeStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
@@ -69,33 +72,54 @@ public class ResourceManager extends CompositeService {
   private AdminService adminService;
   private AtomicBoolean shutdown = new AtomicBoolean(false);
   private WebApp webApp;
-  private final ASMContext asmContext;
+  private RMContext asmContext;
+  private Store store;
   
   public ResourceManager() {
     super("ResourceManager");
-    this.asmContext = new ASMContextImpl();
   }
   
-  
-  public interface ASMContext {
-    public SyncDispatcher getDispatcher();
+  public RMContext getRMContext() {
+    return this.asmContext;
   }
   
-  public static class ASMContextImpl implements ASMContext {
-    private final SyncDispatcher asmEventDispatcher;
-   
-    public ASMContextImpl() {
-      this.asmEventDispatcher = new SyncDispatcher();
+  public interface RMContext {
+    public RMDispatcherImpl getDispatcher();
+    public NodeStore getNodeStore();
+    public ApplicationStore getApplicationStore();
+  }
+  
+  public static class RMContextImpl implements RMContext {
+    private final RMDispatcherImpl asmEventDispatcher;
+    private final Store store;
+    
+    public RMContextImpl(Store store) {
+      this.asmEventDispatcher = new RMDispatcherImpl();
+      this.store = store;
     }
     
     @Override
-    public SyncDispatcher getDispatcher() {
+    public RMDispatcherImpl getDispatcher() {
       return this.asmEventDispatcher;
     }
-  }
 
+    @Override
+    public NodeStore getNodeStore() {
+     return store;
+    }
+
+    @Override
+    public ApplicationStore getApplicationStore() {
+      return store;
+    }
+  }
+  
   @Override
   public synchronized void init(Configuration conf) {
+    
+    this.store = StoreFactory.getStore(conf);
+    this.asmContext = new RMContextImpl(this.store);
+    addService(asmContext.getDispatcher());
     // Initialize the config
     this.conf = new YarnConfiguration(conf);
     // Initialize the scheduler
@@ -109,8 +133,7 @@ public class ResourceManager extends CompositeService {
     } catch (IOException ioe) {
       throw new RuntimeException("Failed to initialize scheduler", ioe);
     }
-    /* add the scheduler to be notified of events from the applications managers */
-    this.asmContext.getDispatcher().register(ApplicationTrackerEventType.class, this.scheduler);
+    this.asmContext.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
     //TODO change this to be random
     this.appTokenSecretManager.setMasterKey(ApplicationTokenSecretManager
         .createSecretKey("Dummy".getBytes()));
@@ -135,7 +158,6 @@ public class ResourceManager extends CompositeService {
   
   @Override
   public void start() { 
-
     try {
       doSecureLogin();
     } catch(IOException ie) {

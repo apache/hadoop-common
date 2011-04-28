@@ -218,13 +218,11 @@ public class ParentQueue implements Queue {
 
   @Override
   public float getAbsoluteMaximumCapacity() {
-    // TODO Auto-generated method stub
     return 0;
   }
 
   @Override
   public float getMaximumCapacity() {
-    // TODO Auto-generated method stub
     return 0;
   }
 

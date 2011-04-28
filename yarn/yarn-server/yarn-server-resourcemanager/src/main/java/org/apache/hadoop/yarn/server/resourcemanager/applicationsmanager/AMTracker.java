@@ -42,7 +42,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.service.AbstractService;
@@ -64,7 +64,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private int amMaxRetries;
   
-  private final ASMContext asmContext;
+  private final RMContext asmContext;
   
   private final Map<ApplicationId, ApplicationMasterInfo> applications = 
     new ConcurrentHashMap<ApplicationId, ApplicationMasterInfo>();
@@ -85,7 +85,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         }
     );
   
-  public AMTracker(ASMContext asmContext) {
+  public AMTracker(RMContext asmContext) {
     super(AMTracker.class.getName());
     this.heartBeatThread = new HeartBeatThread();
     this.asmContext = asmContext;
@@ -188,13 +188,12 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 
   public void addMaster(String user,  ApplicationSubmissionContext 
       submissionContext, String clientToken) {
-    ApplicationMasterInfo applicationMaster = new ApplicationMasterInfo(handler, 
+    ApplicationMasterInfo applicationMaster = new ApplicationMasterInfo(asmContext, 
       user, submissionContext, clientToken);
     synchronized(applications) {
       applications.put(applicationMaster.getApplicationID(), applicationMaster);
     }
-    /* initiate the launching cycle for the AM */
-    handler.handle(new ASMEvent<ApplicationEventType>(
+    asmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
         ApplicationEventType.ALLOCATE, applicationMaster));
   }
   
@@ -203,8 +202,12 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     synchronized(applications) {
       masterInfo = applications.get(application);
     }
-    handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.FINISH,
-        masterInfo));
+    if (masterInfo == null) {
+      LOG.info("Cant find application to finish " + application);
+      return;
+    }
+    asmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
+        ApplicationEventType.FINISH, masterInfo));
   }
 
   public ApplicationMasterInfo get(ApplicationId applicationId) {
@@ -219,7 +222,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   /* TODO we need to decide on a strategy for expiring done applications */
   public void remove(ApplicationId applicationId) {
     synchronized (applications) {
-      applications.remove(applicationId);
+      //applications.remove(applicationId);
     }
   }
 

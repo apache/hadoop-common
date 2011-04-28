@@ -55,6 +55,7 @@ public class TestCapacityScheduler extends TestCase {
         CapacityScheduler.class, ResourceScheduler.class);
     setupQueueConfiguration(csConf);
     resourceManager.init(csConf);
+    resourceManager.getRMContext().getDispatcher().start();
   }
 
   @After

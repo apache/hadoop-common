@@ -33,10 +33,11 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.client.ClientToAMSecretManager;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.ASMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -58,7 +59,7 @@ public class TestApplicationMasterLauncher extends TestCase {
   Object doneLaunching = new Object();
   AtomicInteger launched = new AtomicInteger();
   AtomicInteger cleanedUp = new AtomicInteger();
-  private ASMContext context = new ResourceManager.ASMContextImpl();
+  private RMContext context = new ResourceManager.RMContextImpl(new MemStore());
   
   private class DummyASM implements EventHandler<ASMEvent<ApplicationEventType>> {
     @Override
@@ -126,9 +127,13 @@ public class TestApplicationMasterLauncher extends TestCase {
   public void setUp() {
     asmHandle = new DummyASM();
     amLauncher = new DummyApplicationMasterLauncher(applicationTokenSecretManager,
-        clientToAMSecretManager, asmHandle);  
-    amLauncher.init(new Configuration());
+        clientToAMSecretManager, asmHandle);
+    Configuration conf = new Configuration();
+    context.getDispatcher().init(conf);
+    amLauncher.init(conf);
+    context.getDispatcher().start();
     amLauncher.start();
+    
   }
 
   @After
@@ -143,8 +148,7 @@ public class TestApplicationMasterLauncher extends TestCase {
     context.getApplicationId().setClusterTimestamp(System.currentTimeMillis());
     context.getApplicationId().setId(1);
     context.setUser("dummyuser");
-    ApplicationMasterInfo masterInfo = new ApplicationMasterInfo(this.context.
-        getDispatcher().getEventHandler(),
+    ApplicationMasterInfo masterInfo = new ApplicationMasterInfo(this.context,
         "dummyuser", context,
         "dummyclienttoken");
     amLauncher.handle(new ASMEvent<AMLauncherEventType>(AMLauncherEventType.LAUNCH, 
