@@ -3,6 +3,7 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    Recovery of MR Application Master from failures. (sharad)
    
     Add ACLs for queues and command-line utilities for viewing them.
     (acmurthy)
