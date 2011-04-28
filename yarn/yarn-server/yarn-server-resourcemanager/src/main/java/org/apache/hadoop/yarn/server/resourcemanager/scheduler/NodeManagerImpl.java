@@ -190,6 +190,7 @@ public class NodeManagerImpl implements NodeManager {
     /* clear out containers to clean */
     containersToClean.clear();
     lastfinishedApplications.addAll(finishedApplications);
+    finishedApplications.clear();
     return new NodeResponse(lastfinishedApplications, completedContainers, 
         containersToCleanUp);
   }
