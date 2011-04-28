@@ -13,6 +13,7 @@
 
   <properties>
     <install.file>${project.artifact.file}</install.file>
+    <applink.base>${project.build.directory}/${project.name}</applink.base>
   </properties>
 
   <dependencies>
@@ -45,6 +46,8 @@
   </dependencies>
 
   <build>
+    <!-- local name for links -->
+    <finalName>mr-app</finalName>
     <plugins>
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
@@ -69,6 +72,26 @@
             <configuration>
               <outputFile>target/classes/mrapp-generated-classpath</outputFile>
             </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>create-mr-app-symlinks</id>
+            <phase>package</phase>
+            <configuration>
+              <target>
+                <symlink link="${applink.base}.jar"
+                    resource="mr-app.jar" failonerror="false"/>
+                <symlink link="${applink.base}-1.0-SNAPSHOT.jar"
+                    resource="mr-app.jar" failonerror="false"/>
+              </target>
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>

@@ -57,6 +57,8 @@ Trunk (unreleased changes)
 
     Implement restart for resource manager phase 1 - Helper classes to store and restore the data structures. (mahadev)
 
+    MAPREDUCE-2433. YARNApplicationConstants hard code app master jar version (Luke Lu via mahadev)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class
