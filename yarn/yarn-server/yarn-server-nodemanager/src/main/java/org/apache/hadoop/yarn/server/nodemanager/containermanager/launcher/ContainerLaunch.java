@@ -51,6 +51,7 @@ public class ContainerLaunch implements Callable<Integer> {
   private static final Log LOG = LogFactory.getLog(ContainerLaunch.class);
 
   public static final String CONTAINER_SCRIPT = "task.sh";
+  public static final String CONTAINER_TOKENS = "container_tokens";
 
   private final Dispatcher dispatcher;
   private final ContainerExecutor exec;

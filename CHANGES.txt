@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix container launch w/ inconsistent credential file naming. (cdouglas)
+
     Disable ContainerMonitoring for non-linux systems. (vinodkv)
 
     Fix file creation in JobHistoryEventHandler. (sharad)

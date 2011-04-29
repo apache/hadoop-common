@@ -96,11 +96,12 @@ public class DefaultContainerExecutor extends ContainerExecutor {
     Path launchDst = new Path(appWorkDir, ContainerLaunch.CONTAINER_SCRIPT);
     lfs.util().copy(launchScript, launchDst);
     // copy container tokens to work dir
-    String tokenFn = String.format(
+    Path appTokens = new Path(nmLocal, String.format(
         ContainerLocalizer.TOKEN_FILE_FMT,
-        ConverterUtils.toString(container.getContainerID()));
-    Path appTokens = new Path(nmLocal, tokenFn);
-    Path tokenDst = new Path(appWorkDir, tokenFn);
+        ConverterUtils.toString(container.getContainerID())));
+
+    Path tokenDst =
+      new Path(appWorkDir, ContainerLaunch.CONTAINER_TOKENS);
     lfs.util().copy(appTokens, tokenDst);
     // create log dir under app
     // fork script

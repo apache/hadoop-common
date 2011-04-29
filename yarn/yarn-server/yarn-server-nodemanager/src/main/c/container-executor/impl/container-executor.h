@@ -63,8 +63,7 @@ enum errorcodes {
 #define TT_LOCAL_TASK_DIR_PATTERN TT_JOB_DIR_PATTERN "/%s"
 #define TT_SYS_DIR_KEY "mapreduce.cluster.local.dir"
 #define TT_LOG_DIR_KEY "hadoop.log.dir"
-#define FILECACHE_FILENAME "appFiles"
-#define CREDENTIALS_FILENAME "appTokens"
+#define CREDENTIALS_FILENAME "container_tokens"
 #define MIN_USERID_KEY "min.user.id"
 #define BANNED_USERS_KEY "banned.users"
 

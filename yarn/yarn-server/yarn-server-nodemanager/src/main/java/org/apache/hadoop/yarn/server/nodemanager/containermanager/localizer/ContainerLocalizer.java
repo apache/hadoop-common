@@ -254,6 +254,7 @@ public class ContainerLocalizer {
           } catch (YarnRemoteException e) { }
           return;
         }
+        // TODO HB immediately when rsrc localized
         sleep(1);
       } catch (InterruptedException e) {
         return;
