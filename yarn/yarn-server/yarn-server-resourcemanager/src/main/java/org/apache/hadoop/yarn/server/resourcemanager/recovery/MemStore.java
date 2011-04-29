@@ -1,7 +1,9 @@
 package org.apache.hadoop.yarn.server.resourcemanager.recovery;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
@@ -90,19 +92,14 @@ public class MemStore implements Store {
     }
 
     @Override
-    public List<ApplicationSubmissionContext> getStoredSubmissionContexts()
-    throws IOException {
-      return new ArrayList<ApplicationSubmissionContext>();
-    }
-
-    @Override
     public NodeId getLastLoggedNodeId() throws IOException {
       return nodeId;
     }
 
     @Override
-    public List<ApplicationMaster> getStoredAMs() throws IOException {
-      return new ArrayList<ApplicationMaster>();
+    public Map<ApplicationId, ApplicationInfo> getStoredApplications()
+    throws IOException {
+      return new HashMap<ApplicationId, Store.ApplicationInfo>();
     }
   }
 }

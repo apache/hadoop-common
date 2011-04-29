@@ -19,18 +19,25 @@ package org.apache.hadoop.yarn.server.resourcemanager.recovery;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 
 
 public interface Store extends NodeStore, ApplicationStore {
+  public interface ApplicationInfo {
+    public ApplicationMaster getApplicationMaster();
+    public ApplicationSubmissionContext getApplicationSubmissionContext();
+    public List<Container> getContainers();
+  }
   public interface RMState {
     public List<NodeManager> getStoredNodeManagers() throws IOException;
-    public List<ApplicationSubmissionContext> getStoredSubmissionContexts() throws IOException;
-    public List<ApplicationMaster> getStoredAMs() throws IOException;
+    public Map<ApplicationId, ApplicationInfo> getStoredApplications() throws IOException;
     public NodeId getLastLoggedNodeId() throws IOException;
   }
   public RMState restore() throws IOException;

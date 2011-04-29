@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Completing the ZooKeeper Store for ResourceManager state. (mahadev)
+
     Added support High-RAM applications in CapacityScheduler. (acmurthy) 
 
     Recovery of MR Application Master from failures. (sharad)
