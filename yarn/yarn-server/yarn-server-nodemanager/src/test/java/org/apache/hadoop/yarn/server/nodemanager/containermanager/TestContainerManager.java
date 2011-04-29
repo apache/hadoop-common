@@ -29,6 +29,7 @@ import junit.framework.Assert;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
@@ -56,9 +57,9 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.nodemanager.CMgrCompletedAppsEvent;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.Signal;
+import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
@@ -70,10 +71,11 @@ import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
 import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationState;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.service.Service.STATE;
 import org.apache.hadoop.yarn.util.ConverterUtils;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -240,9 +242,9 @@ public class TestContainerManager {
     // TODO: Don't we need clusterStamp in localDir?
     String appIDStr = ConverterUtils.toString(appId);
     String containerIDStr = ConverterUtils.toString(cId);
-    File userCacheDir = new File(localDir, ApplicationLocalizer.USERCACHE);
+    File userCacheDir = new File(localDir, ContainerLocalizer.USERCACHE);
     File userDir = new File(userCacheDir, user);
-    File appCache = new File(userDir, ApplicationLocalizer.APPCACHE);
+    File appCache = new File(userDir, ContainerLocalizer.APPCACHE);
     File appDir = new File(appCache, appIDStr);
     File containerDir = new File(appDir, containerIDStr);
     File targetFile = new File(containerDir, destinationFile);
@@ -425,9 +427,9 @@ public class TestContainerManager {
     // Now ascertain that the resources are localised correctly.
     String appIDStr = ConverterUtils.toString(appId);
     String containerIDStr = ConverterUtils.toString(cId);
-    File userCacheDir = new File(localDir, ApplicationLocalizer.USERCACHE);
+    File userCacheDir = new File(localDir, ContainerLocalizer.USERCACHE);
     File userDir = new File(userCacheDir, user);
-    File appCache = new File(userDir, ApplicationLocalizer.APPCACHE);
+    File appCache = new File(userDir, ContainerLocalizer.APPCACHE);
     File appDir = new File(appCache, appIDStr);
     File containerDir = new File(appDir, containerIDStr);
     File targetFile = new File(containerDir, destinationFile);

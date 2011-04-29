@@ -34,7 +34,7 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
@@ -158,11 +158,11 @@ public class ContainerLogsPage extends NMView {
           conf.getStrings(NM_LOCAL_DIR, DEFAULT_NM_LOCAL_DIR);
       File localDir = new File(sLocalDirs[0]); // TODO: Fix
       File userCacheDir =
-          new File(localDir, ApplicationLocalizer.USERCACHE);
+          new File(localDir, ContainerLocalizer.USERCACHE);
       String user =
           nmContext.getContainers().get(containerId).getUser();
       File userDir = new File(userCacheDir, user);
-      File appCacheDir = new File(userDir, ApplicationLocalizer.APPCACHE);
+      File appCacheDir = new File(userDir, ContainerLocalizer.APPCACHE);
       File containerDir =
           new File(new File(appCacheDir,
               ConverterUtils.toString(containerId

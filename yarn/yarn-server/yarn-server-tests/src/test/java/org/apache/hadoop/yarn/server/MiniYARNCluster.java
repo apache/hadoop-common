@@ -24,15 +24,16 @@ import java.io.IOException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.api.ResourceTracker;
+import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
+import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
 import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.service.AbstractService;
@@ -156,12 +157,8 @@ public class MiniYARNCluster extends CompositeService {
           };
 
           @Override
-          protected
-              org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater
-              createNodeStatusUpdater(
-                  org.apache.hadoop.yarn.server.nodemanager.Context context,
-                  Dispatcher dispatcher,
-                  NodeHealthCheckerService healthChecker) {
+          protected NodeStatusUpdater createNodeStatusUpdater(Context context,
+              Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
             return new NodeStatusUpdaterImpl(context, dispatcher,
                 healthChecker) {
               @Override

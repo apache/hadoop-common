@@ -1,21 +1,34 @@
+/**
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 package org.apache.hadoop.yarn.server.nodemanager.api.impl.pb.service;
 
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
-import org.apache.hadoop.yarn.proto.LocalizationProtocol.LocalizationProtocolService.BlockingInterface;
-import org.apache.hadoop.yarn.proto.YarnServerNodemanagerServiceProtos.FailedLocalizationRequestProto;
-import org.apache.hadoop.yarn.proto.YarnServerNodemanagerServiceProtos.FailedLocalizationResponseProto;
-import org.apache.hadoop.yarn.proto.YarnServerNodemanagerServiceProtos.SuccessfulLocalizationRequestProto;
-import org.apache.hadoop.yarn.proto.YarnServerNodemanagerServiceProtos.SuccessfulLocalizationResponseProto;
-import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
-import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.FailedLocalizationResponse;
-import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.SuccessfulLocalizationResponse;
-import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.impl.pb.FailedLocalizationRequestPBImpl;
-import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.impl.pb.FailedLocalizationResponsePBImpl;
-import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.impl.pb.SuccessfulLocalizationRequestPBImpl;
-import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.impl.pb.SuccessfulLocalizationResponsePBImpl;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.impl.pb.LocalizerHeartbeatResponsePBImpl;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.impl.pb.LocalizerStatusPBImpl;
 
 import com.google.protobuf.RpcController;
 import com.google.protobuf.ServiceException;
+
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.proto.LocalizationProtocol.LocalizationProtocolService.BlockingInterface;
+import org.apache.hadoop.yarn.proto.YarnServerNodemanagerServiceProtos.LocalizerHeartbeatResponseProto;
+import org.apache.hadoop.yarn.proto.YarnServerNodemanagerServiceProtos.LocalizerStatusProto;
+import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
+import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.LocalizerHeartbeatResponse;
 
 public class LocalizationProtocolPBServiceImpl implements BlockingInterface {
 
@@ -26,26 +39,12 @@ public class LocalizationProtocolPBServiceImpl implements BlockingInterface {
   }
   
   @Override
-  public SuccessfulLocalizationResponseProto successfulLocalization(
-      RpcController controller, SuccessfulLocalizationRequestProto proto)
-      throws ServiceException {
-    SuccessfulLocalizationRequestPBImpl request = new SuccessfulLocalizationRequestPBImpl(proto);
+  public LocalizerHeartbeatResponseProto heartbeat(RpcController controller,
+      LocalizerStatusProto proto) throws ServiceException {
+    LocalizerStatusPBImpl request = new LocalizerStatusPBImpl(proto);
     try {
-      SuccessfulLocalizationResponse response = real.successfulLocalization(request);
-      return ((SuccessfulLocalizationResponsePBImpl)response).getProto();
-    } catch (YarnRemoteException e) {
-      throw new ServiceException(e);
-    }
-  }
-
-  @Override
-  public FailedLocalizationResponseProto failedLocalization(
-      RpcController controller, FailedLocalizationRequestProto proto)
-      throws ServiceException {
-    FailedLocalizationRequestPBImpl request = new FailedLocalizationRequestPBImpl(proto);
-    try {
-      FailedLocalizationResponse response = real.failedLocalization(request);
-      return ((FailedLocalizationResponsePBImpl)response).getProto();
+      LocalizerHeartbeatResponse response = real.heartbeat(request);
+      return ((LocalizerHeartbeatResponsePBImpl)response).getProto();
     } catch (YarnRemoteException e) {
       throw new ServiceException(e);
     }

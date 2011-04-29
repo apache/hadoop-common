@@ -16,16 +16,15 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
+package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event;
 
-import java.util.Map;
-import java.util.concurrent.Future;
+import org.apache.hadoop.yarn.event.AbstractEvent;
+import org.apache.hadoop.yarn.event.Event;
 
-import org.apache.hadoop.fs.Path;
+public abstract class LocalizationEvent extends AbstractEvent<LocalizationEventType> {
 
-public interface AppLocalizationRunner extends Runnable {
-
-  // TODO: A future? wierd.
-  void localizedResource(Future<Map<LocalResource,Path>> result);
+  public LocalizationEvent(LocalizationEventType event) {
+    super(event);
+  }
 
 }

@@ -20,6 +20,8 @@ package org.apache.hadoop.yarn.server.nodemanager;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -32,7 +34,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
 import org.apache.hadoop.yarn.api.records.ContainerId;
-import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 
 public abstract class ContainerExecutor implements Configurable {
@@ -60,7 +61,6 @@ public abstract class ContainerExecutor implements Configurable {
    * For $x in local.dirs
    *   create $x/$user/$appId
    * Copy $nmLocal/appTokens -> $N/$user/$appId
-   * Copy $nmLocal/publicEnv.sh -> $N/$user/$appId
    * For $rsrc in private resources
    *   Copy $rsrc -> $N/$user/filecache/[idef]
    * For $rsrc in job resources
@@ -72,10 +72,10 @@ public abstract class ContainerExecutor implements Configurable {
    * @throws IOException For most application init failures
    * @throws InterruptedException If application init thread is halted by NM
    */
-  public abstract void initApplication(Path nmLocal,
-      LocalizationProtocol localization,
-      String user, String appId, Path logDir, List<Path> localDirs)
-      throws IOException, InterruptedException;
+  public abstract void startLocalizer(Path nmLocal,
+      InetSocketAddress nmAddr, String user, String appId, String locId,
+      Path logDir, List<Path> localDirs)
+    throws IOException, InterruptedException;
 
   /**
    * Launch the container on the node. This is a blocking call and returns only

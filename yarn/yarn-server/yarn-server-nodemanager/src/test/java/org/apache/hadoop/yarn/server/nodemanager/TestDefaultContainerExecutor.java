@@ -38,7 +38,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.DataInputBuffer;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.util.Progressable;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.FakeFSDataInputStream;
 
 import static org.apache.hadoop.fs.CreateFlag.*;
@@ -215,18 +214,5 @@ public class TestDefaultContainerExecutor {
 //    verify(spylfs).mkdir(logdir,
 //        new FsPermission(ApplicationLocalizer.LOGDIR_PERM), true);
 //  }
-
-  @Test
-  public void testLaunch() throws Exception {
-  }
-
-  @Test
-  public void testSignal() throws Exception {
-  }
-
-  @Test
-  public void testDelete() throws Exception {
-    // TestDeletionService covers?
-  }
 
 }

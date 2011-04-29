@@ -37,7 +37,7 @@ void display_usage(FILE *stream) {
   fprintf(stream,
       "Usage: container-executor user command command-args\n");
   fprintf(stream, "Commands:\n");
-  fprintf(stream, "   initialize job: %2d jobid jobTokens jobFiles cmd args\n",
+  fprintf(stream, "   initialize job: %2d jobid tokens cmd args\n",
 	  INITIALIZE_JOB);
   fprintf(stream, "   launch task:    %2d jobid taskid workdir task-script jobTokens\n",
 	  LAUNCH_TASK_JVM);
@@ -63,7 +63,6 @@ int main(int argc, char **argv) {
   const char * cred_file = NULL;
   const char * script_file = NULL;
   const char * current_dir = NULL;
-  const char * job_xml = NULL;
 
   int exit_code = 0;
 
@@ -129,16 +128,15 @@ int main(int argc, char **argv) {
 
   switch (command) {
   case INITIALIZE_JOB:
-    if (argc < 7) {
-      fprintf(LOGFILE, "Too few arguments (%d vs 7) for initialize job\n",
+    if (argc < 6) {
+      fprintf(LOGFILE, "Too few arguments (%d vs 6) for initialize job\n",
 	      argc);
       return INVALID_ARGUMENT_NUMBER;
     }
     job_id = argv[optind++];
     cred_file = argv[optind++];
-    job_xml = argv[optind++];
     exit_code = initialize_job(user_detail->pw_name, job_id, cred_file,
-                               job_xml, argv + optind);
+                               argv + optind);
     break;
   case LAUNCH_TASK_JVM:
     if (argc < 8) {

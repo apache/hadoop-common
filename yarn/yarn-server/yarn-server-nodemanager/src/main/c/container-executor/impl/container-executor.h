@@ -85,8 +85,7 @@ int delete_log_directory(const char *log_dir);
 
 // initialize the job directory
 int initialize_job(const char *user, const char *jobid,
-                   const char *credentials, 
-                   const char *job_xml, char* const* args);
+                   const char *credentials, char* const* args);
 
 // run the task as the user
 int run_task_as_user(const char * user, const char *jobid, const char *taskid,

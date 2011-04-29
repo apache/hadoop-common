@@ -18,14 +18,28 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
+import java.io.IOException;
+
+import java.net.URISyntaxException;
+
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.DataInputByteBuffer;
+import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -34,11 +48,14 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEve
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationContainerFinishedEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEventType;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizerEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationRequestEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStartMonitoringEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStopMonitoringEvent;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
+import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
@@ -47,19 +64,24 @@ import org.apache.hadoop.yarn.util.ConverterUtils;
 public class ContainerImpl implements Container {
 
   private final Dispatcher dispatcher;
+  private final Credentials credentials;
   private final ContainerLaunchContext launchContext;
   private int exitCode;
   private final StringBuilder diagnostics;
 
   private static final Log LOG = LogFactory.getLog(Container.class);
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  private final Map<LocalResourceRequest,String> pendingResources =
+    new HashMap<LocalResourceRequest,String>();
+  private final Map<Path,String> localizedResources =
+    new HashMap<Path,String>();
 
   public ContainerImpl(Dispatcher dispatcher,
       ContainerLaunchContext launchContext) {
     this.dispatcher = dispatcher;
     this.launchContext = launchContext;
     this.diagnostics = new StringBuilder();
-
+    this.credentials = new Credentials();
     stateMachine = stateMachineFactory.make(this);
   }
 
@@ -75,9 +97,10 @@ public class ContainerImpl implements Container {
         stateMachineFactory =
       new StateMachineFactory<ContainerImpl, ContainerState, ContainerEventType, ContainerEvent>(ContainerState.NEW)
     // From NEW State
-    .addTransition(ContainerState.NEW, ContainerState.LOCALIZING,
-        ContainerEventType.INIT_CONTAINER)
-     .addTransition(ContainerState.NEW, ContainerState.NEW,
+    .addTransition(ContainerState.NEW,
+        EnumSet.of(ContainerState.LOCALIZING, ContainerState.LOCALIZED),
+        ContainerEventType.INIT_CONTAINER, new RequestResourcesTransition())
+    .addTransition(ContainerState.NEW, ContainerState.NEW,
         ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
         UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.NEW, ContainerState.DONE,
@@ -85,14 +108,15 @@ public class ContainerImpl implements Container {
 
     // From LOCALIZING State
     .addTransition(ContainerState.LOCALIZING,
-        ContainerState.LOCALIZED,
-        ContainerEventType.CONTAINER_RESOURCES_LOCALIZED,
-        new LocalizedTransition())
-     .addTransition(ContainerState.LOCALIZING, ContainerState.LOCALIZING,
+        EnumSet.of(ContainerState.LOCALIZING, ContainerState.LOCALIZED),
+        ContainerEventType.RESOURCE_LOCALIZED, new LocalizedTransition())
+    .addTransition(ContainerState.LOCALIZING, ContainerState.KILLING,
+        ContainerEventType.RESOURCE_FAILED,
+        new KillDuringLocalizationTransition()) // TODO update diagnostics
+    .addTransition(ContainerState.LOCALIZING, ContainerState.LOCALIZING,
         ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
         UPDATE_DIAGNOSTICS_TRANSITION)
-    .addTransition(ContainerState.LOCALIZING,
-        ContainerState.CONTAINER_RESOURCES_CLEANINGUP,
+    .addTransition(ContainerState.LOCALIZING, ContainerState.KILLING,
         ContainerEventType.KILL_CONTAINER,
         new KillDuringLocalizationTransition())
 
@@ -102,9 +126,11 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.LOCALIZED, ContainerState.EXITED_WITH_FAILURE,
         ContainerEventType.CONTAINER_EXITED_WITH_FAILURE,
         new ExitedWithFailureTransition())
-     .addTransition(ContainerState.LOCALIZED, ContainerState.LOCALIZED,
-        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
-        UPDATE_DIAGNOSTICS_TRANSITION)
+    .addTransition(ContainerState.LOCALIZED, ContainerState.LOCALIZED,
+       ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+       UPDATE_DIAGNOSTICS_TRANSITION)
+    .addTransition(ContainerState.LOCALIZED, ContainerState.KILLING,
+        ContainerEventType.KILL_CONTAINER, new KillTransition())
 
     // From RUNNING State
     .addTransition(ContainerState.RUNNING,
@@ -115,23 +141,23 @@ public class ContainerImpl implements Container {
         ContainerState.EXITED_WITH_FAILURE,
         ContainerEventType.CONTAINER_EXITED_WITH_FAILURE,
         new ExitedWithFailureTransition())
-     .addTransition(ContainerState.RUNNING, ContainerState.RUNNING,
-        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
-        UPDATE_DIAGNOSTICS_TRANSITION)
+    .addTransition(ContainerState.RUNNING, ContainerState.RUNNING,
+       ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+       UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.RUNNING, ContainerState.KILLING,
         ContainerEventType.KILL_CONTAINER, new KillTransition())
 
     // From CONTAINER_EXITED_WITH_SUCCESS State
     .addTransition(ContainerState.EXITED_WITH_SUCCESS, ContainerState.DONE,
-            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
-            CONTAINER_DONE_TRANSITION)
+        ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
+        CONTAINER_DONE_TRANSITION)
     .addTransition(ContainerState.EXITED_WITH_SUCCESS,
         ContainerState.EXITED_WITH_SUCCESS,
         ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
         UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.EXITED_WITH_SUCCESS,
-                   ContainerState.EXITED_WITH_SUCCESS,
-                   ContainerEventType.KILL_CONTAINER)
+        ContainerState.EXITED_WITH_SUCCESS,
+        ContainerEventType.KILL_CONTAINER)
 
     // From EXITED_WITH_FAILURE State
     .addTransition(ContainerState.EXITED_WITH_FAILURE, ContainerState.DONE,
@@ -150,9 +176,9 @@ public class ContainerImpl implements Container {
         ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
         ContainerEventType.CONTAINER_KILLED_ON_REQUEST,
         new ContainerKilledTransition())
-     .addTransition(ContainerState.KILLING, ContainerState.KILLING,
-        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
-        UPDATE_DIAGNOSTICS_TRANSITION)
+    .addTransition(ContainerState.KILLING, ContainerState.KILLING,
+       ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+       UPDATE_DIAGNOSTICS_TRANSITION)
     .addTransition(ContainerState.KILLING, ContainerState.KILLING,
         ContainerEventType.KILL_CONTAINER)
     .addTransition(ContainerState.KILLING, ContainerState.EXITED_WITH_SUCCESS,
@@ -171,13 +197,16 @@ public class ContainerImpl implements Container {
         ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
         ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
         UPDATE_DIAGNOSTICS_TRANSITION)
+    .addTransition(ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
+        ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
+        ContainerEventType.KILL_CONTAINER)
 
     // From DONE
     .addTransition(ContainerState.DONE, ContainerState.DONE,
         ContainerEventType.KILL_CONTAINER, CONTAINER_DONE_TRANSITION)
-     .addTransition(ContainerState.DONE, ContainerState.DONE,
-        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
-        UPDATE_DIAGNOSTICS_TRANSITION)
+    .addTransition(ContainerState.DONE, ContainerState.DONE,
+       ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+       UPDATE_DIAGNOSTICS_TRANSITION)
 
     // create the topology tables
     .installTopology();
@@ -215,13 +244,27 @@ public class ContainerImpl implements Container {
   }
 
   @Override
+  public Map<Path,String> getLocalizedResources() {
+    assert ContainerState.LOCALIZED == getContainerState();
+    return localizedResources;
+  }
+
+  @Override
+  public Credentials getCredentials() {
+    return credentials;
+  }
+
+  @Override
   public ContainerState getContainerState() {
     return stateMachine.getCurrentState();
   }
 
   @Override
-  public synchronized org.apache.hadoop.yarn.api.records.Container cloneAndGetContainer() {
-    org.apache.hadoop.yarn.api.records.Container c = recordFactory.newRecordInstance(org.apache.hadoop.yarn.api.records.Container.class);
+  public synchronized
+      org.apache.hadoop.yarn.api.records.Container cloneAndGetContainer() {
+    org.apache.hadoop.yarn.api.records.Container c =
+      recordFactory.newRecordInstance(
+          org.apache.hadoop.yarn.api.records.Container.class);
     c.setId(this.launchContext.getContainerId());
     c.setResource(this.launchContext.getResource());
     c.setState(getCurrentState());
@@ -253,15 +296,42 @@ public class ContainerImpl implements Container {
 
   }
 
-  static class LocalizedTransition extends ContainerTransition {
+  @SuppressWarnings("unchecked") // dispatcher not typed
+  static class RequestResourcesTransition implements
+      MultipleArcTransition<ContainerImpl,ContainerEvent,ContainerState> {
     @Override
-    public void transition(ContainerImpl container, ContainerEvent event) {
-      // XXX This needs to be container-oriented
+    public ContainerState transition(ContainerImpl container,
+        ContainerEvent event) {
+      final ContainerLaunchContext ctxt = container.getLaunchContext();
+
+      // parse credentials
+      ByteBuffer creds = ctxt.getContainerTokens();
+      if (creds != null) {
+        try {
+          DataInputByteBuffer buf = new DataInputByteBuffer();
+          creds.rewind();
+          buf.reset(creds);
+          container.credentials.readTokenStorageStream(buf);
+          if (LOG.isDebugEnabled()) {
+            for (Token<? extends TokenIdentifier> tk :
+                 container.credentials.getAllTokens()) {
+              LOG.debug(tk.getService() + " = " + tk.toString());
+            }
+          }
+        } catch (IOException e) {
+          // invalid credentials
+          container.dispatcher.getEventHandler().handle(
+              new ContainerLocalizationEvent(
+                LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
+          return ContainerState.LOCALIZING;
+        }
+      }
+
       // Inform the AuxServices about the opaque serviceData
-      ContainerLaunchContext ctxt = container.getLaunchContext();
       Map<String,ByteBuffer> csd = ctxt.getAllServiceData();
       if (csd != null) {
         // TODO: Isn't this supposed to happen only once per Application?
+        // ^ each container may have distinct service data
         for (Map.Entry<String,ByteBuffer> service : csd.entrySet()) {
           container.dispatcher.getEventHandler().handle(
               new AuxServicesEvent(AuxServicesEventType.APPLICATION_INIT,
@@ -269,12 +339,92 @@ public class ContainerImpl implements Container {
                 service.getKey().toString(), service.getValue()));
         }
       }
-      container.dispatcher.getEventHandler().handle(
-          new ContainersLauncherEvent(container,
-              ContainersLauncherEventType.LAUNCH_CONTAINER));
+
+      // Send requests for public, private resources
+      Map<String,LocalResource> cntrRsrc = ctxt.getAllLocalResources();
+      if (!cntrRsrc.isEmpty()) {
+        ArrayList<LocalResourceRequest> publicRsrc =
+          new ArrayList<LocalResourceRequest>();
+        ArrayList<LocalResourceRequest> privateRsrc =
+          new ArrayList<LocalResourceRequest>();
+        ArrayList<LocalResourceRequest> appRsrc =
+          new ArrayList<LocalResourceRequest>();
+        try {
+          for (Map.Entry<String,LocalResource> rsrc : cntrRsrc.entrySet()) {
+            LocalResourceRequest req =
+              new LocalResourceRequest(rsrc.getValue());
+            container.pendingResources.put(req, rsrc.getKey());
+            switch (rsrc.getValue().getVisibility()) {
+            case PUBLIC:
+              publicRsrc.add(req);
+              break;
+            case PRIVATE:
+              privateRsrc.add(req);
+              break;
+            case APPLICATION:
+              appRsrc.add(req);
+              break;
+            }
+          }
+        } catch (URISyntaxException e) {
+          // malformed resource; abort container launch
+          container.dispatcher.getEventHandler().handle(
+              new ContainerLocalizationEvent(
+               LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
+          return ContainerState.LOCALIZING;
+        }
+        if (!publicRsrc.isEmpty()) {
+          container.dispatcher.getEventHandler().handle(
+              new ContainerLocalizationRequestEvent(
+                container, publicRsrc, LocalResourceVisibility.PUBLIC));
+        }
+        if (!privateRsrc.isEmpty()) {
+          container.dispatcher.getEventHandler().handle(
+              new ContainerLocalizationRequestEvent(
+                container, privateRsrc, LocalResourceVisibility.PRIVATE));
+        }
+        if (!appRsrc.isEmpty()) {
+          container.dispatcher.getEventHandler().handle(
+              new ContainerLocalizationRequestEvent(
+                container, appRsrc, LocalResourceVisibility.APPLICATION));
+        }
+        return ContainerState.LOCALIZING;
+      } else {
+        container.dispatcher.getEventHandler().handle(
+            new ContainersLauncherEvent(container,
+                ContainersLauncherEventType.LAUNCH_CONTAINER));
+        return ContainerState.LOCALIZED;
+      }
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
+  static class LocalizedTransition implements
+      MultipleArcTransition<ContainerImpl,ContainerEvent,ContainerState> {
+    @Override
+    public ContainerState transition(ContainerImpl container,
+        ContainerEvent event) {
+      ContainerResourceLocalizedEvent rsrcEvent = (ContainerResourceLocalizedEvent) event;
+      String sym = container.pendingResources.remove(rsrcEvent.getResource());
+      if (null == sym) {
+        LOG.warn("Localized unknown resource " + rsrcEvent.getResource() +
+                 " for container " + container.getContainerID());
+        assert false;
+        // fail container?
+        return ContainerState.LOCALIZING;
+      }
+      container.localizedResources.put(rsrcEvent.getLocation(), sym);
+      if (!container.pendingResources.isEmpty()) {
+        return ContainerState.LOCALIZING;
+      }
+      container.dispatcher.getEventHandler().handle(
+          new ContainersLauncherEvent(container,
+              ContainersLauncherEventType.LAUNCH_CONTAINER));
+      return ContainerState.LOCALIZED;
+    }
+  }
+
+  @SuppressWarnings("unchecked") // dispatcher not typed
   static class LaunchTransition extends ContainerTransition {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
@@ -289,6 +439,7 @@ public class ContainerImpl implements Container {
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
   static class ExitedWithSuccessTransition extends ContainerTransition {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
@@ -297,11 +448,12 @@ public class ContainerImpl implements Container {
       // Inform the localizer to decrement reference counts and cleanup
       // resources.
       container.dispatcher.getEventHandler().handle(
-          new ContainerLocalizerEvent(
-            LocalizerEventType.CLEANUP_CONTAINER_RESOURCES, container));
+          new ContainerLocalizationEvent(
+            LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
   static class ExitedWithFailureTransition extends ContainerTransition {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
@@ -314,11 +466,12 @@ public class ContainerImpl implements Container {
       // Inform the localizer to decrement reference counts and cleanup
       // resources.
       container.dispatcher.getEventHandler().handle(
-          new ContainerLocalizerEvent(
-            LocalizerEventType.CLEANUP_CONTAINER_RESOURCES, container));
+          new ContainerLocalizationEvent(
+            LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
   static class KillDuringLocalizationTransition implements
       SingleArcTransition<ContainerImpl, ContainerEvent> {
     @Override
@@ -326,12 +479,13 @@ public class ContainerImpl implements Container {
       // Inform the localizer to decrement reference counts and cleanup
       // resources.
       container.dispatcher.getEventHandler().handle(
-          new ContainerLocalizerEvent(
-            LocalizerEventType.CLEANUP_CONTAINER_RESOURCES, container));
+          new ContainerLocalizationEvent(
+            LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
 
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
   static class KillTransition implements
       SingleArcTransition<ContainerImpl, ContainerEvent> {
     @Override
@@ -343,6 +497,7 @@ public class ContainerImpl implements Container {
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
   static class ContainerKilledTransition implements
       SingleArcTransition<ContainerImpl, ContainerEvent> {
     @Override
@@ -353,11 +508,12 @@ public class ContainerImpl implements Container {
       // The process/process-grp is killed. Decrement reference counts and
       // cleanup resources
       container.dispatcher.getEventHandler().handle(
-          new ContainerLocalizerEvent(
-            LocalizerEventType.CLEANUP_CONTAINER_RESOURCES, container));
+          new ContainerLocalizationEvent(
+            LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
   static class ContainerDoneTransition implements
       SingleArcTransition<ContainerImpl, ContainerEvent> {
     @Override
@@ -406,4 +562,5 @@ public class ContainerImpl implements Container {
   public String toString() {
     return ConverterUtils.toString(launchContext.getContainerId());
   }
+
 }

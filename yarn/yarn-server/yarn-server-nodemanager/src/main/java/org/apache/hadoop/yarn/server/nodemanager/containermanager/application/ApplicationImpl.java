@@ -18,33 +18,23 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DataInputByteBuffer;
-import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
-import org.apache.hadoop.yarn.api.records.LocalResource;
-import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerDiagnosticsUpdateEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ApplicationLocalizerEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerInitEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ApplicationLocalizationEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
@@ -57,44 +47,18 @@ public class ApplicationImpl implements Application {
   final Dispatcher dispatcher;
   final String user;
   final ApplicationId appId;
-  final Map<String,String> env;
-  final Map<String,LocalResource> resources;
-  final ByteBuffer containerTokens;
-  Map<Path, String> localizedResources;
+  Path logDir;
 
   private static final Log LOG = LogFactory.getLog(Application.class);
 
   Map<ContainerId, Container> containers =
       new HashMap<ContainerId, Container>();
 
-  // TODO check for suitability of symlink name
-  static Map<String, LocalResource>
-      filterResources(Map<String, LocalResource> resources,
-          LocalResourceVisibility state) {
-    Map<String, LocalResource> ret =
-        new HashMap<String, LocalResource>();
-    for (Map.Entry<String, LocalResource> rsrc : resources.entrySet()) {
-      if (state.equals(rsrc.getValue().getVisibility())) {
-        ret.put(rsrc.getKey(), rsrc.getValue());
-      }
-    }
-    return ret;
-  }
-
-  public ApplicationImpl(Dispatcher dispatcher,
-      String user,
-      ApplicationId appId,
-      Map<String,String> env,
-      Map<String,LocalResource> resources,
-      ByteBuffer containerTokens) {
+  public ApplicationImpl(Dispatcher dispatcher, String user,
+      ApplicationId appId) {
     this.dispatcher = dispatcher;
     this.user = user.toString();
     this.appId = appId;
-    this.env = env;
-    this.resources = null == resources
-      ? new HashMap<String,LocalResource>()
-      : resources;
-    this.containerTokens = containerTokens;
     stateMachine = stateMachineFactory.make(this);
   }
 
@@ -111,6 +75,7 @@ public class ApplicationImpl implements Application {
   @Override
   public synchronized ApplicationState getApplicationState() {
     // TODO: Synchro should be at statemachine level.
+    // This is only for tests?
     return this.stateMachine.getCurrentState();
   }
 
@@ -119,56 +84,13 @@ public class ApplicationImpl implements Application {
     return this.containers;
   }
 
-  @Override
-  public Map<String, String> getEnvironment() {
-    return env;
-  }
-
-  @Override
-  public Map<String, LocalResource>
-      getResources(LocalResourceVisibility vis) {
-    final Map<String, LocalResource> ret;
-    if (LocalResourceVisibility.PUBLIC.equals(vis)) {
-      ret = filterResources(resources, LocalResourceVisibility.PUBLIC);
-    } else {
-      // TODO separate these
-      ret = filterResources(resources, LocalResourceVisibility.PRIVATE);
-      ret.putAll(filterResources(resources,
-          LocalResourceVisibility.APPLICATION));
-    }
-    return Collections.unmodifiableMap(ret);
-  }
-
-  @Override
-  public Map<Path, String> getLocalizedResources() {
-    if (ApplicationState.RUNNING.equals(stateMachine.getCurrentState())) {
-      return localizedResources;
-    }
-    throw new IllegalStateException(
-        "Invalid request for " + stateMachine.getCurrentState());
-  }
-
-  @Override
-  public Credentials getCredentials() throws IOException {
-    Credentials ret = new Credentials();
-    if (containerTokens != null) {
-      DataInputByteBuffer buf = new DataInputByteBuffer();
-      buf.reset(containerTokens);
-      ret.readTokenStorageStream(buf);
-      for (Token<? extends TokenIdentifier> tk : ret.getAllTokens()) {
-        LOG.info(" In Nodemanager , token " + tk);
-      }
-    }
-    return ret;
-  }
-
   private static final ContainerDoneTransition CONTAINER_DONE_TRANSITION =
       new ContainerDoneTransition();
 
-  private static StateMachineFactory<ApplicationImpl, ApplicationState, ApplicationEventType, ApplicationEvent> stateMachineFactory =
-      new StateMachineFactory
-         <ApplicationImpl, ApplicationState, ApplicationEventType, ApplicationEvent>
-       (ApplicationState.NEW)
+  private static StateMachineFactory<ApplicationImpl, ApplicationState,
+          ApplicationEventType, ApplicationEvent> stateMachineFactory =
+      new StateMachineFactory<ApplicationImpl, ApplicationState,
+          ApplicationEventType, ApplicationEvent>(ApplicationState.NEW)
 
            // Transitions from NEW state
            .addTransition(ApplicationState.NEW, ApplicationState.INITING,
@@ -216,13 +138,14 @@ public class ApplicationImpl implements Application {
                ApplicationState.FINISHED,
                ApplicationEventType.APPLICATION_RESOURCES_CLEANEDUP)
 
-           // TODO failure transitions are completely broken
-
            // create the topology tables
            .installTopology();
 
   private final StateMachine<ApplicationState, ApplicationEventType, ApplicationEvent> stateMachine;
 
+  /**
+   * Notify services of new application.
+   */
   static class AppInitTransition implements
       SingleArcTransition<ApplicationImpl, ApplicationEvent> {
     @Override
@@ -231,14 +154,14 @@ public class ApplicationImpl implements Application {
       Container container = initEvent.getContainer();
       app.containers.put(container.getContainerID(), container);
       app.dispatcher.getEventHandler().handle(
-          new ContainerEvent(container.getContainerID(),
-              ContainerEventType.INIT_CONTAINER));
-      app.dispatcher.getEventHandler().handle(
-          new ApplicationLocalizerEvent(
-              LocalizerEventType.INIT_APPLICATION_RESOURCES, app));
+          new ApplicationLocalizationEvent(
+              LocalizationEventType.INIT_APPLICATION_RESOURCES, app));
     }
   }
 
+  /**
+   * Absorb initialization events while the application initializes.
+   */
   static class AppIsInitingTransition implements
       SingleArcTransition<ApplicationImpl, ApplicationEvent> {
     @Override
@@ -246,9 +169,8 @@ public class ApplicationImpl implements Application {
       ApplicationInitEvent initEvent = (ApplicationInitEvent) event;
       Container container = initEvent.getContainer();
       app.containers.put(container.getContainerID(), container);
-      app.dispatcher.getEventHandler().handle(
-          new ContainerEvent(container.getContainerID(),
-              ContainerEventType.INIT_CONTAINER));
+      LOG.info("Adding " + container.getContainerID()
+          + " to application " + app.toString());
     }
   }
 
@@ -256,18 +178,12 @@ public class ApplicationImpl implements Application {
       SingleArcTransition<ApplicationImpl, ApplicationEvent> {
     @Override
     public void transition(ApplicationImpl app, ApplicationEvent event) {
-
-      ApplicationInitedEvent initedEvent = (ApplicationInitedEvent) event;
-      app.localizedResources = initedEvent.getLocalizedResources();
       // Start all the containers waiting for ApplicationInit
-      Iterator<Container> it = app.containers.values().iterator();
-      while (it.hasNext()) {
-        Container container = it.next();
-        if (container.getContainerState().equals(ContainerState.LOCALIZING)) {
-          app.dispatcher.getEventHandler().handle(
-              new ContainerEvent(container.getContainerID(),
-                  ContainerEventType.CONTAINER_RESOURCES_LOCALIZED));
-        }
+      ApplicationInitedEvent initedEvent = (ApplicationInitedEvent) event;
+      app.logDir = initedEvent.getLogDir();
+      for (Container container : app.containers.values()) {
+        app.dispatcher.getEventHandler().handle(new ContainerInitEvent(
+              container.getContainerID(), app.logDir));
       }
     }
   }
@@ -277,12 +193,12 @@ public class ApplicationImpl implements Application {
     @Override
     public void transition(ApplicationImpl app, ApplicationEvent event) {
       ApplicationInitEvent initEvent = (ApplicationInitEvent) event;
-      ContainerId containerID = initEvent.getContainer().getContainerID();
-      app.dispatcher.getEventHandler().handle(
-          new ContainerEvent(containerID, ContainerEventType.INIT_CONTAINER));
-      app.dispatcher.getEventHandler().handle(
-          new ContainerEvent(containerID,
-              ContainerEventType.CONTAINER_RESOURCES_LOCALIZED));
+      Container container = initEvent.getContainer();
+      app.containers.put(container.getContainerID(), container);
+      LOG.info("Adding " + container.getContainerID()
+          + " to application " + app.toString());
+      app.dispatcher.getEventHandler().handle(new ContainerInitEvent(
+            container.getContainerID(), app.logDir));
     }
   }
 
@@ -292,17 +208,21 @@ public class ApplicationImpl implements Application {
     public void transition(ApplicationImpl app, ApplicationEvent event) {
       ApplicationContainerFinishedEvent containerEvent =
           (ApplicationContainerFinishedEvent) event;
-      LOG.info("Removing " + containerEvent.getContainerID()
-          + " from application " + app.toString());
-      app.containers.remove(containerEvent.getContainerID());
+      if (null == app.containers.remove(containerEvent.getContainerID())) {
+        LOG.warn("Removing unknown " + containerEvent.getContainerID() +
+            " from application " + app.toString());
+      } else {
+        LOG.info("Removing " + containerEvent.getContainerID() +
+            " from application " + app.toString());
+      }
     }
   }
 
   void handleAppFinishWithContainersCleanedup() {
     // Delete Application level resources
     this.dispatcher.getEventHandler().handle(
-        new ApplicationLocalizerEvent(
-            LocalizerEventType.DESTROY_APPLICATION_RESOURCES, this));
+        new ApplicationLocalizationEvent(
+            LocalizationEventType.DESTROY_APPLICATION_RESOURCES, this));
 
     // TODO: Trigger the LogsManager
   }
@@ -334,9 +254,8 @@ public class ApplicationImpl implements Application {
     }
   }
 
-  static class AppFinishTransition
-      implements
-      MultipleArcTransition<ApplicationImpl, ApplicationEvent, ApplicationState> {
+  static class AppFinishTransition implements
+    MultipleArcTransition<ApplicationImpl, ApplicationEvent, ApplicationState> {
 
     @Override
     public ApplicationState transition(ApplicationImpl app,

@@ -648,8 +648,7 @@ int initialize_user(const char *user) {
  * Function to prepare the job directories for the task JVM.
  */
 int initialize_job(const char *user, const char *jobid, 
-		   const char* credentials, const char* job_xml,
-                   char* const* args) {
+		   const char* credentials, char* const* args) {
   if (jobid == NULL || user == NULL) {
     fprintf(LOGFILE, "Either jobid is null or the user passed is null.\n");
     return INVALID_ARGUMENT_NUMBER;
@@ -675,12 +674,6 @@ int initialize_job(const char *user, const char *jobid,
   // open up the credentials file
   int cred_file = open_file_as_task_tracker(credentials);
   if (cred_file == -1) {
-    return -1;
-  }
-
-  // open up jobFiles
-  int job_file = open_file_as_task_tracker(job_xml);
-  if (job_file == -1) {
     return -1;
   }
 
@@ -725,15 +718,7 @@ int initialize_job(const char *user, const char *jobid,
   if (copy_file(cred_file, credentials, cred_file_name, S_IRUSR|S_IWUSR) != 0){
     return -1;
   }
-  char *job_file_name = concatenate("%s/%s", "job file", 2,
-				     primary_job_dir, FILECACHE_FILENAME);
-  if (job_file_name == NULL) {
-    return -1;
-  }
-  if (copy_file(job_file, job_xml, job_file_name,
-        S_IRUSR|S_IWUSR|S_IRGRP) != 0) {
-    return -1;
-  }
+
   fclose(stdin);
   fflush(LOGFILE);
   if (LOGFILE != stdout) {

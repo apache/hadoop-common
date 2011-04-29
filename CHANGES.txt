@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Reorient container localization to be per-container rather than
+    per-application. (cdouglas)
+
     Completing the ZooKeeper Store for ResourceManager state. (mahadev)
 
     Added support High-RAM applications in CapacityScheduler. (acmurthy) 

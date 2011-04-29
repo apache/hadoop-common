@@ -31,13 +31,10 @@ import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
-import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainerLaunch;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
-
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class DefaultContainerExecutor extends ContainerExecutor {
 
@@ -59,21 +56,12 @@ public class DefaultContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public void initApplication(Path nmLocal, LocalizationProtocol localization,
-      String user, String appId, Path logDir, List<Path> localDirs)
-      throws IOException, InterruptedException {
-    // TODO need a type
-    InetSocketAddress nmAddr =
-        ((ResourceLocalizationService) localization).getAddress();
-    FileContext appContext;
-    try {
-      appContext = FileContext.getLocalFSFileContext();
-    } catch (UnsupportedFileSystemException e) {
-      throw new YarnException("Failed to get local context", e);
-    }
+  public void startLocalizer(Path nmLocal, InetSocketAddress nmAddr,
+      String user, String appId, String locId, Path logDir,
+      List<Path> localDirs) throws IOException, InterruptedException {
 
-    ApplicationLocalizer localizer =
-      new ApplicationLocalizer(appContext, user, appId, logDir, localDirs);
+    ContainerLocalizer localizer =
+        new ContainerLocalizer(user, appId, locId, logDir, localDirs);
 
     createUserLocalDirs(localDirs, user);
     createUserCacheDirs(localDirs, user);
@@ -81,12 +69,10 @@ public class DefaultContainerExecutor extends ContainerExecutor {
     createAppLogDir(logDir, appId);
 
     Path appStorageDir = getApplicationDir(localDirs, user, appId);
-    Path filedesc = new Path(nmLocal, ApplicationLocalizer.FILECACHE_FILE);
-    lfs.util().copy(filedesc,
-        new Path(appStorageDir, ApplicationLocalizer.FILECACHE_FILE));
 
-    Path appTokens = new Path(nmLocal, ApplicationLocalizer.APPTOKEN_FILE);
-    Path tokenDst = new Path(appStorageDir, ApplicationLocalizer.APPTOKEN_FILE);
+    String tokenFn = String.format(ContainerLocalizer.TOKEN_FILE_FMT, locId);
+    Path appTokens = new Path(nmLocal, tokenFn);
+    Path tokenDst = new Path(appStorageDir, tokenFn);
     lfs.util().copy(appTokens, tokenDst);
     lfs.setWorkingDirectory(appStorageDir);
 
@@ -100,7 +86,9 @@ public class DefaultContainerExecutor extends ContainerExecutor {
       String stderr) throws IOException {
     // create container dirs
     for (Path p : appDirs) {
-      lfs.mkdir(new Path(p, container.toString()), null, false);
+      lfs.mkdir(new Path(p,
+                ConverterUtils.toString(container.getContainerID())),
+                null, true);
     }
     // copy launch script to work dir
     Path appWorkDir = new Path(appDirs.get(0), container.toString());
@@ -108,8 +96,11 @@ public class DefaultContainerExecutor extends ContainerExecutor {
     Path launchDst = new Path(appWorkDir, ContainerLaunch.CONTAINER_SCRIPT);
     lfs.util().copy(launchScript, launchDst);
     // copy container tokens to work dir
-    Path appTokens = new Path(nmLocal, ApplicationLocalizer.APPTOKEN_FILE);
-    Path tokenDst = new Path(appWorkDir, ApplicationLocalizer.APPTOKEN_FILE);
+    String tokenFn = String.format(
+        ContainerLocalizer.TOKEN_FILE_FMT,
+        ConverterUtils.toString(container.getContainerID()));
+    Path appTokens = new Path(nmLocal, tokenFn);
+    Path tokenDst = new Path(appWorkDir, tokenFn);
     lfs.util().copy(appTokens, tokenDst);
     // create log dir under app
     // fork script
@@ -216,17 +207,17 @@ public class DefaultContainerExecutor extends ContainerExecutor {
   }
 
   private Path getUserCacheDir(Path base, String user) {
-    return new Path(new Path(base, ApplicationLocalizer.USERCACHE), user);
+    return new Path(new Path(base, ContainerLocalizer.USERCACHE), user);
   }
 
   private Path getAppcacheDir(Path base, String user) {
     return new Path(getUserCacheDir(base, user),
-        ApplicationLocalizer.APPCACHE);
+        ContainerLocalizer.APPCACHE);
   }
 
   private Path getFileCacheDir(Path base, String user) {
     return new Path(getUserCacheDir(base, user),
-        ApplicationLocalizer.FILECACHE);
+        ContainerLocalizer.FILECACHE);
   }
 
   /**
@@ -339,7 +330,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
     // create $local.dir/usercache/$user/appcache/$appId/work
     Path workDir =
         new Path(getApplicationDir(localDirs, user, appId),
-            ApplicationLocalizer.WORKDIR);
+            ContainerLocalizer.WORKDIR);
     lfs.mkdir(workDir, null, true);
   }
 

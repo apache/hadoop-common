@@ -40,7 +40,6 @@ import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
 import org.apache.hadoop.yarn.server.nodemanager.ResourceView;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
@@ -48,6 +47,7 @@ import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.junit.Before;
 import org.junit.Test;
+import static org.mockito.Mockito.*;
 
 public class TestNMWebServer {
 
@@ -84,16 +84,12 @@ public class TestNMWebServer {
     Dispatcher dispatcher = new AsyncDispatcher();
     String user = "nobody";
     long clusterTimeStamp = 1234;
-    Map<String, String> env = new HashMap<String, String>();
-    Map<String, LocalResource> resources =
-        new HashMap<String, LocalResource>();
-    ByteBuffer containerTokens = ByteBuffer.allocate(0);
     ApplicationId appId =
         BuilderUtils.newApplicationId(recordFactory, clusterTimeStamp, 1);
-      Application app =
-          new ApplicationImpl(dispatcher, user, appId, env, resources,
-              containerTokens);
-      nmContext.getApplications().put(appId, app);
+    Application app = mock(Application.class);
+    when(app.getUser()).thenReturn(user);
+    when(app.getAppId()).thenReturn(appId);
+    nmContext.getApplications().put(appId, app);
     ContainerId container1 =
         BuilderUtils.newContainerId(recordFactory, appId, 0);
     ContainerId container2 =

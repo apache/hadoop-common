@@ -15,16 +15,21 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event;
 
 import org.apache.hadoop.yarn.event.AbstractEvent;
-import org.apache.hadoop.yarn.event.Event;
 
-public abstract class LocalizerEvent extends AbstractEvent<LocalizerEventType> {
+public class LocalizerEvent extends AbstractEvent<LocalizerEventType> {
 
-  public LocalizerEvent(LocalizerEventType event) {
-    super(event);
+  private final String localizerId;
+
+  public LocalizerEvent(LocalizerEventType type, String localizerId) {
+    super(type);
+    this.localizerId = localizerId;
+  }
+
+  public String getLocalizerId() {
+    return localizerId;
   }
 
 }

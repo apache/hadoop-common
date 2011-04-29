@@ -15,22 +15,31 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event;
 
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
+import java.util.Collection;
 
-public class ApplicationLocalizerEvent extends LocalizerEvent {
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
 
-  final Application app;
+public class ContainerLocalizationRequestEvent extends ContainerLocalizationEvent {
 
-  public ApplicationLocalizerEvent(LocalizerEventType type, Application app) {
-    super(type);
-    this.app = app;
+  private final LocalResourceVisibility vis;
+  private final Collection<LocalResourceRequest> reqs;
+
+  public ContainerLocalizationRequestEvent(Container c, Collection<LocalResourceRequest> reqs,
+      LocalResourceVisibility vis) {
+    super(LocalizationEventType.INIT_CONTAINER_RESOURCES, c);
+    this.vis = vis;
+    this.reqs = reqs;
   }
 
-  public Application getApplication() {
-    return app;
+  public LocalResourceVisibility getVisibility() {
+    return vis;
   }
 
+  public Collection<LocalResourceRequest> getRequestedResources() {
+    return reqs;
+  }
 }

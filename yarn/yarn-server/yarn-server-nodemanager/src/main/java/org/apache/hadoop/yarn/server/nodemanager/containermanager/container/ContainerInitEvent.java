@@ -15,22 +15,22 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
-package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+public class ContainerInitEvent extends ContainerEvent {
 
-public class ContainerLocalizerEvent extends LocalizerEvent {
+  private final Path logDir;
 
-  final Container container;
-
-  public ContainerLocalizerEvent(LocalizerEventType event, Container c) {
-    super(event);
-    this.container = c;
+  public ContainerInitEvent(ContainerId c, Path logDir) {
+    super(c, ContainerEventType.INIT_CONTAINER);
+    this.logDir = logDir;
   }
 
-  public Container getContainer() {
-    return container;
+  public Path getLogDir() {
+    return logDir;
   }
 
 }

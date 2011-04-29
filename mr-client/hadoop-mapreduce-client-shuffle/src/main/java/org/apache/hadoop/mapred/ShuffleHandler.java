@@ -92,7 +92,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServices;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
@@ -350,8 +350,8 @@ public class ShuffleHandler extends AbstractService
       appID.setClusterTimestamp(Long.parseLong(jobID.getJtIdentifier()));
       appID.setId(jobID.getId());
       final String base =
-          ApplicationLocalizer.USERCACHE + "/" + user + "/"
-              + ApplicationLocalizer.APPCACHE + "/"
+          ContainerLocalizer.USERCACHE + "/" + user + "/"
+              + ContainerLocalizer.APPCACHE + "/"
               + ConverterUtils.toString(appID) + "/output" + "/" + mapId;
       LOG.debug("DEBUG0 " + base);
       // Index file

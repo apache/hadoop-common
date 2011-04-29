@@ -74,7 +74,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Cont
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitor;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorImpl;
@@ -141,7 +141,7 @@ public class ContainerManagerImpl extends CompositeService implements
         new ContainerEventDispatcher());
     dispatcher.register(ApplicationEventType.class,
         new ApplicationEventDispatcher());
-    dispatcher.register(LocalizerEventType.class, rsrcLocalizationSrvc);
+    dispatcher.register(LocalizationEventType.class, rsrcLocalizationSrvc);
     dispatcher.register(AuxServicesEventType.class, auxiluaryServices);
     dispatcher.register(ContainersMonitorEventType.class, containersMonitor);
     dispatcher.register(ContainersLauncherEventType.class, containersLauncher);
@@ -218,22 +218,20 @@ public class ContainerManagerImpl extends CompositeService implements
     ContainerLaunchContext launchContext = request.getContainerLaunchContext();
   
     Container container = new ContainerImpl(this.dispatcher, launchContext);
+    //ContainerID containerID = launchContext.id;
     ContainerId containerID = launchContext.getContainerId();
+    //ApplicationID applicationID = containerID.appID;
     ApplicationId applicationID = containerID.getAppId();
-    if (this.context.getContainers().putIfAbsent(containerID, container) != null) {
+    if (context.getContainers().putIfAbsent(containerID, container) != null) {
       throw RPCUtil.getRemoteException("Container " + containerID
           + " already is running on this node!!");
     }
-//    if (LOG.isDebugEnabled()) { TODO
-      LOG.info("CONTAINER: " + launchContext);
-//    }
 
     // Create the application
-    Application application = new ApplicationImpl(this.dispatcher,
-        launchContext.getUser(), launchContext.getContainerId().getAppId(),
-        launchContext.getAllEnv(), launchContext.getAllLocalResources(),
-        launchContext.getContainerTokens());
-    if (this.context.getApplications().putIfAbsent(applicationID, application) == null) {
+    Application application = new ApplicationImpl(dispatcher,
+        launchContext.getUser(), applicationID);
+    if (null ==
+        context.getApplications().putIfAbsent(applicationID, application)) {
       LOG.info("Creating a new application reference for app "
           + applicationID);
     }
@@ -332,8 +330,8 @@ public class ContainerManagerImpl extends CompositeService implements
     case FINISH_CONTAINERS:
       CMgrCompletedContainersEvent containersFinishedEvent =
           (CMgrCompletedContainersEvent) event;
-      for (org.apache.hadoop.yarn.api.records.Container container : containersFinishedEvent
-          .getContainersToCleanup()) {
+      for (org.apache.hadoop.yarn.api.records.Container container :
+            containersFinishedEvent.getContainersToCleanup()) {
         this.dispatcher.getEventHandler().handle(
             new ContainerDiagnosticsUpdateEvent(container.getId(),
                 "Container Killed by ResourceManager"));

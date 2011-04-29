@@ -40,7 +40,7 @@ public class DeletionService extends AbstractService {
   static final Log LOG = LogFactory.getLog(DeletionService.class);
 
   private final ThreadPoolExecutor sched =
-    new ThreadPoolExecutor(1, 4, 60L, SECONDS,
+    new ThreadPoolExecutor(1, DEFAULT_MAX_DELETE_THREADS, 60L, SECONDS,
         new LinkedBlockingQueue<Runnable>());
   private final ContainerExecutor exec;
   private final FileContext lfs = getLfs();
@@ -69,8 +69,10 @@ public class DeletionService extends AbstractService {
 
   @Override
   public void init(Configuration conf) {
-    sched.setMaximumPoolSize(
-        conf.getInt(NM_MAX_DELETE_THREADS, DEFAULT_MAX_DELETE_THREADS));
+    if (conf != null) {
+      sched.setMaximumPoolSize(
+          conf.getInt(NM_MAX_DELETE_THREADS, DEFAULT_MAX_DELETE_THREADS));
+    }
     super.init(conf);
   }
 

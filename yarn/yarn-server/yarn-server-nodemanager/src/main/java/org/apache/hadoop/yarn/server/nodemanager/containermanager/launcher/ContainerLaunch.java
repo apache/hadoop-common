@@ -31,11 +31,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DataInputByteBuffer;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.event.Dispatcher;
@@ -46,7 +43,8 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Cont
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerExitEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class ContainerLaunch implements Callable<Integer> {
 
@@ -72,40 +70,34 @@ public class ContainerLaunch implements Callable<Integer> {
   }
 
   @Override
+  @SuppressWarnings("unchecked") // dispatcher not typed
   public Integer call() {
     final ContainerLaunchContext launchContext = container.getLaunchContext();
-    final Map<Path,String> localizedResources = app.getLocalizedResources();
+    final Map<Path,String> localResources = container.getLocalizedResources();
     final String user = launchContext.getUser();
     final Map<String,String> env = launchContext.getAllEnv();
     final List<String> command = launchContext.getCommandList();
     int ret = -1;
     try {
       FileContext lfs = FileContext.getLocalFSFileContext();
-      Path launchSysDir = new Path(sysDir, container.toString());
-      lfs.mkdir(launchSysDir, null, false);
+      Path launchSysDir =
+        new Path(sysDir, ConverterUtils.toString(container.getContainerID()));
+      lfs.mkdir(launchSysDir, null, true);
       Path launchPath = new Path(launchSysDir, CONTAINER_SCRIPT);
       Path tokensPath =
-        new Path(launchSysDir, ApplicationLocalizer.APPTOKEN_FILE);
+        new Path(launchSysDir, String.format(
+              ContainerLocalizer.TOKEN_FILE_FMT,
+              ConverterUtils.toString(container.getContainerID())));
       DataOutputStream launchOut = null;
       DataOutputStream tokensOut = null;
       
       try {
         launchOut = lfs.create(launchPath, EnumSet.of(CREATE, OVERWRITE));
-        ApplicationLocalizer.writeLaunchEnv(launchOut, env, localizedResources,
+        ContainerLocalizer.writeLaunchEnv(launchOut, env, localResources,
             command, appDirs);
         
         tokensOut = lfs.create(tokensPath, EnumSet.of(CREATE, OVERWRITE));
-        Credentials creds = new Credentials();
-        if (container.getLaunchContext().getContainerTokens() != null) {
-          // TODO: Is the conditional the correct way of checking?
-          DataInputByteBuffer buf = new DataInputByteBuffer();
-          container.getLaunchContext().getContainerTokens().rewind();
-          buf.reset(container.getLaunchContext().getContainerTokens());
-          creds.readTokenStorageStream(buf);
-          for (Token<? extends TokenIdentifier> tk : creds.getAllTokens()) {
-            LOG.debug(tk.getService() + " = " + tk.toString());
-          }
-        }
+        Credentials creds = container.getCredentials();
         creds.writeTokenStorageToStream(tokensOut);
       } finally {
         IOUtils.cleanup(LOG, launchOut, tokensOut);

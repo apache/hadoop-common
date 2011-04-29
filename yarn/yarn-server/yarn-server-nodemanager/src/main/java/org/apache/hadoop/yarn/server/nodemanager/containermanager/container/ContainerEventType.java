@@ -28,7 +28,8 @@ public enum ContainerEventType {
 
   // DownloadManager
   CONTAINER_INITED,
-  CONTAINER_RESOURCES_LOCALIZED,
+  RESOURCE_LOCALIZED,
+  RESOURCE_FAILED,
   CONTAINER_RESOURCES_CLEANEDUP,
 
   // Producer: ContainersLauncher

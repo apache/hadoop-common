@@ -18,7 +18,10 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
-import java.util.HashMap;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerResourceLocalizedEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationRequestEvent;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 import junit.framework.Assert;
 
@@ -45,9 +48,11 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Cont
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ApplicationLocalizerEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizerEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ApplicationLocalizationEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEvent;
+
+import static org.junit.Assert.*;
 
 public class DummyContainerManager extends ContainerManagerImpl {
 
@@ -66,19 +71,31 @@ public class DummyContainerManager extends ContainerManagerImpl {
       DeletionService deletionContext) {
     return new ResourceLocalizationService(super.dispatcher, exec, deletionContext) {
       @Override
-      public void handle(LocalizerEvent event) {
+      public void handle(LocalizationEvent event) {
         switch (event.getType()) {
         case INIT_APPLICATION_RESOURCES:
           Application app =
-              ((ApplicationLocalizerEvent) event).getApplication();
+              ((ApplicationLocalizationEvent) event).getApplication();
           // Simulate event from ApplicationLocalization.
-          this.dispatcher.getEventHandler().handle(
-              new ApplicationInitedEvent(app.getAppId(),
-                  new HashMap<Path, String>(), new Path("workDir")));
+          dispatcher.getEventHandler().handle(new ApplicationInitedEvent(
+                app.getAppId(), new Path("logdir")));
+          break;
+        case INIT_CONTAINER_RESOURCES:
+          ContainerLocalizationRequestEvent rsrcReqs =
+            (ContainerLocalizationRequestEvent) event;
+          // simulate localization of all requested resources
+          for (LocalResourceRequest req : rsrcReqs.getRequestedResources()) {
+            LOG.info("DEBUG: " + req + ":" +
+                rsrcReqs.getContainer().getContainerID());
+            dispatcher.getEventHandler().handle(
+                new ContainerResourceLocalizedEvent(
+                  rsrcReqs.getContainer().getContainerID(), req,
+                  new Path("file:///local" + req.getPath().toUri().getPath())));
+          }
           break;
         case CLEANUP_CONTAINER_RESOURCES:
           Container container =
-              ((ContainerLocalizerEvent) event).getContainer();
+              ((ContainerLocalizationEvent) event).getContainer();
           // TODO: delete the container dir
           this.dispatcher.getEventHandler().handle(
               new ContainerEvent(container.getContainerID(),
@@ -86,7 +103,7 @@ public class DummyContainerManager extends ContainerManagerImpl {
           break;
         case DESTROY_APPLICATION_RESOURCES:
           Application application =
-            ((ApplicationLocalizerEvent) event).getApplication();
+            ((ApplicationLocalizationEvent) event).getApplication();
 
           // decrement reference counts of all resources associated with this
           // app
@@ -94,6 +111,8 @@ public class DummyContainerManager extends ContainerManagerImpl {
               new ApplicationEvent(application.getAppId(),
                   ApplicationEventType.APPLICATION_RESOURCES_CLEANEDUP));
           break;
+        default:
+          fail("Unexpected event: " + event.getType());
         }
       }
     };
@@ -140,7 +159,9 @@ public class DummyContainerManager extends ContainerManagerImpl {
     while (!containerStatus.getState().equals(finalState)
         && timeoutSecs++ < timeOutMax) {
         Thread.sleep(1000);
-        LOG.info("Waiting for container to get into state " + finalState
+        LOG.info("Waiting for container " +
+            ConverterUtils.toString(containerID) +
+            " to get into state " + finalState
             + ". Current state is " + containerStatus.getState());
         containerStatus = containerManager.getContainerStatus(request).getStatus();
       }

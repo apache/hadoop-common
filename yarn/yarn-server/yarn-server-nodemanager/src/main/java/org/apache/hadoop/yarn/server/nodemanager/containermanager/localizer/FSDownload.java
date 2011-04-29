@@ -22,8 +22,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 
@@ -48,7 +46,7 @@ import org.apache.hadoop.yarn.api.records.LocalResource;
  * Download a single URL to the local disk.
  *
  */
-public class FSDownload implements Callable<Map<LocalResource,Path>> {
+public class FSDownload implements Callable<Path> {
 
   private static final Log LOG = LogFactory.getLog(FSDownload.class);
 
@@ -117,7 +115,7 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
   }
 
   @Override
-  public Map<LocalResource,Path> call() throws IOException {
+  public Path call() throws IOException {
     Path sCopy;
     try {
       sCopy = ConverterUtils.getPathFromYarnURL(resource.getResource());
@@ -140,7 +138,7 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
     Path dFinal = files.makeQualified(new Path(dst_work, sCopy.getName()));
     try {
       Path dTmp = files.makeQualified(copy(sCopy, dst_work));
-      resource.setSize(unpack(new File(dTmp.toUri()), new File(dFinal.toUri())));
+      unpack(new File(dTmp.toUri()), new File(dFinal.toUri()));
       files.rename(dst_work, dst, Rename.OVERWRITE);
     } catch (IOException e) {
       try { files.delete(dst, true); } catch (IOException ignore) { }
@@ -152,12 +150,11 @@ public class FSDownload implements Callable<Map<LocalResource,Path>> {
       // clear ref to internal var
       rand = null;
       conf = null;
-      //resource = null; TODO change downstream to not req
+      resource = null;
       dirs = null;
       cachePerms = null;
     }
-    return Collections.singletonMap(resource,
-        files.makeQualified(new Path(dst, sCopy.getName())));
+    return files.makeQualified(new Path(dst, sCopy.getName()));
   }
 
   private static long getEstimatedSize(LocalResource rsrc) {

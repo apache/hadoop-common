@@ -25,7 +25,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResource;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 
 import static org.apache.hadoop.yarn.api.records.LocalResourceType.*;
@@ -48,14 +48,14 @@ public class TestLocalResource {
     return ret;
   }
 
-  static void checkEqual(LocalResource a, LocalResource b) {
+  static void checkEqual(LocalResourceRequest a, LocalResourceRequest b) {
     assertEquals(a, b);
     assertEquals(a.hashCode(), b.hashCode());
     assertEquals(0, a.compareTo(b));
     assertEquals(0, b.compareTo(a));
   }
 
-  static void checkNotEqual(LocalResource a, LocalResource b) {
+  static void checkNotEqual(LocalResourceRequest a, LocalResourceRequest b) {
     assertFalse(a.equals(b));
     assertFalse(b.equals(a));
     assertFalse(a.hashCode() == b.hashCode());
@@ -75,40 +75,40 @@ public class TestLocalResource {
         new Path("http://yak.org:80/foobar"), -1, basetime, FILE, PUBLIC);
     org.apache.hadoop.yarn.api.records.LocalResource yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime, FILE, PUBLIC);
-    final LocalResource a = new LocalResource(yA);
-    LocalResource b = new LocalResource(yA);
+    final LocalResourceRequest a = new LocalResourceRequest(yA);
+    LocalResourceRequest b = new LocalResourceRequest(yA);
     checkEqual(a, b);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     checkEqual(a, b);
 
     // ignore visibility
     yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime, FILE, PRIVATE);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     checkEqual(a, b);
 
     // ignore size
     yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), 0, basetime, FILE, PRIVATE);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     checkEqual(a, b);
 
     // note path
     yB = getYarnResource(
         new Path("hdfs://dingo.org:80/foobar"), 0, basetime, ARCHIVE, PUBLIC);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     checkNotEqual(a, b);
 
     // note type
     yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), 0, basetime, ARCHIVE, PUBLIC);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     checkNotEqual(a, b);
 
     // note timestamp
     yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), 0, basetime + 1, FILE, PUBLIC);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     checkNotEqual(a, b);
   }
 
@@ -121,24 +121,24 @@ public class TestLocalResource {
     long basetime = r.nextLong() >>> 2;
     org.apache.hadoop.yarn.api.records.LocalResource yA = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime, FILE, PUBLIC);
-    final LocalResource a = new LocalResource(yA);
+    final LocalResourceRequest a = new LocalResourceRequest(yA);
 
     // Path primary
     org.apache.hadoop.yarn.api.records.LocalResource yB = getYarnResource(
         new Path("http://yak.org:80/foobaz"), -1, basetime, FILE, PUBLIC);
-    LocalResource b = new LocalResource(yB);
+    LocalResourceRequest b = new LocalResourceRequest(yB);
     assertTrue(0 > a.compareTo(b));
 
     // timestamp secondary
     yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime + 1, FILE, PUBLIC);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     assertTrue(0 > a.compareTo(b));
 
     // type tertiary
     yB = getYarnResource(
         new Path("http://yak.org:80/foobar"), -1, basetime, ARCHIVE, PUBLIC);
-    b = new LocalResource(yB);
+    b = new LocalResourceRequest(yB);
     assertTrue(0 != a.compareTo(b)); // don't care about order, just ne
   }
 

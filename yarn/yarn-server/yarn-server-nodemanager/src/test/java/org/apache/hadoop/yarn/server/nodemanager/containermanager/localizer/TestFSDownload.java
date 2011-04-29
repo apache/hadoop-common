@@ -20,15 +20,11 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -38,7 +34,9 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.LocalDirAllocator;
+import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.FSDownload;
 import org.apache.hadoop.yarn.util.ConverterUtils;
@@ -58,8 +56,11 @@ public class TestFSDownload {
     fs.delete(new Path("target", TestFSDownload.class.getSimpleName()), true);
   }
 
-  static org.apache.hadoop.yarn.api.records.LocalResource createFile(FileContext files, Path p, int len, Random r)
-      throws IOException, URISyntaxException {
+  static final RecordFactory recordFactory =
+    RecordFactoryProvider.getRecordFactory(null);
+
+  static LocalResource createFile(FileContext files, Path p, int len,
+      Random r) throws IOException, URISyntaxException {
     FSDataOutputStream out = null;
     try {
       byte[] bytes = new byte[len];
@@ -69,7 +70,7 @@ public class TestFSDownload {
     } finally {
       if (out != null) out.close();
     }
-    org.apache.hadoop.yarn.api.records.LocalResource ret = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.yarn.api.records.LocalResource.class);
+    LocalResource ret = recordFactory.newRecordInstance(LocalResource.class);
     ret.setResource(ConverterUtils.getYarnUrlFromPath(p));
     ret.setSize(len);
     ret.setType(LocalResourceType.FILE);
@@ -87,39 +88,32 @@ public class TestFSDownload {
     files.mkdir(basedir, null, true);
     conf.setStrings(TestFSDownload.class.getName(), basedir.toString());
 
-    Collection<FSDownload> pending = new ArrayList<FSDownload>();
     Random rand = new Random();
     long sharedSeed = rand.nextLong();
     rand.setSeed(sharedSeed);
     System.out.println("SEED: " + sharedSeed);
+
+    Map<LocalResource,Future<Path>> pending =
+      new HashMap<LocalResource,Future<Path>>();
+    ExecutorService exec = Executors.newSingleThreadExecutor();
     LocalDirAllocator dirs =
       new LocalDirAllocator(TestFSDownload.class.getName());
     int[] sizes = new int[10];
     for (int i = 0; i < 10; ++i) {
       sizes[i] = rand.nextInt(512) + 512;
-      org.apache.hadoop.yarn.api.records.LocalResource rsrc = createFile(files, new Path(basedir, "" + i),
+      LocalResource rsrc = createFile(files, new Path(basedir, "" + i),
           sizes[i], rand);
       FSDownload fsd =
         new FSDownload(files, conf, dirs, rsrc, new Random(sharedSeed));
-      pending.add(fsd);
+      pending.put(rsrc, exec.submit(fsd));
     }
 
-    ExecutorService exec = Executors.newSingleThreadExecutor();
-    CompletionService<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>> queue =
-      new ExecutorCompletionService<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>>(exec);
     try {
-      for (FSDownload fsd : pending) {
-        queue.submit(fsd);
-      }
-      Map<org.apache.hadoop.yarn.api.records.LocalResource,Path> results = new HashMap();
-      for (int i = 0; i < 10; ++i) {
-        Future<Map<org.apache.hadoop.yarn.api.records.LocalResource,Path>> result = queue.take();
-        results.putAll(result.get());
-      }
-      for (Map.Entry<org.apache.hadoop.yarn.api.records.LocalResource,Path> localized : results.entrySet()) {
+      for (Map.Entry<LocalResource,Future<Path>> p : pending.entrySet()) {
+        Path localized = p.getValue().get();
         assertEquals(
-            sizes[Integer.valueOf(localized.getValue().getName())],
-            localized.getKey().getSize() - 4096 - 16); // bad DU impl + .crc ; sigh
+          sizes[Integer.valueOf(localized.getName())],
+          p.getKey().getSize() - 4096 - 16); // bad DU impl + .crc ; sigh
       }
     } catch (ExecutionException e) {
       throw new IOException("Failed exec", e);

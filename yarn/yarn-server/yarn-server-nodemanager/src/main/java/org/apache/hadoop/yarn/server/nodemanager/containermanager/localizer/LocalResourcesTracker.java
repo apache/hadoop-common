@@ -18,23 +18,11 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
-import java.net.URISyntaxException;
-import java.util.Collection;
+import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceEvent;
 
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+public interface LocalResourcesTracker extends EventHandler<ResourceEvent> {
 
-public interface LocalResourcesTracker {
-
-  Collection<org.apache.hadoop.yarn.api.records.LocalResource> register(
-      AppLocalizationRunnerImpl appLocalizationRunner,
-      Collection<org.apache.hadoop.yarn.api.records.LocalResource> values)
-      throws URISyntaxException;
-
-  void setSuccess(LocalResource localRsrc, long size, Path pathFromYarnURL)
-      throws IllegalArgumentException, InterruptedException;
-
-  void removeFailedResource(LocalResource localResource,
-      YarnRemoteException cause);
+  public boolean contains(LocalResourceRequest resource);
 
 }

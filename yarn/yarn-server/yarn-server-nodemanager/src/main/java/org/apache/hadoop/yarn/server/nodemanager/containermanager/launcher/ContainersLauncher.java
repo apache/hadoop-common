@@ -45,9 +45,10 @@ import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.Signal;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.service.AbstractService;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 /**
  * The launcher for the containers. This service should be started only after
@@ -137,12 +138,13 @@ public class ContainersLauncher extends AbstractService
           context.getApplications().get(containerId.getAppId());
         List<Path> appDirs = new ArrayList<Path>(localDirs.size());
         for (Path p : localDirs) {
-          Path usersdir = new Path(p, ApplicationLocalizer.USERCACHE);
+          Path usersdir = new Path(p, ContainerLocalizer.USERCACHE);
           Path userdir = new Path(usersdir, userName);
-          Path appsdir = new Path(userdir, ApplicationLocalizer.APPCACHE);
+          Path appsdir = new Path(userdir, ContainerLocalizer.APPCACHE);
           appDirs.add(new Path(appsdir, app.toString()));
         }
-        Path appSysDir = new Path(sysDirs.get(0), app.toString());
+        Path appSysDir =
+          new Path(sysDirs.get(0), ConverterUtils.toString(app.getAppId()));
         // TODO set in Application
         //Path appLogDir = new Path(logDirs.get(0), app.toString());
         ContainerLaunch launch =

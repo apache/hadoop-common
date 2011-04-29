@@ -33,29 +33,33 @@ import org.apache.hadoop.yarn.service.AbstractService;
  * Dispatches events in a separate thread. Currently only single thread does
  * that. Potentially there could be multiple channels for each event type
  * class and a thread pool can be used to dispatch the events.
- *
  */
+@SuppressWarnings("rawtypes")
 public class AsyncDispatcher extends AbstractService implements Dispatcher {
 
   private static final Log LOG = LogFactory.getLog(AsyncDispatcher.class);
 
-  private BlockingQueue<Event> eventQueue = new LinkedBlockingQueue<Event>();
+  private final BlockingQueue<Event> eventQueue;
   private volatile boolean stopped = false;
 
   private Thread eventHandlingThread;
-  protected Map<Class<? extends Enum>, EventHandler> eventDispatchers = 
-    new HashMap<Class<? extends Enum>, EventHandler>();
+  protected final Map<Class<? extends Enum>, EventHandler> eventDispatchers;
 
   public AsyncDispatcher() {
-    super("Dispatcher");
+    this(new HashMap<Class<? extends Enum>, EventHandler>(),
+         new LinkedBlockingQueue<Event>());
   }
 
-  @Override
-  public void start() {
-    //start all the components
-    super.start();
+  AsyncDispatcher(
+      Map<Class<? extends Enum>, EventHandler> eventDispatchers,
+      BlockingQueue<Event> eventQueue) {
+    super("Dispatcher");
+    this.eventQueue = eventQueue;
+    this.eventDispatchers = eventDispatchers;
+  }
 
-    eventHandlingThread = new Thread(new Runnable() {
+  Runnable createThread() {
+    return new Runnable() {
       @Override
       public void run() {
         while (!stopped && !Thread.currentThread().isInterrupted()) {
@@ -71,7 +75,14 @@ public class AsyncDispatcher extends AbstractService implements Dispatcher {
           }
         }
       }
-    });
+    };
+  }
+
+  @Override
+  public void start() {
+    //start all the components
+    super.start();
+    eventHandlingThread = new Thread(createThread());
     eventHandlingThread.start();
   }
 
@@ -89,6 +100,7 @@ public class AsyncDispatcher extends AbstractService implements Dispatcher {
     super.stop();
   }
 
+  @SuppressWarnings("unchecked")
   protected void dispatch(Event event) {
     //all events go thru this loop
     LOG.info("Dispatching the event " + event.toString());
@@ -104,8 +116,8 @@ public class AsyncDispatcher extends AbstractService implements Dispatcher {
     }
   }
 
-  @SuppressWarnings("rawtypes")
   @Override
+  @SuppressWarnings("rawtypes")
   public void register(Class<? extends Enum> eventType,
       EventHandler handler) {
     /* check to see if we have a listener registered */
@@ -131,19 +143,15 @@ public class AsyncDispatcher extends AbstractService implements Dispatcher {
 
   @Override
   public EventHandler getEventHandler() {
-    // TODO Auto-generated method stub
     return new GenericEventHandler();
-
   }
 
-  public class GenericEventHandler implements EventHandler<Event> {
-    @Override
+  class GenericEventHandler implements EventHandler<Event> {
     public void handle(Event event) {
       /* all this method does is enqueue all the events onto the queue */
       eventQueue.offer(event);
-    }
+    };
   }
-
 
   /**
    * Multiplexing an event. Sending it to different handlers that

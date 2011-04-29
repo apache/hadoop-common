@@ -31,11 +31,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainerLaunch;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ApplicationLocalizer;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class LinuxContainerExecutor extends ContainerExecutor {
 
@@ -101,29 +100,26 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public void initApplication(Path nmLocal, LocalizationProtocol localization,
-      String user, String appId, Path logDir, List<Path> localDirs)
-      throws IOException, InterruptedException {
-    // TODO need a type
-    InetSocketAddress nmAddr = ((ResourceLocalizationService)localization).getAddress();
-    Path appFiles = new Path(nmLocal, ApplicationLocalizer.FILECACHE_FILE);
-    Path appTokens = new Path(nmLocal, ApplicationLocalizer.APPTOKEN_FILE);
+  public void startLocalizer(Path nmLocal, InetSocketAddress nmAddr,
+      String user, String appId, String locId, Path logDir,
+      List<Path> localDirs) throws IOException, InterruptedException {
+    Path appTokens = new Path(nmLocal, String.format(
+          ContainerLocalizer.TOKEN_FILE_FMT, locId));
     List<String> command = new ArrayList<String>(
       Arrays.asList(containerExecutorExe, 
                     user, 
                     Integer.toString(Commands.INITIALIZE_JOB.getValue()),
                     appId,
-                    appTokens.toUri().getPath().toString(),
-                    appFiles.toUri().getPath().toString()));
+                    appTokens.toUri().getPath().toString()));
     File jvm =                                  // use same jvm as parent
       new File(new File(System.getProperty("java.home"), "bin"), "java");
     command.add(jvm.toString());
     command.add("-classpath");
     command.add(System.getProperty("java.class.path"));
-    command.add(ApplicationLocalizer.class.getName());
+    command.add(ContainerLocalizer.class.getName());
     command.add(user);
     command.add(appId);
-    // add the task tracker's reporting address
+    command.add(locId);
     command.add(nmAddr.getHostName());
     command.add(Integer.toString(nmAddr.getPort()));
     command.add(logDir.toUri().getPath().toString());
@@ -156,7 +152,9 @@ public class LinuxContainerExecutor extends ContainerExecutor {
       String stderr) throws IOException {
     Path appWorkDir = new Path(appDirs.get(0), container.toString());
     Path launchScript = new Path(nmLocal, ContainerLaunch.CONTAINER_SCRIPT);
-    Path appToken = new Path(nmLocal, ApplicationLocalizer.APPTOKEN_FILE);
+    Path appToken = new Path(nmLocal, String.format(
+          ContainerLocalizer.TOKEN_FILE_FMT,
+          ConverterUtils.toString(container.getContainerID())));
     List<String> command = new ArrayList<String>(
       Arrays.asList(containerExecutorExe, 
                     user, 

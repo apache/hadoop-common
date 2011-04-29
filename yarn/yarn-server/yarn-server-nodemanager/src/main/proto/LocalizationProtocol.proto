@@ -5,8 +5,6 @@ option java_generate_equals_and_hash = true;
 
 import "yarn_server_nodemanager_service_protos.proto";
 
-
 service LocalizationProtocolService {
-  rpc successfulLocalization(SuccessfulLocalizationRequestProto) returns (SuccessfulLocalizationResponseProto);
-  rpc failedLocalization(FailedLocalizationRequestProto) returns (FailedLocalizationResponseProto);
+  rpc heartbeat(LocalizerStatusProto) returns (LocalizerHeartbeatResponseProto);
 }

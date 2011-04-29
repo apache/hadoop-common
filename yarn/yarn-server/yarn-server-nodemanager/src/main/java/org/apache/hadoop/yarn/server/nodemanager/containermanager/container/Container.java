@@ -18,10 +18,13 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
+import java.util.Map;
+
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.event.EventHandler;
-
 
 public interface Container extends EventHandler<ContainerEvent> {
 
@@ -32,6 +35,10 @@ public interface Container extends EventHandler<ContainerEvent> {
   ContainerState getContainerState();
 
   ContainerLaunchContext getLaunchContext();
+
+  Credentials getCredentials();
+
+  Map<Path,String> getLocalizedResources();
 
   org.apache.hadoop.yarn.api.records.Container cloneAndGetContainer();
 

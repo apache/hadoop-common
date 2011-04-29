@@ -15,31 +15,22 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
-import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 
 public class ApplicationInitedEvent extends ApplicationEvent {
 
-  private final Path workdir;
-  private final Map<Path,String> localizedResources;
+  private final Path logDir;
 
-  public ApplicationInitedEvent(ApplicationId appID,
-      Map<Path,String> localizedResources, Path workdir) {
+  public ApplicationInitedEvent(ApplicationId appID, Path logDir) {
     super(appID, ApplicationEventType.APPLICATION_INITED);
-    this.workdir = workdir;
-    this.localizedResources = localizedResources;
+    this.logDir = logDir;
   }
 
-  public Map<Path,String> getLocalizedResources() {
-    return localizedResources;
-  }
-
-  public Path getWorkDirectory() {
-    return workdir;
+  public Path getLogDir() {
+    return logDir;
   }
 
 }
