@@ -3,6 +3,7 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    Fix file creation in JobHistoryEventHandler. (sharad)
 
     Reorient container localization to be per-container rather than
     per-application. (cdouglas)

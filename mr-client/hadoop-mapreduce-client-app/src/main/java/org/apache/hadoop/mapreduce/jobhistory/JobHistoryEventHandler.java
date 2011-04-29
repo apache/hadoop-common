@@ -208,7 +208,7 @@ public class JobHistoryEventHandler extends AbstractService
     if (writer == null) {
       try {
         FSDataOutputStream out = logDirFc.create(logFile, EnumSet
-            .of(CreateFlag.OVERWRITE));
+            .of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
         writer = new EventWriter(out);
       } catch (IOException ioe) {
         LOG.info("Could not create log file for job " + jobName);
@@ -385,7 +385,7 @@ public class JobHistoryEventHandler extends AbstractService
          new FsPermission(HISTORY_DIR_PERMISSION), true);
       Path toPath = new Path(statusstoredir, "jobstats");
       FSDataOutputStream out = doneDirFc.create(toPath, EnumSet
-           .of(CreateFlag.OVERWRITE));
+           .of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
       EventWriter writer = new EventWriter(out);
       writer.write(event);
       writer.close();
