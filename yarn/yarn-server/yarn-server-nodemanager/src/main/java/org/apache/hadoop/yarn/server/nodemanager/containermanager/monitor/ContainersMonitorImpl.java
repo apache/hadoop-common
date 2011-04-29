@@ -134,7 +134,7 @@ public class ContainersMonitorImpl extends AbstractService implements
    * 
    * @return true if total physical memory check is enabled.
    */
-  boolean doCheckPhysicalMemory() {
+  boolean isPhysicalMemoryCheckEnabled() {
     return !(this.maxPmemAllottedForContainers == DISABLED_MEMORY_LIMIT);
   }
 
@@ -143,23 +143,43 @@ public class ContainersMonitorImpl extends AbstractService implements
    * 
    * @return true if total virtual memory check is enabled.
    */
-  boolean doCheckVirtualMemory() {
+  boolean isVirtualMemoryCheckEnabled() {
     return !(this.maxVmemAllottedForContainers == DISABLED_MEMORY_LIMIT);
+  }
+
+  private boolean isEnabled() {
+    if (!ProcfsBasedProcessTree.isAvailable()) {
+      LOG.info("ProcessTree implementation is missing on this system. "
+          + this.getClass().getName() + " is disabled.");
+      return false;
+    }
+
+    if (!(isPhysicalMemoryCheckEnabled() || isVirtualMemoryCheckEnabled())) {
+      LOG.info("Neither virutal-memory nor physical-memory monitoring is " +
+          "needed. Not running the monitor-thread");
+      return false;
+    }
+
+    return true;
   }
 
   @Override
   public synchronized void start() {
-    this.monitoringThread.start();
+    if (this.isEnabled()) {
+      this.monitoringThread.start();
+    }
     super.start();
   }
 
   @Override
   public synchronized void stop() {
-    this.monitoringThread.interrupt();
-    try {
-      this.monitoringThread.join();
-    } catch (InterruptedException e) {
-      ;
+    if (this.isEnabled()) {
+      this.monitoringThread.interrupt();
+      try {
+        this.monitoringThread.join();
+      } catch (InterruptedException e) {
+        ;
+      }
     }
     super.stop();
   }
@@ -284,12 +304,6 @@ public class ContainersMonitorImpl extends AbstractService implements
     @Override
     public void run() {
 
-      if (!(doCheckPhysicalMemory() || doCheckVirtualMemory())) {
-        LOG.info("Neither virutal-memory nor physical-memory monitoring is " +
-            "needed. Not running the monitor-thread");
-        return;
-      }
-
       while (true) {
 
         // Print the processTrees for debugging.
@@ -380,7 +394,7 @@ public class ContainersMonitorImpl extends AbstractService implements
 
             boolean isMemoryOverLimit = false;
             String msg = "";
-            if (doCheckVirtualMemory()
+            if (isVirtualMemoryCheckEnabled()
                 && isProcessTreeOverLimit(containerId.toString(),
                     currentVmemUsage, curMemUsageOfAgedProcesses, vmemLimit)) {
               // Container (the root process) is still alive and overflowing
@@ -399,7 +413,7 @@ public class ContainersMonitorImpl extends AbstractService implements
                       + "\nDump of the process-tree for " + containerId
                       + " : \n" + pTree.getProcessTreeDump();
               isMemoryOverLimit = true;
-            } else if (doCheckPhysicalMemory()
+            } else if (isPhysicalMemoryCheckEnabled()
                 && isProcessTreeOverLimit(containerId.toString(),
                     currentPmemUsage, curRssMemUsageOfAgedProcesses,
                     pmemLimit)) {
@@ -477,7 +491,7 @@ public class ContainersMonitorImpl extends AbstractService implements
   @Override
   public void handle(ContainersMonitorEvent monitoringEvent) {
 
-    if (!(doCheckPhysicalMemory() || doCheckVirtualMemory())) {
+    if (!isEnabled()) {
       return;
     }
 

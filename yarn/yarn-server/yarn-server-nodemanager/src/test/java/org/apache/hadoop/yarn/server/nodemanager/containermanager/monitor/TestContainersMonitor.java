@@ -238,7 +238,7 @@ public class TestContainersMonitor {
   public void testContainerKillOnMemoryOverflow() throws IOException,
       InterruptedException {
 
-    if (!System.getProperty("os.name").startsWith("Linux")) {
+    if (!ProcfsBasedProcessTree.isAvailable()) {
       return;
     }
 
