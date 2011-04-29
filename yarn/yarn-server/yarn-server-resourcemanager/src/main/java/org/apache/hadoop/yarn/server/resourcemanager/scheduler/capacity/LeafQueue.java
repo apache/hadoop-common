@@ -480,6 +480,13 @@ public class LeafQueue implements Queue {
         " node=" + node.getNodeAddress() + 
         " #applications=" + applications.size());
     
+    // Check for reserved resources
+    Application reservedApplication = node.getReservedApplication();
+    if (reservedApplication != null) {
+      return assignReservedContainers(reservedApplication, node, 
+          clusterResource);
+    }
+
     // Try to assign containers to applications in fifo order
     for (Application application : applications) {
   
@@ -537,6 +544,23 @@ public class LeafQueue implements Queue {
       application.showRequests();
     }
   
+    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+  }
+
+  private synchronized Resource assignReservedContainers(Application application, 
+      NodeManager node, Resource clusterResource) {
+    synchronized (application) {
+      for (Priority priority : application.getPriorities()) {
+
+        // Do we reserve containers at this 'priority'?
+        if (application.isReserved(node, priority)) {
+          assignContainersOnNode(clusterResource, node, application, priority);
+        }
+      }
+    }
+
+    // Doesn't matter... since it's already charged for at time of reservation
+    // "re-reservation" is *free*
     return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
   }
 
@@ -622,7 +646,9 @@ public class LeafQueue implements Queue {
     ResourceRequest offSwitchRequest = 
       application.getResourceRequest(priority, NodeManager.ANY);
 
-    return (offSwitchRequest.getNumContainers() > 0);
+    int requiredContainers = offSwitchRequest.getNumContainers();
+    int reservedContainers = application.getReservedContainers(priority);
+    return ((requiredContainers - reservedContainers) > 0);
   }
 
   Resource assignContainersOnNode(Resource clusterResource, NodeManager node, 
@@ -739,57 +765,106 @@ public class LeafQueue implements Queue {
         " request=" + request + " type=" + type);
     Resource capability = request.getCapability();
     
-    int availableContainers = 
-        node.getAvailableResource().getMemory() / capability.getMemory(); // TODO: A buggy
+    Resource available = node.getAvailableResource();
+
+    if (available.getMemory() >  0) {
+      
+      int availableContainers = 
+        available.getMemory() / capability.getMemory();         // TODO: A buggy
                                                                 // application
                                                                 // with this
                                                                 // zero would
                                                                 // crash the
                                                                 // scheduler.
     
-    if (availableContainers > 0) {
-      List<Container> containers =
-        new ArrayList<Container>();
-      Container container =
+      if (availableContainers > 0) {
+
+
+        List<Container> containers =
+          new ArrayList<Container>();
+        Container container =
           org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-              .create(recordFactory, application.getApplicationId(),
-                  application.getNewContainerId(), node.getNodeAddress(),
-                  node.getHttpAddress(), capability);
-      
-      // If security is enabled, send the container-tokens too.
-      if (UserGroupInformation.isSecurityEnabled()) {
-        ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
-        ContainerTokenIdentifier tokenidentifier =
-          new ContainerTokenIdentifier(container.getId(),
-              container.getContainerManagerAddress(), container.getResource());
-        containerToken.setIdentifier(ByteBuffer.wrap(tokenidentifier.getBytes()));
-        containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
-        containerToken.setPassword(ByteBuffer.wrap(containerTokenSecretManager
+          .create(recordFactory, application.getApplicationId(),
+              application.getNewContainerId(), node.getNodeAddress(),
+              node.getHttpAddress(), capability);
+
+        // If security is enabled, send the container-tokens too.
+        if (UserGroupInformation.isSecurityEnabled()) {
+          ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
+          ContainerTokenIdentifier tokenidentifier =
+            new ContainerTokenIdentifier(container.getId(),
+                container.getContainerManagerAddress(), container.getResource());
+          containerToken.setIdentifier(ByteBuffer.wrap(tokenidentifier.getBytes()));
+          containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
+          containerToken.setPassword(ByteBuffer.wrap(containerTokenSecretManager
               .createPassword(tokenidentifier)));
-        containerToken.setService(container.getContainerManagerAddress());
-        container.setContainerToken(containerToken);
+          containerToken.setService(container.getContainerManagerAddress());
+          container.setContainerToken(containerToken);
+        }
+
+        containers.add(container);
+
+        // Allocate
+        allocate(application, type, priority, request, node, containers);
+
+        // Did we previously reserve containers at this 'priority'?
+        if (application.isReserved(node, priority)){
+          unreserve(application, priority, node);
+        }
+        
+        LOG.info("allocatedContainer" +
+            " application=" + application.getApplicationId() +
+            " container=" + container + 
+            " queue=" + this.toString() + 
+            " util=" + getUtilization() + 
+            " used=" + usedResources + 
+            " cluster=" + clusterResource);
+
+        return container.getResource();
+      } else {
+        // Reserve by 'charging' in advance...
+        reserve(application, priority, node, request.getCapability());
+        
+        LOG.info("Reserved container " + 
+            " application=" + application.getApplicationId() +
+            " resource=" + request.getCapability() + 
+            " queue=" + this.toString() + 
+            " util=" + getUtilization() + 
+            " used=" + usedResources + 
+            " cluster=" + clusterResource);
+
+        return request.getCapability();
+
       }
-      
-      containers.add(container);
-
-      // Allocate container to the application
-      application.allocate(type, node, priority, request, containers);
-      
-      node.allocateContainer(application.getApplicationId(), containers);
-      
-      LOG.info("allocatedContainer" +
-          " container=" + container + 
-          " queue=" + this.toString() + 
-          " util=" + getUtilization() + 
-          " used=" + usedResources + 
-          " cluster=" + clusterResource);
-
-      return container.getResource();
     }
-    
     return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
   }
 
+  private void allocate(Application application, NodeType type, 
+      Priority priority, ResourceRequest request, 
+      NodeManager node, List<Container> containers) {
+    // Allocate container to the application
+    application.allocate(type, node, priority, request, containers);
+
+    // Inform the NodeManager about the allocation
+    node.allocateContainer(application.getApplicationId(), containers);
+  }
+
+  private void reserve(Application application, Priority priority, 
+      NodeManager node, Resource resource) {
+    application.reserveResource(node, priority, resource);
+    node.reserveResource(application, priority, resource);
+  }
+
+  private void unreserve(Application application, Priority priority, 
+      NodeManager node) {
+    // Done with the reservation?
+    if (application.isReserved(node, priority)) {
+      application.unreserveResource(node, priority);
+      node.unreserveResource(application, priority);
+    }
+  }
+  
   @Override
   public void completedContainer(Resource clusterResource, 
       Container container, Application application) {

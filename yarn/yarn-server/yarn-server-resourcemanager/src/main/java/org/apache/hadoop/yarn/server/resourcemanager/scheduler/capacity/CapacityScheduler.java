@@ -361,8 +361,28 @@ implements ResourceScheduler, CapacitySchedulerContext {
     // Completed containers
     processCompletedContainers(nodeResponse.getCompletedContainers());
     NodeManager nm = nodes.get(node.getNodeAddress());
+    
     // Assign new containers
-    root.assignContainers(clusterResource, nm);
+    // 1. Check for reserved applications
+    // 2. Schedule if there are no reservations
+    
+    Application reservedApplication = nm.getReservedApplication();
+    if (reservedApplication != null) {
+      // Try to fulfill the reservation
+      LOG.info("Trying to fulfill reservation for application " + 
+          reservedApplication.getApplicationId() + " on node: " + node);
+      LeafQueue queue = ((LeafQueue)reservedApplication.getQueue());
+      queue.assignContainers(clusterResource, nm);
+    }
+
+    // Try to schedule more if there are no reservations to fulfill
+    if (nm.getReservedApplication() == null) {
+      root.assignContainers(clusterResource, nm);
+    } else {
+      LOG.info("Skipping scheduling since node " + node + 
+          " is reserved by application " + 
+          nm.getReservedApplication().getApplicationId());
+    }
 
     return nodeResponse;
   }

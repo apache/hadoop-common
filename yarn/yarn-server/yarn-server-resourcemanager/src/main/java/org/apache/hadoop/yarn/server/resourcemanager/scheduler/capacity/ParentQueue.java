@@ -525,7 +525,7 @@ public class ParentQueue implements Queue {
         org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
             assigned, assignedToChild);
         
-        LOG.info("completedContainer" +
+        LOG.info("assignedContainer" +
             " queue=" + getQueueName() + 
             " util=" + getUtilization() + 
             " used=" + usedResources + 
@@ -553,8 +553,8 @@ public class ParentQueue implements Queue {
     return (getUtilization() < absoluteMaxCapacity);
   }
   
-  private boolean canAssign(NodeInfo node) {
-    return 
+  private boolean canAssign(NodeManager node) {
+    return (node.getReservedApplication() == null) && 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThanOrEqual(
         node.getAvailableResource(), 
         minimumAllocation);

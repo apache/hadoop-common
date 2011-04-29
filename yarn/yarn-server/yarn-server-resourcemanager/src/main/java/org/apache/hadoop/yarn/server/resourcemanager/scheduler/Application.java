@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -75,6 +76,17 @@ public class Application {
   Set<NodeInfo> applicationOnNodes = new HashSet<NodeInfo>();
   ApplicationMaster master;
   
+  /* Reserved containers */
+  private final Comparator<NodeManager> nodeComparator = 
+    new Comparator<NodeManager>() {
+    @Override
+    public int compare(NodeManager o1, NodeManager o2) {
+      return o1.getNodeID().getId() - o2.getNodeID().getId();
+    }
+  };
+  final Map<Priority, Set<NodeManager>> reservedContainers =
+    new HashMap<Priority, Set<NodeManager>>();
+
   public Application(ApplicationId applicationId, ApplicationMaster master,
       Queue queue, String user) {
     this.applicationId = applicationId;
@@ -340,5 +352,43 @@ public class Application {
     application.setStatus(status);
 
     return application;
+  }
+
+  public synchronized int getReservedContainers(Priority priority) {
+    Set<NodeManager> reservedNodes = this.reservedContainers.get(priority);
+    return (reservedNodes == null) ? 0 : reservedNodes.size();
+  }
+
+  public synchronized void reserveResource(NodeManager node, Priority priority,
+      Resource resource) {
+    Set<NodeManager> reservedNodes = this.reservedContainers.get(priority);
+    if (reservedNodes == null) {
+      reservedNodes = new TreeSet<NodeManager>(nodeComparator);
+      reservedContainers.put(priority, reservedNodes);
+    }
+    reservedNodes.add(node);
+    LOG.info("Application " + applicationId + " reserved " + resource + 
+        " on node " + node + ", currently has " + reservedNodes.size() + 
+        " at priority " + priority);
+  }
+
+  public synchronized void unreserveResource(NodeManager node, Priority priority) {
+    Set<NodeManager> reservedNodes = reservedContainers.get(priority);
+    reservedNodes.remove(node);
+    if (reservedNodes.isEmpty()) {
+      this.reservedContainers.remove(priority);
+    }
+
+    LOG.info("Application " + applicationId + " unreserved " + 
+        " on node " + node + ", currently has " + reservedNodes.size() + 
+        " at priority " + priority);
+  }
+
+  public synchronized boolean isReserved(NodeManager node, Priority priority) {
+    Set<NodeManager> reservedNodes = reservedContainers.get(priority);
+    if (reservedNodes != null) { 
+      return reservedNodes.contains(node);
+    }
+    return false;
   }
 }

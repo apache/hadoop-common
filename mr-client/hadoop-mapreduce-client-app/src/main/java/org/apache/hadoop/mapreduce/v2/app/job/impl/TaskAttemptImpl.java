@@ -425,7 +425,7 @@ public abstract class TaskAttemptImpl implements
       memory = conf.getInt(MRJobConfig.REDUCE_MEMORY_MB, 1024);
     }
     
-    return 1024; //FIXME:  why not "return memory;" ?
+    return memory;
   }
 
   private static LocalResource getLocalResource(FileContext fc, Path file, 

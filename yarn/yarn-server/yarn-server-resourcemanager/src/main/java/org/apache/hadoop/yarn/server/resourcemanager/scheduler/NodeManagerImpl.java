@@ -36,6 +36,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -341,10 +342,57 @@ public class NodeManagerImpl implements NodeManager {
     }
   }
 
+  private Application reservedApplication = null;
+
+  @Override
+  public synchronized void reserveResource(
+      Application application, Priority priority, Resource resource) {
+    // Check if it's already reserved
+    if (reservedApplication != null) {
+
+      // Cannot reserve more than one application on a given node!
+      if (!reservedApplication.applicationId.equals(application.applicationId)) {
+        throw new IllegalStateException("Trying to reserve resource " + resource + 
+            " for application " + application.getApplicationId() + 
+            " when currently reserved resource " + resource + 
+            " for application " + reservedApplication.getApplicationId() + 
+            " on node " + this);
+      }
+
+      LOG.info("Updated reserved resource " + resource + " on node " + 
+          this + " for application " + application);
+    } else {
+      this.reservedApplication = application;
+      LOG.info("Reserved resource " + resource + " on node " + this + 
+          " for application " + application);
+    }
+  }
+
+  @Override
+  public synchronized void unreserveResource(Application application, 
+      Priority priority) {
+    // Cannot unreserve for wrong application...
+    if (!reservedApplication.applicationId.equals(application.applicationId)) {
+      throw new IllegalStateException("Trying to unreserve " +  
+          " for application " + application.getApplicationId() + 
+          " when currently reserved " + 
+          " for application " + reservedApplication.getApplicationId() + 
+          " on node " + this);
+    }
+    
+    this.reservedApplication = null;
+  }
+
+  @Override
+  public synchronized Application getReservedApplication() {
+    return reservedApplication;
+  }
+
   @Override
   public String toString() {
     return "host: " + getNodeAddress() + " #containers=" + getNumContainers() +  
       " available=" + getAvailableResource().getMemory() + 
       " used=" + getUsedResource().getMemory();
   }
+
  }
