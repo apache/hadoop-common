@@ -15,7 +15,8 @@
     <hadoop-common.version>0.22.0-SNAPSHOT</hadoop-common.version>
     <hadoop-hdfs.version>0.22.0-SNAPSHOT</hadoop-hdfs.version>
     <yarn.version>1.0-SNAPSHOT</yarn.version>
-    <install.file>${project.build.directory}/pom.xml</install.file>
+    <install.pom>${project.build.directory}/saner-pom.xml</install.pom>
+    <install.file>${install.pom}</install.file>
   </properties>
 
   <repositories>
@@ -265,7 +266,7 @@
             <configuration>
               <target>
                 <echo message="project.build.directory: ${project.build.directory}"/>
-                <copy file="pom.xml" todir="${project.build.directory}">
+                <copy file="pom.xml" tofile="${install.pom}">
                   <filterchain>
                     <!-- we'll have to wait for ant 1.8.3 for the following
                     <expandproperties>
@@ -298,7 +299,7 @@
             <id>install-sanitized-pom</id>
             <configuration>
               <file>${install.file}</file>
-              <pomFile>${project.build.directory}/pom.xml</pomFile>
+              <pomFile>${install.pom}</pomFile>
             </configuration>
             <phase>install</phase>
             <goals>

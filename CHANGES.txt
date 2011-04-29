@@ -61,6 +61,9 @@ Trunk (unreleased changes)
  
     Clear application notification if sent once to NodeManager (mahadev)
 
+    MAPREDUCE-2458. Rename sanitized pom.xml in build directory to work around IDE bug 
+    (luke lu via mahadev)
+
   INCOMPATIBLE CHANGES
 
     MAPREDUCE-1866. Removes deprecated class
