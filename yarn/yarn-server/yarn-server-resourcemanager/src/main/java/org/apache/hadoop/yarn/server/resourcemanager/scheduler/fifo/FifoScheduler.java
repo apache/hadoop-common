@@ -51,12 +51,14 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 
@@ -77,21 +79,26 @@ public class FifoScheduler implements ResourceScheduler {
   private final static Container[] EMPTY_CONTAINER_ARRAY = new Container[] {};
   private final static List<Container> EMPTY_CONTAINER_LIST = Arrays.asList(EMPTY_CONTAINER_ARRAY);
   
-  public static final Resource MINIMUM_ALLOCATION = 
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(
-        MINIMUM_MEMORY);
+  public static final Resource MINIMUM_ALLOCATION =
+      Resources.createResource(MINIMUM_MEMORY);
     
   Map<ApplicationId, Application> applications = 
     new TreeMap<ApplicationId, Application>(
         new org.apache.hadoop.yarn.util.BuilderUtils.ApplicationIdComparator());
 
+  private static final String DEFAULT_QUEUE_NAME = "default";
+  private final QueueMetrics metrics =
+      QueueMetrics.forQueue(DEFAULT_QUEUE_NAME, null, false);
+
   private final Queue DEFAULT_QUEUE = new Queue() {
-    
-    private static final String DEFAULT_QUEUE_NAME = "default";
-    
     @Override
     public String getQueueName() {
       return DEFAULT_QUEUE_NAME;
+    }
+
+    @Override
+    public QueueMetrics getMetrics() {
+      return metrics;
     }
 
     @Override
@@ -196,8 +203,10 @@ public class FifoScheduler implements ResourceScheduler {
   
   private void normalizeRequest(ResourceRequest ask) {
     int memory = ask.getCapability().getMemory();
-    memory = 
-      MINIMUM_MEMORY * ((memory/MINIMUM_MEMORY) + (memory%MINIMUM_MEMORY)); 
+    // FIXME: TestApplicationCleanup is relying on unnormalized behavior.
+    //ask.capability.memory = MINIMUM_MEMORY *
+    memory = MINIMUM_MEMORY *
+        ((memory/MINIMUM_MEMORY) + (memory%MINIMUM_MEMORY > 0 ? 1 : 0));
   }
   
   private synchronized Application getApplication(ApplicationId applicationId) {
@@ -210,6 +219,7 @@ public class FifoScheduler implements ResourceScheduler {
   throws IOException {
     applications.put(applicationId, 
         new Application(applicationId, master, DEFAULT_QUEUE, user));
+    metrics.submitApp(user);
     LOG.info("Application Submission: " + applicationId.getId() + " from " + user + 
         ", currently active: " + applications.size());
   }
@@ -225,7 +235,11 @@ public class FifoScheduler implements ResourceScheduler {
     
     // Release current containers
     releaseContainers(application, application.getCurrentContainers());
-    
+
+    // Update metrics
+    metrics.finishApp(application);
+    application.finish();
+
     // Let the cluster know that the applications are done
     finishedApplication(applicationId, 
         application.getAllNodesForApplication());
@@ -269,8 +283,7 @@ public class FifoScheduler implements ResourceScheduler {
       application.showRequests();
       
       // Done
-      if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.lessThan(
-          node.getAvailableResource(), MINIMUM_ALLOCATION)) {
+      if (Resources.lessThan(node.getAvailableResource(), MINIMUM_ALLOCATION)) {
         return;
       }
     }
@@ -416,7 +429,7 @@ public class FifoScheduler implements ResourceScheduler {
                     node.getHttpAddress(), capability);
         // If security is enabled, send the container-tokens too.
         if (UserGroupInformation.isSecurityEnabled()) {
-          ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
+          ContainerToken containerToken = recordFactory.newRecordInstance(ContainerToken.class);
           ContainerTokenIdentifier tokenidentifier =
               new ContainerTokenIdentifier(container.getId(),
                   container.getContainerManagerAddress(), container.getResource());
@@ -433,6 +446,8 @@ public class FifoScheduler implements ResourceScheduler {
       }
       application.allocate(type, node, priority, request, containers);
       addAllocatedContainers(node, application.getApplicationId(), containers);
+      Resources.addTo(usedResource,
+                      Resources.multiply(capability, assignedContainers));
     }
     return assignedContainers;
   }
@@ -457,10 +472,12 @@ public class FifoScheduler implements ResourceScheduler {
     NodeResponse nodeResponse = nodeUpdateInternal(node, containers);
     applicationCompletedContainers(nodeResponse.getCompletedContainers());
     LOG.info("Node heartbeat " + node.getNodeID() + " resource = " + node.getAvailableResource());
-    if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
-        greaterThanOrEqual(node.getAvailableResource(), MINIMUM_ALLOCATION)) {
+    if (Resources.greaterThanOrEqual(node.getAvailableResource(),
+                                     MINIMUM_ALLOCATION)) {
       assignContainers(node);
     }
+    metrics.setAvailableQueueMemory(
+        clusterResource.getMemory() - usedResource.getMemory());
     LOG.info("Node after allocation " + node.getNodeID() + " resource = "
       + node.getAvailableResource());
 
@@ -495,7 +512,8 @@ public class FifoScheduler implements ResourceScheduler {
   }
   
   private Map<String, NodeManager> nodes = new HashMap<String, NodeManager>();
-  private Resource clusterResource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Resource.class);
+  private Resource clusterResource = recordFactory.newRecordInstance(Resource.class);
+  private Resource usedResource = recordFactory.newRecordInstance(Resource.class);
  
   public synchronized Resource getClusterResource() {
     return clusterResource;
@@ -503,8 +521,7 @@ public class FifoScheduler implements ResourceScheduler {
 
   @Override
   public synchronized void removeNode(NodeInfo nodeInfo) {
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        clusterResource, nodeInfo.getTotalCapability());
+    Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
     //TODO inform the the applications that the containers are completed/failed
     nodes.remove(nodeInfo.getNodeAddress());
   }
@@ -539,8 +556,7 @@ public class FifoScheduler implements ResourceScheduler {
   @Override
   public synchronized void addNode(NodeManager nodeManager) {
     nodes.put(nodeManager.getNodeAddress(), nodeManager);
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        clusterResource, nodeManager.getTotalCapability());
+    Resources.addTo(clusterResource, nodeManager.getTotalCapability());
   }
 
   public synchronized boolean releaseContainer(ApplicationId applicationId, 

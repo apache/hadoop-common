@@ -47,6 +47,7 @@ import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -153,7 +154,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     CapacitySchedulerConfiguration.PREFIX + ROOT;
 
   private void initializeQueues(CapacitySchedulerConfiguration conf) {
-    root = parseQueue(conf, null, ROOT, queues);
+    root = parseQueue(conf, null, ROOT, queues, queues);
     LOG.info("Initialized root queue " + root);
   }
 
@@ -161,7 +162,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   throws IOException {
     // Parse new queues
     Map<String, Queue> newQueues = new HashMap<String, Queue>();
-    Queue newRoot = parseQueue(conf, null, ROOT, newQueues);
+    Queue newRoot = parseQueue(conf, null, ROOT, newQueues, queues);
     
     // Ensure all existing queues are still present
     validateExistingQueues(queues, newQueues);
@@ -186,20 +187,23 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   private Queue parseQueue(CapacitySchedulerConfiguration conf, 
-      Queue parent, String queueName, Map<String, Queue> queues) {
+      Queue parent, String queueName, Map<String, Queue> queues,
+      Map<String, Queue> oldQueues) {
     Queue queue;
     String[] childQueueNames = 
       conf.getQueues((parent == null) ? 
           queueName : (parent.getQueuePath()+"."+queueName));
     if (childQueueNames == null || childQueueNames.length == 0) {
-      queue = new LeafQueue(this, queueName, parent, applicationComparator);
+      queue = new LeafQueue(this, queueName, parent, applicationComparator,
+                            oldQueues.get(queueName));
     } else {
       ParentQueue parentQueue = 
-        new ParentQueue(this, queueName, queueComparator, parent);
+        new ParentQueue(this, queueName, queueComparator, parent,
+                        oldQueues.get(queueName));
       List<Queue> childQueues = new ArrayList<Queue>();
       for (String childQueueName : childQueueNames) {
         Queue childQueue = 
-          parseQueue(conf, parentQueue, childQueueName, queues);
+          parseQueue(conf, parentQueue, childQueueName, queues, oldQueues);
         childQueues.add(childQueue);
       }
       parentQueue.setChildQueues(childQueues);
@@ -462,8 +466,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   @Override
   public synchronized void removeNode(NodeInfo nodeInfo) {
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        clusterResource, nodeInfo.getTotalCapability());
+    Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
     //TODO inform the applications that the containers are completed/failed
     nodes.remove(nodeInfo.getNodeAddress());
   }
@@ -476,8 +479,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   @Override
   public synchronized void addNode(NodeManager nodeManager) {
     nodes.put(nodeManager.getNodeAddress(), nodeManager);
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        clusterResource, nodeManager.getTotalCapability());
+    Resources.addTo(clusterResource, nodeManager.getTotalCapability());
   }
 
   public synchronized boolean releaseContainer(ApplicationId applicationId, 

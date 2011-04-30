@@ -39,6 +39,12 @@ public interface Queue {
   String getQueueName();
 
   /**
+   * Get the queue metrics
+   * @return the queue metrics
+   */
+  QueueMetrics getMetrics();
+
+  /**
    * Get ACLs for the queue.
    * @return ACLs for the queue
    */

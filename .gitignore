@@ -46,3 +46,4 @@ src/docs/cn/uming.conf
 target
 SecurityAuth.audit
 conf/yarn-site.xml
+.eclipse.templates/

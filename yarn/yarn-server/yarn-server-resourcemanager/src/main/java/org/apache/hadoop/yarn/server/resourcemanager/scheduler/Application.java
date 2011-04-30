@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -44,6 +43,7 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 
 /**
@@ -75,6 +75,7 @@ public class Application {
   List<Container> allocated = new ArrayList<Container>(); 
   Set<NodeInfo> applicationOnNodes = new HashSet<NodeInfo>();
   ApplicationMaster master;
+  boolean pending = true; // for app metrics
   
   /* Reserved containers */
   private final Comparator<NodeManager> nodeComparator = 
@@ -107,6 +108,14 @@ public class Application {
     return user;
   }
 
+  public ApplicationState getState() {
+    return master.getState();
+  }
+
+  public boolean isPending() {
+    return pending;
+  }
+
   public synchronized Map<Priority, Map<String, ResourceRequest>> getRequests() {
     return requests;
   }
@@ -137,10 +146,8 @@ public class Application {
     List<Container> heartbeatContainers = allocated;
     allocated = new ArrayList<Container>();
 
-    // Metrics
     for (Container container : heartbeatContainers) {
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-          overallConsumption, container.getResource());
+      Resources.addTo(overallConsumption, container.getResource());
     }
 
     LOG.debug("acquire:" +
@@ -159,13 +166,22 @@ public class Application {
    * application, by asking for more resources and releasing resources 
    * acquired by the application.
    * @param requests resources to be acquired
-   * @param release resources being released
    */
   synchronized public void updateResourceRequests(List<ResourceRequest> requests) {
+    QueueMetrics metrics = queue.getMetrics();
     // Update resource requests
     for (ResourceRequest request : requests) {
       Priority priority = request.getPriority();
       String hostName = request.getHostName();
+      boolean updatePendingResources = false;
+      ResourceRequest lastRequest = null;
+
+      if (hostName.equals(NodeManager.ANY)) {
+        LOG.debug("update:" +
+            " application=" + applicationId +
+            " request=" + request);
+        updatePendingResources = true;
+      }
 
       Map<String, ResourceRequest> asks = this.requests.get(priority);
 
@@ -173,14 +189,24 @@ public class Application {
         asks = new HashMap<String, ResourceRequest>();
         this.requests.put(priority, asks);
         this.priorities.add(priority);
+      } else if (updatePendingResources) {
+        lastRequest = asks.get(hostName);
       }
 
       asks.put(hostName, request);
 
-      if (hostName.equals(NodeManager.ANY)) {
-        LOG.debug("update:" +
-            " application=" + applicationId + 
-            " request=" + request);
+      if (updatePendingResources) {
+        int lastRequestContainers = lastRequest != null ?
+            lastRequest.getNumContainers() : 0;
+        Resource lastRequestCapability = lastRequest != null ?
+            lastRequest.getCapability() : Resources.none();
+        metrics.incrPendingResources(user,
+            request.getNumContainers() - lastRequestContainers,
+            Resources.subtractFrom( // save a clone
+                Resources.multiply(request.getCapability(),
+                                   request.getNumContainers()),
+                Resources.multiply(lastRequestCapability,
+                                   lastRequestContainers)));
       }
     }
   }
@@ -190,8 +216,7 @@ public class Application {
     for (Container container : release) {
       LOG.debug("update: " +
           "application=" + applicationId + " released=" + container);
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-          currentConsumption, container.getResource());
+      Resources.subtractFrom(currentConsumption, container.getResource());
       for (Iterator<Container> i=acquired.iterator(); i.hasNext();) {
         Container c = i.next();
         if (c.getId().equals(container.getId())) {
@@ -220,6 +245,7 @@ public class Application {
   synchronized public void completedContainer(Container container) {
     LOG.info("Completed container: " + container);
     completedContainers.add(container);
+    queue.getMetrics().releaseResources(user, 1, container.getResource());
   }
 
   synchronized public void completedContainers(List<Container> containers) {
@@ -245,6 +271,15 @@ public class Application {
     } else {
       allocateOffSwitch(node, priority, request, containers);
     }
+    QueueMetrics metrics = queue.getMetrics();
+    if (pending) {
+      // once an allocation is done we assume the application is
+      // running from scheduler's POV.
+      pending = false;
+      metrics.incrAppsRunning(user);
+    }
+    LOG.debug("allocate: user: "+ user +", memory: "+ request.getCapability());
+    metrics.allocateResources(user, containers.size(), request.getCapability());
   }
 
   /**
@@ -306,8 +341,7 @@ public class Application {
   synchronized private void allocate(List<Container> containers) {
     // Update consumption and track allocations
     for (Container container : containers) {
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-          currentConsumption, container.getResource());
+      Resources.addTo(currentConsumption, container.getResource());
 
       allocated.add(container);
 
@@ -390,5 +424,18 @@ public class Application {
       return reservedNodes.contains(node);
     }
     return false;
+  }
+
+  synchronized public void finish() {
+    // GC pending resources metrics
+    QueueMetrics metrics = queue.getMetrics();
+    for (Map<String, ResourceRequest> asks : requests.values()) {
+      ResourceRequest request = asks.get(NodeManager.ANY);
+      if (request != null) {
+        metrics.decrPendingResources(user, request.getNumContainers(),
+            Resources.multiply(request.getCapability(),
+                               request.getNumContainers()));
+      }
+    }
   }
 }

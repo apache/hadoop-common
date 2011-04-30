@@ -18,10 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager;
 
-
 import java.io.IOException;
-
-import junit.framework.TestCase;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -29,15 +26,14 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
-import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-public class TestResourceManager extends TestCase {
+public class TestResourceManager {
   private static final Log LOG = LogFactory.getLog(TestResourceManager.class);
   
   private ResourceManager resourceManager = null;
@@ -133,9 +129,7 @@ public class TestResourceManager extends TestCase {
     
     // Application resource requirements
     final int memory1 = 1024;
-    Resource capability1 = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(
-          memory1); 
+    Resource capability1 = Resources.createResource(memory1);
     Priority priority1 = 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Priority.create(1);
     application.addResourceRequestSpec(priority1, capability1);
@@ -144,9 +138,7 @@ public class TestResourceManager extends TestCase {
     application.addTask(t1);
         
     final int memory2 = 2048;
-    Resource capability2 = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(
-          memory2); 
+    Resource capability2 = Resources.createResource(memory2);
     Priority priority0 = 
       org.apache.hadoop.yarn.server.resourcemanager.resource.Priority.create(0); // higher
     application.addResourceRequestSpec(priority0, capability2);

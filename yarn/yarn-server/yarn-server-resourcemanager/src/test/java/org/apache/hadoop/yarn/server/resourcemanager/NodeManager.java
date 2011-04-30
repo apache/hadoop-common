@@ -53,6 +53,7 @@ import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequ
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.NodeStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 
@@ -81,11 +82,8 @@ public class NodeManager implements ContainerManager {
     this.nodeHttpAddress = hostName + ":" + httpPort;
     this.rackName = rackName;
     this.resourceTracker = resourceTracker;
-    this.capability = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(
-          memory);
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        available, capability);
+    this.capability = Resources.createResource(memory);
+    Resources.addTo(available, capability);
 
     RegisterNodeManagerRequest request = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
     request.setHost(hostName);
@@ -174,10 +172,8 @@ public class NodeManager implements ContainerManager {
                 containerLaunchContext.getResource());
     applicationContainers.add(container);
     
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        available, containerLaunchContext.getResource());
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        used, containerLaunchContext.getResource());
+    Resources.subtractFrom(available, containerLaunchContext.getResource());
+    Resources.addTo(used, containerLaunchContext.getResource());
     
     LOG.info("DEBUG --- startContainer:" +
         " node=" + containerManagerAddress +
@@ -230,10 +226,8 @@ public class NodeManager implements ContainerManager {
           " stopped " + ctr + " times!");
     }
     
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        available, container.getResource());
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        used, container.getResource());
+    Resources.addTo(available, container.getResource());
+    Resources.subtractFrom(used, container.getResource());
 
     LOG.info("DEBUG --- stopContainer:" +
         " node=" + containerManagerAddress +

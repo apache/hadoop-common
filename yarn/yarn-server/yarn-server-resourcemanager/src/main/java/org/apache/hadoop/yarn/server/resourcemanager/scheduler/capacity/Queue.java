@@ -188,4 +188,10 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    */
   public void reinitialize(Queue queue, Resource clusterResource) 
   throws IOException;
+
+   /**
+   * Update the cluster resource for queues as we add/remove nodes
+   * @param clusterResource the current cluster resource
+   */
+  public void updateResource(Resource clusterResource);
 }

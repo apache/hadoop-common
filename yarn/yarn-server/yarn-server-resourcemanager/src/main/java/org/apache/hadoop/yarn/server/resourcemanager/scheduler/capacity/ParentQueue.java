@@ -46,9 +46,11 @@ import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
 
 @Private
 @Evolving
@@ -71,7 +73,7 @@ public class ParentQueue implements Queue {
   private final Comparator<Queue> queueComparator;
   
   private Resource usedResources = 
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
+    Resources.createResource(0);
   
   private final boolean rootQueue;
   
@@ -81,7 +83,9 @@ public class ParentQueue implements Queue {
   private volatile int numContainers;
 
   private QueueState state;
-  
+
+  private final QueueMetrics metrics;
+
   private QueueInfo queueInfo; 
   private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
   applicationInfos;
@@ -93,13 +97,18 @@ public class ParentQueue implements Queue {
     RecordFactoryProvider.getRecordFactory(null);
 
   public ParentQueue(CapacitySchedulerContext cs, 
-      String queueName, Comparator<Queue> comparator, Queue parent) {
+      String queueName, Comparator<Queue> comparator, Queue parent, Queue old) {
     minimumAllocation = cs.getMinimumAllocation();
     
     this.parent = parent;
     this.queueName = queueName;
     this.rootQueue = (parent == null);
-    
+
+    // must be called after parent and queueName is set
+    this.metrics = old != null ? old.getMetrics() :
+        QueueMetrics.forQueue(getQueuePath(), parent,
+        cs.getConfiguration().getEnableUserMetrics());
+
     float capacity = 
       (float)cs.getConfiguration().getCapacity(getQueuePath()) / 100;
 
@@ -377,7 +386,7 @@ public class ParentQueue implements Queue {
         parentQueue.state, parentQueue.acls);
 
     // Update
-    update(clusterResource);
+    updateResource(clusterResource);
   }
 
   Map<String, Queue> getQueues(Set<Queue> queues) {
@@ -496,8 +505,7 @@ public class ParentQueue implements Queue {
   @Override
   public synchronized Resource assignContainers(
       Resource clusterResource, NodeManager node) {
-    Resource assigned = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
+    Resource assigned = Resources.createResource(0);
 
     while (canAssign(node)) {
       LOG.info("DEBUG --- Trying to assign containers to child-queue of " + 
@@ -515,15 +523,12 @@ public class ParentQueue implements Queue {
       Resource assignedToChild = assignContainersToChildQueues(clusterResource, node);
 
       // Done if no child-queue assigned anything
-      if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThan(
-          assignedToChild, 
-          org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
+      if (Resources.greaterThan(assignedToChild, Resources.none())) {
         // Track resource utilization for the parent-queue
         allocateResource(clusterResource, assignedToChild);
         
         // Track resource utilization in this pass of the scheduler
-        org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-            assigned, assignedToChild);
+        Resources.addTo(assigned, assignedToChild);
         
         LOG.info("assignedContainer" +
             " queue=" + getQueueName() + 
@@ -555,15 +560,13 @@ public class ParentQueue implements Queue {
   
   private boolean canAssign(NodeManager node) {
     return (node.getReservedApplication() == null) && 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThanOrEqual(
-        node.getAvailableResource(), 
-        minimumAllocation);
+        Resources.greaterThanOrEqual(node.getAvailableResource(), 
+                                     minimumAllocation);
   }
   
   synchronized Resource assignContainersToChildQueues(Resource cluster, 
       NodeManager node) {
-    Resource assigned = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
+    Resource assigned = Resources.createResource(0);
     
     printChildQueues();
 
@@ -576,9 +579,7 @@ public class ParentQueue implements Queue {
       assigned = childQueue.assignContainers(cluster, node);
 
       // If we do assign, remove the queue and re-insert in-order to re-sort
-      if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThan(
-            assigned, 
-            org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
+      if (Resources.greaterThan(assigned, Resources.none())) {
         // Remove and re-insert to sort
         iter.remove();
         LOG.info("Re-sorting queues since queue: " + childQueue.getQueuePath() + 
@@ -629,23 +630,28 @@ public class ParentQueue implements Queue {
   
   private synchronized void allocateResource(Resource clusterResource, 
       Resource resource) {
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
-      addResource(usedResources, resource);
-    update(clusterResource);
+    Resources.addTo(usedResources, resource);
+    updateResource(clusterResource);
     ++numContainers;
   }
   
   private synchronized void releaseResource(Resource clusterResource, 
       Resource resource) {
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
-      subtractResource(usedResources, resource);
-    update(clusterResource);
+    Resources.subtractFrom(usedResources, resource);
+    updateResource(clusterResource);
     --numContainers;
   }
 
-  private synchronized void update(Resource clusterResource) {
-    setUtilization(usedResources.getMemory() / (clusterResource.getMemory() * absoluteCapacity));
+  @Override
+  public synchronized void updateResource(Resource clusterResource) {
+    float memLimit = clusterResource.getMemory() * absoluteCapacity;
+    setUtilization(usedResources.getMemory() / memLimit);
     setUsedCapacity(usedResources.getMemory() / (clusterResource.getMemory() * capacity));
+    metrics.setAvailableQueueMemory((int) memLimit - usedResources.getMemory());
   }
-  
+
+  @Override
+  public QueueMetrics getMetrics() {
+    return metrics;
+  }
 }

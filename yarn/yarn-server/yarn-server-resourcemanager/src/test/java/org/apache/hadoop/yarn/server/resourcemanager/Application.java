@@ -49,6 +49,7 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.Task.State;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
 
 @Private
@@ -211,8 +212,7 @@ public class Application {
     stopRequest.setContainerId(containerId);
     nodeManager.stopContainer(stopRequest);
     
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        used, requestSpec.get(task.getPriority()));
+    Resources.subtractFrom(used, requestSpec.get(task.getPriority()));
     
     LOG.info("Finished task " + task.getTaskId() + 
         " of application " + applicationId + 
@@ -324,8 +324,7 @@ public class Application {
       Container container = i.next();
       String host = container.getContainerManagerAddress();
       
-      if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.equals(
-          requestSpec.get(priority), container.getResource())) { 
+      if (Resources.equals(requestSpec.get(priority), container.getResource())) { 
         // See which task can use this container
         for (Iterator<Task> t=tasks.get(priority).iterator(); t.hasNext();) {
           Task task = t.next();
@@ -336,8 +335,7 @@ public class Application {
             i.remove();
             
             // Track application resource usage
-            org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-                used, container.getResource());
+            Resources.addTo(used, container.getResource());
             
             LOG.info("Assigned container (" + container + ") of type " + type +
                 " to task " + task.getTaskId() + " at priority " + priority + 

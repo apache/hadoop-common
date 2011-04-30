@@ -49,10 +49,12 @@ import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 
 @Private
@@ -72,8 +74,7 @@ public class LeafQueue implements Queue {
   private int maxApplications;
   private int maxApplicationsPerUser;
   
-  private Resource usedResources = 
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
+  private Resource usedResources = Resources.createResource(0);
   private float utilization = 0.0f;
   private float usedCapacity = 0.0f;
   private volatile int numContainers;
@@ -86,6 +87,8 @@ public class LeafQueue implements Queue {
 
   private Map<String, User> users = new HashMap<String, User>();
   
+  private final QueueMetrics metrics;
+
   private QueueInfo queueInfo; 
   private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
   applicationInfos;
@@ -100,9 +103,13 @@ public class LeafQueue implements Queue {
 
   public LeafQueue(CapacitySchedulerContext cs, 
       String queueName, Queue parent, 
-      Comparator<Application> applicationComparator) {
+      Comparator<Application> applicationComparator, Queue old) {
     this.queueName = queueName;
     this.parent = parent;
+    // must be after parent and queueName are initialized
+    this.metrics = old != null ? old.getMetrics() :
+        QueueMetrics.forQueue(getQueuePath(), parent,
+        cs.getConfiguration().getEnableUserMetrics());
     
     this.minimumAllocation = cs.getMinimumAllocation();
     this.containerTokenSecretManager = cs.getContainerTokenSecretManager();
@@ -350,7 +357,7 @@ public class LeafQueue implements Queue {
         leafQueue.maxApplications, leafQueue.maxApplicationsPerUser,
         leafQueue.state, leafQueue.acls);
     
-    update(clusterResource);
+    updateResource(clusterResource);
   }
 
   @Override
@@ -416,6 +423,8 @@ public class LeafQueue implements Queue {
       addApplication(application, user);
     }
 
+    metrics.submitApp(userName);
+
     // Inform the parent queue
     try {
       parent.submitApplication(application, userName, queue, priority);
@@ -449,6 +458,10 @@ public class LeafQueue implements Queue {
     synchronized (this) {
       removeApplication(application, getUser(application.getUser()));
     }
+
+    // Update metrics
+    metrics.finishApp(application);
+    application.finish();
     
     // Inform the parent queue
     parent.finishApplication(application, queue);
@@ -508,12 +521,12 @@ public class LeafQueue implements Queue {
             
             // Maximum Capacity of the queue
             if (!assignToQueue(clusterResource, required.getCapability())) {
-              return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+              return Resources.none();
             }
             
             // User limits
             if (!assignToUser(application.getUser(), clusterResource, required.getCapability())) {
-              return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+              return Resources.none();
             }
             
           }
@@ -521,9 +534,7 @@ public class LeafQueue implements Queue {
           Resource assigned = 
             assignContainersOnNode(clusterResource, node, application, priority);
   
-          if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThan(
-                assigned, 
-                org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
+          if (Resources.greaterThan(assigned, Resources.none())) {
             Resource assignedResource = 
               application.getResourceRequest(priority, NodeManager.ANY).getCapability();
             
@@ -544,7 +555,7 @@ public class LeafQueue implements Queue {
       application.showRequests();
     }
   
-    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+    return Resources.none();
   }
 
   private synchronized Resource assignReservedContainers(Application application, 
@@ -561,7 +572,7 @@ public class LeafQueue implements Queue {
 
     // Doesn't matter... since it's already charged for at time of reservation
     // "re-reservation" is *free*
-    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+    return Resources.none();
   }
 
   private synchronized boolean assignToQueue(Resource clusterResource, 
@@ -616,6 +627,9 @@ public class LeafQueue implements Queue {
           (int)(queueCapacity * userLimitFactor)
           );
 
+    metrics.setAvailableUserMemory(userName,
+        limit - user.getConsumedResources().getMemory());
+
     // Note: We aren't considering the current request since there is a fixed
     // overhead of the AM, so... 
     if ((user.getConsumedResources().getMemory()) > limit) {
@@ -654,22 +668,17 @@ public class LeafQueue implements Queue {
   Resource assignContainersOnNode(Resource clusterResource, NodeManager node, 
       Application application, Priority priority) {
 
-    Resource assigned = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+    Resource assigned = Resources.none();
 
     // Data-local
     assigned = assignNodeLocalContainers(clusterResource, node, application, priority); 
-    if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThan(
-          assigned, 
-          org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
+    if (Resources.greaterThan(assigned, Resources.none())) {
       return assigned;
     }
 
     // Rack-local
     assigned = assignRackLocalContainers(clusterResource, node, application, priority);
-    if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThan(
-        assigned, 
-        org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
+    if (Resources.greaterThan(assigned, Resources.none())) {
     return assigned;
   }
     
@@ -688,7 +697,7 @@ public class LeafQueue implements Queue {
       }
     }
     
-    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+    return Resources.none();
   }
 
   Resource assignRackLocalContainers(Resource clusterResource, NodeManager node, 
@@ -702,7 +711,7 @@ public class LeafQueue implements Queue {
       }
     }
     
-    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+    return Resources.none();
   }
 
   Resource assignOffSwitchContainers(Resource clusterResource, NodeManager node, 
@@ -716,7 +725,7 @@ public class LeafQueue implements Queue {
       }
     }
     
-    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+    return Resources.none();
   }
 
   boolean canAssign(Application application, Priority priority, 
@@ -837,7 +846,8 @@ public class LeafQueue implements Queue {
 
       }
     }
-    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
+
+    return Resources.none();
   }
 
   private void allocate(Application application, NodeType type, 
@@ -893,9 +903,8 @@ public class LeafQueue implements Queue {
 
   private synchronized void allocateResource(Resource clusterResource, 
       String userName, Resource resource) {
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
-      addResource(usedResources, resource);
-    update(clusterResource);
+    Resources.addTo(usedResources, resource);
+    updateResource(clusterResource);
     ++numContainers;
     
     User user = getUser(userName);
@@ -904,23 +913,29 @@ public class LeafQueue implements Queue {
 
   private synchronized void releaseResource(Resource clusterResource, 
       String userName, Resource resource) {
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
-      subtractResource(usedResources, resource);
-    update(clusterResource);
+    Resources.subtractFrom(usedResources, resource);
+    updateResource(clusterResource);
     --numContainers;
     
     User user = getUser(userName);
     user.releaseContainer(resource);
   }
 
-  private synchronized void update(Resource clusterResource) {
-    setUtilization(usedResources.getMemory() / (clusterResource.getMemory() * absoluteCapacity));
+  @Override
+  public synchronized void updateResource(Resource clusterResource) {
+    float memLimit = clusterResource.getMemory() * absoluteCapacity;
+    setUtilization(usedResources.getMemory() / memLimit);
     setUsedCapacity(usedResources.getMemory() / (clusterResource.getMemory() * capacity));
+    metrics.setAvailableQueueMemory((int) memLimit - usedResources.getMemory());
   }
-  
+
+  @Override
+  public QueueMetrics getMetrics() {
+    return metrics;
+  }
+
   static class User {
-    Resource consumed = 
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.createResource(0);
+    Resource consumed = Resources.createResource(0);
     int applications = 0;
     
     public Resource getConsumedResources() {
@@ -940,13 +955,11 @@ public class LeafQueue implements Queue {
     }
     
     public synchronized void assignContainer(Resource resource) {
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-          consumed, resource);
+      Resources.addTo(consumed, resource);
     }
     
     public synchronized void releaseContainer(Resource resource) {
-      org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-          consumed, resource);
+      Resources.subtractFrom(consumed, resource);
     }
   }
 }

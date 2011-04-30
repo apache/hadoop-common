@@ -41,6 +41,7 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 
 /**
@@ -93,8 +94,7 @@ public class NodeManagerImpl implements NodeManager {
     this.totalCapability = capability; 
     this.nodeAddress = nodeAddress;
     this.httpAddress = httpAddress;
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        availableResource, capability);
+    Resources.addTo(availableResource, capability);
     this.node = node;
   }
 
@@ -296,10 +296,8 @@ public class NodeManagerImpl implements NodeManager {
           + this.nodeAddress);
       return;
     }
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        availableResource, resource);
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        usedResource, resource);
+    Resources.addTo(availableResource, resource);
+    Resources.subtractFrom(usedResource, resource);
   }
 
   public synchronized void deductAvailableResource(Resource resource) {
@@ -307,10 +305,8 @@ public class NodeManagerImpl implements NodeManager {
       LOG.error("Invalid deduction of null resource for "
           + this.nodeAddress);
     }
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.subtractResource(
-        availableResource, resource);
-    org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.addResource(
-        usedResource, resource);
+    Resources.subtractFrom(availableResource, resource);
+    Resources.addTo(usedResource, resource);
   }
 
   public synchronized void notifyFinishedApplication(ApplicationId applicationId) {  

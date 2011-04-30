@@ -30,6 +30,7 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 
 public class CapacitySchedulerConfiguration extends Configuration {
 
@@ -92,7 +93,11 @@ public class CapacitySchedulerConfiguration extends Configuration {
   
   @Private
   public static String DEFAULT_ACL = "*";
-  
+
+  @Private public static final String ENABLE_USER_METRICS =
+      PREFIX +"user-metrics.enable";
+  @Private public static final boolean DEFAULT_ENABLE_USER_METRICS = false;
+
   public CapacitySchedulerConfiguration() {
     this(new Configuration());
   }
@@ -191,8 +196,10 @@ public class CapacitySchedulerConfiguration extends Configuration {
   
   public Resource getMinimumAllocation() {
     int minimumMemory = getInt(MINIMUM_ALLOCATION, MINIMUM_MEMORY);
-    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.
-             createResource(minimumMemory);
+    return Resources.createResource(minimumMemory);
   }
-  
+
+  public boolean getEnableUserMetrics() {
+    return getBoolean(ENABLE_USER_METRICS, DEFAULT_ENABLE_USER_METRICS);
+  }
 }

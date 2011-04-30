@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    MAPREDUCE-2434. Metrics for ResourceManager. (Luke Lu via acmurthy)
+
     Fix container launch w/ inconsistent credential file naming. (cdouglas)
 
     Disable ContainerMonitoring for non-linux systems. (vinodkv)
