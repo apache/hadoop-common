@@ -324,7 +324,7 @@ public class ZKStore implements Store {
     }
     
     @Override
-    public List<NodeManager> getStoredNodeManagers()  throws IOException {
+    public List<NodeManager> getStoredNodeManagers()  {
       return nodeManagers;
     }
 
@@ -403,8 +403,7 @@ public class ZKStore implements Store {
     }
 
     @Override
-    public Map<ApplicationId, ApplicationInfo> getStoredApplications()
-        throws IOException {
+    public Map<ApplicationId, ApplicationInfo> getStoredApplications() {
       return applications;
     }
   }

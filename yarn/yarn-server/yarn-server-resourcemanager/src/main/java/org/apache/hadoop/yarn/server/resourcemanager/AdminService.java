@@ -76,7 +76,7 @@ public class AdminService extends AbstractService implements RMAdminProtocol {
   public RefreshQueuesResponse refreshQueues(RefreshQueuesRequest request)
       throws YarnRemoteException {
     try {
-      scheduler.reinitialize(conf, null); // ContainerTokenSecretManager can't
+      scheduler.reinitialize(conf, null, null); // ContainerTokenSecretManager can't
                                           // be 'refreshed'
       RefreshQueuesResponse response = 
         recordFactory.newRecordInstance(RefreshQueuesResponse.class);

@@ -49,7 +49,6 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
 
 @Private
@@ -504,7 +503,7 @@ public class ParentQueue implements Queue {
 
   @Override
   public synchronized Resource assignContainers(
-      Resource clusterResource, NodeManager node) {
+      Resource clusterResource, NodeInfo node) {
     Resource assigned = Resources.createResource(0);
 
     while (canAssign(node)) {
@@ -558,14 +557,14 @@ public class ParentQueue implements Queue {
     return (getUtilization() < absoluteMaxCapacity);
   }
   
-  private boolean canAssign(NodeManager node) {
+  private boolean canAssign(NodeInfo node) {
     return (node.getReservedApplication() == null) && 
         Resources.greaterThanOrEqual(node.getAvailableResource(), 
                                      minimumAllocation);
   }
   
   synchronized Resource assignContainersToChildQueues(Resource cluster, 
-      NodeManager node) {
+      NodeInfo node) {
     Resource assigned = Resources.createResource(0);
     
     printChildQueues();
@@ -653,5 +652,18 @@ public class ParentQueue implements Queue {
   @Override
   public QueueMetrics getMetrics() {
     return metrics;
+  }
+
+  
+  @Override
+  public void recoverContainer(Resource clusterResource,
+      Application application, Container container) {
+    // Careful! Locking order is important! 
+    synchronized (this) {
+      allocateResource(clusterResource, container.getResource());
+    }
+    if (parent != null) {
+      parent.recoverContainer(clusterResource, application, container);
+    }
   }
 }

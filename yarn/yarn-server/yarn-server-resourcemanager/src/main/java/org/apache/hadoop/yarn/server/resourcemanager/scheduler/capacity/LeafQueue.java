@@ -1,20 +1,20 @@
 /**
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 
@@ -61,7 +61,7 @@ import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 @Unstable
 public class LeafQueue implements Queue {
   private static final Log LOG = LogFactory.getLog(LeafQueue.class);
-  
+
   private final String queueName;
   private final Queue parent;
   private float capacity;
@@ -70,17 +70,16 @@ public class LeafQueue implements Queue {
   private float absoluteMaxCapacity;
   private int userLimit;
   private float userLimitFactor;
-  
+
   private int maxApplications;
   private int maxApplicationsPerUser;
-  
   private Resource usedResources = Resources.createResource(0);
   private float utilization = 0.0f;
   private float usedCapacity = 0.0f;
   private volatile int numContainers;
-  
+
   Set<Application> applications;
-  
+
   public final Resource minimumAllocation;
 
   private ContainerTokenSecretManager containerTokenSecretManager;
@@ -92,7 +91,7 @@ public class LeafQueue implements Queue {
   private QueueInfo queueInfo; 
   private Map<ApplicationId, org.apache.hadoop.yarn.api.records.Application> 
   applicationInfos;
-  
+
   private QueueState state;
 
   private Map<QueueACL, AccessControlList> acls = 
@@ -117,7 +116,7 @@ public class LeafQueue implements Queue {
     float capacity = 
       (float)cs.getConfiguration().getCapacity(getQueuePath()) / 100;
     float absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
-    
+
     float maximumCapacity = cs.getConfiguration().getMaximumCapacity(getQueuePath());
     float absoluteMaxCapacity = 
       (maximumCapacity == CapacitySchedulerConfiguration.UNDEFINED) ? 
@@ -126,7 +125,7 @@ public class LeafQueue implements Queue {
     int userLimit = cs.getConfiguration().getUserLimit(getQueuePath());
     float userLimitFactor = 
       cs.getConfiguration().getUserLimitFactor(getQueuePath());
-    
+
     int maxSystemJobs = cs.getConfiguration().getMaximumSystemApplications();
     int maxApplications = (int)(maxSystemJobs * absoluteCapacity);
     int maxApplicationsPerUser = 
@@ -135,16 +134,16 @@ public class LeafQueue implements Queue {
     this.queueInfo = recordFactory.newRecordInstance(QueueInfo.class);
     this.queueInfo.setQueueName(queueName);
     this.queueInfo.setChildQueues(new ArrayList<QueueInfo>());
-    
+
     this.applicationInfos = 
       new HashMap<ApplicationId, 
       org.apache.hadoop.yarn.api.records.Application>();
 
     QueueState state = cs.getConfiguration().getState(getQueuePath());
-    
+
     Map<QueueACL, AccessControlList> acls = 
       cs.getConfiguration().getAcls(getQueuePath());
-    
+
     setupQueueConfigs(capacity, absoluteCapacity, 
         maximumCapacity, absoluteMaxCapacity, 
         userLimit, userLimitFactor, 
@@ -152,25 +151,25 @@ public class LeafQueue implements Queue {
         state, acls);
 
     LOG.info("DEBUG --- LeafQueue:" +
-    		" name=" + queueName + 
-    		", fullname=" + getQueuePath());
-    
+        " name=" + queueName + 
+        ", fullname=" + getQueuePath());
+
     this.applications = new TreeSet<Application>(applicationComparator);
   }
-  
+
   private synchronized void setupQueueConfigs(
-          float capacity, float absoluteCapacity, 
-          float maxCapacity, float absoluteMaxCapacity,
-          int userLimit, float userLimitFactor,
-          int maxApplications, int maxApplicationsPerUser,
-          QueueState state, Map<QueueACL, AccessControlList> acls)
+      float capacity, float absoluteCapacity, 
+      float maxCapacity, float absoluteMaxCapacity,
+      int userLimit, float userLimitFactor,
+      int maxApplications, int maxApplicationsPerUser,
+      QueueState state, Map<QueueACL, AccessControlList> acls)
   {
     this.capacity = capacity; 
     this.absoluteCapacity = parent.getAbsoluteCapacity() * capacity;
 
     this.maximumCapacity = maxCapacity;
     this.absoluteMaxCapacity = absoluteMaxCapacity;
-    
+
     this.userLimit = userLimit;
     this.userLimitFactor = userLimitFactor;
 
@@ -178,18 +177,18 @@ public class LeafQueue implements Queue {
     this.maxApplicationsPerUser = maxApplicationsPerUser;
 
     this.state = state;
-    
+
     this.acls = acls;
-    
+
     this.queueInfo.setCapacity(capacity);
     this.queueInfo.setMaximumCapacity(maximumCapacity);
     this.queueInfo.setQueueState(state);
-    
+
     StringBuilder aclsString = new StringBuilder();
     for (Map.Entry<QueueACL, AccessControlList> e : acls.entrySet()) {
       aclsString.append(e.getKey() + ":" + e.getValue().getAclString());
     }
-    
+
     LOG.info(queueName +
         ", capacity=" + capacity + 
         ", asboluteCapacity=" + absoluteCapacity + 
@@ -269,11 +268,11 @@ public class LeafQueue implements Queue {
   synchronized void setUsedCapacity(float usedCapacity) {
     this.usedCapacity = usedCapacity;
   }
-  
+
   public synchronized int getNumApplications() {
     return applications.size();
   }
-  
+
   public int getNumContainers() {
     return numContainers;
   }
@@ -292,16 +291,16 @@ public class LeafQueue implements Queue {
   public synchronized QueueInfo getQueueInfo(boolean includeApplications, 
       boolean includeChildQueues, boolean recursive) {
     queueInfo.setCurrentCapacity(usedCapacity);
-    
+
     if (includeApplications) {
       queueInfo.setApplications( 
-        new ArrayList<org.apache.hadoop.yarn.api.records.Application>(
-            applicationInfos.values()));
+          new ArrayList<org.apache.hadoop.yarn.api.records.Application>(
+              applicationInfos.values()));
     } else {
       queueInfo.setApplications(
           new ArrayList<org.apache.hadoop.yarn.api.records.Application>());
     }
-    
+
     return queueInfo;
   }
 
@@ -314,12 +313,12 @@ public class LeafQueue implements Queue {
     for (Map.Entry<QueueACL, AccessControlList> e : acls.entrySet()) {
       QueueACL operation = e.getKey();
       AccessControlList acl = e.getValue();
-      
+
       if (acl.isUserAllowed(user)) {
         operations.add(operation);
       }
     }
-    
+
     userAclInfo.setQueueName(getQueueName());
     userAclInfo.setUserAcls(operations);
     return Collections.singletonList(userAclInfo);
@@ -327,8 +326,8 @@ public class LeafQueue implements Queue {
 
   public String toString() {
     return queueName + ":" + capacity + ":" + absoluteCapacity + ":" + 
-      getUsedCapacity() + ":" + getUtilization() + ":" + 
-      getNumApplications() + ":" + getNumContainers();
+    getUsedCapacity() + ":" + getUtilization() + ":" + 
+    getNumApplications() + ":" + getNumContainers();
   }
 
   private synchronized User getUser(String userName) {
@@ -339,7 +338,7 @@ public class LeafQueue implements Queue {
     }
     return user;
   }
-  
+
   @Override
   public synchronized void reinitialize(Queue queue, Resource clusterResource) 
   throws IOException {
@@ -349,7 +348,7 @@ public class LeafQueue implements Queue {
       throw new IOException("Trying to reinitialize " + getQueuePath() + 
           " from " + queue.getQueuePath());
     }
-    
+
     LeafQueue leafQueue = (LeafQueue)queue;
     setupQueueConfigs(leafQueue.capacity, leafQueue.absoluteCapacity, 
         leafQueue.maximumCapacity, leafQueue.absoluteMaxCapacity, 
@@ -378,7 +377,7 @@ public class LeafQueue implements Queue {
       String queue, Priority priority) 
   throws AccessControlException {
     // Careful! Locking order is important!
-    
+
     // Check queue ACLs
     UserGroupInformation userUgi;
     try {
@@ -390,17 +389,17 @@ public class LeafQueue implements Queue {
       throw new AccessControlException("User " + userName + " cannot submit" +
           " jobs to queue " + getQueuePath());
     }
-    
+
     User user = null;
     synchronized (this) {
-      
+
       // Check if the queue is accepting jobs
       if (state != QueueState.RUNNING) {
         throw new AccessControlException("Queue " + getQueuePath() +
             " is STOPPED. Cannot accept submission of application: " +
             application.getApplicationId());
       }
-      
+
       // Check submission limits for queues
       if (getNumApplications() >= maxApplications) {
         throw new AccessControlException("Queue " + getQueuePath() + 
@@ -450,7 +449,7 @@ public class LeafQueue implements Queue {
         " #queue-applications: " + getNumApplications());
 
   }
-  
+
   @Override
   public void finishApplication(Application application, String queue) 
   throws AccessControlException {
@@ -466,15 +465,15 @@ public class LeafQueue implements Queue {
     // Inform the parent queue
     parent.finishApplication(application, queue);
   }
-  
+
   public synchronized void removeApplication(Application application, User user) {
     applications.remove(application);
-    
+
     user.finishApplication();
     if (user.getApplications() == 0) {
       users.remove(application.getUser());
     }
-    
+
     applicationInfos.remove(application.getApplicationId());
 
     LOG.info("Application removed -" +
@@ -484,15 +483,15 @@ public class LeafQueue implements Queue {
         " #user-applications: " + user.getApplications() + 
         " #queue-applications: " + getNumApplications());
   }
-  
+
   @Override
   public synchronized Resource 
-  assignContainers(Resource clusterResource, NodeManager node) {
-  
+  assignContainers(Resource clusterResource, NodeInfo node) {
+
     LOG.info("DEBUG --- assignContainers:" +
         " node=" + node.getNodeAddress() + 
         " #applications=" + applications.size());
-    
+
     // Check for reserved resources
     Application reservedApplication = node.getReservedApplication();
     if (reservedApplication != null) {
@@ -502,10 +501,10 @@ public class LeafQueue implements Queue {
 
     // Try to assign containers to applications in fifo order
     for (Application application : applications) {
-  
+
       LOG.info("DEBUG --- pre-assignContainers");
       application.showRequests();
-      
+
       synchronized (application) {
         for (Priority priority : application.getPriorities()) {
 
@@ -513,35 +512,35 @@ public class LeafQueue implements Queue {
           if (!needContainers(application, priority)) {
             continue;
           }
-          
+
           // Are we going over limits by allocating to this application?
           ResourceRequest required = 
             application.getResourceRequest(priority, NodeManager.ANY);
           if (required != null && required.getNumContainers() > 0) {
-            
+
             // Maximum Capacity of the queue
             if (!assignToQueue(clusterResource, required.getCapability())) {
               return Resources.none();
             }
-            
+
             // User limits
             if (!assignToUser(application.getUser(), clusterResource, required.getCapability())) {
               return Resources.none();
             }
-            
+
           }
-          
+
           Resource assigned = 
             assignContainersOnNode(clusterResource, node, application, priority);
   
           if (Resources.greaterThan(assigned, Resources.none())) {
             Resource assignedResource = 
               application.getResourceRequest(priority, NodeManager.ANY).getCapability();
-            
+
             // Book-keeping
             allocateResource(clusterResource, 
                 application.getUser(), assignedResource);
-            
+
             // Done
             return assignedResource; 
           } else {
@@ -550,16 +549,17 @@ public class LeafQueue implements Queue {
           }
         }
       }
-      
+
       LOG.info("DEBUG --- post-assignContainers");
       application.showRequests();
     }
   
     return Resources.none();
+
   }
 
   private synchronized Resource assignReservedContainers(Application application, 
-      NodeManager node, Resource clusterResource) {
+      NodeInfo node, Resource clusterResource) {
     synchronized (application) {
       for (Priority priority : application.getPriorities()) {
 
@@ -579,7 +579,7 @@ public class LeafQueue implements Queue {
       Resource required) {
     float newUtilization = 
       (float)(usedResources.getMemory() + required.getMemory()) / 
-        (clusterResource.getMemory() * absoluteCapacity);
+      (clusterResource.getMemory() * absoluteCapacity);
     if (newUtilization > absoluteMaxCapacity) {
       LOG.info(getQueueName() + 
           " current-capacity (" + getUtilization() + ") +" +
@@ -589,7 +589,7 @@ public class LeafQueue implements Queue {
     }
     return true;
   }
-  
+
   private synchronized boolean assignToUser(String userName, Resource clusterResource,
       Resource required) {
     // What is our current capacity? 
@@ -606,26 +606,26 @@ public class LeafQueue implements Queue {
               (int)(absoluteCapacity * clusterResource.getMemory()), 
               minimumAllocation.getMemory()) 
               * minimumAllocation.getMemory(),           // round up 
-          required.getMemory());
+              required.getMemory());
 
     final int consumed = usedResources.getMemory();
     final int currentCapacity = 
       (consumed < queueCapacity) ? queueCapacity : (consumed + required.getMemory());
-    
+
     // Never allow a single user to take more than the 
     // queue's configured capacity * user-limit-factor.
     // Also, the queue's configured capacity should be higher than 
     // queue-hard-limit * ulMin
-    
+
     final int activeUsers = users.size();  
     User user = getUser(userName);
-    
+
     int limit = 
       Math.min(
           Math.max(divideAndCeil(currentCapacity, activeUsers), 
-                   divideAndCeil((int)userLimit*currentCapacity, 100)),
-          (int)(queueCapacity * userLimitFactor)
-          );
+              divideAndCeil((int)userLimit*currentCapacity, 100)),
+              (int)(queueCapacity * userLimitFactor)
+      );
 
     metrics.setAvailableUserMemory(userName,
         limit - user.getConsumedResources().getMemory());
@@ -641,13 +641,13 @@ public class LeafQueue implements Queue {
           " currentCapacity: " + currentCapacity +
           " activeUsers: " + activeUsers +
           " clusterCapacity: " + clusterResource.getMemory()
-          );
+      );
       return false;
     }
 
     return true;
   }
-  
+
   private static int divideAndCeil(int a, int b) {
     if (b == 0) {
       LOG.info("divideAndCeil called with a=" + a + " b=" + b);
@@ -665,7 +665,7 @@ public class LeafQueue implements Queue {
     return ((requiredContainers - reservedContainers) > 0);
   }
 
-  Resource assignContainersOnNode(Resource clusterResource, NodeManager node, 
+  Resource assignContainersOnNode(Resource clusterResource, NodeInfo node, 
       Application application, Priority priority) {
 
     Resource assigned = Resources.none();
@@ -681,12 +681,11 @@ public class LeafQueue implements Queue {
     if (Resources.greaterThan(assigned, Resources.none())) {
     return assigned;
   }
-    
     // Off-switch
     return assignOffSwitchContainers(clusterResource, node, application, priority);
   }
 
-  Resource assignNodeLocalContainers(Resource clusterResource, NodeManager node, 
+  Resource assignNodeLocalContainers(Resource clusterResource, NodeInfo node, 
       Application application, Priority priority) {
     ResourceRequest request = 
       application.getResourceRequest(priority, node.getNodeAddress());
@@ -700,7 +699,7 @@ public class LeafQueue implements Queue {
     return Resources.none();
   }
 
-  Resource assignRackLocalContainers(Resource clusterResource, NodeManager node, 
+  Resource assignRackLocalContainers(Resource clusterResource, NodeInfo node, 
       Application application, Priority priority) {
     ResourceRequest request = 
       application.getResourceRequest(priority, node.getRackName());
@@ -710,11 +709,10 @@ public class LeafQueue implements Queue {
             NodeType.RACK_LOCAL);
       }
     }
-    
     return Resources.none();
   }
 
-  Resource assignOffSwitchContainers(Resource clusterResource, NodeManager node, 
+  Resource assignOffSwitchContainers(Resource clusterResource, NodeInfo node, 
       Application application, Priority priority) {
     ResourceRequest request = 
       application.getResourceRequest(priority, NodeManager.ANY);
@@ -733,15 +731,15 @@ public class LeafQueue implements Queue {
 
     ResourceRequest offSwitchRequest = 
       application.getResourceRequest(priority, NodeManager.ANY);
-    
+
     if (offSwitchRequest.getNumContainers() == 0) {
       return false;
     }
-    
+
     if (type == NodeType.OFF_SWITCH) {
       return offSwitchRequest.getNumContainers() > 0;
     }
-    
+
     if (type == NodeType.RACK_LOCAL) {
       ResourceRequest rackLocalRequest = 
         application.getResourceRequest(priority, node.getRackName());
@@ -752,7 +750,7 @@ public class LeafQueue implements Queue {
         return rackLocalRequest.getNumContainers() > 0;
       }
     }
-    
+
     if (type == NodeType.DATA_LOCAL) {
       ResourceRequest nodeLocalRequest = 
         application.getResourceRequest(priority, node.getNodeAddress());
@@ -760,11 +758,11 @@ public class LeafQueue implements Queue {
         return nodeLocalRequest.getNumContainers() > 0;
       }
     }
-    
+
     return false;
   }
-  
-  private Resource assignContainer(Resource clusterResource, NodeManager node, 
+
+  private Resource assignContainer(Resource clusterResource, NodeInfo node, 
       Application application, 
       Priority priority, ResourceRequest request, NodeType type) {
     LOG.info("DEBUG --- assignContainers:" +
@@ -773,19 +771,19 @@ public class LeafQueue implements Queue {
         " priority=" + priority.getPriority() + 
         " request=" + request + " type=" + type);
     Resource capability = request.getCapability();
-    
+
     Resource available = node.getAvailableResource();
 
     if (available.getMemory() >  0) {
-      
+
       int availableContainers = 
         available.getMemory() / capability.getMemory();         // TODO: A buggy
-                                                                // application
-                                                                // with this
-                                                                // zero would
-                                                                // crash the
-                                                                // scheduler.
-    
+      // application
+      // with this
+      // zero would
+      // crash the
+      // scheduler.
+
       if (availableContainers > 0) {
 
 
@@ -820,7 +818,7 @@ public class LeafQueue implements Queue {
         if (application.isReserved(node, priority)){
           unreserve(application, priority, node);
         }
-        
+
         LOG.info("allocatedContainer" +
             " application=" + application.getApplicationId() +
             " container=" + container + 
@@ -833,7 +831,7 @@ public class LeafQueue implements Queue {
       } else {
         // Reserve by 'charging' in advance...
         reserve(application, priority, node, request.getCapability());
-        
+
         LOG.info("Reserved container " + 
             " application=" + application.getApplicationId() +
             " resource=" + request.getCapability() + 
@@ -852,7 +850,7 @@ public class LeafQueue implements Queue {
 
   private void allocate(Application application, NodeType type, 
       Priority priority, ResourceRequest request, 
-      NodeManager node, List<Container> containers) {
+      NodeInfo node, List<Container> containers) {
     // Allocate container to the application
     application.allocate(type, node, priority, request, containers);
 
@@ -861,20 +859,20 @@ public class LeafQueue implements Queue {
   }
 
   private void reserve(Application application, Priority priority, 
-      NodeManager node, Resource resource) {
+      NodeInfo node, Resource resource) {
     application.reserveResource(node, priority, resource);
     node.reserveResource(application, priority, resource);
   }
 
   private void unreserve(Application application, Priority priority, 
-      NodeManager node) {
+      NodeInfo node) {
     // Done with the reservation?
     if (application.isReserved(node, priority)) {
       application.unreserveResource(node, priority);
       node.unreserveResource(application, priority);
     }
   }
-  
+
   @Override
   public void completedContainer(Resource clusterResource, 
       Container container, Application application) {
@@ -883,19 +881,19 @@ public class LeafQueue implements Queue {
       synchronized (this) {
         // Inform the application
         application.completedContainer(container);
-        
+
         // Book-keeping
         releaseResource(clusterResource, 
             application.getUser(), container.getResource());
-        
+
         LOG.info("completedContainer" +
             " container=" + container +
-        		" queue=" + this + 
+            " queue=" + this + 
             " util=" + getUtilization() + 
             " used=" + usedResources + 
             " cluster=" + clusterResource);
       }
-      
+
       // Inform the parent queue
       parent.completedContainer(clusterResource, container, application);
     }
@@ -906,7 +904,7 @@ public class LeafQueue implements Queue {
     Resources.addTo(usedResources, resource);
     updateResource(clusterResource);
     ++numContainers;
-    
+
     User user = getUser(userName);
     user.assignContainer(resource);
   }
@@ -916,7 +914,7 @@ public class LeafQueue implements Queue {
     Resources.subtractFrom(usedResources, resource);
     updateResource(clusterResource);
     --numContainers;
-    
+
     User user = getUser(userName);
     user.releaseContainer(resource);
   }
@@ -937,29 +935,40 @@ public class LeafQueue implements Queue {
   static class User {
     Resource consumed = Resources.createResource(0);
     int applications = 0;
-    
+
     public Resource getConsumedResources() {
       return consumed;
     }
-  
+
     public int getApplications() {
       return applications;
     }
-  
+
     public synchronized void submitApplication() {
       ++applications;
     }
-    
+
     public synchronized void finishApplication() {
       --applications;
     }
-    
+
     public synchronized void assignContainer(Resource resource) {
       Resources.addTo(consumed, resource);
     }
-    
+
     public synchronized void releaseContainer(Resource resource) {
       Resources.subtractFrom(consumed, resource);
     }
+  }
+
+  @Override
+  public void recoverContainer(Resource clusterResource,
+      Application application, Container container) {
+    // Careful! Locking order is important! 
+    synchronized (this) {
+      allocateResource(clusterResource, application.getUser(), container.getResource());
+    }
+    parent.recoverContainer(clusterResource, application, container);
+
   }
 }

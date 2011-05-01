@@ -29,6 +29,8 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.Task;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +47,8 @@ public class TestFifoScheduler extends TestCase {
   
   @Before
   public void setUp() throws Exception {
-    resourceManager = new ResourceManager();
+    Store store = StoreFactory.getStore(new Configuration());
+    resourceManager = new ResourceManager(store);
     resourceManager.init(new Configuration());
   }
 

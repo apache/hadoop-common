@@ -1,20 +1,20 @@
 /**
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
@@ -45,6 +45,9 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Recoverable;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.service.AbstractService;
 
 /**
@@ -55,7 +58,7 @@ import org.apache.hadoop.yarn.service.AbstractService;
 @Evolving
 @Private
 public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
-    <ApplicationEventType>> {
+<ApplicationEventType>>, Recoverable {
   private static final Log LOG = LogFactory.getLog(AMTracker.class);
   private HeartBeatThread heartBeatThread;
   private long amExpiryInterval; 
@@ -63,9 +66,9 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   private EventHandler handler;
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private int amMaxRetries;
-  
+
   private final RMContext asmContext;
-  
+
   private final Map<ApplicationId, ApplicationMasterInfo> applications = 
     new ConcurrentHashMap<ApplicationId, ApplicationMasterInfo>();
 
@@ -84,7 +87,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
           }
         }
     );
-  
+
   public AMTracker(RMContext asmContext) {
     super(AMTracker.class.getName());
     this.heartBeatThread = new HeartBeatThread();
@@ -96,7 +99,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     super.init(conf);
     this.handler = asmContext.getDispatcher().getEventHandler();
     this.amExpiryInterval = conf.getLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 
-    YarnConfiguration.DEFAULT_AM_EXPIRY_INTERVAL);
+        YarnConfiguration.DEFAULT_AM_EXPIRY_INTERVAL);
     LOG.info("AM expiry interval: " + this.amExpiryInterval);
     this.amMaxRetries =  conf.getInt(YarnConfiguration.AM_MAX_RETRIES, 
         YarnConfiguration.DEFAULT_AM_MAX_RETRIES);
@@ -170,9 +173,9 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         am = applications.get(app);
       }
       handler.handle(new ASMEvent<ApplicationEventType>
-          (ApplicationEventType.EXPIRE, am));
-      }
+      (ApplicationEventType.EXPIRE, am));
     }
+  }
 
   @Override
   public void stop() {
@@ -189,14 +192,14 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   public void addMaster(String user,  ApplicationSubmissionContext 
       submissionContext, String clientToken) {
     ApplicationMasterInfo applicationMaster = new ApplicationMasterInfo(asmContext, 
-      user, submissionContext, clientToken);
+        user, submissionContext, clientToken);
     synchronized(applications) {
       applications.put(applicationMaster.getApplicationID(), applicationMaster);
     }
     asmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
         ApplicationEventType.ALLOCATE, applicationMaster));
   }
-  
+
   public void finish(ApplicationId application) {
     ApplicationMasterInfo masterInfo = null;
     synchronized(applications) {
@@ -245,14 +248,14 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 
   public void kill(ApplicationId applicationID) {
     ApplicationMasterInfo masterInfo = null;
-    
+
     synchronized(applications) {
       masterInfo = applications.get(applicationID);
     }
     handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.KILL, 
-    masterInfo));
+        masterInfo));
   }
-  
+
   /*
    * this class is used for passing status context to the application state
    * machine.
@@ -261,14 +264,14 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     private final ApplicationId appID;
     private final ApplicationMaster master;
     private final UnsupportedOperationException notimplemented;
-  
+
     public TrackerAppContext(
-         ApplicationId appId, ApplicationMaster master) {
+        ApplicationId appId, ApplicationMaster master) {
       this.appID = appId;
       this.master = master;
       this.notimplemented = new NotImplementedException();
     }
-    
+
     @Override
     public ApplicationSubmissionContext getSubmissionContext() {
       throw notimplemented;
@@ -303,7 +306,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     }
     @Override
     public String getName() {
-     throw notimplemented;
+      throw notimplemented;
     }
     @Override
     public String getQueue() {
@@ -312,10 +315,10 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 
     @Override
     public int getFailedCount() {
-     throw notimplemented;
+      throw notimplemented;
     }
   }
-  
+
   public void heartBeat(ApplicationStatus status) {
     ApplicationMaster master = recordFactory.newRecordInstance(ApplicationMaster.class);
     master.setStatus(status);
@@ -324,7 +327,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.STATUSUPDATE, 
         context));
   }
-  
+
   public void registerMaster(ApplicationMaster applicationMaster) {
     applicationMaster.getStatus().setLastSeen(System.currentTimeMillis());
     ApplicationMasterInfo master = null;
@@ -335,9 +338,9 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     TrackerAppContext registrationContext = new TrackerAppContext(
         master.getApplicationID(), applicationMaster);
     handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.
-      REGISTERED,  registrationContext));
+        REGISTERED,  registrationContext));
   }
-  
+
   @Override
   public void handle(ASMEvent<ApplicationEventType> event) {
     ApplicationId appID = event.getAppContext().getApplicationID();
@@ -354,26 +357,76 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     /* we need to launch the applicaiton master on allocated transition */
     if (masterInfo.getState() == ApplicationState.ALLOCATED) {
       handler.handle(new ASMEvent<ApplicationEventType>(
-        ApplicationEventType.LAUNCH, masterInfo));
+          ApplicationEventType.LAUNCH, masterInfo));
     }
     if (masterInfo.getState() == ApplicationState.LAUNCHED) {
       /* the application move to a launched state start tracking */
       synchronized (amExpiryQueue) {
         LOG.info("DEBUG -- adding to  expiry " + masterInfo.getStatus() + 
-        " currenttime " + System.currentTimeMillis());
+            " currenttime " + System.currentTimeMillis());
         amExpiryQueue.add(masterInfo.getStatus());
       }
     }
-    
+
     /* check to see if the AM is an EXPIRED_PENDING state and start off the cycle again */
     if (masterInfo.getState() == ApplicationState.EXPIRED_PENDING) {
       /* check to see if the number of retries are reached or not */
       if (masterInfo.getFailedCount() < this.amMaxRetries) {
         handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.ALLOCATE,
-          masterInfo));
+            masterInfo));
       } else {
         handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.
-              FAILED_MAX_RETRIES, masterInfo));
+            FAILED_MAX_RETRIES, masterInfo));
+      }
+    }
+  }
+
+  @Override
+  public void recover(RMState state) {
+    for (Map.Entry<ApplicationId, ApplicationInfo> entry: state.getStoredApplications().entrySet()) {
+      ApplicationId appId = entry.getKey();
+      ApplicationInfo appInfo = entry.getValue();
+      ApplicationMasterInfo masterInfo = new ApplicationMasterInfo(this.asmContext,
+          appInfo.getApplicationSubmissionContext().getUser(), appInfo.getApplicationSubmissionContext(), 
+          appInfo.getApplicationMaster().getClientToken());
+      ApplicationMaster master = masterInfo.getMaster();
+      ApplicationMaster storedAppMaster = appInfo.getApplicationMaster();
+      master.setAMFailCount(storedAppMaster.getAMFailCount());
+      master.setApplicationId(storedAppMaster.getApplicationId());
+      master.setClientToken(storedAppMaster.getClientToken());
+      master.setContainerCount(storedAppMaster.getContainerCount());
+      master.setHttpPort(storedAppMaster.getHttpPort());
+      master.setHost(storedAppMaster.getHost());
+      master.setRpcPort(storedAppMaster.getRpcPort());
+      master.setStatus(storedAppMaster.getStatus());
+      master.setState(storedAppMaster.getState());
+      applications.put(appId, masterInfo);
+      
+      switch(master.getState()) {
+      case ALLOCATED:
+        break;
+      case ALLOCATING:
+        break;
+      case CLEANUP:
+        break;
+      case EXPIRED_PENDING:
+        break;
+      case COMPLETED:
+        break;
+      case FAILED:
+        break;
+      case LAUNCHED:
+        break;
+      case KILLED:
+        break;
+      case LAUNCHING:
+        break;
+      case PAUSED:
+        break;
+      case PENDING:
+        break;
+      case RUNNING:
+        break;
       }
     }
   }

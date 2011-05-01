@@ -23,7 +23,7 @@ import java.util.Date;
 import com.google.inject.Inject;
 
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ResourceContext;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
@@ -34,10 +34,10 @@ import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
 class NodesPage extends RmView {
 
   static class NodesBlock extends HtmlBlock {
-    final ResourceContext resource;
+    final ClusterTracker resource;
 
     @Inject
-    NodesBlock(ResourceContext rc, ViewContext ctx) {
+    NodesBlock(ClusterTracker rc, ViewContext ctx) {
       super(ctx);
       resource = rc;
     }

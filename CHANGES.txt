@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    RM Restart Phase 2 - Completed the recovery of components in the RM (mahadev)
+
     MAPREDUCE-2434. Metrics for ResourceManager. (Luke Lu via acmurthy)
 
     Fix container launch w/ inconsistent credential file naming. (cdouglas)

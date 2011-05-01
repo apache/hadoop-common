@@ -15,27 +15,10 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+package org.apache.hadoop.yarn.server.resourcemanager.recovery;
 
-package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 
-import java.util.List;
-
-import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
-
-
-/**
- * The read-only interface for cluster resource
- */
-public interface ResourceContext {
-  /**
-   * Get all node info
-   * @return a list of node info
-   */
-  List<NodeInfo> getAllNodeInfo();
-  
-  /**
-   * Get cluster metrics from the resource tracker.
-   * @return the cluster metrics for the cluster.
-   */
-  YarnClusterMetrics getClusterMetrics();
+public interface Recoverable {
+  public void recover(RMState state) throws Exception;
 }

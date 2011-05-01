@@ -37,9 +37,9 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
@@ -131,18 +131,11 @@ public class TestAMRestart extends TestCase {
   }
 
   private class DummyResourceScheduler implements ResourceScheduler {
-    @Override
-    public void addNode(NodeManager nodeManager) {
-    }
+   
     @Override
     public void removeNode(NodeInfo node) {
     }
-    @Override
-    public NodeResponse nodeUpdate(NodeInfo nodeInfo,
-        Map<String, List<Container>> containers) {
-      return null;
-    }
-
+    
     @Override
     public List<Container> allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
@@ -179,11 +172,6 @@ public class TestAMRestart extends TestCase {
     }
 
     @Override
-    public void reinitialize(Configuration conf,
-        ContainerTokenSecretManager secretManager) {
-    }
-
-    @Override
     public void removeApplication(ApplicationId applicationId)
         throws IOException {
     }
@@ -201,8 +189,22 @@ public class TestAMRestart extends TestCase {
     public void addApplication(ApplicationId applicationId,
         ApplicationMaster master, String user, String queue, Priority priority)
         throws IOException {
-      // TODO Auto-generated method stub
-      
+    }
+    @Override
+    public void addNode(NodeInfo nodeInfo) {
+    }
+    @Override
+    public void recover(RMState state) throws Exception {
+    }
+    @Override
+    public void reinitialize(Configuration conf,
+        ContainerTokenSecretManager secretManager, ClusterTracker clusterTracker)
+        throws IOException {
+    }
+
+    @Override
+    public void nodeUpdate(NodeInfo nodeInfo,
+        Map<String, List<Container>> containers) {      
     }
   }
 

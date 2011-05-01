@@ -40,9 +40,10 @@ import org.apache.hadoop.yarn.server.resourcemanager.MockNodes;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.AppContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ResourceContext;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacitySchedulerConfiguration;
@@ -102,6 +103,11 @@ public class TestRMWebApp {
     public List<Application> getApplications() {
       return appsList;
     }
+
+    @Override
+    public void recover(RMState state) throws Exception {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
   }
 
   @Test public void testControllerIndex() {
@@ -119,7 +125,7 @@ public class TestRMWebApp {
   }
 
   @Test public void testNodesPage() {
-    WebAppTests.testPage(NodesPage.class, ResourceContext.class,
+    WebAppTests.testPage(NodesPage.class, ClusterTracker.class,
                          mockResource(1, 2, 8*GiB));
   }
 
@@ -154,7 +160,7 @@ public class TestRMWebApp {
     setupQueueConfiguration(conf);
 
     CapacityScheduler cs = new CapacityScheduler();
-    cs.reinitialize(conf, null);
+    cs.reinitialize(conf, null, null);
     return cs;
   }
 

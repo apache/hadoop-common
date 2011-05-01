@@ -56,7 +56,7 @@ public class TestRMNMRPCResponseId extends TestCase {
   private class DummyResourceListener implements ResourceListener {
 
     @Override
-    public void addNode(NodeManager nodeManager) {
+    public void addNode(NodeInfo nodeManager) {
       nodeid = nodeManager.getNodeID();
     }
 
@@ -66,16 +66,15 @@ public class TestRMNMRPCResponseId extends TestCase {
     }
 
     @Override
-    public NodeResponse nodeUpdate(NodeInfo nodeInfo,
+    public void nodeUpdate(NodeInfo nodeInfo,
         Map<String, List<Container>> containers) {
-      return new NodeResponse(new ArrayList<ApplicationId>(),
-          new ArrayList<Container>(), new ArrayList<Container>());
     }
   }
   
   @Before
   public void setUp() {
-    rmResourceTrackerImpl = new RMResourceTrackerImpl(containerTokenSecretManager, listener);
+    rmResourceTrackerImpl = new RMResourceTrackerImpl(containerTokenSecretManager);
+    rmResourceTrackerImpl.addListener(listener);
   }
   
   @After

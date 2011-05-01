@@ -23,12 +23,16 @@ import com.google.common.collect.Lists;
 import java.util.List;
 
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 
 /**
  * Test helper to generate mock nodes
@@ -132,6 +136,25 @@ public class MockNodes {
       @Override
       public NodeHealthStatus getNodeHealthStatus() {
         return nodeHealthStatus;
+      }
+
+      @Override
+      public void allocateContainer(ApplicationId applicationId,
+          List<Container> containers) {
+      }
+
+      @Override
+      public Application getReservedApplication() {
+        return null;
+      }
+
+      @Override
+      public void reserveResource(Application application, Priority priority,
+          Resource resource) {
+      }
+
+      @Override
+      public void unreserveResource(Application application, Priority priority) {
       }
     };
   }

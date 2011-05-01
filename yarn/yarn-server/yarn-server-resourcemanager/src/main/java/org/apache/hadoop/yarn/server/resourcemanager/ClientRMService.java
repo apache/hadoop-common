@@ -62,7 +62,7 @@ import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
-import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ResourceContext;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.service.AbstractService;
 
@@ -74,7 +74,7 @@ import org.apache.hadoop.yarn.service.AbstractService;
 public class ClientRMService extends AbstractService implements ClientRMProtocol {
   private static final Log LOG = LogFactory.getLog(ClientRMService.class);
   
-  final private ResourceContext clusterInfo;
+  final private ClusterTracker clusterInfo;
   final private ApplicationsManager applicationsManager;
   final private ResourceScheduler scheduler;
   
@@ -84,7 +84,7 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
   InetSocketAddress clientBindAddress;
   
   public ClientRMService(ApplicationsManager applicationsManager, 
-        ResourceContext clusterInfo, ResourceScheduler scheduler) {
+        ClusterTracker clusterInfo, ResourceScheduler scheduler) {
     super(ClientRMService.class.getName());
     this.clusterInfo = clusterInfo;
     this.applicationsManager = applicationsManager;

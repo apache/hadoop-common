@@ -61,6 +61,7 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -217,7 +218,8 @@ public class TestRMContainerAllocator {
   }
 
   private FifoScheduler createScheduler() throws YarnRemoteException {
-    FifoScheduler fsc = new FifoScheduler() {
+    ClusterTracker clusterTracker = null;
+    FifoScheduler fsc = new FifoScheduler(clusterTracker) {
       //override this to copy the objects
       //otherwise FifoScheduler updates the numContainers in same objects as kept by
       //RMContainerAllocator
@@ -240,7 +242,7 @@ public class TestRMContainerAllocator {
       }
     };
     try {
-      fsc.reinitialize(new Configuration(), new ContainerTokenSecretManager());
+      fsc.reinitialize(new Configuration(), new ContainerTokenSecretManager(), null);
       fsc.addApplication(recordFactory.newRecordInstance(ApplicationId.class),
           recordFactory.newRecordInstance(ApplicationMaster.class),
           "test", null, null);

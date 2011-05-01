@@ -36,9 +36,9 @@ public interface Store extends NodeStore, ApplicationStore {
     public List<Container> getContainers();
   }
   public interface RMState {
-    public List<NodeManager> getStoredNodeManagers() throws IOException;
-    public Map<ApplicationId, ApplicationInfo> getStoredApplications() throws IOException;
-    public NodeId getLastLoggedNodeId() throws IOException;
+    public List<NodeManager> getStoredNodeManagers() ;
+    public Map<ApplicationId, ApplicationInfo> getStoredApplications();
+    public NodeId getLastLoggedNodeId();
   }
   public RMState restore() throws IOException;
 }

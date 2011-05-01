@@ -60,24 +60,25 @@ public class TestNMExpiry extends TestCase {
   AtomicInteger notify = new AtomicInteger();
 
   private static class VoidResourceListener implements ResourceListener {
-    @Override
-    public void addNode(NodeManager nodeManager) {      
-    }
+   
     @Override
     public void removeNode(NodeInfo node) {
     }
     @Override
-    public NodeResponse nodeUpdate(NodeInfo nodeInfo,
+    public void nodeUpdate(NodeInfo nodeInfo,
         Map<String, List<Container>> containers) {
-      return new NodeResponse(new ArrayList<ApplicationId>(),
-          new ArrayList<Container>(), new ArrayList<Container>());
+     
+    }
+    @Override
+    public void addNode(NodeInfo nodeInfo) {
+        
     }
   }
 
   private class TestRMResourceTrackerImpl extends RMResourceTrackerImpl {
     public TestRMResourceTrackerImpl(
         ContainerTokenSecretManager containerTokenSecretManager) {
-      super(containerTokenSecretManager, new VoidResourceListener());
+      super(containerTokenSecretManager);
     }
 
     @Override
@@ -103,6 +104,7 @@ public class TestNMExpiry extends TestCase {
   @Before
   public void setUp() {
     resourceTracker = new TestRMResourceTrackerImpl(containerTokenSecretManager);
+    resourceTracker.addListener(new VoidResourceListener());
     Configuration conf = new Configuration();
     conf.setLong(YarnConfiguration.NM_EXPIRY_INTERVAL, 1000);
     resourceTracker.init(conf);

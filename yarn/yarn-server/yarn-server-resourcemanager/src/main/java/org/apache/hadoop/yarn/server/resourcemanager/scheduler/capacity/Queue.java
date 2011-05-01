@@ -30,8 +30,8 @@ import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueState;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 
 /**
  * Queue represents a node in the tree of 
@@ -163,7 +163,7 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    * @param node node on which resources are available
    * @return
    */
-  public Resource assignContainers(Resource clusterResource, NodeManager node);
+  public Resource assignContainers(Resource clusterResource, NodeInfo node);
   
   /**
    * A container assigned to the queue has completed.
@@ -194,4 +194,12 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    * @param clusterResource the current cluster resource
    */
   public void updateResource(Resource clusterResource);
+  
+  /**
+   * Recover the state of the queue
+   * @param clusterResource the resource of the cluster
+   * @param application the application for which the container was allocated
+   * @param container the container that was recovered.
+   */
+  public void recoverContainer(Resource clusterResource, Application application, Container container);
 }

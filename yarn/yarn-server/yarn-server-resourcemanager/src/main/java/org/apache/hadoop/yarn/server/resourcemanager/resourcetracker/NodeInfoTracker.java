@@ -26,7 +26,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
  * This should be package private. It does not need to be public.
  *
  */
-class NodeInfoTracker {
+public class NodeInfoTracker {
   private final NodeManager node;
   HeartbeatResponse lastHeartBeatResponse;
   private long lastSeen;

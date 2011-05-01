@@ -46,6 +46,9 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
@@ -77,18 +80,13 @@ public class TestSchedulerNegotiator extends TestCase {
       containers.add(container);
       return containers;
     }
+  
+  
     @Override
-    public void reinitialize(Configuration conf,
-        ContainerTokenSecretManager secretManager) {
-    }
-    @Override
-    public void addNode(NodeManager nodeManager) {
-    }
-    @Override
-    public NodeResponse nodeUpdate(NodeInfo nodeInfo,
+    public void nodeUpdate(NodeInfo nodeInfo,
         Map<String, List<Container>> containers) {
-      return null;
     }
+    
     @Override
     public void removeNode(NodeInfo node) {
     }
@@ -115,8 +113,23 @@ public class TestSchedulerNegotiator extends TestCase {
     public void addApplication(ApplicationId applicationId,
         ApplicationMaster master, String user, String queue, Priority priority)
         throws IOException {
-      // TODO Auto-generated method stub
-      
+    }
+
+
+    @Override
+    public void addNode(NodeInfo nodeInfo) {
+    }
+
+
+    @Override
+    public void recover(RMState state) throws Exception {
+    }
+
+
+    @Override
+    public void reinitialize(Configuration conf,
+        ContainerTokenSecretManager secretManager, ClusterTracker clusterTracker)
+        throws IOException {
     }
   }
   

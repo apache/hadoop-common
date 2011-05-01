@@ -87,18 +87,17 @@ public class MemStore implements Store {
     }
 
     @Override
-    public List<NodeManager> getStoredNodeManagers() throws IOException {
+    public List<NodeManager> getStoredNodeManagers()  {
       return new ArrayList<NodeManager>();
     }
 
     @Override
-    public NodeId getLastLoggedNodeId() throws IOException {
+    public NodeId getLastLoggedNodeId() {
       return nodeId;
     }
 
     @Override
-    public Map<ApplicationId, ApplicationInfo> getStoredApplications()
-    throws IOException {
+    public Map<ApplicationId, ApplicationInfo> getStoredApplications() {
       return new HashMap<ApplicationId, Store.ApplicationInfo>();
     }
   }

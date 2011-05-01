@@ -1,20 +1,20 @@
 /**
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
@@ -41,6 +41,8 @@ import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.security.SecurityInfo;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
@@ -59,6 +61,7 @@ import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResp
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
@@ -72,7 +75,7 @@ import org.apache.hadoop.yarn.service.AbstractService;
  *`
  */
 public class RMResourceTrackerImpl extends AbstractService implements 
-ResourceTracker, ResourceContext {
+ResourceTracker, ClusterTracker {
   private static final Log LOG = LogFactory.getLog(RMResourceTrackerImpl.class);
   /* we dont garbage collect on nodes. A node can come back up again and re register,
    * so no use garbage collecting. Though admin can break the RM by bouncing 
@@ -82,9 +85,9 @@ ResourceTracker, ResourceContext {
   private final Map<NodeId, NodeInfoTracker> nodeManagers = 
     new ConcurrentHashMap<NodeId, NodeInfoTracker>();
   private final HeartBeatThread heartbeatThread;
-  
+
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
-  
+
   private final TreeSet<NodeId> nmExpiryQueue =
     new TreeSet<NodeId>(
         new Comparator<NodeId>() {
@@ -94,17 +97,17 @@ ResourceTracker, ResourceContext {
             long p1LastSeen = nit1.getNodeLastSeen();
             long p2LastSeen = nit2.getNodeLastSeen();
             if (p1LastSeen < p2LastSeen) {
-                return -1;
+              return -1;
             } else if (p1LastSeen > p2LastSeen) {
-                return 1;
-              } else {
-                return (nit1.getNodeManager().getNodeID().getId() -
-                    nit2.getNodeManager().getNodeID().getId());
-              }
+              return 1;
+            } else {
+              return (nit1.getNodeManager().getNodeID().getId() -
+                  nit2.getNodeManager().getNodeID().getId());
             }
           }
-      );
-  
+        }
+    );
+
   private ResourceListener resourceListener;
   private InetSocketAddress resourceTrackerAddress;
   private Server server;
@@ -113,13 +116,11 @@ ResourceTracker, ResourceContext {
   private static final HeartbeatResponse reboot = recordFactory.newRecordInstance(HeartbeatResponse.class);
   private long nmExpiryInterval;
 
-  public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager,
-      ResourceListener listener) {
+  public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager) {
     super(RMResourceTrackerImpl.class.getName());
     reboot.setReboot(true);
     this.containerTokenSecretManager = containerTokenSecretManager;
     this.heartbeatThread = new HeartBeatThread();
-    this.resourceListener = listener;
   }
 
   @Override
@@ -131,6 +132,11 @@ ResourceTracker, ResourceContext {
     this.nmExpiryInterval =  conf.getLong(YarnConfiguration.NM_EXPIRY_INTERVAL, 
         YarnConfiguration.DEFAULT_NM_EXPIRY_INTERVAL);
     super.init(conf);
+  }
+
+  @Override
+  public void addListener(ResourceListener listener) {
+    this.resourceListener = listener;
   }
 
   @Override
@@ -159,26 +165,20 @@ ResourceTracker, ResourceContext {
   public static Node resolve(String hostName) {
     return new NodeBase(hostName, NetworkTopology.DEFAULT_RACK);
   }
-
-  @Override
-  public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest request) throws YarnRemoteException {
-    String host = request.getHost();
-    int cmPort = request.getContainerManagerPort();
-    String node = host + ":" + cmPort;
-    String httpAddress = host + ":" + request.getHttpPort();
-    Resource capability = request.getResource();
   
-    NodeId nodeId = getNodeId(node);
+  protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId,
+      String hostString, String httpAddress, Node node, Resource capability) {
     NodeInfoTracker nTracker = null;
     
     synchronized(nodeManagers) {
       if (!nodeManagers.containsKey(nodeId)) {
-        /* we do the resolving here, so that scheduler does not have to do it */
+        LOG.info("DEBUG -- Adding  " + hostString);
         NodeManager nodeManager =
-            new NodeManagerImpl(nodeId, node.toString(), httpAddress,
-                resolve(node.toString()),
-                capability);
-        // Inform the scheduler
+          new NodeManagerImpl(nodeId, hostString, httpAddress,
+              node,
+              capability);
+        nodes.put(nodeManager.getNodeAddress(), nodeId);
+        /* Inform the listeners */
         resourceListener.addNode(nodeManager);
         HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
         response.setResponseId(0);
@@ -189,21 +189,67 @@ ResourceTracker, ResourceContext {
         nTracker.updateLastSeen(System.currentTimeMillis());
       }
     }
+    return nTracker;
+  }
+
+  @Override
+  public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest
+      request) throws YarnRemoteException {
+    String host = request.getHost();
+    int cmPort = request.getContainerManagerPort();
+    String node = host + ":" + cmPort;
+    String httpAddress = host + ":" + request.getHttpPort();
+    Resource capability = request.getResource();
+
+    NodeId nodeId = getNodeId(node);
+    NodeInfoTracker nTracker = getAndAddNodeInfoTracker(
+      nodeId, node.toString(), httpAddress,
+                resolve(node.toString()),
+                capability);
+          // Inform the scheduler
+      
     addForTracking(nodeId);
     LOG.info("NodeManager from node " + node + "(web-url: " + httpAddress
         + ") registered with capability: " + capability.getMemory()
         + ", assigned nodeId " + nodeId.getId());
 
-    RegistrationResponse regResponse = recordFactory.newRecordInstance(RegistrationResponse.class);
+    RegistrationResponse regResponse = recordFactory.newRecordInstance(
+        RegistrationResponse.class);
     regResponse.setNodeId(nodeId);
     SecretKey secretKey =
       this.containerTokenSecretManager.createAndGetSecretKey(node);
     regResponse.setSecretKey(ByteBuffer.wrap(secretKey.getEncoded()));
-    RegisterNodeManagerResponse response = recordFactory.newRecordInstance(RegisterNodeManagerResponse.class);
+    RegisterNodeManagerResponse response = recordFactory.newRecordInstance(
+        RegisterNodeManagerResponse.class);
     response.setRegistrationResponse(regResponse);
     return response;
   }
 
+  /**
+   * Update the listeners. This method can be inlined but are there for 
+   * making testing easier
+   * @param nodeManager the {@link NodeInfo} to update.
+   * @param containers the containers from the status of the node manager.
+   */
+  protected void updateListener(NodeInfo nodeManager, Map<String, List<Container>>
+    containers) {
+  /* inform any listeners of node heartbeats */
+    resourceListener.nodeUpdate(
+        nodeManager, containers);
+  }
+  
+  
+  /**
+   * Get a response for the nodemanager heartbeat
+   * @param nodeManager the nodemanager to update
+   * @param containers the containers from the status update.
+   * @return the {@link NodeResponse} for the node manager.
+   */
+  protected NodeResponse NodeResponse(NodeManager nodeManager, Map<String, 
+      List<Container>> containers) {
+    return nodeManager.statusUpdate(containers);
+  }
+  
   @Override
   public NodeHeartbeatResponse nodeHeartbeat(NodeHeartbeatRequest request) throws YarnRemoteException {
     org.apache.hadoop.yarn.server.api.records.NodeStatus remoteNodeStatus = request.getNodeStatus();
@@ -234,12 +280,19 @@ ResourceTracker, ResourceContext {
       nodeHbResponse.setHeartbeatResponse(reboot);
       return nodeHbResponse;
     }
-
-    /* inform any listeners of node heartbeats */
-    NodeResponse nodeResponse = resourceListener.nodeUpdate(
-        nodeManager, remoteNodeStatus.getAllContainers());
-
     
+    /** TODO This should be 3 step process.
+     * nodemanager.statusupdate
+     * listener.update()
+     * nodemanager.getNodeResponse()
+     * This will allow flexibility in updates/scheduling/premption
+     */
+    NodeResponse nodeResponse = nodeManager.statusUpdate(remoteNodeStatus.getAllContainers());
+    /* inform any listeners of node heartbeats */
+    updateListener(
+        nodeManager, remoteNodeStatus.getAllContainers());
+  
+
     HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
     response.addAllContainersToCleanup(nodeResponse.getContainersToCleanUp());
 
@@ -249,12 +302,12 @@ ResourceTracker, ResourceContext {
     nTracker.refreshHeartBeatResponse(response);
     nTracker.updateLastSeen(remoteNodeStatus.getLastSeen());
     boolean prevHealthStatus =
-        nTracker.getNodeManager().getNodeHealthStatus().getIsNodeHealthy();
+      nTracker.getNodeManager().getNodeHealthStatus().getIsNodeHealthy();
     NodeHealthStatus remoteNodeHealthStatus =
-        remoteNodeStatus.getNodeHealthStatus();
+      remoteNodeStatus.getNodeHealthStatus();
     nTracker.getNodeManager().updateHealthStatus(
         remoteNodeHealthStatus);
-//    boolean prevHealthStatus = nodeHbResponse.
+    //    boolean prevHealthStatus = nodeHbResponse.
     nodeHbResponse.setHeartbeatResponse(response);
 
     // Take care of node-health
@@ -263,18 +316,18 @@ ResourceTracker, ResourceContext {
       // Node's health-status changed.
       if (!remoteNodeHealthStatus.getIsNodeHealthy()) {
         // TODO: Node has become unhealthy, remove?
-//        LOG.info("Node " + nodeManager.getNodeID()
-//            + " has become unhealthy. Health-check report: "
-//            + remoteNodeStatus.nodeHealthStatus.healthReport
-//            + "Removing it from the scheduler.");
-//        resourceListener.removeNode(nodeManager);
+        //        LOG.info("Node " + nodeManager.getNodeID()
+        //            + " has become unhealthy. Health-check report: "
+        //            + remoteNodeStatus.nodeHealthStatus.healthReport
+        //            + "Removing it from the scheduler.");
+        //        resourceListener.removeNode(nodeManager);
       } else {
         // TODO: Node has become healthy back again, add?
-//        LOG.info("Node " + nodeManager.getNodeID()
-//            + " has become healthy back again. Health-check report: "
-//            + remoteNodeStatus.nodeHealthStatus.healthReport
-//            + " Adding it to the scheduler.");
-//        this.resourceListener.addNode(nodeManager);
+        //        LOG.info("Node " + nodeManager.getNodeID()
+        //            + " has become healthy back again. Health-check report: "
+        //            + remoteNodeStatus.nodeHealthStatus.healthReport
+        //            + " Adding it to the scheduler.");
+        //        this.resourceListener.addNode(nodeManager);
       }
     }
     return nodeHbResponse;
@@ -286,13 +339,12 @@ ResourceTracker, ResourceContext {
     return (ntracker == null ? null: ntracker.getNodeManager());
   }
 
-  private synchronized NodeId getNodeId(String node) {
+  private  NodeId getNodeId(String node) {
     NodeId nodeId;
     nodeId = nodes.get(node);
     if (nodeId == null) {
       nodeId = recordFactory.newRecordInstance(NodeId.class);
       nodeId.setId(nodeCounter.getAndIncrement());
-      nodes.put(node.toString(), nodeId);
     }
     return nodeId;
   }
@@ -328,7 +380,7 @@ ResourceTracker, ResourceContext {
       nmExpiryQueue.add(nodeID);
     }
   }
-  
+
   protected void expireNMs(List<NodeId> nodes) {
     for (NodeId id: nodes) {
       synchronized (nodeManagers) {
@@ -357,10 +409,10 @@ ResourceTracker, ResourceContext {
        * its alright. We do not want to hold a hold on nodeManagers while going
        * through the expiry queue.
        */
-      
+
       List<NodeId> expired = new ArrayList<NodeId>();
       LOG.info("Starting expiring thread with interval " + nmExpiryInterval);
-      
+
       while (!stop) {
         long now = System.currentTimeMillis();
         expired.clear();
@@ -394,4 +446,34 @@ ResourceTracker, ResourceContext {
       }
     }
   }
+
+  @Override
+  public void finishedApplication(ApplicationId applicationId,
+      List<NodeInfo> nodesToNotify) {
+    for (NodeInfo info: nodesToNotify) {
+      NodeManager node;
+      synchronized(nodeManagers) {
+        node = nodeManagers.get(info.getNodeID()).getNodeManager();
+      }
+      node.finishedApplication(applicationId);
+    } 
+  }
+
+  @Override
+  public  boolean releaseContainer(Container container) {
+    NodeManager node;
+    synchronized (nodeManagers) {
+      LOG.info("DEBUG -- Container manager address " + container.getContainerManagerAddress());
+      NodeId nodeId = nodes.get(container.getContainerManagerAddress());
+      node = nodeManagers.get(nodeId).getNodeManager();
+    }
+    node.releaseContainer(container);
+    return false;
+  }
+  
+  @Override
+  public void recover(RMState state) {
+
+  }
+
 }

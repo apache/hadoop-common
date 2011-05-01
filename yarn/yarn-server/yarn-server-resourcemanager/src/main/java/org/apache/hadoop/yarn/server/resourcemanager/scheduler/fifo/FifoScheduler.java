@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +38,7 @@ import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueACL;
@@ -52,10 +52,12 @@ import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
@@ -78,6 +80,7 @@ public class FifoScheduler implements ResourceScheduler {
   public static final int MINIMUM_MEMORY = 1024;
   private final static Container[] EMPTY_CONTAINER_ARRAY = new Container[] {};
   private final static List<Container> EMPTY_CONTAINER_LIST = Arrays.asList(EMPTY_CONTAINER_ARRAY);
+  private ClusterTracker clusterTracker;
   
   public static final Resource MINIMUM_ALLOCATION =
       Resources.createResource(MINIMUM_MEMORY);
@@ -140,15 +143,25 @@ public class FifoScheduler implements ResourceScheduler {
     }
   };
 
-  public FifoScheduler() {}
+  public FifoScheduler() {
+  }
+  
+  public FifoScheduler(ClusterTracker clusterTracker) {
+    this.clusterTracker = clusterTracker;
+    if (clusterTracker != null) {
+      this.clusterTracker.addListener(this);
+    }
+  }
   
   @Override
   public void reinitialize(Configuration conf,
-      ContainerTokenSecretManager containerTokenSecretManager) 
+      ContainerTokenSecretManager containerTokenSecretManager, ClusterTracker clusterTracker) 
   throws IOException 
   {
     this.conf = conf;
     this.containerTokenSecretManager = containerTokenSecretManager;
+    this.clusterTracker = clusterTracker;
+    if (clusterTracker != null) this.clusterTracker.addListener(this);
   }
   
   @Override
@@ -465,12 +478,28 @@ public class FifoScheduler implements ResourceScheduler {
     }
   }
   
+  private List<Container> getCompletedContainers(Map<String, List<Container>> allContainers) {
+    if (allContainers == null) {
+      return new ArrayList<Container>();
+    }
+    List<Container> completedContainers = new ArrayList<Container>();
+    // Iterate through the running containers and update their status
+    for (Map.Entry<String, List<Container>> e : 
+      allContainers.entrySet()) {
+      for (Container c: e.getValue()) {
+        if (c.getState() == ContainerState.COMPLETE) {
+          completedContainers.add(c);
+        }
+      }
+    }
+    return completedContainers;
+  }
+  
   @Override
-  public synchronized NodeResponse nodeUpdate(NodeInfo node, 
+  public synchronized void nodeUpdate(NodeInfo node, 
       Map<String,List<Container>> containers ) {
    
-    NodeResponse nodeResponse = nodeUpdateInternal(node, containers);
-    applicationCompletedContainers(nodeResponse.getCompletedContainers());
+    applicationCompletedContainers(getCompletedContainers(containers));
     LOG.info("Node heartbeat " + node.getNodeID() + " resource = " + node.getAvailableResource());
     if (Resources.greaterThanOrEqual(node.getAvailableResource(),
                                      MINIMUM_ALLOCATION)) {
@@ -482,8 +511,6 @@ public class FifoScheduler implements ResourceScheduler {
       + node.getAvailableResource());
 
     // TODO: Add the list of containers to be preempted when we support
-    // preemption.
-    return nodeResponse;
   }  
 
   @Override
@@ -511,6 +538,7 @@ public class FifoScheduler implements ResourceScheduler {
     }
   }
   
+
   private Map<String, NodeManager> nodes = new HashMap<String, NodeManager>();
   private Resource clusterResource = recordFactory.newRecordInstance(Resource.class);
   private Resource usedResource = recordFactory.newRecordInstance(Resource.class);
@@ -523,7 +551,6 @@ public class FifoScheduler implements ResourceScheduler {
   public synchronized void removeNode(NodeInfo nodeInfo) {
     Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
     //TODO inform the the applications that the containers are completed/failed
-    nodes.remove(nodeInfo.getNodeAddress());
   }
   
 
@@ -548,45 +575,32 @@ public class FifoScheduler implements ResourceScheduler {
     return applications;
   }
 
-  public synchronized boolean isTracked(NodeInfo nodeInfo) {
-    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
-    return (node == null? false: true);
-  }
- 
   @Override
-  public synchronized void addNode(NodeManager nodeManager) {
-    nodes.put(nodeManager.getNodeAddress(), nodeManager);
+  public synchronized void addNode(NodeInfo nodeManager) {
     Resources.addTo(clusterResource, nodeManager.getTotalCapability());
   }
-
-  public synchronized boolean releaseContainer(ApplicationId applicationId, 
+  
+  public synchronized void releaseContainer(ApplicationId applicationId, 
       Container container) {
     // Reap containers
     LOG.info("Application " + applicationId + " released container " + container);
-    NodeManager nodeManager = nodes.get(container.getContainerManagerAddress());
-    return nodeManager.releaseContainer(container);
+    clusterTracker.releaseContainer(container);
   }
   
-  private synchronized NodeResponse nodeUpdateInternal(NodeInfo nodeInfo, 
-      Map<String,List<Container>> containers) {
-    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
-    LOG.debug("nodeUpdate: node=" + nodeInfo.getNodeAddress() + 
-        " available=" + nodeInfo.getAvailableResource().getMemory());
-    return node.statusUpdate(containers);
-    
-  }
-
   public synchronized void addAllocatedContainers(NodeInfo nodeInfo, 
       ApplicationId applicationId, List<Container> containers) {
-    NodeManager node = nodes.get(nodeInfo.getNodeAddress());
-    node.allocateContainer(applicationId, containers);
+    nodeInfo.allocateContainer(applicationId, containers);
   }
 
   public synchronized void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
-    for (NodeInfo node: nodesToNotify) {
-      NodeManager nodeManager = nodes.get(node.getNodeAddress());
-      nodeManager.notifyFinishedApplication(applicationId);
-    }
+    clusterTracker.finishedApplication(applicationId, nodesToNotify);
+  }
+
+  @Override
+  public void recover(RMState state) {
+   /** nothing special to do
+    * ASM recovery should take care of the scheduler recovery.
+    */
   }
 }

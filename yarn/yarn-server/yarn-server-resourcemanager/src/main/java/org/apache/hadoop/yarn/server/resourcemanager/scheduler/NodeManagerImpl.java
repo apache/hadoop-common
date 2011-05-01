@@ -309,7 +309,7 @@ public class NodeManagerImpl implements NodeManager {
     Resources.addTo(usedResource, resource);
   }
 
-  public synchronized void notifyFinishedApplication(ApplicationId applicationId) {  
+  public synchronized void finishedApplication(ApplicationId applicationId) {  
     finishedApplications.add(applicationId);
     /* make sure to iterate through the list and remove all the containers that 
      * belong to this application.

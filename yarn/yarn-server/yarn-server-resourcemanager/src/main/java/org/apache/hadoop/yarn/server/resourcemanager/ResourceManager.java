@@ -32,13 +32,15 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
+  ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.NodeStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Recoverable;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.webapp.RMWebApp;
@@ -51,7 +53,7 @@ import org.apache.hadoop.yarn.webapp.WebApps;
  * The ResourceManager is the main class that is a set of components.
  *
  */
-public class ResourceManager extends CompositeService {
+public class ResourceManager extends CompositeService implements Recoverable {
   private static final Log LOG = LogFactory.getLog(ResourceManager.class);
   public static final long clusterTimeStamp = System.currentTimeMillis();
   private YarnConfiguration conf;
@@ -73,10 +75,11 @@ public class ResourceManager extends CompositeService {
   private AtomicBoolean shutdown = new AtomicBoolean(false);
   private WebApp webApp;
   private RMContext asmContext;
-  private Store store;
+  private final Store store;
   
-  public ResourceManager() {
+  public ResourceManager(Store store) {
     super("ResourceManager");
+    this.store = store;
   }
   
   public RMContext getRMContext() {
@@ -114,10 +117,12 @@ public class ResourceManager extends CompositeService {
     }
   }
   
+  public void recover() {
+    
+  }
   @Override
   public synchronized void init(Configuration conf) {
     
-    this.store = StoreFactory.getStore(conf);
     this.asmContext = new RMContextImpl(this.store);
     addService(asmContext.getDispatcher());
     // Initialize the config
@@ -128,11 +133,7 @@ public class ResourceManager extends CompositeService {
           conf.getClass(YarnConfiguration.RESOURCE_SCHEDULER, 
               FifoScheduler.class, ResourceScheduler.class), 
           this.conf);
-    try {
-      this.scheduler.reinitialize(this.conf, this.containerTokenSecretManager);
-    } catch (IOException ioe) {
-      throw new RuntimeException("Failed to initialize scheduler", ioe);
-    }
+  
     this.asmContext.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
     //TODO change this to be random
     this.appTokenSecretManager.setMasterKey(ApplicationTokenSecretManager
@@ -141,8 +142,14 @@ public class ResourceManager extends CompositeService {
     applicationsManager = createApplicationsManagerImpl();
     addService(applicationsManager);
     
-    rmResourceTracker = createRMResourceTracker(this.scheduler);
+    rmResourceTracker = createRMResourceTracker();
     addService(rmResourceTracker);
+  
+    try {
+      this.scheduler.reinitialize(this.conf, this.containerTokenSecretManager, rmResourceTracker);
+    } catch (IOException ioe) {
+      throw new RuntimeException("Failed to initialize scheduler", ioe);
+    }
     
     clientRM = createClientRMService();
     addService(clientRM);
@@ -200,8 +207,8 @@ public class ResourceManager extends CompositeService {
     super.stop();
   }
   
-  protected RMResourceTrackerImpl createRMResourceTracker(ResourceListener listener) {
-    return new RMResourceTrackerImpl(this.containerTokenSecretManager, listener);
+  protected RMResourceTrackerImpl createRMResourceTracker() {
+    return new RMResourceTrackerImpl(this.containerTokenSecretManager);
   }
   
   protected ApplicationsManagerImpl createApplicationsManagerImpl() {
@@ -248,13 +255,22 @@ public class ResourceManager extends CompositeService {
     return this.rmResourceTracker;
   }
   
+
+  @Override
+  public void recover(RMState state) throws Exception {
+    applicationsManager.recover(state);
+    rmResourceTracker.recover(state);
+    scheduler.recover(state);
+  }
   
   public static void main(String argv[]) {
     ResourceManager resourceManager = null;
     try {
       Configuration conf = new YarnConfiguration();
-      resourceManager = new ResourceManager();
+      Store store =  StoreFactory.getStore(conf);
+      resourceManager = new ResourceManager(store);
       resourceManager.init(conf);
+      //resourceManager.recover();
       resourceManager.start();
     } catch (Throwable e) {
       LOG.error("Error starting RM", e);

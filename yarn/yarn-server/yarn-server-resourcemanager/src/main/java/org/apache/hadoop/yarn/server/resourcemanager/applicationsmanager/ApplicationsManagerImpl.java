@@ -44,6 +44,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
@@ -250,5 +251,11 @@ public class ApplicationsManagerImpl extends CompositeService
     return (master == null) ? null : 
       createApplication(master.getMaster(), 
           master.getUser(), master.getQueue(), master.getName());
+  }
+
+
+  @Override
+  public void recover(RMState state) {
+    amTracker.recover(state);
   }
 }

@@ -27,13 +27,14 @@ import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Recoverable;
 
 /**
  * This interface defines the interface for ApplicationsManager.
  */
 @Private
 @Evolving
-public interface ApplicationsManager {
+public interface ApplicationsManager extends Recoverable {
    ApplicationId getNewApplicationID();
    ApplicationMaster getApplicationMaster(ApplicationId applicationId);
    Application getApplication(ApplicationId applicationID);

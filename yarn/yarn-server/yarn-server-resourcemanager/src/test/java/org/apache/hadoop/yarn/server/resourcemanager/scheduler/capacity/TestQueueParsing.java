@@ -34,7 +34,7 @@ public class TestQueueParsing {
     setupQueueConfiguration(conf);
 
     CapacityScheduler capacityScheduler = new CapacityScheduler();
-    capacityScheduler.reinitialize(conf, null);
+    capacityScheduler.reinitialize(conf, null, null);
     //capacityScheduler.g
   }
   

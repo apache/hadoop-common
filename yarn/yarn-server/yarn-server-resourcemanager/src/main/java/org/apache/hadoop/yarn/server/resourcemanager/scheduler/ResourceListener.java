@@ -23,10 +23,7 @@ import java.util.Map;
 
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
-import org.apache.hadoop.net.Node;
 import org.apache.hadoop.yarn.api.records.Container;
-import org.apache.hadoop.yarn.api.records.NodeId;
-import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 
 /**
@@ -41,7 +38,7 @@ public interface ResourceListener {
    * add a node to the resource listener.
    * @param nodeManager the nodeManager view
    */
-  public void addNode(NodeManager nodeManager);
+  public void addNode(NodeInfo nodeInfo);
   
   /**
    * A node has been removed from the cluster.
@@ -53,9 +50,7 @@ public interface ResourceListener {
    * A status update from a NodeManager
    * @param nodeInfo NodeManager info
    * @param containers the containers completed/running/failed on this node.
-   * @return response information for the node, which containers to kill and 
-   * applications to clean.
    */
-  public NodeResponse nodeUpdate(NodeInfo nodeInfo, 
+  public void nodeUpdate(NodeInfo nodeInfo, 
       Map<String,List<Container>> containers);
 }

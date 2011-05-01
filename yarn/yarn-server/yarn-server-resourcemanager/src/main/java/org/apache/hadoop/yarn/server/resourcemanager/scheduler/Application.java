@@ -78,15 +78,15 @@ public class Application {
   boolean pending = true; // for app metrics
   
   /* Reserved containers */
-  private final Comparator<NodeManager> nodeComparator = 
-    new Comparator<NodeManager>() {
+  private final Comparator<NodeInfo> nodeComparator = 
+    new Comparator<NodeInfo>() {
     @Override
-    public int compare(NodeManager o1, NodeManager o2) {
+    public int compare(NodeInfo o1, NodeInfo o2) {
       return o1.getNodeID().getId() - o2.getNodeID().getId();
     }
   };
-  final Map<Priority, Set<NodeManager>> reservedContainers =
-    new HashMap<Priority, Set<NodeManager>>();
+  final Map<Priority, Set<NodeInfo>> reservedContainers =
+    new HashMap<Priority, Set<NodeInfo>>();
 
   public Application(ApplicationId applicationId, ApplicationMaster master,
       Queue queue, String user) {
@@ -389,15 +389,15 @@ public class Application {
   }
 
   public synchronized int getReservedContainers(Priority priority) {
-    Set<NodeManager> reservedNodes = this.reservedContainers.get(priority);
+    Set<NodeInfo> reservedNodes = this.reservedContainers.get(priority);
     return (reservedNodes == null) ? 0 : reservedNodes.size();
   }
 
-  public synchronized void reserveResource(NodeManager node, Priority priority,
+  public synchronized void reserveResource(NodeInfo node, Priority priority,
       Resource resource) {
-    Set<NodeManager> reservedNodes = this.reservedContainers.get(priority);
+    Set<NodeInfo> reservedNodes = this.reservedContainers.get(priority);
     if (reservedNodes == null) {
-      reservedNodes = new TreeSet<NodeManager>(nodeComparator);
+      reservedNodes = new TreeSet<NodeInfo>(nodeComparator);
       reservedContainers.put(priority, reservedNodes);
     }
     reservedNodes.add(node);
@@ -406,8 +406,8 @@ public class Application {
         " at priority " + priority);
   }
 
-  public synchronized void unreserveResource(NodeManager node, Priority priority) {
-    Set<NodeManager> reservedNodes = reservedContainers.get(priority);
+  public synchronized void unreserveResource(NodeInfo node, Priority priority) {
+    Set<NodeInfo> reservedNodes = reservedContainers.get(priority);
     reservedNodes.remove(node);
     if (reservedNodes.isEmpty()) {
       this.reservedContainers.remove(priority);
@@ -418,8 +418,8 @@ public class Application {
         " at priority " + priority);
   }
 
-  public synchronized boolean isReserved(NodeManager node, Priority priority) {
-    Set<NodeManager> reservedNodes = reservedContainers.get(priority);
+  public synchronized boolean isReserved(NodeInfo node, Priority priority) {
+    Set<NodeInfo> reservedNodes = reservedContainers.get(priority);
     if (reservedNodes != null) { 
       return reservedNodes.contains(node);
     }
