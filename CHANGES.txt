@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix to send finish application event only when the application is finished (mahadev)
+
     RM Restart Phase 2 - Completed the recovery of components in the RM (mahadev)
 
     MAPREDUCE-2434. Metrics for ResourceManager. (Luke Lu via acmurthy)

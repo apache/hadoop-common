@@ -238,7 +238,7 @@ public class FifoScheduler implements ResourceScheduler {
   }
 
   @Override
-  public synchronized void removeApplication(ApplicationId applicationId)
+  public synchronized void removeApplication(ApplicationId applicationId, boolean finishApplication)
   throws IOException {
     Application application = getApplication(applicationId);
     if (application == null) {
@@ -252,11 +252,11 @@ public class FifoScheduler implements ResourceScheduler {
     // Update metrics
     metrics.finishApp(application);
     application.finish();
-
-    // Let the cluster know that the applications are done
-    finishedApplication(applicationId, 
-        application.getAllNodesForApplication());
-    
+    if (finishApplication) {
+      // Let the cluster know that the applications are done
+      finishedApplication(applicationId, 
+          application.getAllNodesForApplication());
+    }
     // Remove the application
     applications.remove(applicationId);
   }
@@ -529,12 +529,18 @@ public class FifoScheduler implements ResourceScheduler {
       break;
     case REMOVE:
       try {
-        
-        removeApplication(event.getAppContext().getApplicationID());
+        removeApplication(event.getAppContext().getApplicationID(), true);
       } catch(IOException ie) {
         LOG.error("Unable to remove application " + event.getAppContext().getApplicationID(), ie);
       }
       break;  
+    case EXPIRE:
+      try {
+        removeApplication(event.getAppContext().getApplicationID(), false);
+      } catch(IOException ie) {
+        LOG.error("Unable to remove application " + event.getAppContext().getApplicationID(), ie);
+      }
+      break;
     }
   }
   

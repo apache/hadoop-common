@@ -197,6 +197,8 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
       case REMOVE:
         responseMap.remove(id);
         break;
+      case EXPIRE:
+        responseMap.remove(id);
       default: 
         break;
       }

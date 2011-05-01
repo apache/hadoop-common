@@ -156,7 +156,7 @@ public class TestAMRestart extends TestCase {
       case ADD:
         schedulerAddApplication++;
         break;
-      case REMOVE:
+      case EXPIRE:
         schedulerRemoveApplication++;
         LOG.info("REMOVING app : " + schedulerRemoveApplication);
         if (schedulerRemoveApplication == maxFailures) {
@@ -172,7 +172,7 @@ public class TestAMRestart extends TestCase {
     }
 
     @Override
-    public void removeApplication(ApplicationId applicationId)
+    public void removeApplication(ApplicationId applicationId, boolean finishApplication)
         throws IOException {
     }
     @Override

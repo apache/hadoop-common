@@ -252,7 +252,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public void removeApplication(ApplicationId applicationId)
+  public void removeApplication(ApplicationId applicationId, boolean finishApplication)
   throws IOException {
     Application application = getApplication(applicationId);
 
@@ -270,11 +270,11 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
     // Release containers and update queue capacities
     processReleasedContainers(application, application.getCurrentContainers());
-
-    // Inform all NodeManagers about completion of application
-    finishedApplication(applicationId, 
-        application.getAllNodesForApplication());
-
+    if (finishApplication) {
+      // Inform all NodeManagers about completion of application
+      finishedApplication(applicationId, 
+          application.getAllNodesForApplication());
+    }
     // Remove from our data-structure
     applications.remove(applicationId);
   }
@@ -462,7 +462,16 @@ implements ResourceScheduler, CapacitySchedulerContext {
       break;
     case REMOVE:
       try {
-        removeApplication(event.getAppContext().getApplicationID());
+        removeApplication(event.getAppContext().getApplicationID(), true);
+      } catch(IOException ie) {
+        LOG.error("Error in removing application", ie);
+        //TODO have to be shutdown the RM in case of this.
+        // do a graceful shutdown.
+      }
+      break;
+    case EXPIRE:
+      try {
+        removeApplication(event.getAppContext().getApplicationID(), false);
       } catch(IOException ie) {
         LOG.error("Error in removing application", ie);
         //TODO have to be shutdown the RM in case of this.

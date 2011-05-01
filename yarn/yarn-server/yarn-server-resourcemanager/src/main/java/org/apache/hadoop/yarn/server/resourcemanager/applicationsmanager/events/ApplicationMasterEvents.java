@@ -41,7 +41,8 @@ public class ApplicationMasterEvents {
   /* event generated for components tracking application adding/tracking/removal */
   public enum ApplicationTrackerEventType {
     ADD,
-    REMOVE
+    REMOVE,
+    EXPIRE
   }
   
   public enum ApplicationEventType {

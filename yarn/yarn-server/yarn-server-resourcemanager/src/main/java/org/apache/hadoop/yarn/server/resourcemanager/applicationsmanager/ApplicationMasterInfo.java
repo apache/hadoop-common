@@ -288,7 +288,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
       masterInfo.handler.handle(new ASMEvent<AMLauncherEventType>(
         AMLauncherEventType.CLEANUP, masterInfo));
       masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(
-      ApplicationTrackerEventType.REMOVE, masterInfo));
+      ApplicationTrackerEventType.EXPIRE, masterInfo));
       masterInfo.numFailed++;
     }
   }
