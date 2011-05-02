@@ -43,6 +43,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.ApplicationMasterService;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.junit.After;
@@ -103,10 +105,9 @@ public class TestAMRMRPCResponseId extends TestCase {
 
     @Override
     public void addApplication(ApplicationId applicationId,
-        ApplicationMaster master, String user, String queue, Priority priority)
-        throws IOException {
-      // TODO Auto-generated method stub
-      
+        ApplicationMaster master, String user, String queue, Priority priority, 
+        ApplicationStore store)
+        throws IOException { 
     }
   }
   

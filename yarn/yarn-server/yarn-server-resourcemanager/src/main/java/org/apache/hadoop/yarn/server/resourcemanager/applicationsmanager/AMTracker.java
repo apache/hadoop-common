@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -45,6 +46,8 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Recoverable;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
@@ -67,11 +70,13 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private int amMaxRetries;
 
-  private final RMContext asmContext;
+  private final RMContext rmContext;
 
   private final Map<ApplicationId, ApplicationMasterInfo> applications = 
     new ConcurrentHashMap<ApplicationId, ApplicationMasterInfo>();
 
+  private final ApplicationsStore appsStore;
+  
   private TreeSet<ApplicationStatus> amExpiryQueue =
     new TreeSet<ApplicationStatus>(
         new Comparator<ApplicationStatus>() {
@@ -88,23 +93,24 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         }
     );
 
-  public AMTracker(RMContext asmContext) {
+  public AMTracker(RMContext rmContext) {
     super(AMTracker.class.getName());
     this.heartBeatThread = new HeartBeatThread();
-    this.asmContext = asmContext;
+    this.rmContext = rmContext;
+    this.appsStore = rmContext.getApplicationsStore();
   }
 
   @Override
   public void init(Configuration conf) {
     super.init(conf);
-    this.handler = asmContext.getDispatcher().getEventHandler();
+    this.handler = rmContext.getDispatcher().getEventHandler();
     this.amExpiryInterval = conf.getLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 
         YarnConfiguration.DEFAULT_AM_EXPIRY_INTERVAL);
     LOG.info("AM expiry interval: " + this.amExpiryInterval);
     this.amMaxRetries =  conf.getInt(YarnConfiguration.AM_MAX_RETRIES, 
         YarnConfiguration.DEFAULT_AM_MAX_RETRIES);
     LOG.info("AM max retries: " + this.amMaxRetries);
-    this.asmContext.getDispatcher().register(ApplicationEventType.class, this);
+    this.rmContext.getDispatcher().register(ApplicationEventType.class, this);
   }
 
   @Override
@@ -190,14 +196,18 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
   }
 
   public void addMaster(String user,  ApplicationSubmissionContext 
-      submissionContext, String clientToken) {
-    ApplicationMasterInfo applicationMaster = new ApplicationMasterInfo(asmContext, 
-        user, submissionContext, clientToken);
+      submissionContext, String clientToken) throws IOException {
+    
+    ApplicationStore appStore = appsStore.createApplicationStore(submissionContext.getApplicationId(),
+        submissionContext);
+    ApplicationMasterInfo applicationMaster = new ApplicationMasterInfo(rmContext, 
+        user, submissionContext, clientToken, appStore);
     synchronized(applications) {
       applications.put(applicationMaster.getApplicationID(), applicationMaster);
     }
-    asmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
+    rmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
         ApplicationEventType.ALLOCATE, applicationMaster));
+   
   }
 
   public void finish(ApplicationId application) {
@@ -209,7 +219,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
       LOG.info("Cant find application to finish " + application);
       return;
     }
-    asmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
+    rmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
         ApplicationEventType.FINISH, masterInfo));
   }
 
@@ -317,6 +327,11 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     public int getFailedCount() {
       throw notimplemented;
     }
+
+    @Override
+    public ApplicationStore getStore() {
+     throw notimplemented;
+    }
   }
 
   public void heartBeat(ApplicationStatus status) {
@@ -386,9 +401,16 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     for (Map.Entry<ApplicationId, ApplicationInfo> entry: state.getStoredApplications().entrySet()) {
       ApplicationId appId = entry.getKey();
       ApplicationInfo appInfo = entry.getValue();
-      ApplicationMasterInfo masterInfo = new ApplicationMasterInfo(this.asmContext,
+      ApplicationMasterInfo masterInfo = null;
+      try {
+        masterInfo = new ApplicationMasterInfo(this.rmContext,
+      
           appInfo.getApplicationSubmissionContext().getUser(), appInfo.getApplicationSubmissionContext(), 
-          appInfo.getApplicationMaster().getClientToken());
+          appInfo.getApplicationMaster().getClientToken(), 
+          this.appsStore.createApplicationStore(appId, appInfo.getApplicationSubmissionContext()));
+      } catch(IOException ie) {
+        //ignore
+      }
       ApplicationMaster master = masterInfo.getMaster();
       ApplicationMaster storedAppMaster = appInfo.getApplicationMaster();
       master.setAMFailCount(storedAppMaster.getAMFailCount());
@@ -401,33 +423,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
       master.setStatus(storedAppMaster.getStatus());
       master.setState(storedAppMaster.getState());
       applications.put(appId, masterInfo);
-      
-      switch(master.getState()) {
-      case ALLOCATED:
-        break;
-      case ALLOCATING:
-        break;
-      case CLEANUP:
-        break;
-      case EXPIRED_PENDING:
-        break;
-      case COMPLETED:
-        break;
-      case FAILED:
-        break;
-      case LAUNCHED:
-        break;
-      case KILLED:
-        break;
-      case LAUNCHING:
-        break;
-      case PAUSED:
-        break;
-      case PENDING:
-        break;
-      case RUNNING:
-        break;
-      }
+      handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.RECOVER, masterInfo));
     }
   }
 }

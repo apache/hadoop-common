@@ -29,9 +29,10 @@ import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 
 
-public interface Store extends NodeStore, ApplicationStore {
+public interface Store extends NodeStore, ApplicationsStore {
   public interface ApplicationInfo {
     public ApplicationMaster getApplicationMaster();
+    public Container getMasterContainer();
     public ApplicationSubmissionContext getApplicationSubmissionContext();
     public List<Container> getContainers();
   }
@@ -41,4 +42,5 @@ public interface Store extends NodeStore, ApplicationStore {
     public NodeId getLastLoggedNodeId();
   }
   public RMState restore() throws IOException;
+  public void doneWithRecovery();
 }

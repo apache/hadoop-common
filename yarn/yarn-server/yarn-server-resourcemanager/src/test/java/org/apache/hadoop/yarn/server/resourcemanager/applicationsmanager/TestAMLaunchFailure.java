@@ -48,6 +48,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.junit.After;
@@ -93,7 +94,8 @@ public class TestAMLaunchFailure extends TestCase {
 
     @Override
     public void addApplication(ApplicationId applicationId,
-        ApplicationMaster master, String user, String queue, Priority priority)
+        ApplicationMaster master, String user, String queue, Priority priority
+        , ApplicationStore appStore)
         throws IOException {
       // TODO Auto-generated method stub
       

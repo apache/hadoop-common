@@ -45,9 +45,11 @@ import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -111,7 +113,8 @@ public class TestSchedulerNegotiator extends TestCase {
     }
     @Override
     public void addApplication(ApplicationId applicationId,
-        ApplicationMaster master, String user, String queue, Priority priority)
+        ApplicationMaster master, String user, String queue, Priority priority,
+        ApplicationStore store)
         throws IOException {
     }
 
@@ -178,7 +181,7 @@ public class TestSchedulerNegotiator extends TestCase {
     
     masterInfo =
       new ApplicationMasterInfo(this.context,
-          "dummy", submissionContext, "dummyClientToken");
+          "dummy", submissionContext, "dummyClientToken", StoreFactory.createVoidAppStore());
     context.getDispatcher().register(ApplicationEventType.class, masterInfo);
     context.getDispatcher().register(ApplicationTrackerEventType.class, masterInfo);
     handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.

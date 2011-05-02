@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -43,6 +44,7 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 
@@ -71,6 +73,8 @@ public class Application {
   Map<Priority, Integer> schedulingOpportunities = 
     new HashMap<Priority, Integer>();
   
+  private final ApplicationStore store;
+  
   /* Current consumption */
   List<Container> acquired = new ArrayList<Container>();
   List<Container> completedContainers = new ArrayList<Container>();
@@ -92,11 +96,12 @@ public class Application {
     new HashMap<Priority, Set<NodeInfo>>();
 
   public Application(ApplicationId applicationId, ApplicationMaster master,
-      Queue queue, String user) {
+      Queue queue, String user, ApplicationStore store) {
     this.applicationId = applicationId;
     this.queue = queue;
     this.user = user; 
     this.master = master;
+    this.store = store;
   }
 
   public ApplicationId getApplicationId() {
@@ -358,13 +363,17 @@ public class Application {
         offSwitchRequest.getNumContainers() - containers.size());
   }
 
-  synchronized private void allocate(List<Container> containers) {
+  synchronized public void allocate(List<Container> containers) {
     // Update consumption and track allocations
     for (Container container : containers) {
       Resources.addTo(currentConsumption, container.getResource());
 
       allocated.add(container);
-
+      try {
+        store.storeContainer(container);
+      } catch(IOException ie) {
+        //TODO fix this. we shouldnt ignore
+      }
       LOG.debug("allocate: applicationId=" + applicationId + 
           " container=" + container.getId() + " host=" + container.getContainerManagerAddress());
     }

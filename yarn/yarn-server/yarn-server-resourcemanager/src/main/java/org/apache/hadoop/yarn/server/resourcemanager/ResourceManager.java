@@ -34,7 +34,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.Applica
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
   ApplicationMasterEvents.ApplicationTrackerEventType;
-import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.NodeStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Recoverable;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
@@ -74,7 +74,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
   private AdminService adminService;
   private AtomicBoolean shutdown = new AtomicBoolean(false);
   private WebApp webApp;
-  private RMContext asmContext;
+  private RMContext rmContext;
   private final Store store;
   
   public ResourceManager(Store store) {
@@ -83,13 +83,13 @@ public class ResourceManager extends CompositeService implements Recoverable {
   }
   
   public RMContext getRMContext() {
-    return this.asmContext;
+    return this.rmContext;
   }
   
   public interface RMContext {
     public RMDispatcherImpl getDispatcher();
     public NodeStore getNodeStore();
-    public ApplicationStore getApplicationStore();
+    public ApplicationsStore getApplicationsStore();
   }
   
   public static class RMContextImpl implements RMContext {
@@ -112,19 +112,17 @@ public class ResourceManager extends CompositeService implements Recoverable {
     }
 
     @Override
-    public ApplicationStore getApplicationStore() {
+    public ApplicationsStore getApplicationsStore() {
       return store;
     }
   }
   
-  public void recover() {
-    
-  }
+  
   @Override
   public synchronized void init(Configuration conf) {
     
-    this.asmContext = new RMContextImpl(this.store);
-    addService(asmContext.getDispatcher());
+    this.rmContext = new RMContextImpl(this.store);
+    addService(rmContext.getDispatcher());
     // Initialize the config
     this.conf = new YarnConfiguration(conf);
     // Initialize the scheduler
@@ -134,7 +132,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
               FifoScheduler.class, ResourceScheduler.class), 
           this.conf);
   
-    this.asmContext.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
+    this.rmContext.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
     //TODO change this to be random
     this.appTokenSecretManager.setMasterKey(ApplicationTokenSecretManager
         .createSecretKey("Dummy".getBytes()));
@@ -208,12 +206,12 @@ public class ResourceManager extends CompositeService implements Recoverable {
   }
   
   protected RMResourceTrackerImpl createRMResourceTracker() {
-    return new RMResourceTrackerImpl(this.containerTokenSecretManager);
+    return new RMResourceTrackerImpl(this.containerTokenSecretManager, this.rmContext);
   }
   
   protected ApplicationsManagerImpl createApplicationsManagerImpl() {
     return new ApplicationsManagerImpl(
-        this.appTokenSecretManager, this.scheduler, this.asmContext);
+        this.appTokenSecretManager, this.scheduler, this.rmContext);
   }
 
   protected ClientRMService createClientRMService() {
@@ -222,7 +220,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
 
   protected ApplicationMasterService createApplicationMasterService() {
     return new ApplicationMasterService(
-      this.appTokenSecretManager, applicationsManager, scheduler, this.asmContext);
+      this.appTokenSecretManager, applicationsManager, scheduler, this.rmContext);
   }
   
 
@@ -270,7 +268,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
       Store store =  StoreFactory.getStore(conf);
       resourceManager = new ResourceManager(store);
       resourceManager.init(conf);
-      //resourceManager.recover();
+      //resourceManager.recover(store.restore());
+      //store.doneWithRecovery();
       resourceManager.start();
     } catch (Throwable e) {
       LOG.error("Error starting RM", e);

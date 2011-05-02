@@ -40,6 +40,10 @@ import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -77,8 +81,8 @@ public class TestNMExpiry extends TestCase {
 
   private class TestRMResourceTrackerImpl extends RMResourceTrackerImpl {
     public TestRMResourceTrackerImpl(
-        ContainerTokenSecretManager containerTokenSecretManager) {
-      super(containerTokenSecretManager);
+        ContainerTokenSecretManager containerTokenSecretManager, RMContext context) {
+      super(containerTokenSecretManager, context);
     }
 
     @Override
@@ -103,9 +107,12 @@ public class TestNMExpiry extends TestCase {
 
   @Before
   public void setUp() {
-    resourceTracker = new TestRMResourceTrackerImpl(containerTokenSecretManager);
-    resourceTracker.addListener(new VoidResourceListener());
     Configuration conf = new Configuration();
+    RMContext context = new ResourceManager.RMContextImpl(new MemStore());
+    resourceTracker = new TestRMResourceTrackerImpl(containerTokenSecretManager, 
+       context);
+    resourceTracker.addListener(new VoidResourceListener());
+    
     conf.setLong(YarnConfiguration.NM_EXPIRY_INTERVAL, 1000);
     resourceTracker.init(conf);
     resourceTracker.start();

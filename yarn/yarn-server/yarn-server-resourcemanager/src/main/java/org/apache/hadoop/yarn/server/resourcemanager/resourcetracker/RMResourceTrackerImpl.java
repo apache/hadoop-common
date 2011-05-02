@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.server.RMNMSecurityInfoClass;
 import org.apache.hadoop.yarn.server.YarnServerConfig;
@@ -61,6 +63,9 @@ import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResp
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.NodeStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
@@ -115,12 +120,16 @@ ResourceTracker, ClusterTracker {
   private final AtomicInteger nodeCounter = new AtomicInteger(0);
   private static final HeartbeatResponse reboot = recordFactory.newRecordInstance(HeartbeatResponse.class);
   private long nmExpiryInterval;
-
-  public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager) {
+  private final RMContext rmContext;
+  private final NodeStore nodeStore;
+  
+  public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager, RMContext context) {
     super(RMResourceTrackerImpl.class.getName());
     reboot.setReboot(true);
     this.containerTokenSecretManager = containerTokenSecretManager;
     this.heartbeatThread = new HeartBeatThread();
+    this.rmContext = context;
+    this.nodeStore = context.getNodeStore();
   }
 
   @Override
@@ -167,7 +176,7 @@ ResourceTracker, ClusterTracker {
   }
   
   protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId,
-      String hostString, String httpAddress, Node node, Resource capability) {
+      String hostString, String httpAddress, Node node, Resource capability) throws IOException {
     NodeInfoTracker nTracker = null;
     
     synchronized(nodeManagers) {
@@ -178,6 +187,7 @@ ResourceTracker, ClusterTracker {
               node,
               capability);
         nodes.put(nodeManager.getNodeAddress(), nodeId);
+        nodeStore.storeNode(nodeManager);
         /* Inform the listeners */
         resourceListener.addNode(nodeManager);
         HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
@@ -202,12 +212,17 @@ ResourceTracker, ClusterTracker {
     Resource capability = request.getResource();
 
     NodeId nodeId = getNodeId(node);
-    NodeInfoTracker nTracker = getAndAddNodeInfoTracker(
+    
+    NodeInfoTracker nTracker = null;
+    try {
+    nTracker = getAndAddNodeInfoTracker(
       nodeId, node.toString(), httpAddress,
                 resolve(node.toString()),
                 capability);
           // Inform the scheduler
-      
+    } catch(IOException io) {
+      throw  RPCUtil.getRemoteException(io);
+    }
     addForTracking(nodeId);
     LOG.info("NodeManager from node " + node + "(web-url: " + httpAddress
         + ") registered with capability: " + capability.getMemory()
@@ -459,21 +474,43 @@ ResourceTracker, ClusterTracker {
     } 
   }
 
-  @Override
-  public  boolean releaseContainer(Container container) {
+  private NodeManager getNodeManagerForContainer(Container container) {
     NodeManager node;
     synchronized (nodeManagers) {
       LOG.info("DEBUG -- Container manager address " + container.getContainerManagerAddress());
       NodeId nodeId = nodes.get(container.getContainerManagerAddress());
       node = nodeManagers.get(nodeId).getNodeManager();
     }
+    return node;
+  }
+  @Override
+  public  boolean releaseContainer(Container container) {
+    NodeManager node = getNodeManagerForContainer(container);
     node.releaseContainer(container);
     return false;
   }
   
   @Override
   public void recover(RMState state) {
-
+    List<NodeManager> nodeManagers = state.getStoredNodeManagers();
+    for (NodeManager nm: nodeManagers) {
+      try {
+        getAndAddNodeInfoTracker(nm.getNodeID(), nm.getNodeAddress(), nm.getHttpAddress(), 
+          nm.getNode(), nm.getTotalCapability());
+      } catch(IOException ie) {
+        //ignore
+      }
+    }
+    for (Map.Entry<ApplicationId, ApplicationInfo> entry: state.getStoredApplications().entrySet()) {
+      List<Container> containers = entry.getValue().getContainers();
+      List<Container> containersToAdd = new ArrayList<Container>();
+      for (Container c: containers) {
+        NodeManager containerNode = getNodeManagerForContainer(c);
+        containersToAdd.add(c);
+        containerNode.allocateContainer(entry.getKey(), containersToAdd);
+        containersToAdd.clear();
+      }
+    }
   }
 
 }

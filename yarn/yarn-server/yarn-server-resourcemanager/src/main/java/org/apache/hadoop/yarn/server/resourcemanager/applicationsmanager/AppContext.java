@@ -24,6 +24,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 
 /** 
  * The context of an application. 
@@ -97,4 +98,10 @@ public interface AppContext {
    * @return the count of number of times the AM has expired/failed.
    */
   public int getFailedCount();
+  
+  /**
+   * The store for this application
+   * @return the application store for this application
+   */
+  public ApplicationStore getStore();
 }

@@ -44,6 +44,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.service.CompositeService;
@@ -69,19 +70,19 @@ public class ApplicationsManagerImpl extends CompositeService
     new ClientToAMSecretManager();
   private final EventHandler eventHandler;
   private final ApplicationTokenSecretManager applicationTokenSecretManager;
-  private final RMContext asmContext; 
+  private final RMContext rmContext; 
   
   private final RecordFactory recordFactory = 
     RecordFactoryProvider.getRecordFactory(null);
-
+  
   public ApplicationsManagerImpl(ApplicationTokenSecretManager 
-      applicationTokenSecretManager, YarnScheduler scheduler, RMContext asmContext) {
+      applicationTokenSecretManager, YarnScheduler scheduler, RMContext rmContext) {
     super("ApplicationsManager");
     this.scheduler = scheduler;
-    this.asmContext = asmContext;
-    this.eventHandler = this.asmContext.getDispatcher().getEventHandler();
+    this.rmContext = rmContext;
+    this.eventHandler = this.rmContext.getDispatcher().getEventHandler();
     this.applicationTokenSecretManager = applicationTokenSecretManager;
-  }
+   }
   
 
   /**
@@ -89,7 +90,7 @@ public class ApplicationsManagerImpl extends CompositeService
    * @return create a new am heart beat handler.
    */
   protected AMTracker createNewAMTracker() {
-    return new AMTracker(this.asmContext);
+    return new AMTracker(this.rmContext);
   }
 
   /**
@@ -98,7 +99,7 @@ public class ApplicationsManagerImpl extends CompositeService
    * @return scheduler negotiator that talks to the scheduler.
    */
   protected EventHandler<ASMEvent<SNEventType>> createNewSchedulerNegotiator(YarnScheduler scheduler) {
-    return new SchedulerNegotiator(this.asmContext, scheduler);
+    return new SchedulerNegotiator(this.rmContext, scheduler);
   }
 
   /**
@@ -110,7 +111,7 @@ public class ApplicationsManagerImpl extends CompositeService
   protected EventHandler<ASMEvent<AMLauncherEventType>> createNewApplicationMasterLauncher(
       ApplicationTokenSecretManager tokenSecretManager) {
     return  new ApplicationMasterLauncher(tokenSecretManager,
-        this.clientToAMSecretManager, this.asmContext);
+        this.clientToAMSecretManager, this.rmContext);
   }
 
   /**

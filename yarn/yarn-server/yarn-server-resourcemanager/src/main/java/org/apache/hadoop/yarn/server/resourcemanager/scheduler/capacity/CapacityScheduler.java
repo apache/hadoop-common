@@ -48,6 +48,7 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
@@ -229,7 +230,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   @Override
   public void addApplication(ApplicationId applicationId, ApplicationMaster master,
-      String user, String queueName, Priority priority)
+      String user, String queueName, Priority priority, ApplicationStore appStore)
   throws IOException {
     Queue queue = queues.get(queueName);
 
@@ -243,7 +244,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
           " submitted by user " + user + " to non-leaf queue: " + queueName);
     }
 
-    Application application = new Application(applicationId, master, queue, user); 
+    Application application = new Application(applicationId, master, queue, user, appStore); 
     try {
       queue.submitApplication(application, user, queueName, priority);
     } catch (AccessControlException ace) {
@@ -467,7 +468,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
       try {
         addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getMaster(),
             event.getAppContext().getUser(), event.getAppContext().getQueue(),
-            event.getAppContext().getSubmissionContext().getPriority());
+            event.getAppContext().getSubmissionContext().getPriority(),
+            event.getAppContext().getStore());
       } catch(IOException ie) {
         LOG.error("Error in adding an application to the scheduler", ie);
         //TODO do proper error handling to shutdown the Resource Manager is we 
@@ -535,9 +537,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
     for (Map.Entry<ApplicationId, ApplicationInfo> entry : state.getStoredApplications().entrySet()) {
       ApplicationId appId = entry.getKey();
       ApplicationInfo appInfo = entry.getValue();
-      
-      addApplication(appId, appInfo.getApplicationMaster(), appInfo.getApplicationSubmissionContext().getUser(),
-          appInfo.getApplicationSubmissionContext().getQueue(), appInfo.getApplicationSubmissionContext().getPriority());
+      Application app = applications.get(appId);
+      app.allocate(appInfo.getContainers());
       for (Container c: entry.getValue().getContainers()) {
         Queue queue = queues.get(appInfo.getApplicationSubmissionContext().getQueue());
         queue.recoverContainer(clusterResource, applications.get(appId), c);

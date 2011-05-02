@@ -48,6 +48,7 @@ public class ApplicationMasterEvents {
   public enum ApplicationEventType {
     ALLOCATE,
     REGISTERED,
+    RECOVER,
     REMOVE,
     STATUSUPDATE,
     LAUNCH,

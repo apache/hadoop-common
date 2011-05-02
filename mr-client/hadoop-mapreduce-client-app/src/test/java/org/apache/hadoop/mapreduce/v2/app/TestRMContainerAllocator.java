@@ -61,6 +61,7 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
@@ -245,7 +246,7 @@ public class TestRMContainerAllocator {
       fsc.reinitialize(new Configuration(), new ContainerTokenSecretManager(), null);
       fsc.addApplication(recordFactory.newRecordInstance(ApplicationId.class),
           recordFactory.newRecordInstance(ApplicationMaster.class),
-          "test", null, null);
+          "test", null, null, StoreFactory.createVoidAppStore());
     } catch(IOException ie) {
       LOG.info("add application failed with ", ie);
       assert(false);

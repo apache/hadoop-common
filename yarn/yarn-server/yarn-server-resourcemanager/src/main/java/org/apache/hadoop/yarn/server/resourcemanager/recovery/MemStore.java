@@ -37,6 +37,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 public class MemStore implements Store {
   RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private NodeId nodeId;
+  private boolean doneWithRecovery = false;
 
   public MemStore() {
     nodeId = recordFactory.newRecordInstance(NodeId.class);
@@ -49,22 +50,36 @@ public class MemStore implements Store {
   @Override
   public void removeNode(NodeManager node) throws IOException {}
 
-  @Override
-  public void storeContainer(Container container) throws IOException {}
+  private class ApplicationStoreImpl implements ApplicationStore {
+    @Override
+    public void storeContainer(Container container) throws IOException {}
+
+    @Override
+    public void removeContainer(Container container) throws IOException {}
+
+    @Override
+    public void storeMasterContainer(Container container) throws IOException {}
+
+    @Override
+    public void updateApplicationState(
+        ApplicationMaster master) throws IOException {}
+
+    @Override
+    public boolean isLoggable() {
+      return doneWithRecovery;
+    }
+
+  }
 
   @Override
-  public void removeContainer(Container container) throws IOException {}
+  public ApplicationStore createApplicationStore(ApplicationId application,
+      ApplicationSubmissionContext context) throws IOException {
+    return new ApplicationStoreImpl();
+  }
 
-  @Override
-  public void storeApplication(ApplicationId application,
-      ApplicationSubmissionContext context, ApplicationMaster master) throws IOException {}
 
   @Override
   public void removeApplication(ApplicationId application) throws IOException {}
-
-  @Override
-  public void updateApplicationState(ApplicationId applicationId,
-      ApplicationMaster master) throws IOException {}
 
   @Override
   public RMState restore() throws IOException {
@@ -100,5 +115,15 @@ public class MemStore implements Store {
     public Map<ApplicationId, ApplicationInfo> getStoredApplications() {
       return new HashMap<ApplicationId, Store.ApplicationInfo>();
     }
+  }
+
+  @Override
+  public boolean isLoggable() {
+    return doneWithRecovery;
+  }
+
+  @Override
+  public void doneWithRecovery() {
+    doneWithRecovery = true;
   }
 }

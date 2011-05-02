@@ -29,6 +29,7 @@ import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 
 /**
  * This interface is used by the components to talk to the
@@ -53,11 +54,12 @@ public interface YarnScheduler {
    * @param applicationId application which has been submitted
    * @param master the application master
    * @param user application user
-   * @param queue queue to which the applications is being submitted
+   * @param queue queue to which the applications is being submitte
    * @param priority application priority
+   * @param appStore the storage for the application.
    */
   public void addApplication(ApplicationId applicationId, ApplicationMaster master,
-      String user, String queue, Priority priority) 
+      String user, String queue, Priority priority, ApplicationStore appStore) 
   throws IOException;
   
   /**

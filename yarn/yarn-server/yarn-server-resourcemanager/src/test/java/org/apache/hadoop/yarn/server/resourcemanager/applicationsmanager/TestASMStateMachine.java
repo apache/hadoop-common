@@ -43,7 +43,9 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -175,6 +177,10 @@ public class TestASMStateMachine extends TestCase {
     public int getFailedCount() {
       return 0;
     }
+    @Override
+    public ApplicationStore getStore() {
+      return StoreFactory.createVoidAppStore();
+    }
   }
 
   private class ApplicationTracker implements EventHandler<ASMEvent<ApplicationTrackerEventType>> {
@@ -227,7 +233,8 @@ public class TestASMStateMachine extends TestCase {
     submissioncontext.getApplicationId().setClusterTimestamp(System.currentTimeMillis());
 
     ApplicationMasterInfo masterInfo 
-    = new ApplicationMasterInfo(context, "dummyuser", submissioncontext, "dummyToken");
+    = new ApplicationMasterInfo(context, "dummyuser", submissioncontext, "dummyToken"
+        , StoreFactory.createVoidAppStore());
 
     context.getDispatcher().register(ApplicationEventType.class, masterInfo);
     handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.

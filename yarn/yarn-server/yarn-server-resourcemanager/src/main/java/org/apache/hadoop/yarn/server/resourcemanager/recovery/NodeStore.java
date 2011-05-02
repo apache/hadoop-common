@@ -28,4 +28,5 @@ public interface NodeStore {
   public void storeNode(NodeManager node) throws IOException;
   public void removeNode(NodeManager node) throws IOException;
   public NodeId getNextNodeId() throws IOException;
+  public boolean isLoggable();
 }

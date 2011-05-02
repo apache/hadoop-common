@@ -33,6 +33,9 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
@@ -73,7 +76,8 @@ public class TestRMNMRPCResponseId extends TestCase {
   
   @Before
   public void setUp() {
-    rmResourceTrackerImpl = new RMResourceTrackerImpl(containerTokenSecretManager);
+    RMContext context = new ResourceManager.RMContextImpl(new MemStore());
+    rmResourceTrackerImpl = new RMResourceTrackerImpl(containerTokenSecretManager, context);
     rmResourceTrackerImpl.addListener(listener);
   }
   

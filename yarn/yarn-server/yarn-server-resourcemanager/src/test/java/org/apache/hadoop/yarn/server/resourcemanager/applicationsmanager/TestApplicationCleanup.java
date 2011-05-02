@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,6 +58,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
@@ -94,13 +96,13 @@ public class TestApplicationCleanup extends TestCase {
   private class TestRMResourceTrackerImpl extends RMResourceTrackerImpl {
 
     public TestRMResourceTrackerImpl(
-        ContainerTokenSecretManager containerTokenSecretManager) {
-      super(containerTokenSecretManager);
+        ContainerTokenSecretManager containerTokenSecretManager, RMContext context) {
+      super(containerTokenSecretManager, context);
     }
     
     @Override
     protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId,
-        String hostString, String httpAddress, Node node, Resource capability) {
+        String hostString, String httpAddress, Node node, Resource capability) throws IOException {
       return super.getAndAddNodeInfoTracker(nodeId, hostString, httpAddress, node, capability);
     }
     
@@ -113,7 +115,7 @@ public class TestApplicationCleanup extends TestCase {
   @Before
   public void setUp() {
     new DummyApplicationTracker();
-    this.clusterTracker = new TestRMResourceTrackerImpl(new ContainerTokenSecretManager());
+    this.clusterTracker = new TestRMResourceTrackerImpl(new ContainerTokenSecretManager(), context);
     scheduler = new FifoScheduler(clusterTracker);
     context.getDispatcher().register(ApplicationTrackerEventType.class, scheduler);
     Configuration conf = new Configuration();
@@ -242,7 +244,7 @@ public class TestApplicationCleanup extends TestCase {
     return request;
   }
 
-  protected NodeManager addNodes(String commonName, int i, int memoryCapability) {
+  protected NodeManager addNodes(String commonName, int i, int memoryCapability) throws IOException {
     NodeId nodeId = recordFactory.newRecordInstance(NodeId.class);
     nodeId.setId(i);
     String hostName = commonName + "_" + i;

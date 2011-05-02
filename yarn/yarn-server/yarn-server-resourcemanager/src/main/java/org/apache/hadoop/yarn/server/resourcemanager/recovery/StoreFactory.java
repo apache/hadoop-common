@@ -17,9 +17,14 @@
 */
 package org.apache.hadoop.yarn.server.resourcemanager.recovery;
 
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.yarn.api.records.ApplicationMaster;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 
 public class StoreFactory {
   
@@ -29,5 +34,36 @@ public class StoreFactory {
             MemStore.class, Store.class), 
             conf);
     return store;
+  }
+  
+  public static ApplicationStore createVoidAppStore() {
+    return new VoidApplicationStore();
+  }
+  
+  private static class VoidApplicationStore implements ApplicationStore {
+
+    public VoidApplicationStore() {}
+    
+    @Override
+    public void storeContainer(Container container) throws IOException {
+    }
+
+    @Override
+    public void removeContainer(Container container) throws IOException {
+    }
+
+    @Override
+    public void storeMasterContainer(Container container) throws IOException {
+    }
+
+    @Override
+    public void updateApplicationState(ApplicationMaster master)
+        throws IOException {
+    }
+
+    @Override
+    public boolean isLoggable() {
+      return false;
+    }
   }
 }

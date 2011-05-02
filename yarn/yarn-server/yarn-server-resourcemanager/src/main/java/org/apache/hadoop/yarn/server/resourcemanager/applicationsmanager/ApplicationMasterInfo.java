@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +42,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
@@ -63,6 +65,8 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   private Container masterContainer;
   final private String user;
   private int numFailed = 0;
+  private final ApplicationStore appStore;
+  
   /* the list of nodes that this AM was launched on */
   List<String> hostNamesLaunched = new ArrayList<String>();
   /* this transition is too generalized, needs to be broken up as and when we 
@@ -74,13 +78,15 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   private final ExpireTransition expireTransition = new ExpireTransition();
   private final FailedTransition failedTransition = new FailedTransition();
   private final AllocateTransition allocateTransition = new AllocateTransition();
+  private final LaunchTransition launchTransition =  new LaunchTransition();
+  private final LaunchedTransition launchedTransition = new LaunchedTransition();
   
   private final StateMachine<ApplicationState, ApplicationEventType, 
   ASMEvent<ApplicationEventType>> stateMachine;
 
   private final StateMachineFactory<ApplicationMasterInfo,
   ApplicationState, ApplicationEventType, ASMEvent<ApplicationEventType>> stateMachineFactory 
-
+  
   = new StateMachineFactory
   <ApplicationMasterInfo, ApplicationState, ApplicationEventType, ASMEvent<ApplicationEventType>>
   (ApplicationState.PENDING)
@@ -88,8 +94,17 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING,
   ApplicationEventType.ALLOCATE, allocateTransition)
   
+  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
+      ApplicationEventType.RECOVER, allocateTransition)
+  
   .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.ALLOCATING, 
   ApplicationEventType.ALLOCATE, allocateTransition)
+  
+  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.ALLOCATING,
+  ApplicationEventType.RECOVER, allocateTransition)
+  
+  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.FAILED,
+  ApplicationEventType.FAILED_MAX_RETRIES, failedTransition)
   
   .addTransition(ApplicationState.PENDING, ApplicationState.CLEANUP, 
   ApplicationEventType.KILL, killTransition)
@@ -97,6 +112,9 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.ALLOCATING, ApplicationState.ALLOCATED,
   ApplicationEventType.ALLOCATED, new AllocatedTransition())
 
+  .addTransition(ApplicationState.ALLOCATING, ApplicationState.ALLOCATING,
+  ApplicationEventType.RECOVER, allocateTransition)
+      
   .addTransition(ApplicationState.ALLOCATING, ApplicationState.CLEANUP, 
   ApplicationEventType.KILL, killTransition)
 
@@ -104,10 +122,19 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   ApplicationEventType.KILL, killTransition)
 
   .addTransition(ApplicationState.ALLOCATED, ApplicationState.LAUNCHING,
-  ApplicationEventType.LAUNCH, new LaunchTransition())
+  ApplicationEventType.LAUNCH, launchTransition)
 
+  .addTransition(ApplicationState.ALLOCATED, ApplicationState.LAUNCHING,
+  ApplicationEventType.RECOVER, new RecoverLaunchTransition())
+      
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.LAUNCHED,
-  ApplicationEventType.LAUNCHED, new LaunchedTransition())
+  ApplicationEventType.LAUNCHED, launchedTransition)
+  
+  /** we cant say if the application was launched or not on a recovery, so for now 
+   * we assume it was launched and wait for its restart.
+   */
+  .addTransition(ApplicationState.LAUNCHING, ApplicationState.LAUNCHED,
+  ApplicationEventType.RECOVER, new RecoverLaunchedTransition())
   
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.KILLED,
    ApplicationEventType.KILL, killTransition)
@@ -120,7 +147,10 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   
   .addTransition(ApplicationState.LAUNCHED, ApplicationState.RUNNING, 
   ApplicationEventType.REGISTERED, new RegisterTransition())
-  
+    
+  .addTransition(ApplicationState.LAUNCHED, ApplicationState.LAUNCHED,
+   ApplicationEventType.RECOVER)
+
   /* for now we assume that acting on expiry is synchronous and we do not 
    * have to wait for cleanup acks from scheduler negotiator and launcher.
    */
@@ -130,24 +160,33 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.RUNNING,  ApplicationState.EXPIRED_PENDING, 
   ApplicationEventType.EXPIRE, expireTransition)
   
-  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.FAILED,
-      ApplicationEventType.FAILED_MAX_RETRIES, failedTransition)
-      
   .addTransition(ApplicationState.RUNNING, ApplicationState.COMPLETED,
   ApplicationEventType.FINISH, new DoneTransition())
 
   .addTransition(ApplicationState.RUNNING, ApplicationState.RUNNING,
   ApplicationEventType.STATUSUPDATE, statusUpdatetransition)
 
+  .addTransition(ApplicationState.RUNNING, ApplicationState.RUNNING, 
+  ApplicationEventType.RECOVER, new RecoverRunningTransition())
+  
   .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED, 
   ApplicationEventType.EXPIRE)
+
+  .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
+  ApplicationEventType.RECOVER)
+  
+  .addTransition(ApplicationState.FAILED, ApplicationState.FAILED,
+      ApplicationEventType.RECOVER)
+  
+  .addTransition(ApplicationState.KILLED, ApplicationState.KILLED, 
+      ApplicationEventType.RECOVER)
 
   .installTopology();
 
 
 
   public ApplicationMasterInfo(RMContext context, String user,
-  ApplicationSubmissionContext submissionContext, String clientToken) {
+  ApplicationSubmissionContext submissionContext, String clientToken, ApplicationStore appStore) {
     this.user = user;
     this.handler = context.getDispatcher().getEventHandler();
     this.syncHandler = context.getDispatcher().getSyncHandler();
@@ -162,6 +201,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     stateMachine = stateMachineFactory.make(this);
     master.setState(ApplicationState.PENDING);
     master.setClientToken(clientToken);
+    this.appStore = appStore;
   }
 
   @Override
@@ -229,6 +269,11 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     return submissionContext.getQueue();
   }
   
+  @Override
+  public ApplicationStore getStore() {
+    return this.appStore;
+  }
+  
   /* the applicaiton master completed successfully */
   private static class DoneTransition implements 
     SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
@@ -257,6 +302,20 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     }
   }
 
+  private static class RecoverLaunchTransition implements  SingleArcTransition
+  <ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
+
+    @Override
+    public void transition(ApplicationMasterInfo masterInfo,
+        ASMEvent<ApplicationEventType> event) {
+      masterInfo.syncHandler.handle(new ASMEvent<ApplicationTrackerEventType>(
+          ApplicationTrackerEventType.ADD, masterInfo));
+        
+      masterInfo.handler.handle(new ASMEvent<AMLauncherEventType>(
+          AMLauncherEventType.LAUNCH, masterInfo));
+    }
+  }
+  
   private static class LaunchTransition implements
   SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
     @Override
@@ -266,6 +325,32 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
       AMLauncherEventType.LAUNCH, masterInfo));
     }
   }
+  
+  private static class RecoverRunningTransition implements
+  SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
+    @Override
+    public void transition(ApplicationMasterInfo masterInfo,
+    ASMEvent<ApplicationEventType> event) {
+      masterInfo.syncHandler.handle(new ASMEvent<ApplicationTrackerEventType>(
+          ApplicationTrackerEventType.ADD, masterInfo));
+      /* make sure the time stamp is update else expiry thread will expire this */
+      masterInfo.master.getStatus().setLastSeen(System.currentTimeMillis());
+    }
+  }
+  
+  private static class RecoverLaunchedTransition implements
+  SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
+    @Override
+    public void transition(ApplicationMasterInfo masterInfo,
+    ASMEvent<ApplicationEventType> event) {
+      masterInfo.syncHandler.handle(new ASMEvent<ApplicationTrackerEventType>(
+          ApplicationTrackerEventType.ADD, masterInfo));
+        
+      /* make sure the time stamp is update else expiry thread will expire this */
+      masterInfo.master.getStatus().setLastSeen(System.currentTimeMillis());
+    }
+  }
+
 
   private static class LaunchedTransition implements
   SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
@@ -319,6 +404,11 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     ASMEvent<ApplicationEventType> event) {
       /* set the container that was generated by the scheduler negotiator */
       masterInfo.masterContainer = event.getAppContext().getMasterContainer();
+      try {
+        masterInfo.appStore.storeMasterContainer(masterInfo.masterContainer);
+      } catch(IOException ie) {
+        //TODO ignore for now fix later.
+      }
     }    
   }
 
@@ -334,6 +424,11 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
       masterInfo.master.setStatus(registeredMaster.getStatus());
       masterInfo.master.getStatus().setProgress(0.0f);
       masterInfo.master.getStatus().setLastSeen(System.currentTimeMillis());
+      try {
+        masterInfo.appStore.updateApplicationState(masterInfo.master);
+      } catch(IOException ie) {
+        //TODO fix this later. on error we should exit
+      }
     }
   }
 
@@ -375,6 +470,11 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     } catch (InvalidStateTransitonException e) {
       LOG.error("Can't handle this event at current state", e);
       /* TODO fail the application on the failed transition */
+    }
+    try {
+      appStore.updateApplicationState(master);
+    } catch(IOException ie) {
+      //TODO ignore for now
     }
     if (oldState != getState()) {
       LOG.info(appID + " State change from " 

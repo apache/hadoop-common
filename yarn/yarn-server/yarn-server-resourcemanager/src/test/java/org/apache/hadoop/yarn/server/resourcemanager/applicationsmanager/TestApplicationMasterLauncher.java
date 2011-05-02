@@ -38,6 +38,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -150,7 +151,7 @@ public class TestApplicationMasterLauncher extends TestCase {
     context.setUser("dummyuser");
     ApplicationMasterInfo masterInfo = new ApplicationMasterInfo(this.context,
         "dummyuser", context,
-        "dummyclienttoken");
+        "dummyclienttoken", StoreFactory.createVoidAppStore());
     amLauncher.handle(new ASMEvent<AMLauncherEventType>(AMLauncherEventType.LAUNCH, 
       masterInfo));
     amLauncher.handle(new ASMEvent<AMLauncherEventType>(AMLauncherEventType.CLEANUP,  

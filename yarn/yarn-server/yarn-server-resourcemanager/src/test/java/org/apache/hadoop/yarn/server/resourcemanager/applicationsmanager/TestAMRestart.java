@@ -36,7 +36,9 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
@@ -187,7 +189,8 @@ public class TestAMRestart extends TestCase {
     }
     @Override
     public void addApplication(ApplicationId applicationId,
-        ApplicationMaster master, String user, String queue, Priority priority)
+        ApplicationMaster master, String user, String queue, Priority priority,
+        ApplicationStore store)
         throws IOException {
     }
     @Override
@@ -299,6 +302,11 @@ public class TestAMRestart extends TestCase {
     @Override
     public int getFailedCount() {
       return 0;
+    }
+    
+    @Override
+    public ApplicationStore getStore() {
+     return StoreFactory.createVoidAppStore();
     }
     
   }
