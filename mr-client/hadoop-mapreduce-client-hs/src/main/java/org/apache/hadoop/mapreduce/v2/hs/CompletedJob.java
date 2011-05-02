@@ -32,6 +32,7 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
@@ -44,6 +45,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
+import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -68,8 +70,11 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   private TaskAttemptCompletionEvent[] completionEvents;
   private JobInfo jobInfo;
 
-
   public CompletedJob(Configuration conf, JobId jobId) throws IOException {
+    this(conf, jobId, true);
+  }
+
+  public CompletedJob(Configuration conf, JobId jobId, boolean loadTasks) throws IOException {
     this.conf = conf;
     this.jobId = jobId;
     //TODO fix
@@ -95,7 +100,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     */
     
     //TODO: load the data lazily. for now load the full data upfront
-    loadFullHistoryData();
+    loadFullHistoryData(loadTasks);
 
     counters = TypeConverter.toYarn(jobInfo.getTotalCounters());
     diagnostics.add(jobInfo.getErrorInfo());
@@ -153,7 +158,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   //History data is leisurely loaded when task level data is requested
-  private synchronized void loadFullHistoryData() {
+  private synchronized void loadFullHistoryData(boolean loadTasks) {
     if (jobInfo != null) {
       return; //data already loaded
     }
@@ -162,29 +167,32 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
       LOG.error("user null is not allowed");
     }
     String jobName = TypeConverter.fromYarn(jobId).toString();
-    String defaultDoneDir = conf.get(
-        YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
-    String  jobhistoryDir =
-      conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY, defaultDoneDir)
-        + "/" + user;
+    
+    String  jobhistoryDir = JobHistoryUtils.getConfiguredHistoryDoneDirPrefix(conf);
+      
+    
+    String currentJobHistoryDir = JobHistoryUtils.getCurrentDoneDir(jobhistoryDir);
+    
     FSDataInputStream in = null;
     Path historyFile = null;
     try {
       Path doneDirPath = FileContext.getFileContext(conf).makeQualified(
-          new Path(jobhistoryDir));
+          new Path(currentJobHistoryDir));
       FileContext fc =
         FileContext.getFileContext(doneDirPath.toUri(),conf);
+      //TODO_JH_There could be multiple instances
+      //TODO_JH_FileName
       historyFile =
-        fc.makeQualified(new Path(doneDirPath, jobName));
+        fc.makeQualified(new Path(doneDirPath, jobName + JobHistoryUtils.JOB_HISTORY_FILE_EXTENSION));
       in = fc.open(historyFile);
       JobHistoryParser parser = new JobHistoryParser(in);
       jobInfo = parser.parse();
-      LOG.info("jobInfo loaded");
     } catch (IOException e) {
       throw new YarnException("Could not load history file " + historyFile,
           e);
     }
     
+    if (loadTasks) {
     // populate the tasks
     for (Map.Entry<org.apache.hadoop.mapreduce.TaskID, TaskInfo> entry : jobInfo
         .getAllTasks().entrySet()) {
@@ -198,9 +206,11 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
         reduceTasks.put(task.getID(), task);
       }
     }
+    }
     
     // TODO: populate the TaskAttemptCompletionEvent
     completionEvents = new TaskAttemptCompletionEvent[0];
+    LOG.info("TaskInfo loaded");
   }
 
   @Override

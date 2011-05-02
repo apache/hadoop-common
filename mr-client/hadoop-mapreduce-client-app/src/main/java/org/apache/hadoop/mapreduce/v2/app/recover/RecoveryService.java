@@ -56,6 +56,7 @@ import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleaner;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
+import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
 import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
@@ -150,19 +151,21 @@ public class RecoveryService extends CompositeService implements Recovery {
   private void parse() throws IOException {
     // TODO: parse history file based on startCount
     String jobName = TypeConverter.fromYarn(appID).toString();
-    String defaultStagingDir = getConfig().get(
-        YARNApplicationConstants.APPS_STAGING_DIR_KEY)
-        + "/history/staging";
-    String jobhistoryDir = getConfig().get(
-        YarnMRJobConfig.HISTORY_STAGING_DIR_KEY, defaultStagingDir);
+//    String defaultStagingDir = getConfig().get(
+//        YARNApplicationConstants.APPS_STAGING_DIR_KEY)
+//        + "/history/staging";
+    
+//    String jobhistoryDir = getConfig().get(
+//        YarnMRJobConfig.HISTORY_STAGING_DIR_KEY, defaultStagingDir);
+    String jobhistoryDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(getConfig());
     FSDataInputStream in = null;
     Path historyFile = null;
     Path histDirPath = FileContext.getFileContext(getConfig()).makeQualified(
         new Path(jobhistoryDir));
     FileContext fc = FileContext.getFileContext(histDirPath.toUri(),
         getConfig());
-    historyFile = fc.makeQualified(new Path(histDirPath, jobName + "_" + 
-        (startCount -1))); //read the previous history file
+    historyFile = fc.makeQualified(JobHistoryUtils.getJobHistoryFile(
+        histDirPath, jobName, startCount - 1));          //read the previous history file
     in = fc.open(historyFile);
     JobHistoryParser parser = new JobHistoryParser(in);
     jobInfo = parser.parse();

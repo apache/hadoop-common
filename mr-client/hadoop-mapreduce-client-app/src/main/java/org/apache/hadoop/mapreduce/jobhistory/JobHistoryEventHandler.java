@@ -32,16 +32,17 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
+import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
 
@@ -75,36 +76,35 @@ public class JobHistoryEventHandler extends AbstractService
   private static final Map<JobId, MetaInfo> fileMap =
     Collections.<JobId,MetaInfo>synchronizedMap(new HashMap<JobId,MetaInfo>());
 
-  static final FsPermission HISTORY_DIR_PERMISSION =
-    FsPermission.createImmutable((short) 0750); // rwxr-x---
-  
-  public static final FsPermission HISTORY_FILE_PERMISSION =
-    FsPermission.createImmutable((short) 0740); // rwxr-----
-
   public JobHistoryEventHandler(AppContext context, int startCount) {
     super("JobHistoryEventHandler");
     this.context = context;
     this.startCount = startCount;
   }
 
+  /* (non-Javadoc)
+   * @see org.apache.hadoop.yarn.service.AbstractService#init(org.apache.hadoop.conf.Configuration)
+   * Initializes the FileContext and Path objects for the log and done directories.
+   * Creates these directories if they do not already exist.
+   */
   @Override
   public void init(Configuration conf) {
-    String defaultLogDir = conf.get(
-        YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/staging";
-    String logDir = conf.get(YarnMRJobConfig.HISTORY_STAGING_DIR_KEY,
-      defaultLogDir);
-    String defaultDoneDir = conf.get(
-        YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
-    String  doneDirPrefix =
-      conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
-          defaultDoneDir);
+    
+    String logDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(conf);
+    String  doneDirPrefix = JobHistoryUtils.getConfiguredHistoryDoneDirPrefix(conf);
+
     try {
       doneDirPrefixPath = FileContext.getFileContext(conf).makeQualified(
           new Path(doneDirPrefix));
       doneDirFc = FileContext.getFileContext(doneDirPrefixPath.toUri(), conf);
       if (!doneDirFc.util().exists(doneDirPrefixPath)) {
-        doneDirFc.mkdir(doneDirPrefixPath,
-          new FsPermission(HISTORY_DIR_PERMISSION), true);
+        try {
+          doneDirFc.mkdir(doneDirPrefixPath, new FsPermission(
+              JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
+        } catch (FileAlreadyExistsException e) {
+          LOG.info("JobHistory Done Directory: [" + doneDirPrefixPath
+              + "] already exists.");
+        }
       }
     } catch (IOException e) {
           LOG.info("error creating done directory on dfs " + e);
@@ -115,12 +115,16 @@ public class JobHistoryEventHandler extends AbstractService
           new Path(logDir));
       logDirFc = FileContext.getFileContext(logDirPath.toUri(), conf);
       if (!logDirFc.util().exists(logDirPath)) {
-        logDirFc.mkdir(logDirPath,
-          new FsPermission(HISTORY_DIR_PERMISSION), true);
+        try {
+          logDirFc.mkdir(logDirPath, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION),
+              true);
+        } catch (FileAlreadyExistsException e) {
+          LOG.info("JobHistory Log Directory: [" + doneDirPrefixPath
+              + "] already exists.");
+        }
       }
     } catch (IOException ioe) {
-      LOG.info("Mkdirs failed to create " +
-          logDirPath.toString());
+      LOG.info("Mkdirs failed to create " + logDirPath.toString());
       throw new YarnException(ioe);
     }
     super.init(conf);
@@ -182,23 +186,28 @@ public class JobHistoryEventHandler extends AbstractService
 
   /**
    * Create an event writer for the Job represented by the jobID.
+   * Writes out the job configuration to the log directory.
    * This should be the first call to history for a job
-   * @param jobId
+   * 
+   * @param jobId the jobId.
    * @throws IOException
    */
   protected void setupEventWriter(JobId jobId)
   throws IOException {
     if (logDirPath == null) {
+      LOG.info("Log Directory is null, returning");
       throw new IOException("Missing Log Directory for History");
     }
 
     MetaInfo oldFi = fileMap.get(jobId);
+    Configuration conf = getConfig();
 
     long submitTime = (oldFi == null ? context.getClock().getTime() : oldFi.submitTime);
 
-    Path logFile = getJobHistoryFile(logDirPath, jobId);
     // String user = conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));
-    String user = getConfig().get(MRJobConfig.USER_NAME);
+    
+    Path logFile = JobHistoryUtils.getJobHistoryFile(logDirPath, jobId, startCount);
+    String user = conf.get(MRJobConfig.USER_NAME);
     if (user == null) {
       throw new IOException("User is null while setting up jobhistory eventwriter" );
     }
@@ -207,16 +216,36 @@ public class JobHistoryEventHandler extends AbstractService
  
     if (writer == null) {
       try {
-        FSDataOutputStream out = logDirFc.create(logFile, EnumSet
-            .of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
+        FSDataOutputStream out = logDirFc.create(logFile,
+            EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
+        //TODO Permissions for the history file?
         writer = new EventWriter(out);
       } catch (IOException ioe) {
-        LOG.info("Could not create log file for job " + jobName);
+        LOG.info("Could not create log file: [" + logFile + "] + for job " + "[" + jobName + "]");
         throw ioe;
       }
     }
-    /*TODO Storing the job conf on the log dir if required*/
-    MetaInfo fi = new MetaInfo(logFile, writer, submitTime, user, jobName);
+    
+    //This could be done at the end as well in moveToDone
+    Path logDirConfPath = null;
+    if (conf != null) {
+      logDirConfPath = getConfFile(logDirPath, jobId);
+      LOG.info("XXX: Attempting to write config to: " + logDirConfPath);
+      FSDataOutputStream jobFileOut = null;
+      try {
+        if (logDirConfPath != null) {
+          jobFileOut = logDirFc.create(logDirConfPath,
+              EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
+          conf.writeXml(jobFileOut);
+          jobFileOut.close();
+        }
+      } catch (IOException e) {
+        LOG.info("Failed to close the job configuration file "
+            + StringUtils.stringifyException(e));
+      }
+    }
+    
+    MetaInfo fi = new MetaInfo(logFile, logDirConfPath, writer, submitTime, user, jobName);
     fileMap.put(jobId, fi);
   }
 
@@ -228,6 +257,7 @@ public class JobHistoryEventHandler extends AbstractService
       if (mi != null) {
         mi.closeWriter();
       }
+      
     } catch (IOException e) {
       LOG.info("Error closing writer for JobID: " + id);
       throw e;
@@ -260,19 +290,11 @@ public class JobHistoryEventHandler extends AbstractService
       mi.writeEvent(historyEvent);
       LOG.info("In HistoryEventHandler " + event.getHistoryEvent().getEventType());
     } catch (IOException e) {
-      LOG.error("in handler ioException " + e);
+      LOG.error("Error writing History Event " + e);
       throw new YarnException(e);
     }
     // check for done
     if (event.getHistoryEvent().getEventType().equals(EventType.JOB_FINISHED)) {
-      JobFinishedEvent jfe = (JobFinishedEvent) event.getHistoryEvent();
-      String statusstoredir = doneDirPrefixPath + "/status/" + mi.user + "/" + mi.jobName;
-      try {
-        writeStatus(statusstoredir, jfe);
-      } catch (IOException e) {
-        // TODO Auto-generated catch block
-        throw new YarnException(e);
-      }
       try {
         closeEventWriter(event.getJobID());
       } catch (IOException e) {
@@ -283,27 +305,45 @@ public class JobHistoryEventHandler extends AbstractService
 
   protected void closeEventWriter(JobId jobId) throws IOException {
     final MetaInfo mi = fileMap.get(jobId);
+    
     try {
-      Path logFile = mi.getHistoryFile();
-      //TODO fix - add indexed structure 
-      // 
-      String doneDir = doneDirPrefixPath + "/" + mi.user + "/";
-      Path doneDirPath =
-    	  doneDirFc.makeQualified(new Path(doneDir));
-      if (!pathExists(doneDirFc, doneDirPath)) {
-        doneDirFc.mkdir(doneDirPath, new FsPermission(HISTORY_DIR_PERMISSION),
-            true);
-      }
-      // Path localFile = new Path(fromLocalFile);
-      Path qualifiedLogFile =
-    	  logDirFc.makeQualified(logFile);
-      Path qualifiedDoneFile =
-    	  doneDirFc.makeQualified(new Path(doneDirPath, mi.jobName));
       if (mi != null) {
         mi.closeWriter();
       }
+     
+      if (mi == null || mi.getHistoryFile() == null) {
+        LOG.info("No file for job-history with " + jobId + " found in cache!");
+      }
+      if (mi.getConfFile() == null) {
+        LOG.info("No file for jobconf with " + jobId + " found in cache!");
+      }
+      
+      
+      //TODO fix - add indexed structure 
+      // 
+      String doneDir = JobHistoryUtils.getCurrentDoneDir(doneDirPrefixPath.toString());
+      Path doneDirPath =
+    	  doneDirFc.makeQualified(new Path(doneDir));
+      if (!pathExists(doneDirFc, doneDirPath)) {
+        try {
+          doneDirFc.mkdir(doneDirPath, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
+        } catch (FileAlreadyExistsException e) {
+          LOG.info("Done directory: [" + doneDirPath + "] already exists.");
+      }
+      }
+      Path logFile = mi.getHistoryFile();
+      Path qualifiedLogFile = logDirFc.makeQualified(logFile);
+      Path qualifiedDoneFile = doneDirFc.makeQualified(new Path(doneDirPath,
+          getDoneJobHistoryFileName(jobId)));
       moveToDoneNow(qualifiedLogFile, qualifiedDoneFile);
+      
+      Path confFile = mi.getConfFile();
+      Path qualifiedConfFile = logDirFc.makeQualified(confFile);
+      Path qualifiedConfDoneFile = doneDirFc.makeQualified(new Path(doneDirPath, getDoneConfFileName(jobId)));
+      moveToDoneNow(qualifiedConfFile, qualifiedConfDoneFile);
+      
       logDirFc.delete(qualifiedLogFile, true);
+      logDirFc.delete(qualifiedConfFile, true);
     } catch (IOException e) {
       LOG.info("Error closing writer for JobID: " + jobId);
       throw e;
@@ -312,14 +352,16 @@ public class JobHistoryEventHandler extends AbstractService
 
   private static class MetaInfo {
     private Path historyFile;
+    private Path confFile;
     private EventWriter writer;
     long submitTime;
     String user;
     String jobName;
 
-    MetaInfo(Path historyFile, EventWriter writer, long submitTime,
+    MetaInfo(Path historyFile, Path conf, EventWriter writer, long submitTime,
              String user, String jobName) {
       this.historyFile = historyFile;
+      this.confFile = conf;
       this.writer = writer;
       this.submitTime = submitTime;
       this.user = user;
@@ -327,6 +369,8 @@ public class JobHistoryEventHandler extends AbstractService
     }
 
     Path getHistoryFile() { return historyFile; }
+
+    Path getConfFile() {return confFile; } 
 
     synchronized void closeWriter() throws IOException {
       if (writer != null) {
@@ -343,18 +387,30 @@ public class JobHistoryEventHandler extends AbstractService
     }
   }
 
-  /**
-   * Get the job history file path
-   */
-  private Path getJobHistoryFile(Path dir, JobId jobId) {
-    return new Path(dir, TypeConverter.fromYarn(jobId).toString() + "_" + 
-        startCount);
+  //TODO Move some of these functions into a utility class.
 
+
+  private String getDoneJobHistoryFileName(JobId jobId) {
+    return TypeConverter.fromYarn(jobId).toString() + JobHistoryUtils.JOB_HISTORY_FILE_EXTENSION;
   }
 
-/*
- * 
- */
+  private String getDoneConfFileName(JobId jobId) {
+    return TypeConverter.fromYarn(jobId).toString() + JobHistoryUtils.CONF_FILE_NAME_SUFFIX;
+  }
+  
+  private Path getConfFile(Path logDir, JobId jobId) {
+    Path jobFilePath = null;
+    if (logDir != null) {
+      jobFilePath = new Path(logDir, TypeConverter.fromYarn(jobId).toString()
+          + "_" + startCount + JobHistoryUtils.CONF_FILE_NAME_SUFFIX);
+    }
+    return jobFilePath;
+  }
+
+
+  //TODO This could be done by the jobHistory server - move files to a temporary location
+  //  which is scanned by the JH server - to move them to the final location.
+  // Currently JHEventHandler is moving files to the final location.
   private void moveToDoneNow(Path fromPath, Path toPath) throws IOException {
     //check if path exists, in case of retries it may not exist
     if (logDirFc.util().exists(fromPath)) {
@@ -370,7 +426,7 @@ public class JobHistoryEventHandler extends AbstractService
       else 
           LOG.info("copy failed");
       doneDirFc.setPermission(toPath,
-          new FsPermission(HISTORY_FILE_PERMISSION));
+          new FsPermission(JobHistoryUtils.HISTORY_FILE_PERMISSION));
     }
   }
 
@@ -382,7 +438,7 @@ public class JobHistoryEventHandler extends AbstractService
     try {
       Path statusstorepath = doneDirFc.makeQualified(new Path(statusstoredir));
       doneDirFc.mkdir(statusstorepath,
-         new FsPermission(HISTORY_DIR_PERMISSION), true);
+         new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
       Path toPath = new Path(statusstoredir, "jobstats");
       FSDataOutputStream out = doneDirFc.create(toPath, EnumSet
            .of(CreateFlag.CREATE, CreateFlag.OVERWRITE));

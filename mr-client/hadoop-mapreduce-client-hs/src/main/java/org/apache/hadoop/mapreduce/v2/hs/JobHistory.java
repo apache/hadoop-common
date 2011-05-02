@@ -19,10 +19,8 @@
 package org.apache.hadoop.mapreduce.v2.hs;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,22 +32,17 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
-import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
-import org.apache.hadoop.mapreduce.v2.api.records.JobId;
-import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
 import org.apache.hadoop.mapreduce.JobID;
-import org.apache.hadoop.mapreduce.JobStatus;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
-import org.apache.hadoop.mapreduce.v2.hs.CompletedJob;
+import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
+import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.Clock;
 
 /*
  * Loads and manages the Job history cache.
@@ -109,13 +102,13 @@ public class JobHistory implements HistoryContext {
   public Map<JobId, Job> getAllJobs() {
     //currently there is 1 to 1 mapping between app and job id
     Map<JobId, Job> jobs = new HashMap<JobId, Job>();
-    String defaultDoneDir = conf.get(
-        YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
-    String  jobhistoryDir =
-      conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY, defaultDoneDir);
+    String jobhistoryDir = JobHistoryUtils.getConfiguredHistoryDoneDirPrefix(conf);
+    
+    String currentJobHistoryDoneDir = JobHistoryUtils.getCurrentDoneDir(jobhistoryDir);
+    
     try {
       Path done = FileContext.getFileContext(conf).makeQualified(
-          new Path(jobhistoryDir));
+          new Path(currentJobHistoryDoneDir));
       FileContext doneDirFc = FileContext.getFileContext(done.toUri(), conf);
       RemoteIterator<LocatedFileStatus> historyFiles = doneDirFc.util()
           .listFiles(done, true);
@@ -124,12 +117,16 @@ public class JobHistory implements HistoryContext {
         while (historyFiles.hasNext()) {
           f = historyFiles.next();
           if (f.isDirectory()) continue;
-          String jobName = f.getPath().getName();
+          if (!f.getPath().getName().endsWith(JobHistoryUtils.JOB_HISTORY_FILE_EXTENSION)) continue;
+          //TODO_JH_Change to parse the name properly
+          String fileName = f.getPath().getName();
+          String jobName = fileName.substring(0, fileName.indexOf(JobHistoryUtils.JOB_HISTORY_FILE_EXTENSION));
+          LOG.info("Processing job: " + jobName);
           org.apache.hadoop.mapreduce.JobID oldJobID = JobID.forName(jobName);
           JobId jobID = TypeConverter.toYarn(oldJobID);
-          Job job = new CompletedJob(conf, jobID);
+          Job job = new CompletedJob(conf, jobID, false);
           jobs.put(jobID, job);
-          completedJobCache.put(jobID, job);
+          // completedJobCache.put(jobID, job);
         }
       }
     } catch (IOException ie) {
@@ -150,6 +147,7 @@ public class JobHistory implements HistoryContext {
   public CharSequence getUser() {
     return userName;
   }
+  
   
  @Override
  public Clock getClock() {

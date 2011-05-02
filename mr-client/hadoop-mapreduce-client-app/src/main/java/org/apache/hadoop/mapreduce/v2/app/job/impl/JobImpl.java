@@ -680,7 +680,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
         org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId 
             attemptID = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId.class);
-        //TODO_get.set
         attemptID.setTaskId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class));
         attemptID.getTaskId().setJobId(job.jobId);
         attemptID.getTaskId().setTaskType(TaskType.MAP);//TODO:fix task type ??
@@ -694,11 +693,12 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         job.committer = outputFormat.getOutputCommitter(taskContext);
 
         //log to job history
+        //TODO_JH_Validate the values being sent here (along with defaults). Ideally for all JH evnts.
         JobSubmittedEvent jse =
           new JobSubmittedEvent(job.oldJobId, 
               job.conf.get(MRJobConfig.JOB_NAME, "test"), 
               job.conf.get(MRJobConfig.USER_NAME,"mapred"), job.startTime,
-              "test", constructJobACLs(job.conf), 
+              job.remoteJobConfFile.toString(), constructJobACLs(job.conf), 
               job.conf.get(MRJobConfig.QUEUE_NAME,"test"));
         job.eventHandler.handle(new JobHistoryEvent(job.jobId, jse));
 
