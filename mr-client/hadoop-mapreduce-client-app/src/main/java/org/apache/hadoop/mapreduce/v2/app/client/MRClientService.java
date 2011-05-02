@@ -18,9 +18,11 @@
 
 package org.apache.hadoop.mapreduce.v2.app.client;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -30,6 +32,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
+import org.apache.hadoop.mapreduce.JobACL;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptResponse;
@@ -168,128 +171,179 @@ public class MRClientService extends AbstractService
 
   class MRClientProtocolHandler implements MRClientProtocol {
 
-    private RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+    private RecordFactory recordFactory = 
+      RecordFactoryProvider.getRecordFactory(null);
 
-    private Job verifyAndGetJob(JobId jobID) throws YarnRemoteException {
+    private Job verifyAndGetJob(JobId jobID, 
+        boolean modifyAccess) throws YarnRemoteException {
       Job job = appContext.getJob(jobID);
       if (job == null) {
         throw RPCUtil.getRemoteException("Unknown job " + jobID);
       }
+      JobACL operation = JobACL.VIEW_JOB;
+      if (modifyAccess) {
+        operation = JobACL.MODIFY_JOB;
+      }
+      checkAccess(job, operation);
       return job;
     }
  
-    private Task verifyAndGetTask(TaskId taskID) throws YarnRemoteException {
-      Task task = verifyAndGetJob(taskID.getJobId()).getTask(taskID);
+    private Task verifyAndGetTask(TaskId taskID, 
+        boolean modifyAccess) throws YarnRemoteException {
+      Task task = verifyAndGetJob(taskID.getJobId(), 
+          modifyAccess).getTask(taskID);
       if (task == null) {
         throw RPCUtil.getRemoteException("Unknown Task " + taskID);
       }
       return task;
     }
 
-    private TaskAttempt verifyAndGetAttempt(TaskAttemptId attemptID) 
-          throws YarnRemoteException {
-      TaskAttempt attempt = verifyAndGetTask(attemptID.getTaskId()).getAttempt(attemptID);
+    private TaskAttempt verifyAndGetAttempt(TaskAttemptId attemptID, 
+        boolean modifyAccess) throws YarnRemoteException {
+      TaskAttempt attempt = verifyAndGetTask(attemptID.getTaskId(), 
+          modifyAccess).getAttempt(attemptID);
       if (attempt == null) {
         throw RPCUtil.getRemoteException("Unknown TaskAttempt " + attemptID);
       }
       return attempt;
     }
 
+    private void checkAccess(Job job, JobACL jobOperation) 
+      throws YarnRemoteException {
+      if (!UserGroupInformation.isSecurityEnabled()) {
+        return;
+      }
+      UserGroupInformation callerUGI;
+      try {
+        callerUGI = UserGroupInformation.getCurrentUser();
+      } catch (IOException e) {
+        throw RPCUtil.getRemoteException(e);
+      }
+      if(!job.checkAccess(callerUGI, jobOperation)) {
+        throw RPCUtil.getRemoteException(new AccessControlException("User "
+            + callerUGI.getShortUserName() + " cannot perform operation "
+            + jobOperation.name() + " on " + job.getID()));
+      }
+    }
+
     @Override
-    public GetCountersResponse getCounters(GetCountersRequest request) throws YarnRemoteException {
+    public GetCountersResponse getCounters(GetCountersRequest request) 
+      throws YarnRemoteException {
       JobId jobId = request.getJobId();
-      Job job = verifyAndGetJob(jobId);
-      GetCountersResponse response = recordFactory.newRecordInstance(GetCountersResponse.class);
+      Job job = verifyAndGetJob(jobId, false);
+      GetCountersResponse response =
+        recordFactory.newRecordInstance(GetCountersResponse.class);
       response.setCounters(job.getCounters());
       return response;
     }
     
     @Override
-    public GetJobReportResponse getJobReport(GetJobReportRequest request) throws YarnRemoteException {
+    public GetJobReportResponse getJobReport(GetJobReportRequest request) 
+      throws YarnRemoteException {
       JobId jobId = request.getJobId();
-      Job job = verifyAndGetJob(jobId);
-      GetJobReportResponse response = recordFactory.newRecordInstance(GetJobReportResponse.class);
+      Job job = verifyAndGetJob(jobId, false);
+      GetJobReportResponse response = 
+        recordFactory.newRecordInstance(GetJobReportResponse.class);
       response.setJobReport(job.getReport());
       return response;
     }
     
     
     @Override
-    public GetTaskAttemptReportResponse getTaskAttemptReport(GetTaskAttemptReportRequest request) throws YarnRemoteException {
+    public GetTaskAttemptReportResponse getTaskAttemptReport(
+        GetTaskAttemptReportRequest request) throws YarnRemoteException {
       TaskAttemptId taskAttemptId = request.getTaskAttemptId();
-      GetTaskAttemptReportResponse response = recordFactory.newRecordInstance(GetTaskAttemptReportResponse.class);
-      response.setTaskAttemptReport(verifyAndGetAttempt(taskAttemptId).getReport());
+      GetTaskAttemptReportResponse response =
+        recordFactory.newRecordInstance(GetTaskAttemptReportResponse.class);
+      response.setTaskAttemptReport(
+          verifyAndGetAttempt(taskAttemptId, false).getReport());
       return response;
     }
 
     @Override
-    public GetTaskReportResponse getTaskReport(GetTaskReportRequest request) throws YarnRemoteException {
+    public GetTaskReportResponse getTaskReport(GetTaskReportRequest request) 
+      throws YarnRemoteException {
       TaskId taskId = request.getTaskId();
-      GetTaskReportResponse response = recordFactory.newRecordInstance(GetTaskReportResponse.class);
-      response.setTaskReport(verifyAndGetTask(taskId).getReport());
+      GetTaskReportResponse response = 
+        recordFactory.newRecordInstance(GetTaskReportResponse.class);
+      response.setTaskReport(verifyAndGetTask(taskId, false).getReport());
       return response;
     }
 
     @Override
-    public GetTaskAttemptCompletionEventsResponse getTaskAttemptCompletionEvents(GetTaskAttemptCompletionEventsRequest request) throws YarnRemoteException {
+    public GetTaskAttemptCompletionEventsResponse getTaskAttemptCompletionEvents(
+        GetTaskAttemptCompletionEventsRequest request) 
+        throws YarnRemoteException {
       JobId jobId = request.getJobId();
       int fromEventId = request.getFromEventId();
       int maxEvents = request.getMaxEvents();
-      Job job = verifyAndGetJob(jobId);
+      Job job = verifyAndGetJob(jobId, false);
       
-      GetTaskAttemptCompletionEventsResponse response = recordFactory.newRecordInstance(GetTaskAttemptCompletionEventsResponse.class);
-      response.addAllCompletionEvents(Arrays.asList(job.getTaskAttemptCompletionEvents(fromEventId, maxEvents)));
+      GetTaskAttemptCompletionEventsResponse response = 
+        recordFactory.newRecordInstance(GetTaskAttemptCompletionEventsResponse.class);
+      response.addAllCompletionEvents(Arrays.asList(
+          job.getTaskAttemptCompletionEvents(fromEventId, maxEvents)));
       return response;
     }
     
     @Override
-    public KillJobResponse killJob(KillJobRequest request) throws YarnRemoteException {
+    public KillJobResponse killJob(KillJobRequest request) 
+      throws YarnRemoteException {
       JobId jobId = request.getJobId();
       LOG.info("Kill Job received from client " + jobId);
-	  verifyAndGetJob(jobId);
+	  verifyAndGetJob(jobId, true);
       appContext.getEventHandler().handle(
           new JobEvent(jobId, JobEventType.JOB_KILL));
-      KillJobResponse response = recordFactory.newRecordInstance(KillJobResponse.class);
+      KillJobResponse response = 
+        recordFactory.newRecordInstance(KillJobResponse.class);
       return response;
     }
 
     @Override
-    public KillTaskResponse killTask(KillTaskRequest request) throws YarnRemoteException {
+    public KillTaskResponse killTask(KillTaskRequest request) 
+      throws YarnRemoteException {
       TaskId taskId = request.getTaskId();
       LOG.info("Kill task received from client " + taskId);
-      verifyAndGetTask(taskId);
+      verifyAndGetTask(taskId, true);
       appContext.getEventHandler().handle(
           new TaskEvent(taskId, TaskEventType.T_KILL));
-      KillTaskResponse response = recordFactory.newRecordInstance(KillTaskResponse.class);
+      KillTaskResponse response = 
+        recordFactory.newRecordInstance(KillTaskResponse.class);
       return response;
     }
     
     @Override
-    public KillTaskAttemptResponse killTaskAttempt(KillTaskAttemptRequest request) throws YarnRemoteException {
+    public KillTaskAttemptResponse killTaskAttempt(
+        KillTaskAttemptRequest request) throws YarnRemoteException {
       TaskAttemptId taskAttemptId = request.getTaskAttemptId();
       LOG.info("Kill task attempt received from client " + taskAttemptId);
-      verifyAndGetAttempt(taskAttemptId);
+      verifyAndGetAttempt(taskAttemptId, true);
       appContext.getEventHandler().handle(
           new TaskAttemptEvent(taskAttemptId, 
               TaskAttemptEventType.TA_KILL));
-      KillTaskAttemptResponse response = recordFactory.newRecordInstance(KillTaskAttemptResponse.class);
+      KillTaskAttemptResponse response = 
+        recordFactory.newRecordInstance(KillTaskAttemptResponse.class);
       return response;
     }
 
     @Override
-    public GetDiagnosticsResponse getDiagnostics(GetDiagnosticsRequest request) throws YarnRemoteException {
+    public GetDiagnosticsResponse getDiagnostics(
+        GetDiagnosticsRequest request) throws YarnRemoteException {
       TaskAttemptId taskAttemptId = request.getTaskAttemptId();
       
-      GetDiagnosticsResponse response = recordFactory.newRecordInstance(GetDiagnosticsResponse.class);
-      response.addAllDiagnostics(verifyAndGetAttempt(taskAttemptId).getDiagnostics());
+      GetDiagnosticsResponse response = 
+        recordFactory.newRecordInstance(GetDiagnosticsResponse.class);
+      response.addAllDiagnostics(
+          verifyAndGetAttempt(taskAttemptId, false).getDiagnostics());
       return response;
     }
 
     @Override
-    public FailTaskAttemptResponse failTaskAttempt(FailTaskAttemptRequest request) throws YarnRemoteException {
+    public FailTaskAttemptResponse failTaskAttempt(
+        FailTaskAttemptRequest request) throws YarnRemoteException {
       TaskAttemptId taskAttemptId = request.getTaskAttemptId();
       LOG.info("Fail task attempt received from client " + taskAttemptId);
-      verifyAndGetAttempt(taskAttemptId);
+      verifyAndGetAttempt(taskAttemptId, true);
       appContext.getEventHandler().handle(
           new TaskAttemptEvent(taskAttemptId, 
               TaskAttemptEventType.TA_FAILMSG));
@@ -297,13 +351,15 @@ public class MRClientService extends AbstractService
     }
 
     @Override
-    public GetTaskReportsResponse getTaskReports(GetTaskReportsRequest request) throws YarnRemoteException {
+    public GetTaskReportsResponse getTaskReports(
+        GetTaskReportsRequest request) throws YarnRemoteException {
       JobId jobId = request.getJobId();
       TaskType taskType = request.getTaskType();
       
-      GetTaskReportsResponse response = recordFactory.newRecordInstance(GetTaskReportsResponse.class);
+      GetTaskReportsResponse response = 
+        recordFactory.newRecordInstance(GetTaskReportsResponse.class);
       
-      Job job = verifyAndGetJob(jobId);
+      Job job = verifyAndGetJob(jobId, false);
       LOG.info("Getting task report for " + taskType + "   " + jobId);
       Collection<Task> tasks = job.getTasks(taskType).values();
       LOG.info("Getting task report size " + tasks.size());

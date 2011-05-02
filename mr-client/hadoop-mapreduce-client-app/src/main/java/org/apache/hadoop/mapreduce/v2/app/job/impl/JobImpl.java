@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -40,9 +39,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.JobACLsManager;
 import org.apache.hadoop.mapreduce.JobACL;
 import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.OutputCommitter;
 import org.apache.hadoop.mapreduce.OutputFormat;
@@ -127,6 +126,9 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   
   //final fields
   private final Clock clock;
+  private final JobACLsManager aclsManager;
+  private final String username;
+  private final Map<JobACL, AccessControlList> jobACLs;
   private final int startCount;
   private final Set<TaskId> completedTasksFromPreviousRun;
   private final Lock readLock;
@@ -368,6 +370,9 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     this.fsTokens = fsTokenCredentials;
     this.jobTokenSecretManager = jobTokenSecretManager;
 
+    this.aclsManager = new JobACLsManager(conf);
+    this.username = System.getProperty("user.name");
+    this.jobACLs = aclsManager.constructJobACLs(conf);
     // This "this leak" is okay because the retained pointer is in an
     //  instance variable.
     stateMachine = stateMachineFactory.make(this);
@@ -380,6 +385,16 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   @Override
   public JobId getID() {
     return jobId;
+  }
+
+  @Override
+  public boolean checkAccess(UserGroupInformation callerUGI, 
+      JobACL jobOperation) {
+    if (!UserGroupInformation.isSecurityEnabled()) {
+      return true;
+    }
+    AccessControlList jobACL = jobACLs.get(jobOperation);
+    return aclsManager.checkAccess(callerUGI, jobOperation, username, jobACL);
   }
 
   @Override
@@ -698,7 +713,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
           new JobSubmittedEvent(job.oldJobId, 
               job.conf.get(MRJobConfig.JOB_NAME, "test"), 
               job.conf.get(MRJobConfig.USER_NAME,"mapred"), job.startTime,
-              job.remoteJobConfFile.toString(), constructJobACLs(job.conf), 
+              job.remoteJobConfFile.toString(), job.jobACLs, 
               job.conf.get(MRJobConfig.QUEUE_NAME,"test"));
         job.eventHandler.handle(new JobHistoryEvent(job.jobId, jse));
 
@@ -1239,27 +1254,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     public void transition(JobImpl job, JobEvent event) {
       job.finished();
     }
-  }
-
-  private static Map<JobACL, AccessControlList> constructJobACLs(
-         Configuration conf) {
-       Map<JobACL, AccessControlList> acls =
-           new EnumMap<JobACL, AccessControlList>(JobACL.class);
-       // Don't construct anything if authorization is disabled.
-       if (!conf.getBoolean(MRConfig.MR_ACLS_ENABLED, false)) {
-         return acls;
-       }
-       for (JobACL aclName : JobACL.values()) {
-         String aclConfigName = aclName.getAclName();
-         String aclConfigured = conf.get(aclConfigName);
-         if (aclConfigured == null) {
-           // If ACLs are not configured at all, we grant no access to anyone. So
-           // jobOwner and superuser/supergroup _only_ can do 'stuff'
-           aclConfigured = " ";
-         }
-         acls.put(aclName, new AccessControlList(aclConfigured));
-       }
-       return acls;
   }
 
 }

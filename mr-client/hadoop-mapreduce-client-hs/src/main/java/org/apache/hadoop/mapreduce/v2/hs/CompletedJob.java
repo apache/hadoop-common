@@ -30,13 +30,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapred.JobACLsManager;
+import org.apache.hadoop.mapreduce.JobACL;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.Counters;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
@@ -46,8 +46,9 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 
@@ -245,5 +246,17 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     } else {//we have only two types of tasks
       return reduceTasks;
     }
+  }
+
+  @Override
+  public boolean checkAccess(UserGroupInformation callerUGI, JobACL jobOperation) {
+    if (!UserGroupInformation.isSecurityEnabled()) {
+      return true;
+    }
+    Map<JobACL, AccessControlList> jobACLs = jobInfo.getJobACLs();
+    AccessControlList jobACL = jobACLs.get(jobOperation);
+    JobACLsManager aclsMgr = new JobACLsManager(conf);
+    return aclsMgr.checkAccess(callerUGI, jobOperation, 
+        jobInfo.getUsername(), jobACL);
   }
 }
