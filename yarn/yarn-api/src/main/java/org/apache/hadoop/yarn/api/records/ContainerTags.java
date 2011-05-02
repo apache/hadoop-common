@@ -16,34 +16,8 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
+package org.apache.hadoop.yarn.api.records;
 
-import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.yarn.api.records.ContainerId;
-
-public class LocalizerContext {
-
-  private final String user;
-  private final ContainerId containerId;
-  private final Credentials credentials;
-
-  public LocalizerContext(String user, ContainerId containerId,
-      Credentials credentials) {
-    this.user = user;
-    this.containerId = containerId;
-    this.credentials = credentials;
-  }
-
-  public String getUser() {
-    return user;
-  }
-
-  public ContainerId getContainerId() {
-    return containerId;
-  }
-
-  public Credentials getCredentials() {
-    return credentials;
-  }
-
+public enum ContainerTags {
+  LOG_DIR
 }

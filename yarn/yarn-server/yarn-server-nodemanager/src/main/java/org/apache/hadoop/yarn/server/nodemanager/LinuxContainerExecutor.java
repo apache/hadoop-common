@@ -147,12 +147,11 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public int launchContainer(Container container, Path nmLocal,
-      String user, String appId, List<Path> appDirs, String stdout,
-      String stderr) throws IOException {
-    Path appWorkDir = new Path(appDirs.get(0), container.toString());
+  public int launchContainer(Container container, Path nmLocal, String user,
+      String appId, Path appLogDir, List<Path> appDirs) throws IOException {
+    Path appWorkDir = new Path(appDirs.get(0), container.toString()); // TODO: Use ROUND_ROBIN
     Path launchScript = new Path(nmLocal, ContainerLaunch.CONTAINER_SCRIPT);
-    Path appToken = new Path(nmLocal, String.format(
+    Path nmPrivateAppTokenFile = new Path(nmLocal, String.format(
           ContainerLocalizer.TOKEN_FILE_FMT,
           ConverterUtils.toString(container.getContainerID())));
     List<String> command = new ArrayList<String>(
@@ -163,7 +162,7 @@ public class LinuxContainerExecutor extends ContainerExecutor {
                     container.toString(),
                     appWorkDir.toString(),
                     launchScript.toUri().getPath().toString(),
-                    appToken.toUri().getPath().toString()));
+                    nmPrivateAppTokenFile.toUri().getPath().toString()));
     String[] commandArray = command.toArray(new String[command.size()]);
     ShellCommandExecutor shExec = new ShellCommandExecutor(commandArray);
     launchCommandObjs.put(container.getLaunchContext().getContainerId(), shExec);

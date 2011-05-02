@@ -17,10 +17,24 @@
 */
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
+import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
-
 import java.net.InetSocketAddress;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,13 +65,8 @@ import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.LocalResourceStatus;
 import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.LocalizerAction;
 import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.LocalizerStatus;
-
 import org.junit.Test;
-import static org.junit.Assert.*;
-
 import org.mockito.ArgumentMatcher;
-import static org.mockito.Matchers.*;
-import static org.mockito.Mockito.*;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -172,7 +181,8 @@ public class TestContainerLocalizer {
     verify(spylfs).open(tokenPath);
 
     // verify log dir creation
-    verify(spylfs).mkdir(eq(logDir), isA(FsPermission.class), anyBoolean());
+    verify(spylfs).mkdir(eq(new Path(logDir, appId)),
+        isA(FsPermission.class), anyBoolean());
 
     // verify downloaded resources reported to NM
     verify(nmProxy).heartbeat(argThat(new HBMatches(rsrcA)));

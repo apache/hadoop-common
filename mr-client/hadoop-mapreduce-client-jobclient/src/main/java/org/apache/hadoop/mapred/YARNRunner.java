@@ -65,6 +65,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.ContainerTags;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
@@ -336,8 +337,8 @@ public class YARNRunner implements ClientProtocol {
     vargs.add(String.valueOf(applicationId.getClusterTimestamp()));
     vargs.add(String.valueOf(applicationId.getId()));
     vargs.add(YarnConfiguration.AM_FAIL_COUNT_STRING);
-    vargs.add("1>logs/stdout");
-    vargs.add("2>logs/stderr");
+    vargs.add("1><" + ContainerTags.LOG_DIR + ">/stdout");
+    vargs.add("2><" + ContainerTags.LOG_DIR + ">/stderr");
 
     Vector<String> vargsFinal = new Vector<String>(8);
     // Final commmand
@@ -345,7 +346,7 @@ public class YARNRunner implements ClientProtocol {
     for (CharSequence str : vargs) {
       mergedCommand.append(str).append(" ");
     }
-    vargsFinal.add("mkdir logs;" + mergedCommand.toString());
+    vargsFinal.add(mergedCommand.toString());
 
     LOG.info("Command to launch container for ApplicationMaster is : "
         + mergedCommand);

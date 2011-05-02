@@ -284,7 +284,7 @@ public class MRAppMaster extends CompositeService {
             // TODO:currently just wait for some time so clients can know the
             // final states. Will be removed once RM come on.
             try {
-              Thread.sleep(15000);
+              Thread.sleep(5000);
             } catch (InterruptedException e) {
               e.printStackTrace();
             }

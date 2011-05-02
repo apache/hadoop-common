@@ -147,7 +147,7 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
     public void transition(LocalizedResource rsrc, ResourceEvent event) {
       ResourceRequestEvent req = (ResourceRequestEvent) event;
       LocalizerContext ctxt = req.getContext();
-      ContainerId container = ctxt.getContainer();
+      ContainerId container = ctxt.getContainerId();
       rsrc.ref.add(container);
       rsrc.dispatcher.getEventHandler().handle(
           new LocalizerResourceRequestEvent(rsrc, req.getVisibility(), ctxt));
@@ -190,7 +190,7 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
     public void transition(LocalizedResource rsrc, ResourceEvent event) {
       // notify waiting containers
       ResourceRequestEvent reqEvent = (ResourceRequestEvent) event;
-      ContainerId container = reqEvent.getContext().getContainer();
+      ContainerId container = reqEvent.getContext().getContainerId();
       rsrc.ref.add(container);
       rsrc.dispatcher.getEventHandler().handle(
           new ContainerResourceLocalizedEvent(

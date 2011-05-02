@@ -18,8 +18,8 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.webapp;
 
-import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCAL_DIR;
-import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCAL_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOG_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOG_DIR;
 
 import java.io.File;
 import java.io.FileReader;
@@ -34,7 +34,6 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
@@ -84,7 +83,7 @@ public class ContainerLogsPage extends NMView {
         if (!$(CONTAINER_LOG_TYPE).isEmpty()) {
           // TODO: Get the following from logs' owning component.
           File containerLogsDir =
-              getContainerLogDir(this.conf, this.nmContext, containerId);
+              getContainerLogDir(this.conf, containerId);
           File logFile = new File(containerLogsDir, $(CONTAINER_LOG_TYPE));
           div.h1(logFile.getName());
           long start =
@@ -132,7 +131,7 @@ public class ContainerLogsPage extends NMView {
         } else {
           // Just print out the log-types
           File containerLogsDir =
-              getContainerLogDir(this.conf, this.nmContext, containerId);
+              getContainerLogDir(this.conf, containerId);
           // TODO: No nested dir structure. Fix MR userlogs.
           for (File logFile : containerLogsDir.listFiles()) {
             div
@@ -152,23 +151,16 @@ public class ContainerLogsPage extends NMView {
       }
     }
 
-    static File getContainerLogDir(Configuration conf,
-        Context nmContext, ContainerId containerId) {
-      String[] sLocalDirs =
-          conf.getStrings(NM_LOCAL_DIR, DEFAULT_NM_LOCAL_DIR);
-      File localDir = new File(sLocalDirs[0]); // TODO: Fix
-      File userCacheDir =
-          new File(localDir, ContainerLocalizer.USERCACHE);
-      String user =
-          nmContext.getContainers().get(containerId).getUser();
-      File userDir = new File(userCacheDir, user);
-      File appCacheDir = new File(userDir, ContainerLocalizer.APPCACHE);
-      File containerDir =
-          new File(new File(appCacheDir,
-              ConverterUtils.toString(containerId
-                  .getAppId())), ConverterUtils.toString(containerId));
-      File containerLogsDir = new File(containerDir, "logs");
-      return containerLogsDir;
+    static File
+        getContainerLogDir(Configuration conf, ContainerId containerId) {
+      String[] logDirs =
+          conf.getStrings(NM_LOG_DIR, DEFAULT_NM_LOG_DIR);
+      File logDir = new File(logDirs[0]); // TODO: In case of ROUND_ROBIN
+      String appIdStr = ConverterUtils.toString(containerId.getAppId());
+      File appLogDir = new File(logDir, appIdStr);
+      String containerIdStr = ConverterUtils.toString(containerId);
+      File containerLogDir = new File(appLogDir, containerIdStr);
+      return containerLogDir;
     }
     
   }

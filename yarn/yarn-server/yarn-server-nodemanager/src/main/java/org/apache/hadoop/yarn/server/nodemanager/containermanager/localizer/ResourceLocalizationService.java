@@ -373,6 +373,7 @@ public class ResourceLocalizationService extends AbstractService
               (LocalizerResourceRequestEvent)event;
             if (null == localizer) {
               LOG.info("Created localizer for " + req.getLocalizerId());
+              // TODO: ROUND_ROBIN below.
               localizer = new LocalizerRunner(req.getContext(),
                   sysDirs.get(0), req.getLocalizerId(), logDirs.get(0));
               trackers.put(locId, localizer);
@@ -399,7 +400,7 @@ public class ResourceLocalizationService extends AbstractService
     final LocalizerContext context;
     final String localizerId;
     final Path nmPrivate;
-    final Path logDir;
+    final Path rootLogDir;
     final Map<LocalResourceRequest,LocalizerResourceRequestEvent> scheduled;
     final List<LocalizerResourceRequestEvent> pending;
 
@@ -420,7 +421,7 @@ public class ResourceLocalizationService extends AbstractService
       this.nmPrivate = nmPrivate;
       this.context = context;
       this.localizerId = localizerId;
-      this.logDir = logDir;
+      this.rootLogDir = logDir;
       this.pending = pending;
       this.scheduled = scheduled;
     }
@@ -514,14 +515,14 @@ public class ResourceLocalizationService extends AbstractService
             assoc.getResource().unlock();
             response.setLocalizerAction(LocalizerAction.DIE);
             dispatcher.getEventHandler().handle(
-                new ContainerResourceFailedEvent(context.getContainer(),
+                new ContainerResourceFailedEvent(context.getContainerId(),
                   req, stat.getException()));
             break;
           default:
             LOG.info("Unknown status: " + stat.getStatus());
             response.setLocalizerAction(LocalizerAction.DIE);
             dispatcher.getEventHandler().handle(
-                new ContainerResourceFailedEvent(context.getContainer(),
+                new ContainerResourceFailedEvent(context.getContainerId(),
                   req, stat.getException()));
             break;
         }
@@ -542,8 +543,8 @@ public class ResourceLocalizationService extends AbstractService
                 ContainerLocalizer.TOKEN_FILE_FMT, localizerId));
           FileContext lfs = getLocalFileContext(getConfig());
           tokenOut = lfs.create(cTokens, EnumSet.of(CREATE, OVERWRITE));
-          LOG.info("Writing credentials to " + cTokens.toString() +
-                   ". Credentials list: ");
+          LOG.info("Writing credentials to the nmPrivate file "
+              + cTokens.toString() + ". Credentials list: ");
           for (Token<? extends TokenIdentifier> tk :
               credentials.getAllTokens()) {
             LOG.info(tk.getService() + " : " + tk.encodeToUrlString());
@@ -556,8 +557,8 @@ public class ResourceLocalizationService extends AbstractService
         }
         // 2) exec initApplication and wait
         exec.startLocalizer(nmPrivate, locAddr, context.getUser(),
-            ConverterUtils.toString(context.getContainer().getAppId()),
-            localizerId, logDir, localDirs);
+            ConverterUtils.toString(context.getContainerId().getAppId()),
+            localizerId, rootLogDir, localDirs);
       } catch (Exception e) {
         // 3) on error, report failure to Container and signal ABORT
         // 3.1) notify resource of failed localization

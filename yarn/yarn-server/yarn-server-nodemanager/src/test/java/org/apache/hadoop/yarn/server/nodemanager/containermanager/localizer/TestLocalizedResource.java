@@ -219,7 +219,7 @@ public class TestLocalizedResource {
     public boolean matches(Object o) {
       if (!(o instanceof LocalizerResourceRequestEvent)) return false;
       LocalizerResourceRequestEvent evt = (LocalizerResourceRequestEvent) o;
-      return idRef == evt.getContext().getContainer()
+      return idRef == evt.getContext().getContainerId()
           && type == evt.getType()
           && vis == evt.getVisibility()
           && creds == evt.getContext().getCredentials();

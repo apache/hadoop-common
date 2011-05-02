@@ -18,14 +18,14 @@
 
 package org.apache.hadoop.mapred;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.security.PrivilegedExceptionAction;
-import java.util.Arrays;
-import static java.util.concurrent.TimeUnit.*;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -42,19 +42,14 @@ import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
-import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.metrics2.source.JvmMetrics;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
-
-import org.apache.hadoop.mapred.YarnChild;
-
 import org.apache.log4j.LogManager;
 
 /**
@@ -77,8 +72,7 @@ class YarnChild {
     int port = Integer.parseInt(args[1]);
     final InetSocketAddress address = new InetSocketAddress(host, port);
     final TaskAttemptID firstTaskid = TaskAttemptID.forName(args[2]);
-    final String logLocation = args[3];
-    int jvmIdInt = Integer.parseInt(args[4]);
+    int jvmIdInt = Integer.parseInt(args[3]);
     JVMId jvmId = new JVMId(firstTaskid.getJobID(),
         firstTaskid.getTaskType() == TaskType.MAP, jvmIdInt);
 
@@ -127,11 +121,7 @@ class YarnChild {
 
       // Create the job-conf and set credentials
       final JobConf job =
-        configureTask(task, defaultConf.getCredentials(), jt, logLocation);
-
-      //create the index file so that the log files
-      //are viewable immediately
-      TaskLog.syncLogs(logLocation, taskid, false);
+        configureTask(task, defaultConf.getCredentials(), jt);
 
       // Initiate Java VM metrics
       JvmMetrics.initSingleton(jvmId.toString(), job.getSessionId());
@@ -147,13 +137,9 @@ class YarnChild {
       childUGI.doAs(new PrivilegedExceptionAction<Object>() {
         @Override
         public Object run() throws Exception {
-          try {
-            // use job-specified working directory
-            FileSystem.get(job).setWorkingDirectory(job.getWorkingDirectory());
-            taskFinal.run(job, umbilical);             // run the task
-          } finally {
-            TaskLog.syncLogs(logLocation, taskid, false);
-          }
+          // use job-specified working directory
+          FileSystem.get(job).setWorkingDirectory(job.getWorkingDirectory());
+          taskFinal.run(job, umbilical); // run the task
           return null;
         }
       });
@@ -230,39 +216,6 @@ class YarnChild {
     return jt;
   }
 
-  static void startTaskLogSync(final String logLocation) {
-    Runtime.getRuntime().addShutdownHook(new Thread() {
-      public void run() {
-        try {
-          if (taskid != null) {
-            TaskLog.syncLogs(logLocation, taskid, false);
-          }
-        } catch (Throwable throwable) { }
-      }
-    });
-    Thread t = new Thread() {
-      public void run() {
-        //every so often wake up and syncLogs so that we can track
-        //logs of the currently running task
-        while (true) {
-          try {
-            Thread.sleep(5000);
-            if (taskid != null) {
-              TaskLog.syncLogs(logLocation, taskid, false);
-            }
-          } catch (InterruptedException ie) {
-          } catch (Throwable iee) {
-            LOG.error("Error in syncLogs: " + iee);
-            System.exit(-1);
-          }
-        }
-      }
-    };
-    t.setName("syncLogs");
-    t.setDaemon(true);
-    t.start();
-  }
-
   static void configureLocalDirs(Task task, JobConf job) {
     String[] localSysDirs = StringUtils.getTrimmedStrings(
         System.getenv(YARNApplicationConstants.LOCAL_DIR_ENV));
@@ -271,7 +224,7 @@ class YarnChild {
   }
 
   static JobConf configureTask(Task task, Credentials credentials,
-      Token<JobTokenIdentifier> jt, String logLocation) throws IOException {
+      Token<JobTokenIdentifier> jt) throws IOException {
     final JobConf job = new JobConf(YARNApplicationConstants.JOB_CONF_FILE);
     job.setCredentials(credentials);
     // set tcp nodelay

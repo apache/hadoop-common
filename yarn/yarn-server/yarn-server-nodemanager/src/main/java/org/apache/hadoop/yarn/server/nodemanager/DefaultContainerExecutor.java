@@ -81,27 +81,28 @@ public class DefaultContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public int launchContainer(Container container, Path nmLocal,
-      String user, String appId, List<Path> appDirs, String stdout,
-      String stderr) throws IOException {
+  public int launchContainer(Container container, Path nmLocal, String user,
+      String appId, Path appLogDir, List<Path> appDirs) throws IOException {
     // create container dirs
+    String containerIdStr = ConverterUtils.toString(container.getContainerID());
     for (Path p : appDirs) {
-      lfs.mkdir(new Path(p,
-                ConverterUtils.toString(container.getContainerID())),
-                null, true);
+      lfs.mkdir(new Path(p, containerIdStr), null, false);
     }
+    lfs.mkdir(new Path(appLogDir, containerIdStr), null, false);
     // copy launch script to work dir
-    Path appWorkDir = new Path(appDirs.get(0), container.toString());
+    // TODO: ROUND_ROBIN Below
+    Path appWorkDir = new Path(appDirs.get(0), containerIdStr);
     Path launchScript = new Path(nmLocal, ContainerLaunch.CONTAINER_SCRIPT);
     Path launchDst = new Path(appWorkDir, ContainerLaunch.CONTAINER_SCRIPT);
     lfs.util().copy(launchScript, launchDst);
     // copy container tokens to work dir
     Path appTokens = new Path(nmLocal, String.format(
         ContainerLocalizer.TOKEN_FILE_FMT,
-        ConverterUtils.toString(container.getContainerID())));
+        containerIdStr));
 
     Path tokenDst =
       new Path(appWorkDir, ContainerLaunch.CONTAINER_TOKENS);
+
     lfs.util().copy(appTokens, tokenDst);
     // create log dir under app
     // fork script

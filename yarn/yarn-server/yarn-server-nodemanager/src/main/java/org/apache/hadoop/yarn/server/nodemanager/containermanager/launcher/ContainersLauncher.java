@@ -136,20 +136,25 @@ public class ContainersLauncher extends AbstractService
       case LAUNCH_CONTAINER:
         Application app =
           context.getApplications().get(containerId.getAppId());
+        String appIdStr = ConverterUtils.toString(app.getAppId());
         List<Path> appDirs = new ArrayList<Path>(localDirs.size());
         for (Path p : localDirs) {
           Path usersdir = new Path(p, ContainerLocalizer.USERCACHE);
           Path userdir = new Path(usersdir, userName);
           Path appsdir = new Path(userdir, ContainerLocalizer.APPCACHE);
-          appDirs.add(new Path(appsdir, app.toString()));
+          appDirs.add(new Path(appsdir, appIdStr));
         }
         Path appSysDir =
-          new Path(sysDirs.get(0), ConverterUtils.toString(app.getAppId()));
+          new Path(sysDirs.get(0), appIdStr);
+        Path appLogDir =
+            new Path(logDirs.get(0), appIdStr);
+        // TODO: ROUND_ROBIN above.
         // TODO set in Application
         //Path appLogDir = new Path(logDirs.get(0), app.toString());
         ContainerLaunch launch =
           new ContainerLaunch(dispatcher, exec, app,
-              event.getContainer(), appSysDir, appDirs);
+              event.getContainer(), appSysDir, appLogDir, appDirs);
+        // TODO: ROUND_ROBIN above.
         running.put(containerId,
             new RunningContainer(userName,
                 containerLauncher.submit(launch)));

@@ -123,7 +123,7 @@ public class TestNMWebServer {
     // ContainerLogDir should be created
     File containerLogDir =
         ContainerLogsPage.ContainersLogsBlock.getContainerLogDir(conf,
-            nmContext, containerId);
+            containerId);
     containerLogDir.mkdirs();
     for (String fileType : new String[] { "stdout", "stderr", "syslog" }) {
       Writer writer = new FileWriter(new File(containerLogDir, fileType));

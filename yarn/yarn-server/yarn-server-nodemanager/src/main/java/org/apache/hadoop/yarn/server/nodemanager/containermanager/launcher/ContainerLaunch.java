@@ -22,6 +22,7 @@ import static org.apache.hadoop.fs.CreateFlag.CREATE;
 import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
 
 import java.io.DataOutputStream;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -58,13 +59,16 @@ public class ContainerLaunch implements Callable<Integer> {
   private final Application app;
   private final Container container;
   private final Path sysDir;
+  private final Path appLogDir;
   private final List<Path> appDirs;
 
   public ContainerLaunch(Dispatcher dispatcher, ContainerExecutor exec,
-      Application app, Container container, Path sysDir, List<Path> appDirs) {
+      Application app, Container container, Path sysDir, Path appLogDir,
+      List<Path> appDirs) {
     this.app = app;
     this.exec = exec;
     this.sysDir = sysDir;
+    this.appLogDir = appLogDir;
     this.appDirs = appDirs;
     this.container = container;
     this.dispatcher = dispatcher;
@@ -79,16 +83,28 @@ public class ContainerLaunch implements Callable<Integer> {
     final Map<String,String> env = launchContext.getAllEnv();
     final List<String> command = launchContext.getCommandList();
     int ret = -1;
+
+    // Variable expansion
+    // Before the container script gets written out.
+    List<String> cmds = container.getLaunchContext().getCommandList();
+    List<String> newCmds = new ArrayList<String>(cmds.size());
+    String containerIdStr = ConverterUtils.toString(container.getContainerID());
+    Path containerLogDir = new Path(appLogDir, containerIdStr);
+    for (String str : cmds) {
+      newCmds.add(str.replace("<LOG_DIR>", containerLogDir.toUri()
+          .getPath()));
+    }
+    container.getLaunchContext().clearCommands();
+    container.getLaunchContext().addAllCommands(newCmds);
+
     try {
       FileContext lfs = FileContext.getLocalFSFileContext();
-      Path launchSysDir =
-        new Path(sysDir, ConverterUtils.toString(container.getContainerID()));
+      Path launchSysDir = new Path(sysDir, containerIdStr);
       lfs.mkdir(launchSysDir, null, true);
       Path launchPath = new Path(launchSysDir, CONTAINER_SCRIPT);
       Path tokensPath =
-        new Path(launchSysDir, String.format(
-              ContainerLocalizer.TOKEN_FILE_FMT,
-              ConverterUtils.toString(container.getContainerID())));
+          new Path(launchSysDir, String.format(
+              ContainerLocalizer.TOKEN_FILE_FMT, containerIdStr));
       DataOutputStream launchOut = null;
       DataOutputStream tokensOut = null;
       
@@ -109,9 +125,10 @@ public class ContainerLaunch implements Callable<Integer> {
       dispatcher.getEventHandler().handle(new ContainerEvent(
             container.getContainerID(),
             ContainerEventType.CONTAINER_LAUNCHED));
+
       ret =
         exec.launchContainer(container, launchSysDir, user, app.toString(),
-            appDirs, null, null);
+            appLogDir, appDirs);
       if (ret == ExitCode.KILLED.getExitCode()) {
         // If the process was killed, Send container_cleanedup_after_kill and
         // just break out of this method.

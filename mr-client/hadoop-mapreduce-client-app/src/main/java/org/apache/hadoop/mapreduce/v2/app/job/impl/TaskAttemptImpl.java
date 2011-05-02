@@ -88,6 +88,7 @@ import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.ContainerTags;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
@@ -526,7 +527,8 @@ public abstract class TaskAttemptImpl implements
     container.setUser(conf.get(MRJobConfig.USER_NAME)); // TODO: Fix
 
     File workDir = new File(ContainerBuilderHelper.getWorkDir());
-    String logDir = new File(workDir, "logs").toString();
+    String containerLogDir =
+        new File("<" + ContainerTags.LOG_DIR + ">").toString();
     String childTmpDir = new File(workDir, "tmp").toString();
     String javaHome = "${JAVA_HOME}";
     String nmLdLibraryPath =
@@ -541,12 +543,13 @@ public abstract class TaskAttemptImpl implements
     classPaths.add(workDir.toString()); // TODO
 
     // Construct the actual Container
-    container.addAllCommands(MapReduceChildJVM.getVMCommand(taskAttemptListener.getAddress(),
-        remoteTask, javaHome, workDir.toString(), logDir, 
-        childTmpDir, jvmID));
+    container.addAllCommands(MapReduceChildJVM.getVMCommand(
+        taskAttemptListener.getAddress(), remoteTask, javaHome,
+        workDir.toString(), containerLogDir, childTmpDir, jvmID));
 
-    MapReduceChildJVM.setVMEnv(container.getAllEnv(), classPaths, workDir.toString(),
-        nmLdLibraryPath, remoteTask, localizedApplicationTokensFile);
+    MapReduceChildJVM.setVMEnv(container.getAllEnv(), classPaths,
+        workDir.toString(), containerLogDir, nmLdLibraryPath, remoteTask,
+        localizedApplicationTokensFile);
 
     // Construct the actual Container
     container.setContainerId(containerID);

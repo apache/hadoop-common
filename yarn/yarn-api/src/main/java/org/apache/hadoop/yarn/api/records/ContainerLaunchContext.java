@@ -22,8 +22,8 @@ public interface ContainerLaunchContext {
   public abstract String getEnv(String key);
   
   public abstract List<String> getCommandList();
-  public abstract String getCommand(int index);
-  public abstract int getCommandCount();
+  public abstract String getCommand(int index); // TODO: Remove
+  public abstract int getCommandCount(); // TODO: Remove
   
   public abstract void setContainerId(ContainerId containerId);
   public abstract void setUser(String user);
@@ -48,6 +48,6 @@ public interface ContainerLaunchContext {
   
   public abstract void addAllCommands(List<String> commands);
   public abstract void addCommand(String command);
-  public abstract void removeCommand(int index);
+  public abstract void removeCommand(int index); // TODO: Remove
   public abstract void clearCommands();
 }

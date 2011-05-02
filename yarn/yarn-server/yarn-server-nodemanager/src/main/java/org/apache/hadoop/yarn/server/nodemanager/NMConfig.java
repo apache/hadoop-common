@@ -51,7 +51,7 @@ public class NMConfig {
 
   public static final String DEFAULT_NM_LOCAL_DIR = "/tmp/nm-local-dir";
 
-  public static final String NM_LOG_DIR = NM_PREFIX + "log.dir";
+  public static final String NM_LOG_DIR = NM_PREFIX + "log.dir"; // TODO: Rename
 
   public static final String DEFAULT_NM_LOG_DIR = "/tmp/logs";
 

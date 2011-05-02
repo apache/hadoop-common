@@ -271,7 +271,7 @@ char* get_job_log_directory(const char* jobid) {
     fprintf(LOGFILE, "Log directory %s is not configured.\n", TT_LOG_DIR_KEY);
     return NULL;
   }
-  char *result = concatenate("%s/userlogs/%s", "job log dir", 2, log_dir, 
+  char *result = concatenate("%s/%s", "job log dir", 2, log_dir,
                              jobid);
   if (result == NULL) {
     fprintf(LOGFILE, "failed to get memory in get_job_log_directory for %s"
@@ -648,7 +648,7 @@ int initialize_user(const char *user) {
  * Function to prepare the job directories for the task JVM.
  */
 int initialize_job(const char *user, const char *jobid, 
-		   const char* credentials, char* const* args) {
+		   const char* nmPrivate_credentials_file, char* const* args) {
   if (jobid == NULL || user == NULL) {
     fprintf(LOGFILE, "Either jobid is null or the user passed is null.\n");
     return INVALID_ARGUMENT_NUMBER;
@@ -672,7 +672,7 @@ int initialize_job(const char *user, const char *jobid,
   }
 
   // open up the credentials file
-  int cred_file = open_file_as_task_tracker(credentials);
+  int cred_file = open_file_as_task_tracker(nmPrivate_credentials_file);
   if (cred_file == -1) {
     return -1;
   }
@@ -710,14 +710,20 @@ int initialize_job(const char *user, const char *jobid,
     return -1;
   }
 
+  char *nmPrivate_credentials_file_copy = strdup(nmPrivate_credentials_file);
   char *cred_file_name = concatenate("%s/%s", "cred file", 2,
-				     primary_job_dir, CREDENTIALS_FILENAME);
+				   primary_job_dir, basename(nmPrivate_credentials_file_copy));
   if (cred_file_name == NULL) {
+	free(nmPrivate_credentials_file_copy);
     return -1;
   }
-  if (copy_file(cred_file, credentials, cred_file_name, S_IRUSR|S_IWUSR) != 0){
+  if (copy_file(cred_file, nmPrivate_credentials_file,
+		  cred_file_name, S_IRUSR|S_IWUSR) != 0){
+	free(nmPrivate_credentials_file_copy);
     return -1;
   }
+
+  free(nmPrivate_credentials_file_copy);
 
   fclose(stdin);
   fflush(LOGFILE);

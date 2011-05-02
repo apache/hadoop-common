@@ -5,9 +5,9 @@ option java_generate_equals_and_hash = true;
 
 import "yarn_service_protos.proto";
 
-
-
-
+enum ContainerTagsProto {
+  LOG_DIR = 1;
+}
 
 service ContainerManagerService {
   rpc startContainer(StartContainerRequestProto) returns (StartContainerResponseProto);

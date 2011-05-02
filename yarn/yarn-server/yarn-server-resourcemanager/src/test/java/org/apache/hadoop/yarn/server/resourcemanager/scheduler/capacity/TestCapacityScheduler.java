@@ -39,12 +39,14 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.Capacity
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacitySchedulerConfiguration;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import junit.framework.Assert;
 import junit.framework.TestCase;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 
+@Ignore
 public class TestCapacityScheduler extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestCapacityScheduler.class);
   

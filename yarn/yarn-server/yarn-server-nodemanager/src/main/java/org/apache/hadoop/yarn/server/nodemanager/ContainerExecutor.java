@@ -84,8 +84,8 @@ public abstract class ContainerExecutor implements Configurable {
    * @param launchCtxt
    */
   public abstract int launchContainer(Container container, Path nmLocal,
-      String user, String appId, List<Path> appDirs, String stdout,
-      String stderr) throws IOException;
+      String user, String appId, Path appLogDir, List<Path> appDirs)
+      throws IOException;
 
   public abstract boolean signalContainer(String user, String pid,
       Signal signal)

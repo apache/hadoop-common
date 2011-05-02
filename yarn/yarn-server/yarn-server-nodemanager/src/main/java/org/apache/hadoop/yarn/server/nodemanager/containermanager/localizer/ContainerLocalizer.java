@@ -368,7 +368,8 @@ public class ContainerLocalizer {
     }
     conf.setStrings(String.format(APPCACHE_CTXT_FMT, appId), appCacheDirs);
     conf.setStrings(String.format(USERCACHE_CTXT_FMT, appId), userCacheDirs);
-    lfs.mkdir(logDir, null, true);
+    Path appLogDir = new Path(logDir, appId);
+    lfs.mkdir(appLogDir, null, true);
   }
 
   public static void writeLaunchEnv(OutputStream out,

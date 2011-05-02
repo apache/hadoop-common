@@ -20,7 +20,7 @@ package org.apache.hadoop.mapred;
 
 import java.io.File;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
@@ -29,8 +29,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapred.TaskLog.LogName;
 import org.apache.hadoop.mapreduce.ID;
-import org.apache.hadoop.mapreduce.JobID;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
 
 public class MapReduceChildJVM {
@@ -39,25 +37,8 @@ public class MapReduceChildJVM {
 
   private static final Log LOG = LogFactory.getLog(MapReduceChildJVM.class);
 
-  private static File getUserLogDir(String baseLogDir) {
-    return new File(baseLogDir, TaskLog.USERLOGS_DIR_NAME);
-  }
-
-  private static File getJobDir(String baseLogDir, JobID jobid) {
-    return new File(getUserLogDir(baseLogDir), jobid.toString());
-  }
-
-  private static File getAttemptDir(String baseLogDir, TaskAttemptID taskid,
-      boolean isCleanup) {
-    String cleanupSuffix = isCleanup ? ".cleanup" : "";
-    return new File(getJobDir(baseLogDir, taskid.getJobID()), taskid
-        + cleanupSuffix);
-  }
-
-  private static File getTaskLogFile(String baseLogDir, TaskAttemptID taskid,
-      boolean isCleanup, LogName filter) {
-    return new File(getAttemptDir(baseLogDir, taskid, isCleanup),
-        filter.toString());
+  private static File getTaskLogFile(String logDir, LogName filter) {
+    return new File(logDir, filter.toString());
   }
 
   private static String getChildEnv(JobConf jobConf, boolean isMap) {
@@ -69,9 +50,9 @@ public class MapReduceChildJVM {
         jobConf.get(jobConf.MAPRED_TASK_ENV));
   }
 
-  public static void setVMEnv(Map<String,String> env,
-      List<String> classPaths, String pwd, String nmLdLibraryPath, Task task,
-      CharSequence applicationTokensFile) {
+  public static void setVMEnv(Map<String, String> env,
+      List<String> classPaths, String pwd, String containerLogDir,
+      String nmLdLibraryPath, Task task, CharSequence applicationTokensFile) {
 
     JobConf conf = task.conf;
 
@@ -94,7 +75,7 @@ public class MapReduceChildJVM {
     /////// Environmental variable LD_LIBRARY_PATH
 
     // for the child of task jvm, set hadoop.root.logger
-    env.put("HADOOP_ROOT_LOGGER", "INFO,TLA");
+    env.put("HADOOP_ROOT_LOGGER", "DEBUG,CLA"); // TODO: Debug
 
     // TODO: The following is useful for instance in streaming tasks. Should be
     // set in ApplicationMaster's env by the RM.
@@ -107,9 +88,13 @@ public class MapReduceChildJVM {
     // FIXME: don't think this is also needed given we already set java
     // properties.
     long logSize = TaskLog.getTaskLogLength(conf);
-    hadoopClientOpts = hadoopClientOpts + "-Dhadoop.tasklog.taskid=" + task.getTaskID()
-                       + " -Dhadoop.tasklog.iscleanup=" + task.isTaskCleanupTask()
-                       + " -Dhadoop.tasklog.totalLogFileSize=" + logSize;
+    Vector<String> logProps = new Vector<String>(4);
+    setupLog4jProperties(logProps, logSize, containerLogDir);
+    Iterator<String> it = logProps.iterator();
+    while (it.hasNext()) {
+      hadoopClientOpts += " " + it.next();
+    }
+
     env.put("HADOOP_CLIENT_OPTS", hadoopClientOpts);
 
     // add the env variables passed by the user
@@ -163,12 +148,10 @@ public class MapReduceChildJVM {
   }
 
   private static void setupLog4jProperties(Vector<String> vargs,
-      long logSize, String hadoopLogDir, Task task) {
-    vargs.add("-Dhadoop.log.dir=" + hadoopLogDir);
-    vargs.add("-Dhadoop.root.logger=DEBUG,TLA");
-    vargs.add("-Dhadoop.tasklog.taskid=" + task.getTaskID());
-    vargs.add("-Dhadoop.tasklog.iscleanup=" + task.isTaskCleanupTask());
-    vargs.add("-Dhadoop.tasklog.totalLogFileSize=" + logSize);
+      long logSize, String containerLogDir) {
+    vargs.add("-Dlog4j.configuration=container-log4j.properties");
+    vargs.add("-Dhadoop.yarn.mr.containerLogDir=" + containerLogDir);
+    vargs.add("-Dhadoop.yarn.mr.totalLogFileSize=" + logSize);
   }
 
   public static List<String> getVMCommand(
@@ -244,13 +227,12 @@ public class MapReduceChildJVM {
 
     // Setup the log4j prop
     long logSize = TaskLog.getTaskLogLength(conf);
-    setupLog4jProperties(vargs, logSize, logDir, task);
+    setupLog4jProperties(vargs, logSize, logDir);
 
     if (conf.getProfileEnabled()) {
       if (conf.getProfileTaskRange(task.isMapTask()
                                    ).isIncluded(task.getPartition())) {
-        File prof = getTaskLogFile(logDir, attemptID, task.isTaskCleanupTask(),
-            TaskLog.LogName.PROFILE);
+        File prof = getTaskLogFile(logDir, TaskLog.LogName.PROFILE);
         vargs.add(String.format(conf.getProfileParams(), prof.toString()));
       }
     }
@@ -261,19 +243,11 @@ public class MapReduceChildJVM {
     vargs.add(taskAttemptListenerAddr.getAddress().getHostAddress()); 
     vargs.add(Integer.toString(taskAttemptListenerAddr.getPort())); 
     vargs.add(attemptID.toString());                      // pass task identifier
-    // pass task log location
-    // TODO: The following API uses system property hadoop.log.dir
-    String attemptLogDir = getAttemptDir(logDir, attemptID, task.isTaskCleanupTask()).toString();
-    vargs.add(attemptLogDir);
 
     // Finally add the jvmID
     vargs.add(String.valueOf(jvmID.getId()));
-    vargs.add("1>"
-        + getTaskLogFile(logDir, attemptID, task.isTaskCleanupTask(),
-            TaskLog.LogName.STDERR));
-    vargs.add("2>"
-        + getTaskLogFile(logDir, attemptID, task.isTaskCleanupTask(),
-            TaskLog.LogName.STDOUT));
+    vargs.add("1>" + getTaskLogFile(logDir, TaskLog.LogName.STDERR));
+    vargs.add("2>" + getTaskLogFile(logDir, TaskLog.LogName.STDOUT));
 
     // Final commmand
     StringBuilder mergedCommand = new StringBuilder();
@@ -281,8 +255,7 @@ public class MapReduceChildJVM {
       mergedCommand.append(str).append(" ");
     }
     Vector<String> vargsFinal = new Vector<String>(8);
-    vargsFinal.add("mkdir work; mkdir -p " + attemptLogDir + "; "
-        + mergedCommand.toString());
+    vargsFinal.add("mkdir work;" + mergedCommand.toString());
     return vargsFinal;
   }
 }
