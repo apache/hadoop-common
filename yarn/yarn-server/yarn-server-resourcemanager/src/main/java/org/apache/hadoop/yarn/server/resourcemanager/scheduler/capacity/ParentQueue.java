@@ -606,12 +606,13 @@ public class ParentQueue implements Queue {
   
   @Override
   public void completedContainer(Resource clusterResource,
-      Container container, Application application) {
+      Container container, Resource allocatedResource, 
+      Application application) {
     if (application != null) {
       // Careful! Locking order is important!
       // Book keeping
       synchronized (this) {
-        releaseResource(clusterResource, container.getResource());
+        releaseResource(clusterResource, allocatedResource);
 
         LOG.info("completedContainer" +
             " queue=" + getQueueName() + 
@@ -622,7 +623,8 @@ public class ParentQueue implements Queue {
 
       // Inform the parent
       if (parent != null) {
-        parent.completedContainer(clusterResource, container, application);
+        parent.completedContainer(clusterResource, container, 
+            allocatedResource, application);
       }    
     }
   }

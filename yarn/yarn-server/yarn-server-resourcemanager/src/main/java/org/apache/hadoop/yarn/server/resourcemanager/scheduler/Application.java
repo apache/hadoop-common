@@ -68,6 +68,9 @@ public class Application {
   final Resource currentConsumption = recordFactory.newRecordInstance(Resource.class);
   final Resource overallConsumption = recordFactory.newRecordInstance(Resource.class);
 
+  Map<Priority, Integer> schedulingOpportunities = 
+    new HashMap<Priority, Integer>();
+  
   /* Current consumption */
   List<Container> acquired = new ArrayList<Container>();
   List<Container> completedContainers = new ArrayList<Container>();
@@ -295,9 +298,18 @@ public class Application {
 
     // Update future requirements
     nodeLocalRequest.setNumContainers(nodeLocalRequest.getNumContainers() - containers.size());
+    if (nodeLocalRequest.getNumContainers() == 0) {
+      this.requests.get(priority).remove(node.getNodeAddress());
+    }
+    
     ResourceRequest rackLocalRequest = 
       requests.get(priority).get(node.getRackName());
     rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers() - containers.size());
+    if (rackLocalRequest.getNumContainers() == 0) {
+      this.requests.get(priority).remove(node.getRackName());
+    }
+    
+    // Do not remove ANY
     ResourceRequest offSwitchRequest = 
       requests.get(priority).get(NodeManager.ANY);
     offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
@@ -317,10 +329,15 @@ public class Application {
 
     // Update future requirements
     rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers() - containers.size());
+    if (rackLocalRequest.getNumContainers() == 0) {
+      this.requests.get(priority).remove(node.getRackName());
+    }
+    
+    // Do not remove ANY
     ResourceRequest offSwitchRequest = 
       requests.get(priority).get(NodeManager.ANY);
     offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
-  } 
+} 
 
   /**
    * The {@link ResourceScheduler} is allocating data-local resources 
@@ -335,7 +352,10 @@ public class Application {
     allocate(containers);
 
     // Update future requirements
-    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
+    
+    // Do not remove ANY
+    offSwitchRequest.setNumContainers(
+        offSwitchRequest.getNumContainers() - containers.size());
   }
 
   synchronized private void allocate(List<Container> containers) {
@@ -350,6 +370,37 @@ public class Application {
     }
   }
 
+  synchronized public void resetSchedulingOpportunities(Priority priority) {
+    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
+    schedulingOpportunities = 0;
+    this.schedulingOpportunities.put(priority, schedulingOpportunities);
+  }
+  
+  synchronized public void addSchedulingOpportunity(Priority priority) {
+    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
+    if (schedulingOpportunities == null) {
+      schedulingOpportunities = 0;
+    }
+    ++schedulingOpportunities;
+    this.schedulingOpportunities.put(priority, schedulingOpportunities);
+  }
+  
+  synchronized public int getSchedulingOpportunities(Priority priority) {
+    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
+    if (schedulingOpportunities == null) {
+      schedulingOpportunities = 0;
+      this.schedulingOpportunities.put(priority, schedulingOpportunities);
+    }
+    return schedulingOpportunities;
+  }
+  
+  private static final int OVERRIDE = 1000000;
+  synchronized public void overrideSchedulingOpportunities(Priority priority) {
+    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
+    schedulingOpportunities = OVERRIDE;
+    this.schedulingOpportunities.put(priority, schedulingOpportunities);
+  }
+  
   synchronized public void showRequests() {
     for (Priority priority : getPriorities()) {
       Map<String, ResourceRequest> requests = getResourceRequests(priority);
@@ -426,6 +477,12 @@ public class Application {
     return false;
   }
 
+  public float getLocalityWaitFactor(Priority priority, int clusterNodes) {
+    // Estimate: Required unique resources (i.e. hosts + racks)
+    int requiredResources = Math.max(this.requests.get(priority).size()-1, 1);
+    return ((float)requiredResources / clusterNodes); 
+  }
+  
   synchronized public void finish() {
     // GC pending resources metrics
     QueueMetrics metrics = queue.getMetrics();

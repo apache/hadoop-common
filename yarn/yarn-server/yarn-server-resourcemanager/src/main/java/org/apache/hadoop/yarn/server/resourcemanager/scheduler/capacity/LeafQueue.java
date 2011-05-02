@@ -100,9 +100,12 @@ public class LeafQueue implements Queue {
   private final RecordFactory recordFactory = 
     RecordFactoryProvider.getRecordFactory(null);
 
+  private CapacitySchedulerContext scheduler;
+  
   public LeafQueue(CapacitySchedulerContext cs, 
       String queueName, Queue parent, 
       Comparator<Application> applicationComparator, Queue old) {
+    this.scheduler = cs;
     this.queueName = queueName;
     this.parent = parent;
     // must be after parent and queueName are initialized
@@ -491,7 +494,7 @@ public class LeafQueue implements Queue {
     LOG.info("DEBUG --- assignContainers:" +
         " node=" + node.getNodeAddress() + 
         " #applications=" + applications.size());
-
+    
     // Check for reserved resources
     Application reservedApplication = node.getReservedApplication();
     if (reservedApplication != null) {
@@ -529,10 +532,14 @@ public class LeafQueue implements Queue {
             }
 
           }
-
+          // Inform the application it is about to get a scheduling opportunity
+          application.addSchedulingOpportunity(priority);
+          
+          // Try to schedule
           Resource assigned = 
             assignContainersOnNode(clusterResource, node, application, priority);
   
+          // Did we schedule or reserve a container?
           if (Resources.greaterThan(assigned, Resources.none())) {
             Resource assignedResource = 
               application.getResourceRequest(priority, NodeManager.ANY).getCapability();
@@ -540,7 +547,10 @@ public class LeafQueue implements Queue {
             // Book-keeping
             allocateResource(clusterResource, 
                 application.getUser(), assignedResource);
-
+            
+            // Reset scheduling opportunities
+            application.resetSchedulingOpportunities(priority);
+            
             // Done
             return assignedResource; 
           } else {
@@ -565,6 +575,17 @@ public class LeafQueue implements Queue {
 
         // Do we reserve containers at this 'priority'?
         if (application.isReserved(node, priority)) {
+          
+          // Do we really need this reservation still?
+          ResourceRequest offSwitchRequest = 
+            application.getResourceRequest(priority, NodeManager.ANY);
+          if (offSwitchRequest.getNumContainers() == 0) {
+            // Release
+            unreserve(application, priority, node);
+            return offSwitchRequest.getCapability();
+          }
+
+          // Try to assign if we have sufficient resources
           assignContainersOnNode(clusterResource, node, application, priority);
         }
       }
@@ -572,7 +593,7 @@ public class LeafQueue implements Queue {
 
     // Doesn't matter... since it's already charged for at time of reservation
     // "re-reservation" is *free*
-    return Resources.none();
+    return org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE;
   }
 
   private synchronized boolean assignToQueue(Resource clusterResource, 
@@ -680,7 +701,8 @@ public class LeafQueue implements Queue {
     assigned = assignRackLocalContainers(clusterResource, node, application, priority);
     if (Resources.greaterThan(assigned, Resources.none())) {
     return assigned;
-  }
+    }
+    
     // Off-switch
     return assignOffSwitchContainers(clusterResource, node, application, priority);
   }
@@ -737,7 +759,28 @@ public class LeafQueue implements Queue {
     }
 
     if (type == NodeType.OFF_SWITCH) {
-      return offSwitchRequest.getNumContainers() > 0;
+      // 'Delay' off-switch
+      long missedNodes = application.getSchedulingOpportunities(priority);
+      long requiredContainers = offSwitchRequest.getNumContainers(); 
+      
+      float localityWaitFactor = 
+        application.getLocalityWaitFactor(priority, 
+            scheduler.getNumClusterNodes());
+      
+      if (requiredContainers > 0) {
+        if ((requiredContainers * localityWaitFactor) < missedNodes) {
+          LOG.info("Application " + application.getApplicationId() + 
+              " has missed " + missedNodes + " opportunities," +
+              " waitFactor= " + localityWaitFactor + 
+              " for cluster of size " + scheduler.getNumClusterNodes());
+          return false;
+        }
+        return true;
+      }
+      return false;
+      
+//      return ((requiredContainers > 0) && 
+//        (requiredContainers * localityWaitFactor) < missedNodes));
     }
 
     if (type == NodeType.RACK_LOCAL) {
@@ -761,7 +804,6 @@ public class LeafQueue implements Queue {
 
     return false;
   }
-
   private Resource assignContainer(Resource clusterResource, NodeInfo node, 
       Application application, 
       Priority priority, ResourceRequest request, NodeType type) {
@@ -771,21 +813,20 @@ public class LeafQueue implements Queue {
         " priority=" + priority.getPriority() + 
         " request=" + request + " type=" + type);
     Resource capability = request.getCapability();
-
+    
     Resource available = node.getAvailableResource();
 
     if (available.getMemory() >  0) {
-
+      
       int availableContainers = 
         available.getMemory() / capability.getMemory();         // TODO: A buggy
-      // application
-      // with this
-      // zero would
-      // crash the
-      // scheduler.
-
+                                                                // application
+                                                                // with this
+                                                                // zero would
+                                                                // crash the
+                                                                // scheduler.
+    
       if (availableContainers > 0) {
-
 
         List<Container> containers =
           new ArrayList<Container>();
@@ -818,7 +859,7 @@ public class LeafQueue implements Queue {
         if (application.isReserved(node, priority)){
           unreserve(application, priority, node);
         }
-
+        
         LOG.info("allocatedContainer" +
             " application=" + application.getApplicationId() +
             " container=" + container + 
@@ -831,7 +872,7 @@ public class LeafQueue implements Queue {
       } else {
         // Reserve by 'charging' in advance...
         reserve(application, priority, node, request.getCapability());
-
+        
         LOG.info("Reserved container " + 
             " application=" + application.getApplicationId() +
             " resource=" + request.getCapability() + 
@@ -873,29 +914,36 @@ public class LeafQueue implements Queue {
     }
   }
 
+
   @Override
   public void completedContainer(Resource clusterResource, 
-      Container container, Application application) {
+      Container container, Resource allocatedResource, Application application) {
     if (application != null) {
       // Careful! Locking order is important!
       synchronized (this) {
-        // Inform the application
-        application.completedContainer(container);
-
+        
+        // Inform the application iff this was an allocated container, 
+        // as opposed to an unfulfilled reservation
+        if (container != null) {
+          application.completedContainer(container);
+        }
+        
         // Book-keeping
         releaseResource(clusterResource, 
             application.getUser(), container.getResource());
 
         LOG.info("completedContainer" +
             " container=" + container +
-            " queue=" + this + 
+            " resource=" + allocatedResource +
+        		" queue=" + this + 
             " util=" + getUtilization() + 
             " used=" + usedResources + 
             " cluster=" + clusterResource);
       }
 
       // Inform the parent queue
-      parent.completedContainer(clusterResource, container, application);
+      parent.completedContainer(clusterResource, container, 
+          allocatedResource, application);
     }
   }
 

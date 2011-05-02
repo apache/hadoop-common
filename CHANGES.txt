@@ -3,6 +3,10 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    
+    Implement 'delay scheduling' for better locality in CapacityScheduler and
+    improved high-ram applications. (acmurthy)
+
     MAPREDUCE-2462. Write job conf along with JobHistory, other minor improvements. 
     (Siddharth Seth via sharad)
 

@@ -95,7 +95,10 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   private Map<String, Queue> queues = new ConcurrentHashMap<String, Queue>();
 
-
+  private Resource clusterResource = 
+    RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Resource.class);
+  private int numNodeManagers = 0;
+  
   private Resource minimumAllocation;
 
   private Map<ApplicationId, Application> applications = 
@@ -123,6 +126,10 @@ implements ResourceScheduler, CapacitySchedulerContext {
     return minimumAllocation;
   }
 
+  public synchronized int getNumClusterNodes() {
+    return numNodeManagers;
+  }
+  
   @Override
   public synchronized void reinitialize(Configuration conf,
       ContainerTokenSecretManager containerTokenSecretManager, ClusterTracker clusterTracker) 
@@ -393,7 +400,13 @@ implements ResourceScheduler, CapacitySchedulerContext {
       LOG.info("Trying to fulfill reservation for application " + 
           reservedApplication.getApplicationId() + " on node: " + nm);
       LeafQueue queue = ((LeafQueue)reservedApplication.getQueue());
-      queue.assignContainers(clusterResource, nm);
+      Resource released = queue.assignContainers(clusterResource, nm);
+      
+      // Is the reservation necessary? If not, release the reservation
+      if (org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.greaterThan(
+          released, org.apache.hadoop.yarn.server.resourcemanager.resource.Resource.NONE)) {
+        queue.completedContainer(clusterResource, null, released, reservedApplication);
+      }
     }
 
     // Try to schedule more if there are no reservations to fulfill
@@ -418,7 +431,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
         // Inform the queue
         LeafQueue queue = (LeafQueue)application.getQueue();
-        queue.completedContainer(clusterResource, container, application);
+        queue.completedContainer(clusterResource, container, 
+            container.getResource(), application);
       }
     }
   }
@@ -480,21 +494,21 @@ implements ResourceScheduler, CapacitySchedulerContext {
       break;
     }
   }
-  private Resource clusterResource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Resource.class);
-
 
   public synchronized Resource getClusterResource() {
     return clusterResource;
   }
 
   @Override
-  public synchronized void removeNode(NodeInfo nodeInfo) {
-    Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
+  public synchronized void addNode(NodeInfo nodeManager) {
+    Resources.addTo(clusterResource, nodeManager.getTotalCapability());
+    ++numNodeManagers;
   }
 
   @Override
-  public synchronized void addNode(NodeInfo nodeManager) {
-    Resources.addTo(clusterResource, nodeManager.getTotalCapability());
+  public synchronized void removeNode(NodeInfo nodeInfo) {
+    Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
+    --numNodeManagers;
   }
 
   public synchronized boolean releaseContainer(ApplicationId applicationId, 

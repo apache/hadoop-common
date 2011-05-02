@@ -30,4 +30,6 @@ public interface CapacitySchedulerContext {
   Resource getMinimumAllocation();
   
   ContainerTokenSecretManager getContainerTokenSecretManager();
+  
+  int getNumClusterNodes();
 }

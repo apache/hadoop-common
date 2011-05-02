@@ -168,11 +168,14 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
   /**
    * A container assigned to the queue has completed.
    * @param clusterResource the resource of the cluster
-   * @param container completed container
+   * @param container completed container, 
+   *                  <code>null</code> if it was just a reservation
+   * @param allocatedResource allocated resource
    * @param application application to which the container was assigned
    */
   public void completedContainer(Resource clusterResource,
-      Container container, Application application);
+      Container container, Resource allocatedResource, 
+      Application application);
 
   /**
    * Get the number of applications in the queue.
@@ -201,5 +204,6 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    * @param application the application for which the container was allocated
    * @param container the container that was recovered.
    */
-  public void recoverContainer(Resource clusterResource, Application application, Container container);
+  public void recoverContainer(Resource clusterResource, Application application, 
+      Container container);
 }
