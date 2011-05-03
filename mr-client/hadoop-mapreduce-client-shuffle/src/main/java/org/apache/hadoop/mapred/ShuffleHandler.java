@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -37,7 +36,6 @@ import javax.crypto.SecretKey;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.LocalDirAllocator;
-import org.apache.hadoop.mapred.IndexCache;
 
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -45,7 +43,6 @@ import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelFutureProgressListener;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -71,7 +68,6 @@ import org.jboss.netty.handler.stream.ChunkedWriteHandler;
 import org.jboss.netty.util.CharsetUtil;
 
 import static org.jboss.netty.buffer.ChannelBuffers.*;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.*;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
 import static org.jboss.netty.handler.codec.http.HttpMethod.*;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.*;
@@ -82,35 +78,32 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DataInputByteBuffer;
 import org.apache.hadoop.io.DataOutputBuffer;
-import org.apache.hadoop.io.DataOutputByteBuffer;
 import org.apache.hadoop.mapreduce.security.SecureShuffleUtils;
+import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
+import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.task.reduce.ShuffleHeader;
-
-
+import org.apache.hadoop.metrics2.annotation.Metric;
+import org.apache.hadoop.metrics2.annotation.Metrics;
+import org.apache.hadoop.metrics2.MetricsSystem;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.MutableCounterInt;
+import org.apache.hadoop.metrics2.lib.MutableCounterLong;
+import org.apache.hadoop.metrics2.lib.MutableGaugeInt;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServices;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.util.ConverterUtils;
-import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
-import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
+import org.apache.hadoop.yarn.util.Records;
 
-// DEBUG
-import org.apache.commons.logging.impl.Log4JLogger;
-import org.apache.log4j.Level;
-
+//
 // TODO packaging
 public class ShuffleHandler extends AbstractService 
     implements AuxServices.AuxiliaryService {
 
   private static final Log LOG = LogFactory.getLog(ShuffleHandler.class);
-  static {
-    //DEBUG
-    ((Log4JLogger)LOG).getLogger().setLevel(Level.DEBUG);
-  }
 
   private int port;
   private ChannelFactory selector;
@@ -126,8 +119,37 @@ public class ShuffleHandler extends AbstractService
 
   public static final String SHUFFLE_PORT = "mapreduce.shuffle.port";
 
-  public ShuffleHandler() {
+  @Metrics(about="Shuffle output metrics", context="mapred")
+  static class ShuffleMetrics implements ChannelFutureListener {
+    @Metric("Shuffle output in bytes")
+        MutableCounterLong shuffleOutputBytes;
+    @Metric("# of failed shuffle outputs")
+        MutableCounterInt shuffleOutputsFailed;
+    @Metric("# of succeeeded shuffle outputs")
+        MutableCounterInt shuffleOutputsOK;
+    @Metric("# of current shuffle connections")
+        MutableGaugeInt shuffleConnections;
+
+    @Override
+    public void operationComplete(ChannelFuture future) throws Exception {
+      if (future.isSuccess()) {
+        shuffleOutputsOK.incr();
+      } else {
+        shuffleOutputsFailed.incr();
+      }
+      shuffleConnections.decr();
+    }
+  }
+
+  final ShuffleMetrics metrics;
+
+  ShuffleHandler(MetricsSystem ms) {
     super("httpshuffle");
+    metrics = ms.register(new ShuffleMetrics());
+  }
+
+  public ShuffleHandler() {
+    this(DefaultMetricsSystem.instance());
   }
 
   @Override
@@ -168,7 +190,7 @@ public class ShuffleHandler extends AbstractService
     Configuration conf = getConfig();
     ServerBootstrap bootstrap = new ServerBootstrap(selector);
     bootstrap.setPipelineFactory(new HttpPipelineFactory(conf));
-    int port = conf.getInt("mapreduce.shuffle.port", 8080);
+    port = conf.getInt("mapreduce.shuffle.port", 8080);
     accepted.add(bootstrap.bind(new InetSocketAddress(port)));
     LOG.info(getName() + " listening on port " + port);
     super.start();
@@ -182,14 +204,19 @@ public class ShuffleHandler extends AbstractService
     super.stop();
   }
 
-  public static class HttpPipelineFactory implements ChannelPipelineFactory {
+  Shuffle createShuffle() {
+    return new Shuffle(getConfig());
+  }
 
-    private final Shuffle SHUFFLE;
+  class HttpPipelineFactory implements ChannelPipelineFactory {
+
+    final Shuffle SHUFFLE;
 
     public HttpPipelineFactory(Configuration conf) {
       SHUFFLE = new Shuffle(conf);
     }
 
+    @Override
     public ChannelPipeline getPipeline() throws Exception {
         return Channels.pipeline(
             new HttpRequestDecoder(),
@@ -204,7 +231,7 @@ public class ShuffleHandler extends AbstractService
 
   }
 
-  static class Shuffle extends SimpleChannelUpstreamHandler {
+  class Shuffle extends SimpleChannelUpstreamHandler {
 
     private final Configuration conf;
     private final IndexCache indexCache;
@@ -216,7 +243,7 @@ public class ShuffleHandler extends AbstractService
       indexCache = new IndexCache(new JobConf(conf));
     }
 
-    private static List<String> splitMaps(List<String> mapq) {
+    private List<String> splitMaps(List<String> mapq) {
       if (null == mapq) {
         return null;
       }
@@ -301,6 +328,7 @@ public class ShuffleHandler extends AbstractService
           return;
         }
       }
+      lastMap.addListener(metrics);
       lastMap.addListener(ChannelFutureListener.CLOSE);
     }
 
@@ -346,7 +374,7 @@ public class ShuffleHandler extends AbstractService
       // $x/$user/appcache/$appId/output/$mapId
       // TODO: Once Shuffle is out of NM, this can use MR APIs to convert between App and Job
       JobID jobID = JobID.forName(jobId);
-      ApplicationId appID = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+      ApplicationId appID = Records.newRecord(ApplicationId.class);
       appID.setClusterTimestamp(Long.parseLong(jobID.getJtIdentifier()));
       appID.setId(jobID.getId());
       final String base =
@@ -388,6 +416,8 @@ public class ShuffleHandler extends AbstractService
             partition.releaseExternalResources();
           }
         });
+      metrics.shuffleConnections.incr();
+      metrics.shuffleOutputBytes.incr(info.partLength); // optimistic
       return writeFuture;
     }
 
@@ -407,6 +437,7 @@ public class ShuffleHandler extends AbstractService
       ctx.getChannel().write(response).addListener(ChannelFutureListener.CLOSE);
     }
 
+    @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
         throws Exception {
       Channel ch = e.getChannel();
@@ -416,7 +447,7 @@ public class ShuffleHandler extends AbstractService
         return;
       }
 
-      cause.printStackTrace();
+      LOG.error("Shuffle error: ", cause);
       if (ch.isConnected()) {
         LOG.error("Shuffle error " + e);
         sendError(ctx, INTERNAL_SERVER_ERROR);
