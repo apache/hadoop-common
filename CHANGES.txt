@@ -531,6 +531,9 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-2457. Job submission should inject group.name on the JobTracker
     (Alejandro Abdelnur via todd)
 
+    MAPREDUCE-2448. NoSuchMethodError:
+    org.apache.hadoop.hdfs.TestDatanodeBlockScanner.corruptReplica(..) (eli)
+
 Release 0.21.1 - Unreleased
 
   NEW FEATURES

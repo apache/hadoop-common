@@ -515,11 +515,8 @@ public class TestBlockFixer extends TestCase {
   }
 
   void corruptBlock(String blockName) throws IOException {
-    boolean corrupted = false;
-    for (int i = 0; i < NUM_DATANODES; i++) {
-      corrupted |= TestDatanodeBlockScanner.corruptReplica(blockName, i);
-    }
-    assertTrue(corrupted);
+    assertTrue("Could not corrupt block",
+        dfs.corruptBlockOnDataNodes(blockName) > 0);
   }
 
   static void reportCorruptBlocks(FileSystem fs, Path file, int[] idxs,
