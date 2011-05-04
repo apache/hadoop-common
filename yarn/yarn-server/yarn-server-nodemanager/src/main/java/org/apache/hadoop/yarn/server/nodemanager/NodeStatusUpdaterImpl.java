@@ -146,11 +146,12 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
   protected ResourceTracker getRMClient() {
     YarnRPC rpc = YarnRPC.create(getConfig());
     InetSocketAddress rmAddress = NetUtils.createSocketAddr(this.rmAddress);
-    getConfig().setClass(
+    Configuration rmClientConf = new Configuration(getConfig());
+    rmClientConf.setClass(
         CommonConfigurationKeys.HADOOP_SECURITY_INFO_CLASS_NAME,
         RMNMSecurityInfoClass.class, SecurityInfo.class);
     return (ResourceTracker) rpc.getProxy(ResourceTracker.class, rmAddress,
-        getConfig());
+        rmClientConf);
   }
 
   private void registerWithRM() throws YarnRemoteException {

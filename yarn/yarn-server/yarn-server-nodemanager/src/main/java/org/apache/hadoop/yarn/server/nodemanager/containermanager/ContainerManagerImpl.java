@@ -22,7 +22,9 @@ import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_BIND
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_BIND_ADDRESS;
 import static org.apache.hadoop.yarn.service.Service.STATE.STARTED;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.apache.avro.ipc.Server;
@@ -30,9 +32,13 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.io.DataInputByteBuffer;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.ContainerManager;
 import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
@@ -75,6 +81,8 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.Conta
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.LogAggregationService;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event.LogAggregatorEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitor;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorImpl;
@@ -92,7 +100,7 @@ public class ContainerManagerImpl extends CompositeService implements
   final Context context;
   private final ContainersMonitor containersMonitor;
   private Server server;
-  private InetSocketAddress cmAddr;
+  private InetSocketAddress cmBindAddressStr;
   private final ResourceLocalizationService rsrcLocalizationSrvc;
   private final ContainersLauncher containersLauncher;
   private final AuxServices auxiluaryServices;
@@ -137,6 +145,10 @@ public class ContainerManagerImpl extends CompositeService implements
         new ContainersMonitorImpl(exec, dispatcher);
     addService(this.containersMonitor);
 
+    LogAggregationService logAggregationService =
+        createLogAggregationService(this.deletionService);
+    addService(logAggregationService);
+
     dispatcher.register(ContainerEventType.class,
         new ContainerEventDispatcher());
     dispatcher.register(ApplicationEventType.class,
@@ -145,7 +157,13 @@ public class ContainerManagerImpl extends CompositeService implements
     dispatcher.register(AuxServicesEventType.class, auxiluaryServices);
     dispatcher.register(ContainersMonitorEventType.class, containersMonitor);
     dispatcher.register(ContainersLauncherEventType.class, containersLauncher);
+    dispatcher.register(LogAggregatorEventType.class, logAggregationService);
     addService(dispatcher);
+  }
+
+  protected LogAggregationService createLogAggregationService(
+      DeletionService deletionService) {
+    return new LogAggregationService(deletionService);
   }
 
   public ContainersMonitor getContainersMonitor() {
@@ -165,12 +183,9 @@ public class ContainerManagerImpl extends CompositeService implements
 
   @Override
   public void init(Configuration conf) {
-    cmAddr = NetUtils.createSocketAddr(
+    cmBindAddressStr = NetUtils.createSocketAddr(
         conf.get(NM_BIND_ADDRESS, DEFAULT_NM_BIND_ADDRESS));
-    Configuration cmConf = new Configuration(conf);
-    cmConf.setClass(CommonConfigurationKeys.HADOOP_SECURITY_INFO_CLASS_NAME,
-        ContainerManagerSecurityInfo.class, SecurityInfo.class);
-    super.init(cmConf);
+    super.init(conf);
   }
 
   @Override
@@ -187,10 +202,13 @@ public class ContainerManagerImpl extends CompositeService implements
           this.nodeStatusUpdater.getContainerManagerBindAddress(),
           this.nodeStatusUpdater.getRMNMSharedSecret());
     }
+    Configuration cmConf = new Configuration(getConfig());
+    cmConf.setClass(CommonConfigurationKeys.HADOOP_SECURITY_INFO_CLASS_NAME,
+        ContainerManagerSecurityInfo.class, SecurityInfo.class);
     server =
-        rpc.getServer(ContainerManager.class, this, cmAddr, getConfig(),
+        rpc.getServer(ContainerManager.class, this, cmBindAddressStr, cmConf,
             this.containerTokenSecretManager);
-    LOG.info("ContainerManager started at " + cmAddr);
+    LOG.info("ContainerManager started at " + cmBindAddressStr);
     server.start();
     super.start();
   }
@@ -217,10 +235,29 @@ public class ContainerManagerImpl extends CompositeService implements
   public StartContainerResponse startContainer(StartContainerRequest request) throws YarnRemoteException {
     ContainerLaunchContext launchContext = request.getContainerLaunchContext();
   
-    Container container = new ContainerImpl(this.dispatcher, launchContext);
-    //ContainerID containerID = launchContext.id;
+    // parse credentials
+    ByteBuffer tokens = launchContext.getContainerTokens();
+    Credentials credentials = new Credentials();
+    if (tokens != null) {
+      DataInputByteBuffer buf = new DataInputByteBuffer();
+      tokens.rewind();
+      buf.reset(tokens);
+      try {
+        credentials.readTokenStorageStream(buf);
+        if (LOG.isDebugEnabled()) {
+          for (Token<? extends TokenIdentifier> tk : credentials
+              .getAllTokens()) {
+            LOG.debug(tk.getService() + " = " + tk.toString());
+          }
+        }
+      } catch (IOException e) {
+        throw RPCUtil.getRemoteException(e);
+      }
+    }
+
+    Container container =
+        new ContainerImpl(this.dispatcher, launchContext, credentials);
     ContainerId containerID = launchContext.getContainerId();
-    //ApplicationID applicationID = containerID.appID;
     ApplicationId applicationID = containerID.getAppId();
     if (context.getContainers().putIfAbsent(containerID, container) != null) {
       throw RPCUtil.getRemoteException("Container " + containerID
@@ -229,7 +266,7 @@ public class ContainerManagerImpl extends CompositeService implements
 
     // Create the application
     Application application = new ApplicationImpl(dispatcher,
-        launchContext.getUser(), applicationID);
+        launchContext.getUser(), applicationID, credentials);
     if (null ==
         context.getApplications().putIfAbsent(applicationID, application)) {
       LOG.info("Creating a new application reference for app "

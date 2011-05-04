@@ -51,10 +51,10 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
-import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
@@ -64,6 +64,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
+import org.apache.hadoop.yarn.util.BuilderUtils;
 
 @LimitedPrivate("yarn")
 @Evolving
@@ -86,9 +87,9 @@ public class FifoScheduler implements ResourceScheduler {
   public static final Resource MINIMUM_ALLOCATION =
     Resources.createResource(MINIMUM_MEMORY);
 
-  Map<ApplicationId, Application> applications = 
-    new TreeMap<ApplicationId, Application>(
-        new org.apache.hadoop.yarn.util.BuilderUtils.ApplicationIdComparator());
+  Map<ApplicationId, Application> applications =
+      new TreeMap<ApplicationId, Application>(
+          new BuilderUtils.ApplicationIdComparator());
 
   private static final String DEFAULT_QUEUE_NAME = "default";
   private final QueueMetrics metrics =
@@ -437,10 +438,10 @@ public class FifoScheduler implements ResourceScheduler {
         new ArrayList<Container>(assignedContainers);
       for (int i=0; i < assignedContainers; ++i) {
         Container container =
-          org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-          .create(recordFactory, application.getApplicationId(),
-              application.getNewContainerId(), node.getNodeAddress(),
-              node.getHttpAddress(), capability);
+            BuilderUtils.newContainer(recordFactory,
+                application.getApplicationId(),
+                application.getNewContainerId(), node.getNodeAddress(),
+                node.getHttpAddress(), capability);
         // If security is enabled, send the container-tokens too.
         if (UserGroupInformation.isSecurityEnabled()) {
           ContainerToken containerToken = recordFactory.newRecordInstance(ContainerToken.class);

@@ -27,15 +27,10 @@ import java.util.Arrays;
 
 import junit.framework.Assert;
 
-import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import org.apache.hadoop.NodeHealthCheckerService;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
@@ -49,125 +44,25 @@ import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.URL;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.event.AsyncDispatcher;
-import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
-import org.apache.hadoop.yarn.factories.RecordFactory;
-import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.nodemanager.CMgrCompletedAppsEvent;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.Signal;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.Context;
-import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
-import org.apache.hadoop.yarn.server.nodemanager.DummyContainerManager;
-import org.apache.hadoop.yarn.server.nodemanager.LocalRMInterface;
-import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
-import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationState;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
-import org.apache.hadoop.yarn.service.Service.STATE;
 import org.apache.hadoop.yarn.util.ConverterUtils;
-
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
-public class TestContainerManager {
-
-  private static RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
-  static {
-    DefaultMetricsSystem.setMiniClusterMode(true);
-  }
-
-  protected FileContext localFS;
+public class TestContainerManager extends BaseContainerManagerTest {
 
   public TestContainerManager() throws UnsupportedFileSystemException {
-    localFS = FileContext.getLocalFSFileContext();
+    super();
   }
 
-  private static Log LOG = LogFactory.getLog(TestContainerManager.class);
-
-  protected static File localDir = new File("target",
-      TestContainerManager.class.getName() + "-localDir").getAbsoluteFile();
-  protected static File logDir = new File("target",
-      TestContainerManager.class.getName() + "-logDir").getAbsoluteFile();
-  protected static File tmpDir = new File("target",
-      TestContainerManager.class.getName() + "-tmpDir");
-
-  protected Configuration conf = new YarnConfiguration();
-  private Context context = new NMContext();
-  private ContainerExecutor exec = new DefaultContainerExecutor();
-  private DeletionService delSrvc;
-  private Dispatcher dispatcher = new AsyncDispatcher();
-  private NodeHealthCheckerService healthChecker = null;
-  private String user = "nobody";
-
-  private NodeStatusUpdater nodeStatusUpdater = new NodeStatusUpdaterImpl(
-      context, dispatcher, healthChecker) {
-    @Override
-    protected ResourceTracker getRMClient() {
-      return new LocalRMInterface();
-    };
-
-    @Override
-    protected void startStatusUpdater() throws InterruptedException,
-        YarnRemoteException {
-      return; // Don't start any updating thread.
-    }
-  };
-
-  private ContainerManagerImpl containerManager = null;
-
-  protected ContainerExecutor createContainerExecutor() {
-    return new DefaultContainerExecutor();
-  }
-
-  @Before
-  public void setup() throws IOException {
-    localFS.delete(new Path(localDir.getAbsolutePath()), true);
-    localFS.delete(new Path(tmpDir.getAbsolutePath()), true);
-    localFS.delete(new Path(logDir.getAbsolutePath()), true);
-    localDir.mkdir();
-    tmpDir.mkdir();
-    logDir.mkdir();
-    LOG.info("Created localDir in " + localDir.getAbsolutePath());
-    LOG.info("Created tmpDir in " + tmpDir.getAbsolutePath());
-
-    String bindAddress = "0.0.0.0:5555";
-    conf.set(NMConfig.NM_BIND_ADDRESS, bindAddress);
-    conf.set(NMConfig.NM_LOCAL_DIR, localDir.getAbsolutePath());
-    conf.set(NMConfig.NM_LOG_DIR, logDir.getAbsolutePath());
-
-    // Default delSrvc
-    delSrvc = new DeletionService(exec) {
-      @Override
-      public void delete(String user, Path subDir, Path[] baseDirs) {
-        // Don't do any deletions.
-      };
-    };
-
-    exec = createContainerExecutor();
-    containerManager =
-        new ContainerManagerImpl(context, exec, delSrvc, nodeStatusUpdater);
-    containerManager.init(conf);
-  }
-
-  @After
-  public void tearDown() throws IOException, InterruptedException {
-    if (containerManager != null
-        && containerManager.getServiceState() == STATE.STARTED) {
-      containerManager.stop();
-    }
-    createContainerExecutor().deleteAsUser(user,
-        new Path(localDir.getAbsolutePath()), new Path[] {});
+  static {
+    LOG = LogFactory.getLog(TestContainerManager.class);
   }
 
   @Test
@@ -235,7 +130,7 @@ public class TestContainerManager {
     
     containerManager.startContainer(startRequest);
 
-    DummyContainerManager.waitForContainerState(containerManager, cId,
+    BaseContainerManagerTest.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE);
 
     // Now ascertain that the resources are localised correctly.
@@ -349,7 +244,7 @@ public class TestContainerManager {
     stopRequest.setContainerId(cId);
     containerManager.stopContainer(stopRequest);
 
-    DummyContainerManager.waitForContainerState(containerManager, cId,
+    BaseContainerManagerTest.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE);
     
     GetContainerStatusRequest gcsRequest = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
@@ -418,10 +313,10 @@ public class TestContainerManager {
     request.setContainerLaunchContext(containerLaunchContext);
     containerManager.startContainer(request);
 
-    DummyContainerManager.waitForContainerState(containerManager, cId,
+    BaseContainerManagerTest.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE);
 
-    waitForApplicationState(containerManager, cId.getAppId(),
+    BaseContainerManagerTest.waitForApplicationState(containerManager, cId.getAppId(),
         ApplicationState.RUNNING);
 
     // Now ascertain that the resources are localised correctly.
@@ -453,7 +348,7 @@ public class TestContainerManager {
     containerManager.handle(new CMgrCompletedAppsEvent(Arrays
         .asList(new ApplicationId[] { appId })));
 
-    waitForApplicationState(containerManager, cId.getAppId(),
+    BaseContainerManagerTest.waitForApplicationState(containerManager, cId.getAppId(),
         ApplicationState.FINISHED);
 
     // Now ascertain that the resources are localised correctly.
@@ -474,119 +369,5 @@ public class TestContainerManager {
     }
     Assert.assertFalse(targetFile.getAbsolutePath() + " exists!!",
         targetFile.exists());
-  }
-
-//  @Test
-//  public void testCommandPreparation() {
-//    ContainerLaunchContext container = new ContainerLaunchContext();
-//
-//    // ////// Construct the Container-id
-//    ApplicationID appId = new ApplicationID();
-//    appId.id = 0;
-//    appId.clusterTimeStamp = 0;
-//    ContainerID containerID = new ContainerID();
-//    containerID.appID = appId;
-//    containerID.id = 0;
-//    container.id = containerID;
-//
-//    // The actual environment for the container
-//    Path containerWorkDir =
-//        NodeManager.getContainerWorkDir(new Path(localDir.getAbsolutePath()),
-//            containerID);
-//    final Map<String, String> ENVS = new HashMap<String, String>();
-//    ENVS.put("JAVA_HOME", "/my/path/to/java-home");
-//    ENVS.put("LD_LIBRARY_PATH", "/my/path/to/libraries");
-//
-//    File workDir = new File(ContainerBuilderHelper.getWorkDir());
-//    File logDir = new File(workDir, "logs");
-//    File stdout = new File(logDir, "stdout");
-//    File stderr = new File(logDir, "stderr");
-//    File tmpDir = new File(workDir, "tmp");
-//    File javaHome = new File(ContainerBuilderHelper.getEnvVar("JAVA_HOME"));
-//    String ldLibraryPath =
-//        ContainerBuilderHelper.getEnvVar("LD_LIBRARY_PATH");
-//    List<String> classPaths = new ArrayList<String>();
-//    File someJar = new File(workDir, "jar-name.jar");
-//    classPaths.add(someJar.toString());
-//    classPaths.add(workDir.toString());
-//    String PATH_SEPARATOR = System.getProperty("path.separator");
-//    String classPath = StringUtils.join(PATH_SEPARATOR, classPaths);
-//    File someFile = new File(workDir, "someFileNeededinEnv");
-//
-//    NMContainer nmContainer = new NMContainer(container, containerWorkDir) {
-//      @Override
-//      protected String checkAndGetEnvValue(String envVar) {
-//        return ENVS.get(envVar);
-//      }
-//    };
-//    List<CharSequence> command = new ArrayList<CharSequence>();
-//    command.add(javaHome + "/bin/java");
-//    command.add("-Djava.library.path=" + ldLibraryPath);
-//    command.add("-Djava.io.tmpdir=" + tmpDir);
-//    command.add("-classpath");
-//    command.add(classPath);
-//    command.add("2>" + stdout);
-//    command.add("1>" + stderr);
-//
-//    Map<String, String> env = new HashMap<String, String>();
-//    env.put("FILE_IN_ENV", someFile.toString());
-//    env.put("JAVA_HOME", javaHome.toString());
-//    env.put("LD_LIBRARY_PATH", ldLibraryPath);
-//
-//    String actualWorkDir = containerWorkDir.toUri().getPath();
-//
-//    String finalCmdSent = "";
-//    for (CharSequence cmd : command) {
-//      finalCmdSent += cmd + " ";
-//    }
-//    finalCmdSent.trim();
-//    LOG.info("Final command sent is : " + finalCmdSent);
-//
-//    // The main method being tested
-//    String[] finalCommands =
-//        nmContainer.prepareCommandArgs(command, env, actualWorkDir);
-//    // //////////////////////////////
-//
-//    String finalCmd = "";
-//    for (String cmd : finalCommands) {
-//      finalCmd += cmd + " ";
-//    }
-//    finalCmd = finalCmd.trim();
-//    LOG.info("Final command for launch is : " + finalCmd);
-//
-//    File actualLogDir = new File(actualWorkDir, "logs");
-//    File actualStdout = new File(actualLogDir, "stdout");
-//    File actualStderr = new File(actualLogDir, "stderr");
-//    File actualTmpDir = new File(actualWorkDir, "tmp");
-//    File actualSomeJar = new File(actualWorkDir, "jar-name.jar");
-//    File actualSomeFileInEnv = new File(actualWorkDir, "someFileNeededinEnv");
-//    Assert.assertEquals(actualSomeFileInEnv.toString(),
-//        env.get("FILE_IN_ENV"));
-//    Assert.assertEquals("/my/path/to/java-home", env.get("JAVA_HOME"));
-//    Assert.assertEquals("/my/path/to/libraries", env.get("LD_LIBRARY_PATH"));
-//    Assert.assertEquals("/my/path/to/java-home/bin/java"
-//        + " -Djava.library.path=/my/path/to/libraries" + " -Djava.io.tmpdir="
-//        + actualTmpDir + " -classpath " + actualSomeJar + PATH_SEPARATOR
-//        + actualWorkDir + " 2>" + actualStdout + " 1>" + actualStderr,
-//        finalCmd);
-//  }
-
-  static void waitForApplicationState(ContainerManagerImpl containerManager,
-      ApplicationId appID, ApplicationState finalState)
-      throws InterruptedException {
-    // Wait for app-finish
-    Application app =
-        containerManager.context.getApplications().get(appID);
-    int timeout = 0;
-    while (!(app.getApplicationState().equals(finalState))
-        && timeout++ < 15) {
-      LOG.info("Waiting for app to reach " + finalState
-          + ".. Current state is "
-          + app.getApplicationState());
-      Thread.sleep(1000);
-    }
-
-    Assert.assertTrue("App is not in " + finalState + " yet!! Timedout!!",
-        app.getApplicationState().equals(finalState));
   }
 }

@@ -1,3 +1,21 @@
+/**
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor;
 
 import static org.junit.Assert.assertFalse;
@@ -12,15 +30,10 @@ import java.util.regex.Pattern;
 
 import junit.framework.Assert;
 
-import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.NodeHealthCheckerService;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -33,116 +46,32 @@ import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.URL;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.event.AsyncDispatcher;
-import org.apache.hadoop.yarn.event.Dispatcher;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
-import org.apache.hadoop.yarn.factories.RecordFactory;
-import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.server.api.ResourceTracker;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.Signal;
-import org.apache.hadoop.yarn.server.nodemanager.Context;
-import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
-import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
-import org.apache.hadoop.yarn.server.nodemanager.DummyContainerManager;
-import org.apache.hadoop.yarn.server.nodemanager.LocalRMInterface;
-import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
-import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
-import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
-import org.apache.hadoop.yarn.service.Service.STATE;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.BaseContainerManagerTest;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.LinuxResourceCalculatorPlugin;
 import org.apache.hadoop.yarn.util.ProcfsBasedProcessTree;
 import org.apache.hadoop.yarn.util.ResourceCalculatorPlugin;
 import org.apache.hadoop.yarn.util.TestProcfsBasedProcessTree;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-public class TestContainersMonitor {
-
-  private static final Log LOG = LogFactory
-      .getLog(TestContainersMonitor.class);
-
-  protected static File localDir = new File("target",
-      TestContainersMonitor.class.getName() + "-localDir").getAbsoluteFile();
-  protected static File logDir = new File("target",
-      TestContainersMonitor.class.getName() + "-logDir").getAbsoluteFile();
-  protected static File tmpDir = new File("target",
-      TestContainersMonitor.class.getName() + "-tmpDir");
-
-  private static RecordFactory recordFactory = RecordFactoryProvider
-      .getRecordFactory(null);
-  static {
-    DefaultMetricsSystem.setMiniClusterMode(true);
-  }
-
-  protected FileContext localFS;
+public class TestContainersMonitor extends BaseContainerManagerTest {
 
   public TestContainersMonitor() throws UnsupportedFileSystemException {
-    localFS = FileContext.getLocalFSFileContext();
+    super();
   }
 
-  protected Configuration conf = new YarnConfiguration();
-  private Context context = new NMContext();
-  private ContainerExecutor exec = new DefaultContainerExecutor();
-  private DeletionService delSrvc= new DeletionService(exec);
-  private Dispatcher dispatcher = new AsyncDispatcher();
-  private NodeHealthCheckerService healthChecker = null;
-  private String user = "nobody";
-
-  private NodeStatusUpdater nodeStatusUpdater = new NodeStatusUpdaterImpl(
-      context, dispatcher, healthChecker) {
-    @Override
-    protected ResourceTracker getRMClient() {
-      return new LocalRMInterface();
-    };
-
-    @Override
-    protected void startStatusUpdater() throws InterruptedException,
-        YarnRemoteException {
-      return; // Don't start any updating thread.
-    }
-  };
-
-  private ContainerManagerImpl containerManager = null;
-
+  static {
+    LOG = LogFactory.getLog(TestContainersMonitor.class);
+  }
   @Before
   public void setup() throws IOException {
-    localFS.delete(new Path(localDir.getAbsolutePath()), true);
-    localFS.delete(new Path(tmpDir.getAbsolutePath()), true);
-    localFS.delete(new Path(logDir.getAbsolutePath()), true);
-    localDir.mkdir();
-    tmpDir.mkdir();
-    logDir.mkdir();
-    LOG.info("Created localDir in " + localDir.getAbsolutePath());
-    LOG.info("Created tmpDir in " + tmpDir.getAbsolutePath());
-
-    String bindAddress = "0.0.0.0:5555";
-    conf.set(NMConfig.NM_BIND_ADDRESS, bindAddress);
-    conf.set(NMConfig.NM_LOCAL_DIR, localDir.getAbsolutePath());
-    conf.set(NMConfig.NM_LOG_DIR, logDir.getAbsolutePath());
-
-    containerManager =
-        new ContainerManagerImpl(context, exec, delSrvc, nodeStatusUpdater);
     conf.setClass(
         ContainersMonitorImpl.RESOURCE_CALCULATOR_PLUGIN_CONFIG_KEY,
         LinuxResourceCalculatorPlugin.class, ResourceCalculatorPlugin.class);
-    containerManager.init(conf);
-  }
-
-  @After
-  public void tearDown() throws IOException, InterruptedException {
-    if (containerManager != null
-        && containerManager.getServiceState() == STATE.STARTED) {
-      containerManager.stop();
-    }
-    exec.deleteAsUser(user, new Path(localDir.getAbsolutePath()),
-        new Path[] {});
+    super.setup();
   }
 
   /**
@@ -308,7 +237,7 @@ public class TestContainersMonitor {
     // No more lines
     Assert.assertEquals(null, reader.readLine());
 
-    DummyContainerManager.waitForContainerState(containerManager, cId,
+    BaseContainerManagerTest.waitForContainerState(containerManager, cId,
         ContainerState.COMPLETE, 60);
 
     GetContainerStatusRequest gcsRequest =

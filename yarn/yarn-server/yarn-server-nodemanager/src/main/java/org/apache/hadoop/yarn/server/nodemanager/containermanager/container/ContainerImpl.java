@@ -18,10 +18,7 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
-import java.io.IOException;
-
 import java.net.URISyntaxException;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -31,16 +28,14 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DataInputByteBuffer;
 import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEvent;
@@ -50,8 +45,9 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.Conta
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationRequestEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event.LogAggregatorContainerFinishedEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStartMonitoringEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStopMonitoringEvent;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
@@ -66,7 +62,7 @@ public class ContainerImpl implements Container {
   private final Dispatcher dispatcher;
   private final Credentials credentials;
   private final ContainerLaunchContext launchContext;
-  private int exitCode;
+  private String exitCode = "NA";
   private final StringBuilder diagnostics;
 
   private static final Log LOG = LogFactory.getLog(Container.class);
@@ -77,11 +73,12 @@ public class ContainerImpl implements Container {
     new HashMap<Path,String>();
 
   public ContainerImpl(Dispatcher dispatcher,
-      ContainerLaunchContext launchContext) {
+      ContainerLaunchContext launchContext, Credentials creds) {
     this.dispatcher = dispatcher;
     this.launchContext = launchContext;
     this.diagnostics = new StringBuilder();
-    this.credentials = new Credentials();
+    this.credentials = creds;
+
     stateMachine = stateMachineFactory.make(this);
   }
 
@@ -304,29 +301,6 @@ public class ContainerImpl implements Container {
         ContainerEvent event) {
       final ContainerLaunchContext ctxt = container.getLaunchContext();
 
-      // parse credentials
-      ByteBuffer creds = ctxt.getContainerTokens();
-      if (creds != null) {
-        try {
-          DataInputByteBuffer buf = new DataInputByteBuffer();
-          creds.rewind();
-          buf.reset(creds);
-          container.credentials.readTokenStorageStream(buf);
-          if (LOG.isDebugEnabled()) {
-            for (Token<? extends TokenIdentifier> tk :
-                 container.credentials.getAllTokens()) {
-              LOG.debug(tk.getService() + " = " + tk.toString());
-            }
-          }
-        } catch (IOException e) {
-          // invalid credentials
-          container.dispatcher.getEventHandler().handle(
-              new ContainerLocalizationEvent(
-                LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
-          return ContainerState.LOCALIZING;
-        }
-      }
-
       // Inform the AuxServices about the opaque serviceData
       Map<String,ByteBuffer> csd = ctxt.getAllServiceData();
       if (csd != null) {
@@ -458,7 +432,7 @@ public class ContainerImpl implements Container {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
       ContainerExitEvent exitEvent = (ContainerExitEvent) event;
-      container.exitCode = exitEvent.getExitCode();
+      container.exitCode = String.valueOf(exitEvent.getExitCode());
 
       // TODO: Add containerWorkDir to the deletion service.
       // TODO: Add containerOuputDir to the deletion service.
@@ -503,7 +477,7 @@ public class ContainerImpl implements Container {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
       ContainerExitEvent exitEvent = (ContainerExitEvent) event;
-      container.exitCode = exitEvent.getExitCode();
+      container.exitCode = String.valueOf(exitEvent.getExitCode());
 
       // The process/process-grp is killed. Decrement reference counts and
       // cleanup resources
@@ -519,11 +493,14 @@ public class ContainerImpl implements Container {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
       // Inform the application
-      container.dispatcher.getEventHandler().handle(
-          new ApplicationContainerFinishedEvent(container.getContainerID()));
+      ContainerId containerID = container.getContainerID();
+      EventHandler eventHandler = container.dispatcher.getEventHandler();
+      eventHandler.handle(new ApplicationContainerFinishedEvent(containerID));
       // Remove the container from the resource-monitor
-      container.dispatcher.getEventHandler().handle(
-          new ContainerStopMonitoringEvent(container.getContainerID()));
+      eventHandler.handle(new ContainerStopMonitoringEvent(containerID));
+      // Tell the logService too
+      eventHandler.handle(new LogAggregatorContainerFinishedEvent(
+          containerID, container.exitCode));
     }
   }
 

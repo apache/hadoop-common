@@ -83,7 +83,7 @@ public class TestContainer {
       final Map<String,LocalResource> localResources = createLocalResources(r);
       when(ctxt.getAllLocalResources()).thenReturn(localResources);
 
-      final Container c = new ContainerImpl(dispatcher, ctxt);
+      final Container c = new ContainerImpl(dispatcher, ctxt, null);
       assertEquals(ContainerState.NEW, c.getContainerState());
 
       // Verify request for public/private resources to localizer
@@ -136,7 +136,7 @@ public class TestContainer {
       final Map<String,LocalResource> localResources = createLocalResources(r);
       when(ctxt.getAllLocalResources()).thenReturn(localResources);
 
-      final Container c = new ContainerImpl(dispatcher, ctxt);
+      final Container c = new ContainerImpl(dispatcher, ctxt, null);
       assertEquals(ContainerState.NEW, c.getContainerState());
 
       c.handle(new ContainerEvent(cId, ContainerEventType.INIT_CONTAINER));
@@ -208,7 +208,7 @@ public class TestContainer {
       final Map<String,ByteBuffer> serviceData = createServiceData(r);
       when(ctxt.getAllServiceData()).thenReturn(serviceData);
 
-      final Container c = new ContainerImpl(dispatcher, ctxt);
+      final Container c = new ContainerImpl(dispatcher, ctxt, null);
       assertEquals(ContainerState.NEW, c.getContainerState());
 
       // Verify propagation of service data to AuxServices

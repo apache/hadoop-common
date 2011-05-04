@@ -237,7 +237,7 @@ public class ResourceLocalizationService extends AbstractService
       }
       // 1) Signal container init
       dispatcher.getEventHandler().handle(new ApplicationInitedEvent(
-            app.getAppId(), logDirs.get(0)));
+            app.getAppId()));
       break;
     case INIT_CONTAINER_RESOURCES:
       ContainerLocalizationRequestEvent rsrcReqs =

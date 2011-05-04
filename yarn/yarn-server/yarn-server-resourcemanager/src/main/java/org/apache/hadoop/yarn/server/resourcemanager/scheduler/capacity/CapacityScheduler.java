@@ -56,6 +56,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
+import org.apache.hadoop.yarn.util.BuilderUtils;
 
 @LimitedPrivate("yarn")
 @Evolving
@@ -99,12 +100,12 @@ implements ResourceScheduler, CapacitySchedulerContext {
   private Resource clusterResource = 
     RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Resource.class);
   private int numNodeManagers = 0;
-  
+
   private Resource minimumAllocation;
 
   private Map<ApplicationId, Application> applications = 
     new TreeMap<ApplicationId, Application>(
-        new org.apache.hadoop.yarn.util.BuilderUtils.ApplicationIdComparator());
+        new BuilderUtils.ApplicationIdComparator());
 
   private boolean initialized = false;
 

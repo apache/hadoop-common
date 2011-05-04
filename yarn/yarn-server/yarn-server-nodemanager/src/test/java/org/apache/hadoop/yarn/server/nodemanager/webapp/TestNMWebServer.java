@@ -101,7 +101,7 @@ public class TestNMWebServer {
           recordFactory.newRecordInstance(ContainerLaunchContext.class);
       launchContext.setContainerId(containerId);
       launchContext.setUser(user);
-      Container container = new ContainerImpl(dispatcher, launchContext) {
+      Container container = new ContainerImpl(dispatcher, launchContext, null) {
         public ContainerState getContainerState() {
           return ContainerState.RUNNING;
         };

@@ -56,6 +56,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
+import org.apache.hadoop.yarn.util.BuilderUtils;
 
 @Private
 @Unstable
@@ -826,25 +827,24 @@ public class LeafQueue implements Queue {
                                                                 // crash the
                                                                 // scheduler.
     
-      if (availableContainers > 0) {
-
-        List<Container> containers =
-          new ArrayList<Container>();
-        Container container =
-          org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-          .create(recordFactory, application.getApplicationId(),
+    if (availableContainers > 0) {
+      List<Container> containers =
+        new ArrayList<Container>();
+      Container container =
+          BuilderUtils.newContainer(this.recordFactory,
+              application.getApplicationId(),
               application.getNewContainerId(), node.getNodeAddress(),
               node.getHttpAddress(), capability);
-
-        // If security is enabled, send the container-tokens too.
-        if (UserGroupInformation.isSecurityEnabled()) {
-          ContainerToken containerToken = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ContainerToken.class);
-          ContainerTokenIdentifier tokenidentifier =
-            new ContainerTokenIdentifier(container.getId(),
-                container.getContainerManagerAddress(), container.getResource());
-          containerToken.setIdentifier(ByteBuffer.wrap(tokenidentifier.getBytes()));
-          containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
-          containerToken.setPassword(ByteBuffer.wrap(containerTokenSecretManager
+      
+      // If security is enabled, send the container-tokens too.
+      if (UserGroupInformation.isSecurityEnabled()) {
+        ContainerToken containerToken = this.recordFactory.newRecordInstance(ContainerToken.class);
+        ContainerTokenIdentifier tokenidentifier =
+          new ContainerTokenIdentifier(container.getId(),
+              container.getContainerManagerAddress(), container.getResource());
+        containerToken.setIdentifier(ByteBuffer.wrap(tokenidentifier.getBytes()));
+        containerToken.setKind(ContainerTokenIdentifier.KIND.toString());
+        containerToken.setPassword(ByteBuffer.wrap(containerTokenSecretManager
               .createPassword(tokenidentifier)));
           containerToken.setService(container.getContainerManagerAddress());
           container.setContainerToken(containerToken);

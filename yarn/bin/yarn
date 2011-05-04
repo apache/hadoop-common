@@ -67,6 +67,7 @@ if [ $# = 0 ]; then
   echo "  rmadmin              admin tools" 
   echo "  version              print the version"
   echo "  jar <jar>            run a jar file"
+  echo "  logs                 dump container logs"
   echo "  classpath            prints the class path needed to get the"
   echo "                       Hadoop jar and the required libraries"
   echo "  daemonlog            get/set the log level for each daemon"
@@ -303,6 +304,9 @@ elif [ "$COMMAND" = "version" ] ; then
   YARN_OPTS="$YARN_OPTS $YARN_CLIENT_OPTS"
 elif [ "$COMMAND" = "jar" ] ; then
   CLASS=org.apache.hadoop.util.RunJar
+  YARN_OPTS="$YARN_OPTS $YARN_CLIENT_OPTS"
+elif [ "$COMMAND" = "logs" ] ; then
+  CLASS=org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.LogDumper
   YARN_OPTS="$YARN_OPTS $YARN_CLIENT_OPTS"
 elif [ "$COMMAND" = "daemonlog" ] ; then
   CLASS=org.apache.hadoop.log.LogLevel

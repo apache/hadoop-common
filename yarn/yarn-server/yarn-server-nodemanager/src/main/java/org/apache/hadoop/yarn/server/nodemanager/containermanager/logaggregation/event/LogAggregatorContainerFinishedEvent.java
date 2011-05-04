@@ -15,14 +15,29 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
+
+package org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event;
 
 import org.apache.hadoop.yarn.api.records.ContainerId;
 
-public class ContainerInitEvent extends ContainerEvent {
+public class LogAggregatorContainerFinishedEvent extends LogAggregatorEvent {
 
-  public ContainerInitEvent(ContainerId c) {
-    super(c, ContainerEventType.INIT_CONTAINER);
+  private final ContainerId containerId;
+  private final String exitCode;
+
+  public LogAggregatorContainerFinishedEvent(ContainerId containerId,
+      String exitCode) {
+    super(LogAggregatorEventType.CONTAINER_FINISHED);
+    this.containerId = containerId;
+    this.exitCode = exitCode;
+  }
+
+  public ContainerId getContainerId() {
+    return this.containerId;
+  }
+
+  public String getExitCode() {
+    return this.exitCode;
   }
 
 }

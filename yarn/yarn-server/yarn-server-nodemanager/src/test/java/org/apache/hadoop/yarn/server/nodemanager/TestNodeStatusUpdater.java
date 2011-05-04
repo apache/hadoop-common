@@ -114,7 +114,7 @@ public class TestNodeStatusUpdater {
         launchContext.setContainerId(firstContainerID);
         launchContext.setResource(recordFactory.newRecordInstance(Resource.class));
         launchContext.getResource().setMemory(2);
-        Container container = new ContainerImpl(null, launchContext);
+        Container container = new ContainerImpl(null, launchContext, null);
         this.context.getContainers().put(firstContainerID, container);
       } else if (heartBeatID == 2) {
         // Checks on the RM end
@@ -140,7 +140,7 @@ public class TestNodeStatusUpdater {
         launchContext.setContainerId(secondContainerID);
         launchContext.setResource(recordFactory.newRecordInstance(Resource.class));
         launchContext.getResource().setMemory(3);
-        Container container = new ContainerImpl(null, launchContext);
+        Container container = new ContainerImpl(null, launchContext, null);
         this.context.getContainers().put(secondContainerID, container);
       } else if (heartBeatID == 3) {
         // Checks on the RM end
@@ -211,6 +211,8 @@ public class TestNodeStatusUpdater {
     conf.set(NMConfig.NM_BIND_ADDRESS, "127.0.0.1:12345");
     conf.set(NMConfig.NM_LOCALIZER_BIND_ADDRESS, "127.0.0.1:12346");
     conf.set(NMConfig.NM_LOG_DIR, new Path(basedir, "logs").toUri().getPath());
+    conf.set(NMConfig.REMOTE_USER_LOG_DIR, new Path(basedir, "remotelogs")
+        .toUri().getPath());
     conf.set(NMConfig.NM_LOCAL_DIR, new Path(basedir, "nm0").toUri().getPath());
     nm.init(conf);
     new Thread() {

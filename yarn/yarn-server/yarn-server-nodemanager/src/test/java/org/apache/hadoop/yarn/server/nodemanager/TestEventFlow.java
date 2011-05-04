@@ -19,7 +19,6 @@
 package org.apache.hadoop.yarn.server.nodemanager;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 
 import org.apache.commons.logging.Log;
@@ -27,8 +26,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -44,6 +41,7 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.BaseContainerManagerTest;
 import org.junit.Test;
 
 public class TestEventFlow {
@@ -53,8 +51,10 @@ public class TestEventFlow {
 
   private static File localDir = new File("target",
       TestEventFlow.class.getName() + "-localDir").getAbsoluteFile();
-  private static File logDir = new File("target",
-      TestEventFlow.class.getName() + "-logDir").getAbsoluteFile();
+  private static File localLogDir = new File("target",
+      TestEventFlow.class.getName() + "-localLogDir").getAbsoluteFile();
+  private static File remoteLogDir = new File("target",
+      TestEventFlow.class.getName() + "-remoteLogDir").getAbsoluteFile();
 
   @Test
   public void testSuccessfulContainerLaunch() throws InterruptedException,
@@ -63,15 +63,18 @@ public class TestEventFlow {
     FileContext localFS = FileContext.getLocalFSFileContext();
 
     localFS.delete(new Path(localDir.getAbsolutePath()), true);
-    localFS.delete(new Path(logDir.getAbsolutePath()), true);
+    localFS.delete(new Path(localLogDir.getAbsolutePath()), true);
+    localFS.delete(new Path(remoteLogDir.getAbsolutePath()), true);
     localDir.mkdir();
-    logDir.mkdir();
+    localLogDir.mkdir();
+    remoteLogDir.mkdir();
 
     Context context = new NMContext();
 
     YarnConfiguration conf = new YarnConfiguration();
     conf.set(NMConfig.NM_LOCAL_DIR, localDir.getAbsolutePath());
-    conf.set(NMConfig.NM_LOG_DIR, logDir.getAbsolutePath());
+    conf.set(NMConfig.NM_LOG_DIR, localLogDir.getAbsolutePath());
+    conf.set(NMConfig.REMOTE_USER_LOG_DIR, remoteLogDir.getAbsolutePath());
 
     ContainerExecutor exec = new DefaultContainerExecutor();
     DeletionService del = new DeletionService(exec);
@@ -106,13 +109,13 @@ public class TestEventFlow {
     request.setContainerLaunchContext(launchContext);
     containerManager.startContainer(request);
 
-    DummyContainerManager.waitForContainerState(containerManager, cID,
+    BaseContainerManagerTest.waitForContainerState(containerManager, cID,
         ContainerState.RUNNING);
 
     StopContainerRequest stopRequest = recordFactory.newRecordInstance(StopContainerRequest.class);
     stopRequest.setContainerId(cID);
     containerManager.stopContainer(stopRequest);
-    DummyContainerManager.waitForContainerState(containerManager, cID,
+    BaseContainerManagerTest.waitForContainerState(containerManager, cID,
         ContainerState.COMPLETE);
 
     containerManager.stop();

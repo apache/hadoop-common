@@ -17,20 +17,12 @@
 */
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 
 public class ApplicationInitedEvent extends ApplicationEvent {
 
-  private final Path logDir;
-
-  public ApplicationInitedEvent(ApplicationId appID, Path logDir) {
+  public ApplicationInitedEvent(ApplicationId appID) {
     super(appID, ApplicationEventType.APPLICATION_INITED);
-    this.logDir = logDir;
-  }
-
-  public Path getLogDir() {
-    return logDir;
   }
 
 }

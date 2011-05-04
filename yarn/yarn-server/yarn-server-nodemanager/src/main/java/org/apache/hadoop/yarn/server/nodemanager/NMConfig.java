@@ -55,6 +55,11 @@ public class NMConfig {
 
   public static final String DEFAULT_NM_LOG_DIR = "/tmp/logs";
 
+  public static final String REMOTE_USER_LOG_DIR = NM_PREFIX
+      + "remote-app-log-dir";
+
+  public static final String DEFAULT_REMOTE_APP_LOG_DIR = "/tmp/logs";
+
   public static final int DEFAULT_NM_VMEM_GB = 8;
 
   public static final String NM_VMEM_GB = NM_PREFIX + "resource.memory.gb";

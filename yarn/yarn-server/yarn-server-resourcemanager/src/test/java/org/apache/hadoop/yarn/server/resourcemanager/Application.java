@@ -81,7 +81,7 @@ public class Application {
         new org.apache.hadoop.yarn.server.resourcemanager.resource.ResourceRequest.Comparator());
   final private Set<Container> release = 
     new TreeSet<Container>(
-        new org.apache.hadoop.yarn.server.resourcemanager.resource.Container.ContainerComparator());
+        new org.apache.hadoop.yarn.util.BuilderUtils.ContainerComparator());
 
   final private Map<String, NodeManager> nodes = 
     new HashMap<String, NodeManager>();
@@ -274,7 +274,7 @@ public class Application {
     for (Container container : response) {
       if (container.getState() != ContainerState.COMPLETE) {
         containers.add(
-            org.apache.hadoop.yarn.server.resourcemanager.resource.Container.create(
+            org.apache.hadoop.yarn.util.BuilderUtils.clone(
                 container));
       }
     }

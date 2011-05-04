@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.Dispatcher;
@@ -35,6 +36,9 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Cont
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerInitEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ApplicationLocalizationEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.ContainerLogsRetentionPolicy;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event.LogAggregatorAppFinishedEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event.LogAggregatorAppStartedEvent;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
@@ -47,7 +51,7 @@ public class ApplicationImpl implements Application {
   final Dispatcher dispatcher;
   final String user;
   final ApplicationId appId;
-  Path logDir;
+  final Credentials credentials;
 
   private static final Log LOG = LogFactory.getLog(Application.class);
 
@@ -55,10 +59,11 @@ public class ApplicationImpl implements Application {
       new HashMap<ContainerId, Container>();
 
   public ApplicationImpl(Dispatcher dispatcher, String user,
-      ApplicationId appId) {
+      ApplicationId appId, Credentials credentials) {
     this.dispatcher = dispatcher;
     this.user = user.toString();
     this.appId = appId;
+    this.credentials = credentials;
     stateMachine = stateMachineFactory.make(this);
   }
 
@@ -136,7 +141,8 @@ public class ApplicationImpl implements Application {
            // Transitions from APPLICATION_RESOURCES_CLEANINGUP state
            .addTransition(ApplicationState.APPLICATION_RESOURCES_CLEANINGUP,
                ApplicationState.FINISHED,
-               ApplicationEventType.APPLICATION_RESOURCES_CLEANEDUP)
+               ApplicationEventType.APPLICATION_RESOURCES_CLEANEDUP,
+               new AppCompletelyDoneTransition())
 
            // create the topology tables
            .installTopology();
@@ -178,12 +184,18 @@ public class ApplicationImpl implements Application {
       SingleArcTransition<ApplicationImpl, ApplicationEvent> {
     @Override
     public void transition(ApplicationImpl app, ApplicationEvent event) {
-      // Start all the containers waiting for ApplicationInit
+
       ApplicationInitedEvent initedEvent = (ApplicationInitedEvent) event;
-      app.logDir = initedEvent.getLogDir();
+      // Inform the logAggregator
+      app.dispatcher.getEventHandler().handle(
+            new LogAggregatorAppStartedEvent(app.appId, app.user,
+                app.credentials,
+                ContainerLogsRetentionPolicy.ALL_CONTAINERS)); // TODO: Fix
+
+      // Start all the containers waiting for ApplicationInit
       for (Container container : app.containers.values()) {
         app.dispatcher.getEventHandler().handle(new ContainerInitEvent(
-              container.getContainerID(), app.logDir));
+              container.getContainerID()));
       }
     }
   }
@@ -198,7 +210,7 @@ public class ApplicationImpl implements Application {
       LOG.info("Adding " + container.getContainerID()
           + " to application " + app.toString());
       app.dispatcher.getEventHandler().handle(new ContainerInitEvent(
-            container.getContainerID(), app.logDir));
+            container.getContainerID()));
     }
   }
 
@@ -276,6 +288,16 @@ public class ApplicationImpl implements Application {
       return ApplicationState.FINISHING_CONTAINERS_WAIT;
     }
 
+  }
+
+  static class AppCompletelyDoneTransition implements
+      SingleArcTransition<ApplicationImpl, ApplicationEvent> {
+    @Override
+    public void transition(ApplicationImpl app, ApplicationEvent event) {
+      // Inform the logService
+      app.dispatcher.getEventHandler().handle(
+          new LogAggregatorAppFinishedEvent(app.appId));
+    }
   }
 
   @Override

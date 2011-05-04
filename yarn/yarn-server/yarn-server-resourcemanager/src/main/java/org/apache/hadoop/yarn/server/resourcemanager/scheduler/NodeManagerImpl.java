@@ -80,8 +80,7 @@ public class NodeManagerImpl implements NodeManager {
   
   /* set of containers that need to be cleaned */
   private final Set<Container> containersToClean = 
-    new TreeSet<Container>(new org.apache.hadoop.yarn.server.resourcemanager.resource.Container.ContainerComparator());
-
+    new TreeSet<Container>(new org.apache.hadoop.yarn.util.BuilderUtils.ContainerComparator());
   
   /* the list of applications that have finished and need to be purged */
   private final List<ApplicationId> finishedApplications = new ArrayList<ApplicationId>();

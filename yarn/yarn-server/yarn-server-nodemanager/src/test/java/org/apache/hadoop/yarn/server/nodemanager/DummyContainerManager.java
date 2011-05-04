@@ -18,22 +18,12 @@
 
 package org.apache.hadoop.yarn.server.nodemanager;
 
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerResourceLocalizedEvent;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationRequestEvent;
-import org.apache.hadoop.yarn.util.ConverterUtils;
-
-import junit.framework.Assert;
+import static org.junit.Assert.fail;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.records.ContainerId;
-import org.apache.hadoop.yarn.api.records.ContainerState;
-import org.apache.hadoop.yarn.api.records.ContainerStatus;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
@@ -45,14 +35,17 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Cont
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerExitEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerResourceLocalizedEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ApplicationLocalizationEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationRequestEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEvent;
-
-import static org.junit.Assert.*;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.LogAggregationService;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event.LogAggregatorEvent;
 
 public class DummyContainerManager extends ContainerManagerImpl {
 
@@ -78,7 +71,7 @@ public class DummyContainerManager extends ContainerManagerImpl {
               ((ApplicationLocalizationEvent) event).getApplication();
           // Simulate event from ApplicationLocalization.
           dispatcher.getEventHandler().handle(new ApplicationInitedEvent(
-                app.getAppId(), new Path("logdir")));
+                app.getAppId()));
           break;
         case INIT_CONTAINER_RESOURCES:
           ContainerLocalizationRequestEvent rsrcReqs =
@@ -142,31 +135,23 @@ public class DummyContainerManager extends ContainerManagerImpl {
     };
   }
 
-  public static void waitForContainerState(ContainerManager containerManager,
-      ContainerId containerID, ContainerState finalState)
-      throws InterruptedException, YarnRemoteException {
-    waitForContainerState(containerManager, containerID, finalState, 20);
-  }
-
-  public static void waitForContainerState(ContainerManager containerManager,
-        ContainerId containerID, ContainerState finalState, int timeOutMax)
-        throws InterruptedException, YarnRemoteException {
-      GetContainerStatusRequest request = recordFactory.newRecordInstance(GetContainerStatusRequest.class);
-      request.setContainerId(containerID);
-      ContainerStatus containerStatus =
-          containerManager.getContainerStatus(request).getStatus();
-      int timeoutSecs = 0;
-    while (!containerStatus.getState().equals(finalState)
-        && timeoutSecs++ < timeOutMax) {
-        Thread.sleep(1000);
-        LOG.info("Waiting for container " +
-            ConverterUtils.toString(containerID) +
-            " to get into state " + finalState
-            + ". Current state is " + containerStatus.getState());
-        containerStatus = containerManager.getContainerStatus(request).getStatus();
+  @Override
+  protected LogAggregationService createLogAggregationService(
+      DeletionService deletionService) {
+    return new LogAggregationService(deletionService) {
+      @Override
+      public void handle(LogAggregatorEvent event) {
+        switch (event.getType()) {
+        case APPLICATION_STARTED:
+          break;
+        case CONTAINER_FINISHED:
+          break;
+        case APPLICATION_FINISHED:
+          break;
+        default:
+          // Ignore
+        }
       }
-      LOG.info("Container state is " + containerStatus.getState());
-      Assert.assertEquals("ContainerState is not correct (timedout)",
-          finalState, containerStatus.getState());
-    }
+    };
+  }
 }

@@ -56,6 +56,7 @@ import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
+import org.apache.hadoop.yarn.util.BuilderUtils;
 
 @Private
 public class NodeManager implements ContainerManager {
@@ -165,11 +166,11 @@ public class NodeManager implements ContainerManager {
       }
     }
 
-    Container container = 
-        org.apache.hadoop.yarn.server.resourcemanager.resource.Container
-            .create(containerLaunchContext.getContainerId(),
-                containerManagerAddress, nodeHttpAddress,
-                containerLaunchContext.getResource());
+    Container container =
+        BuilderUtils.newContainer(containerLaunchContext.getContainerId(),
+            containerManagerAddress, nodeHttpAddress,
+            containerLaunchContext.getResource());
+
     applicationContainers.add(container);
     
     Resources.subtractFrom(available, containerLaunchContext.getResource());

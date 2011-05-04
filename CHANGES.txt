@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Adding user log handling for YARN. Making NM put the user-logs on DFS and providing log-dump tools. (vinodkv)
+
     MAPREDUCE-2468. Add metrics for NM Shuffle. (Luke Lu via cdouglas)
 
     Completing RM Restart. Completed Phase 3 of making sure events are logged and restored (mahadev)

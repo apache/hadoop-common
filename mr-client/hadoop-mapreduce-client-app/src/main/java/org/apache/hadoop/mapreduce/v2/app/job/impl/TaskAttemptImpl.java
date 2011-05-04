@@ -41,6 +41,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.mapred.MapReduceChildJVM;
+import org.apache.hadoop.mapred.ShuffleHandler;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.WrappedJvmID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
@@ -512,9 +513,11 @@ public abstract class TaskAttemptImpl implements
       LOG.info("Putting shuffle token in serviceData");
       DataOutputBuffer jobToken_dob = new DataOutputBuffer();
       jobToken.write(jobToken_dob);
-      // TODO: should depend on ShuffleHandler
-      container.setServiceData("mapreduce.shuffle", 
-          ByteBuffer.wrap(jobToken_dob.getData(), 0, jobToken_dob.getLength()));
+      container
+          .setServiceData(
+              ShuffleHandler.MAPREDUCE_SHUFFLE_SERVICEID,
+              ByteBuffer.wrap(jobToken_dob.getData(), 0,
+                  jobToken_dob.getLength()));
 
       Map<String, String> env = new HashMap<String, String>();
       MRApps.setInitialClasspath(env);
