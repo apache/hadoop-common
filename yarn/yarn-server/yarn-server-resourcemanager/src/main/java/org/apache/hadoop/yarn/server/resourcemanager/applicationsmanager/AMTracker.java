@@ -43,6 +43,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
@@ -63,7 +64,7 @@ import org.apache.hadoop.yarn.service.AbstractService;
 public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 <ApplicationEventType>>, Recoverable {
   private static final Log LOG = LogFactory.getLog(AMTracker.class);
-  private HeartBeatThread heartBeatThread;
+  private AMLivelinessMonitor amLivelinessMonitor;
   private long amExpiryInterval; 
   @SuppressWarnings("rawtypes")
   private EventHandler handler;
@@ -95,7 +96,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 
   public AMTracker(RMContext rmContext) {
     super(AMTracker.class.getName());
-    this.heartBeatThread = new HeartBeatThread();
+    this.amLivelinessMonitor = new AMLivelinessMonitor();
     this.rmContext = rmContext;
     this.appsStore = rmContext.getApplicationsStore();
   }
@@ -105,33 +106,43 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     super.init(conf);
     this.handler = rmContext.getDispatcher().getEventHandler();
     this.amExpiryInterval = conf.getLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 
-        YarnConfiguration.DEFAULT_AM_EXPIRY_INTERVAL);
+        RMConfig.DEFAULT_AM_EXPIRY_INTERVAL);
     LOG.info("AM expiry interval: " + this.amExpiryInterval);
-    this.amMaxRetries =  conf.getInt(YarnConfiguration.AM_MAX_RETRIES, 
-        YarnConfiguration.DEFAULT_AM_MAX_RETRIES);
+    this.amMaxRetries =  conf.getInt(RMConfig.AM_MAX_RETRIES, 
+        RMConfig.DEFAULT_AM_MAX_RETRIES);
     LOG.info("AM max retries: " + this.amMaxRetries);
+    this.amLivelinessMonitor.setMonitoringInterval(conf.getLong(
+        RMConfig.AMLIVELINESS_MONITORING_INTERVAL,
+        RMConfig.DEFAULT_AMLIVELINESS_MONITORING_INTERVAL));
     this.rmContext.getDispatcher().register(ApplicationEventType.class, this);
   }
 
   @Override
   public void start() {   
     super.start();
-    heartBeatThread.start();
+    amLivelinessMonitor.start();
   }
 
   /**
    * This class runs continuosly to track the application masters
    * that might be dead.
    */
-  private class HeartBeatThread extends Thread {
+  private class AMLivelinessMonitor extends Thread {
     private volatile boolean stop = false;
+    private long monitoringInterval =
+        RMConfig.DEFAULT_AMLIVELINESS_MONITORING_INTERVAL;
 
-    public HeartBeatThread() {
-      super("ApplicationsManager:" + HeartBeatThread.class.getName());
+    public AMLivelinessMonitor() {
+      super("ApplicationsManager:" + AMLivelinessMonitor.class.getName());
+    }
+
+    public void setMonitoringInterval(long interval) {
+      this.monitoringInterval = interval;
     }
 
     @Override
     public void run() {
+
       /* the expiry queue does not need to be in sync with applications,
        * if an applications in the expiry queue cannot be found in applications
        * its alright. We do not want to hold a hold on applications while going
@@ -164,6 +175,12 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
           }
         }
         expireAMs(expired);
+        try {
+          Thread.sleep(this.monitoringInterval);
+        } catch (InterruptedException e) {
+          LOG.warn(this.getClass().getName() + " interrupted. Returning.");
+          return;
+        }
       }
     }
 
@@ -185,13 +202,14 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 
   @Override
   public void stop() {
-    heartBeatThread.interrupt();
-    heartBeatThread.shutdown();
+    amLivelinessMonitor.interrupt();
+    amLivelinessMonitor.shutdown();
     try {
-      heartBeatThread.join(1000);
+      amLivelinessMonitor.join();
     } catch (InterruptedException ie) {
-      LOG.info(heartBeatThread.getName() + " interrupted during join ", 
-          ie);    }
+      LOG.info(amLivelinessMonitor.getName() + " interrupted during join ",
+          ie);
+    }
     super.stop();
   }
 

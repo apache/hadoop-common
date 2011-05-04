@@ -128,7 +128,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
     // Initialize the scheduler
     this.scheduler = 
       ReflectionUtils.newInstance(
-          conf.getClass(YarnConfiguration.RESOURCE_SCHEDULER, 
+          conf.getClass(RMConfig.RESOURCE_SCHEDULER, 
               FifoScheduler.class, ResourceScheduler.class), 
           this.conf);
   

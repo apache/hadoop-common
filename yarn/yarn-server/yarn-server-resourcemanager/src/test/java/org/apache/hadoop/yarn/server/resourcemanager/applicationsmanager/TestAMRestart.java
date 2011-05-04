@@ -30,6 +30,7 @@ import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
+import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
@@ -224,7 +225,7 @@ public class TestAMRestart extends TestCase {
     appImpl = new ExtApplicationsManagerImpl(appTokenSecretManager, scheduler, asmContext);
     
     conf.setLong(YarnConfiguration.AM_EXPIRY_INTERVAL, 1000L);
-    conf.setInt(YarnConfiguration.AM_MAX_RETRIES, maxFailures);
+    conf.setInt(RMConfig.AM_MAX_RETRIES, maxFailures);
     appImpl.init(conf);
     appImpl.start();
   }

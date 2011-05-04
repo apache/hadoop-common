@@ -39,7 +39,6 @@ import org.apache.hadoop.yarn.api.records.impl.pb.ApplicationSubmissionContextPB
 import org.apache.hadoop.yarn.api.records.impl.pb.ContainerPBImpl;
 import org.apache.hadoop.yarn.api.records.impl.pb.NodeIdPBImpl;
 import org.apache.hadoop.yarn.api.records.impl.pb.NodeManagerInfoPBImpl;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationMasterProto;
@@ -47,6 +46,7 @@ import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationSubmissionContextProto
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.NodeIdProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.NodeManagerInfoProto;
+import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
@@ -89,9 +89,9 @@ public class ZKStore implements Store {
 
   public ZKStore(Configuration conf) throws IOException {
     this.conf = conf;
-    this.ZK_ADDRESS = conf.get(YarnConfiguration.ZK_ADDRESS);
-    this.ZK_TIMEOUT = conf.getInt(YarnConfiguration.ZK_SESSION_TIMEOUT,
-        YarnConfiguration.DEFAULT_ZK_TIMEOUT);
+    this.ZK_ADDRESS = conf.get(RMConfig.ZK_ADDRESS);
+    this.ZK_TIMEOUT = conf.getInt(RMConfig.ZK_SESSION_TIMEOUT,
+        RMConfig.DEFAULT_ZK_TIMEOUT);
     zkClient = new ZooKeeper(this.ZK_ADDRESS, 
         this.ZK_TIMEOUT,
         createZKWatcher() 

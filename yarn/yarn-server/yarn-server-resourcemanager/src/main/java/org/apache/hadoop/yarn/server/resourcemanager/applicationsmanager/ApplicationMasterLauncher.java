@@ -17,7 +17,7 @@
 */
 
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
-import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -38,9 +38,9 @@ class ApplicationMasterLauncher extends AbstractService implements EventHandler<
       ApplicationMasterLauncher.class);
   private final ThreadPoolExecutor launcherPool;
   private final EventHandler handler;
-  private Thread launcherHandlingThread;
+  private LauncherThread launcherHandlingThread;
   
-  private final Queue<Runnable> masterEvents
+  private final BlockingQueue<Runnable> masterEvents
     = new LinkedBlockingQueue<Runnable>();
   
   private ApplicationTokenSecretManager applicationTokenSecretManager;
@@ -82,7 +82,7 @@ class ApplicationMasterLauncher extends AbstractService implements EventHandler<
   public void stop() {
     launcherHandlingThread.interrupt();
     try {
-      launcherHandlingThread.join(1000);
+      launcherHandlingThread.join();
     } catch (InterruptedException ie) {
       LOG.info(launcherHandlingThread.getName() + " interrupted during join ", 
           ie);    }
@@ -94,9 +94,13 @@ class ApplicationMasterLauncher extends AbstractService implements EventHandler<
     @Override
     public void run() {
       while (!this.isInterrupted()) {
-        Runnable toLaunch = masterEvents.poll();
-        if (toLaunch != null) {
+        Runnable toLaunch;
+        try {
+          toLaunch = masterEvents.take();
           launcherPool.execute(toLaunch);
+        } catch (InterruptedException e) {
+          LOG.warn(this.getClass().getName() + " interrupted. Returning.");
+          return;
         }
       }
     }

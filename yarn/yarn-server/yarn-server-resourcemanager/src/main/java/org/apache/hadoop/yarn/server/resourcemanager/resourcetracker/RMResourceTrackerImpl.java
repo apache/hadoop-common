@@ -47,7 +47,6 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -63,6 +62,7 @@ import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResp
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
+import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.NodeStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
@@ -89,7 +89,7 @@ ResourceTracker, ClusterTracker {
   private Map<String, NodeId> nodes = new ConcurrentHashMap<String, NodeId>();
   private final Map<NodeId, NodeInfoTracker> nodeManagers = 
     new ConcurrentHashMap<NodeId, NodeInfoTracker>();
-  private final HeartBeatThread heartbeatThread;
+  private final NMLivelinessMonitor nmLivelinessMonitor;
 
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
@@ -127,7 +127,7 @@ ResourceTracker, ClusterTracker {
     super(RMResourceTrackerImpl.class.getName());
     reboot.setReboot(true);
     this.containerTokenSecretManager = containerTokenSecretManager;
-    this.heartbeatThread = new HeartBeatThread();
+    this.nmLivelinessMonitor = new NMLivelinessMonitor();
     this.rmContext = context;
     this.nodeStore = context.getNodeStore();
   }
@@ -138,8 +138,11 @@ ResourceTracker, ClusterTracker {
       conf.get(YarnServerConfig.RESOURCETRACKER_ADDRESS,
           YarnServerConfig.DEFAULT_RESOURCETRACKER_BIND_ADDRESS);
     resourceTrackerAddress = NetUtils.createSocketAddr(resourceTrackerBindAddress);
-    this.nmExpiryInterval =  conf.getLong(YarnConfiguration.NM_EXPIRY_INTERVAL, 
-        YarnConfiguration.DEFAULT_NM_EXPIRY_INTERVAL);
+    this.nmExpiryInterval =  conf.getLong(RMConfig.NM_EXPIRY_INTERVAL, 
+        RMConfig.DEFAULT_NM_EXPIRY_INTERVAL);
+    this.nmLivelinessMonitor.setMonitoringInterval(conf.getLong(
+        RMConfig.NMLIVELINESS_MONITORING_INTERVAL,
+        RMConfig.DEFAULT_NMLIVELINESS_MONITORING_INTERVAL));
     super.init(conf);
   }
 
@@ -161,7 +164,7 @@ ResourceTracker, ClusterTracker {
       rpc.getServer(ResourceTracker.class, this, resourceTrackerAddress,
           rtServerConf, null);
     this.server.start();
-    this.heartbeatThread.start();
+    this.nmLivelinessMonitor.start();
     LOG.info("Expiry interval of NodeManagers set to " + nmExpiryInterval);
     super.start();
   }
@@ -373,6 +376,14 @@ ResourceTracker, ClusterTracker {
 
   @Override
   public void stop() {
+    this.nmLivelinessMonitor.interrupt();
+    this.nmLivelinessMonitor.shutdown();
+    try {
+      this.nmLivelinessMonitor.join();
+    } catch (InterruptedException ie) {
+      LOG.info(this.nmLivelinessMonitor.getName() + " interrupted during join ",
+          ie);
+    }
     if (this.server != null) {
       this.server.close();
     }
@@ -410,11 +421,17 @@ ResourceTracker, ClusterTracker {
    * This class runs continuosly to track the nodemanagers
    * that might be dead.
    */
-  private class HeartBeatThread extends Thread {
+  private class NMLivelinessMonitor extends Thread {
     private volatile boolean stop = false;
+    private long monitoringInterval =
+        RMConfig.DEFAULT_NMLIVELINESS_MONITORING_INTERVAL;
 
-    public HeartBeatThread() {
-      super("RMResourceTrackerImpl:" + HeartBeatThread.class.getName());
+    public NMLivelinessMonitor() {
+      super("RMResourceTrackerImpl:" + NMLivelinessMonitor.class.getName());
+    }
+
+    public void setMonitoringInterval(long interval) {
+      this.monitoringInterval = interval;
     }
 
     @Override
@@ -458,7 +475,17 @@ ResourceTracker, ClusterTracker {
           }
         }
         expireNMs(expired);
+        try {
+          Thread.sleep(this.monitoringInterval);
+        } catch (InterruptedException e) {
+          LOG.warn(this.getClass().getName() + " interrupted. Returning.");
+          return;
+        }
       }
+    }
+
+    public void shutdown() {
+      this.stop = true;
     }
   }
 

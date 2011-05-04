@@ -13,7 +13,6 @@ import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.api.RMAdminProtocol;
 import org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.RefreshQueuesRequest;
 import org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.RefreshQueuesResponse;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -45,8 +44,8 @@ public class AdminService extends AbstractService implements RMAdminProtocol {
   @Override
   public void init(Configuration conf) {
     String bindAddress =
-      conf.get(YarnConfiguration.ADMIN_ADDRESS,
-          YarnConfiguration.DEFAULT_ADMIN_BIND_ADDRESS);
+      conf.get(RMConfig.ADMIN_ADDRESS,
+          RMConfig.DEFAULT_ADMIN_BIND_ADDRESS);
     masterServiceAddress =  NetUtils.createSocketAddr(bindAddress);
     super.init(conf);
   }
