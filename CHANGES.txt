@@ -534,6 +534,9 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-2448. NoSuchMethodError:
     org.apache.hadoop.hdfs.TestDatanodeBlockScanner.corruptReplica(..) (eli)
 
+    MAPREDUCE-2472. Extra whitespace in mapred.child.java.opts breaks JVM
+    initialization. (Aaron T. Myers via todd)
+
 Release 0.21.1 - Unreleased
 
   NEW FEATURES
