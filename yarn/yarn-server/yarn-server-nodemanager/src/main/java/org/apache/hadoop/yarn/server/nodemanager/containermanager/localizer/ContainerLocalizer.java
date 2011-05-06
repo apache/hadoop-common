@@ -185,38 +185,36 @@ public class ContainerLocalizer {
       ugi.addToken(token);
     }
 
-    return ugi.doAs(new PrivilegedExceptionAction<Integer>() {
-      public Integer run() {
-        ExecutorService exec = null;
-        try {
-          exec = createDownloadThreadPool();
-          localizeFiles(nodeManager, exec);
-          return 0;
-        } catch (Throwable e) {
-          e.printStackTrace(System.out);
-          return -1;
-        } finally {
-          if (exec != null) {
-            exec.shutdownNow();
-          }
-        }
+    ExecutorService exec = null;
+    try {
+      exec = createDownloadThreadPool();
+      localizeFiles(nodeManager, exec, ugi);
+      return 0;
+    } catch (Throwable e) {
+      e.printStackTrace(System.out);
+      return -1;
+    } finally {
+      if (exec != null) {
+        exec.shutdownNow();
       }
-    });
+    }
   }
 
   ExecutorService createDownloadThreadPool() {
     return Executors.newSingleThreadExecutor();
   }
 
-  Callable<Path> download(LocalDirAllocator lda, LocalResource rsrc) {
-    return new FSDownload(lfs, conf, lda, rsrc, new Random());
+  Callable<Path> download(LocalDirAllocator lda, LocalResource rsrc,
+      UserGroupInformation ugi) {
+    return new FSDownload(lfs, ugi, conf, lda, rsrc, new Random());
   }
 
   void sleep(int duration) throws InterruptedException {
     TimeUnit.SECONDS.sleep(duration);
   }
 
-  void localizeFiles(LocalizationProtocol nodemanager, ExecutorService exec) {
+  void localizeFiles(LocalizationProtocol nodemanager, ExecutorService exec,
+      UserGroupInformation ugi) {
     while (true) {
       try {
         LocalizerStatus status = createStatus();
@@ -238,7 +236,7 @@ public class ContainerLocalizer {
                 lda = appDirs;
                 break;
               }
-              pendingResources.put(r, exec.submit(download(lda, r)));
+              pendingResources.put(r, exec.submit(download(lda, r, ugi)));
             }
           }
           break;

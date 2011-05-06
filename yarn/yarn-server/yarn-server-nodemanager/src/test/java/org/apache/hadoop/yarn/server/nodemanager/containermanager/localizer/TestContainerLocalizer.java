@@ -55,6 +55,7 @@ import org.apache.hadoop.io.DataInputBuffer;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
@@ -131,14 +132,18 @@ public class TestContainerLocalizer {
             Collections.<LocalResource>emptyList()))
       .thenReturn(new MockLocalizerHeartbeatResponse(LocalizerAction.DIE,
             null));
-    doReturn(new FakeDownload(rsrcA.getResource().getFile(), true))
-      .when(localizer).download(isA(LocalDirAllocator.class), eq(rsrcA));
-    doReturn(new FakeDownload(rsrcB.getResource().getFile(), true))
-      .when(localizer).download(isA(LocalDirAllocator.class), eq(rsrcB));
-    doReturn(new FakeDownload(rsrcC.getResource().getFile(), true))
-      .when(localizer).download(isA(LocalDirAllocator.class), eq(rsrcC));
-    doReturn(new FakeDownload(rsrcD.getResource().getFile(), true))
-      .when(localizer).download(isA(LocalDirAllocator.class), eq(rsrcD));
+    doReturn(new FakeDownload(rsrcA.getResource().getFile(), true)).when(
+        localizer).download(isA(LocalDirAllocator.class), eq(rsrcA),
+        isA(UserGroupInformation.class));
+    doReturn(new FakeDownload(rsrcB.getResource().getFile(), true)).when(
+        localizer).download(isA(LocalDirAllocator.class), eq(rsrcB),
+        isA(UserGroupInformation.class));
+    doReturn(new FakeDownload(rsrcC.getResource().getFile(), true)).when(
+        localizer).download(isA(LocalDirAllocator.class), eq(rsrcC),
+        isA(UserGroupInformation.class));
+    doReturn(new FakeDownload(rsrcD.getResource().getFile(), true)).when(
+        localizer).download(isA(LocalDirAllocator.class), eq(rsrcD),
+        isA(UserGroupInformation.class));
     doReturn(nmProxy).when(localizer).getProxy(nmAddr);
     doNothing().when(localizer).sleep(anyInt());
 

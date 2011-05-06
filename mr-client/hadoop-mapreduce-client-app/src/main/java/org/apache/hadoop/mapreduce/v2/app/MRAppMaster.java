@@ -191,13 +191,40 @@ public class MRAppMaster extends CompositeService {
           (Speculator.EventType.class, new NullSpeculatorEventHandler());
     }
 
+    Credentials fsTokens = new Credentials();
+    if (UserGroupInformation.isSecurityEnabled()) {
+      // Read the file-system tokens from the localized tokens-file.
+      try {
+        Path jobSubmitDir =
+            FileContext.getLocalFSFileContext().makeQualified(
+                new Path(new File(YARNApplicationConstants.JOB_SUBMIT_DIR)
+                    .getAbsolutePath()));
+        Path jobTokenFile =
+            new Path(jobSubmitDir, YarnConfiguration.APPLICATION_TOKENS_FILE);
+        fsTokens.addAll(Credentials.readTokenStorageFile(jobTokenFile, conf));
+        LOG.info("jobSubmitDir=" + jobSubmitDir + " jobTokenFile="
+            + jobTokenFile);
+
+        UserGroupInformation currentUser =
+            UserGroupInformation.getCurrentUser();
+        for (Token<? extends TokenIdentifier> tk : fsTokens.getAllTokens()) {
+          LOG.info(" --- DEBUG: Token of kind " + tk.getKind()
+              + "in current ugi in the AppMaster for service "
+              + tk.getService());
+          currentUser.addToken(tk); // For use by AppMaster itself.
+        }
+      } catch (IOException e) {
+        throw new YarnException(e);
+      }
+    }
+
     super.init(conf);
 
     //---- start of what used to be startJobs() code:
 
     Configuration config = getConfig();
 
-    job = createJob(config);
+    job = createJob(config, fsTokens);
 
     /** create a job event for job intialization */
     JobEvent initJobEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT);
@@ -236,35 +263,9 @@ public class MRAppMaster extends CompositeService {
 
   } // end of init()
 
-  /** Create and initialize (but don't start) a single job. */
-  public Job createJob(Configuration conf) {
-    Credentials fsTokens = new Credentials();
-
-    if (UserGroupInformation.isSecurityEnabled()) {
-      // Read the file-system tokens from the localized tokens-file.
-      try {
-        Path jobSubmitDir =
-            FileContext.getLocalFSFileContext().makeQualified(
-                new Path(new File(YARNApplicationConstants.JOB_SUBMIT_DIR)
-                    .getAbsolutePath()));
-        Path jobTokenFile =
-            new Path(jobSubmitDir, YarnConfiguration.APPLICATION_TOKENS_FILE);
-        fsTokens.addAll(Credentials.readTokenStorageFile(jobTokenFile, conf));
-        LOG.info("jobSubmitDir=" + jobSubmitDir + " jobTokenFile="
-            + jobTokenFile);
-
-        UserGroupInformation currentUser =
-            UserGroupInformation.getCurrentUser();
-        for (Token<? extends TokenIdentifier> tk : fsTokens.getAllTokens()) {
-          LOG.info(" --- DEBUG: Token of kind " + tk.getKind()
-              + "in current ugi in the AppMaster for service "
-              + tk.getService());
-          currentUser.addToken(tk); // For use by AppMaster itself.
-        }
-      } catch (IOException e) {
-        throw new YarnException(e);
-      }
-    }
+  /** Create and initialize (but don't start) a single job. 
+   * @param fsTokens */
+  protected Job createJob(Configuration conf, Credentials fsTokens) {
 
     // create single job
     Job newJob = new JobImpl(appID, conf, dispatcher.getEventHandler(),

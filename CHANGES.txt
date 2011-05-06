@@ -4,6 +4,11 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Replacing FileContext usage with FileSystem to work around security authentication
+    issues with FileContext against a secure DFS. (vinodkv)
+
+    Fixing three tight-loops in RM that are causing high cpu-usage. (vinodkv)
+
     Adding user log handling for YARN. Making NM put the user-logs on DFS and providing log-dump tools. (vinodkv)
 
     MAPREDUCE-2468. Add metrics for NM Shuffle. (Luke Lu via cdouglas)

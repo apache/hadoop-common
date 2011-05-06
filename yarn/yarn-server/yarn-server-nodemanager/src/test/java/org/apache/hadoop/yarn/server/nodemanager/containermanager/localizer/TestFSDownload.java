@@ -34,6 +34,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.LocalDirAllocator;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -104,16 +105,16 @@ public class TestFSDownload {
       LocalResource rsrc = createFile(files, new Path(basedir, "" + i),
           sizes[i], rand);
       FSDownload fsd =
-        new FSDownload(files, conf, dirs, rsrc, new Random(sharedSeed));
+          new FSDownload(files, UserGroupInformation.getCurrentUser(), conf,
+              dirs, rsrc, new Random(sharedSeed));
       pending.put(rsrc, exec.submit(fsd));
     }
 
     try {
       for (Map.Entry<LocalResource,Future<Path>> p : pending.entrySet()) {
         Path localized = p.getValue().get();
-        assertEquals(
-          sizes[Integer.valueOf(localized.getName())],
-          p.getKey().getSize() - 4096 - 16); // bad DU impl + .crc ; sigh
+        assertEquals(sizes[Integer.valueOf(localized.getName())], p.getKey()
+            .getSize());
       }
     } catch (ExecutionException e) {
       throw new IOException("Failed exec", e);

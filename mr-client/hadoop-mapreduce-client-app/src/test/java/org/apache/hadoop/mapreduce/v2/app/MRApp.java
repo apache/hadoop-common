@@ -192,7 +192,8 @@ public class MRApp extends MRAppMaster {
     }
   }
 
-  public Job createJob(Configuration conf) {
+  @Override
+  protected Job createJob(Configuration conf, Credentials fsTokens) {
     Job newJob = new TestJob(getAppID(), getDispatcher().getEventHandler(),
                              getTaskAttemptListener(), getContext().getClock());
     ((AppContext) getContext()).getAllJobs().put(newJob.getID(), newJob);

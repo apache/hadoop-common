@@ -33,7 +33,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
-import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.MRJobConfig;
@@ -59,8 +60,10 @@ public class JobHistoryEventHandler extends AbstractService
   private final AppContext context;
   private final int startCount;
 
-  private FileContext logDirFc; // log Dir FileContext
-  private FileContext doneDirFc; // done Dir FileContext
+  private FileSystem logDirFS; // log Dir FileSystem
+  private FileSystem doneDirFS; // done Dir FileSystem
+
+  private Configuration conf;
 
   private Path logDirPath = null;
   private Path doneDirPrefixPath = null; // folder for completed jobs
@@ -84,23 +87,25 @@ public class JobHistoryEventHandler extends AbstractService
 
   /* (non-Javadoc)
    * @see org.apache.hadoop.yarn.service.AbstractService#init(org.apache.hadoop.conf.Configuration)
-   * Initializes the FileContext and Path objects for the log and done directories.
+   * Initializes the FileSystem and Path objects for the log and done directories.
    * Creates these directories if they do not already exist.
    */
   @Override
   public void init(Configuration conf) {
-    
+
+    this.conf = conf;
+
     String logDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(conf);
     String  doneDirPrefix = JobHistoryUtils.getConfiguredHistoryDoneDirPrefix(conf);
 
     try {
-      doneDirPrefixPath = FileContext.getFileContext(conf).makeQualified(
+      doneDirPrefixPath = FileSystem.get(conf).makeQualified(
           new Path(doneDirPrefix));
-      doneDirFc = FileContext.getFileContext(doneDirPrefixPath.toUri(), conf);
-      if (!doneDirFc.util().exists(doneDirPrefixPath)) {
+      doneDirFS = FileSystem.get(doneDirPrefixPath.toUri(), conf);
+      if (!doneDirFS.exists(doneDirPrefixPath)) {
         try {
-          doneDirFc.mkdir(doneDirPrefixPath, new FsPermission(
-              JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
+          doneDirFS.mkdirs(doneDirPrefixPath, new FsPermission(
+              JobHistoryUtils.HISTORY_DIR_PERMISSION));
         } catch (FileAlreadyExistsException e) {
           LOG.info("JobHistory Done Directory: [" + doneDirPrefixPath
               + "] already exists.");
@@ -111,13 +116,12 @@ public class JobHistoryEventHandler extends AbstractService
           throw new YarnException(e);
     }
     try {
-      logDirPath = FileContext.getFileContext(conf).makeQualified(
+      logDirPath = FileSystem.get(conf).makeQualified(
           new Path(logDir));
-      logDirFc = FileContext.getFileContext(logDirPath.toUri(), conf);
-      if (!logDirFc.util().exists(logDirPath)) {
+      logDirFS = FileSystem.get(logDirPath.toUri(), conf);
+      if (!logDirFS.exists(logDirPath)) {
         try {
-          logDirFc.mkdir(logDirPath, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION),
-              true);
+          logDirFS.mkdirs(logDirPath, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION));
         } catch (FileAlreadyExistsException e) {
           LOG.info("JobHistory Log Directory: [" + doneDirPrefixPath
               + "] already exists.");
@@ -216,8 +220,7 @@ public class JobHistoryEventHandler extends AbstractService
  
     if (writer == null) {
       try {
-        FSDataOutputStream out = logDirFc.create(logFile,
-            EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
+        FSDataOutputStream out = logDirFS.create(logFile, true);
         //TODO Permissions for the history file?
         writer = new EventWriter(out);
       } catch (IOException ioe) {
@@ -234,8 +237,7 @@ public class JobHistoryEventHandler extends AbstractService
       FSDataOutputStream jobFileOut = null;
       try {
         if (logDirConfPath != null) {
-          jobFileOut = logDirFc.create(logDirConfPath,
-              EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
+          jobFileOut = logDirFS.create(logDirConfPath, true);
           conf.writeXml(jobFileOut);
           jobFileOut.close();
         }
@@ -323,27 +325,27 @@ public class JobHistoryEventHandler extends AbstractService
       // 
       String doneDir = JobHistoryUtils.getCurrentDoneDir(doneDirPrefixPath.toString());
       Path doneDirPath =
-    	  doneDirFc.makeQualified(new Path(doneDir));
-      if (!pathExists(doneDirFc, doneDirPath)) {
+    	  doneDirFS.makeQualified(new Path(doneDir));
+      if (!pathExists(doneDirFS, doneDirPath)) {
         try {
-          doneDirFc.mkdir(doneDirPath, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
+          doneDirFS.mkdirs(doneDirPath, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION));
         } catch (FileAlreadyExistsException e) {
           LOG.info("Done directory: [" + doneDirPath + "] already exists.");
       }
       }
       Path logFile = mi.getHistoryFile();
-      Path qualifiedLogFile = logDirFc.makeQualified(logFile);
-      Path qualifiedDoneFile = doneDirFc.makeQualified(new Path(doneDirPath,
+      Path qualifiedLogFile = logDirFS.makeQualified(logFile);
+      Path qualifiedDoneFile = doneDirFS.makeQualified(new Path(doneDirPath,
           getDoneJobHistoryFileName(jobId)));
       moveToDoneNow(qualifiedLogFile, qualifiedDoneFile);
       
       Path confFile = mi.getConfFile();
-      Path qualifiedConfFile = logDirFc.makeQualified(confFile);
-      Path qualifiedConfDoneFile = doneDirFc.makeQualified(new Path(doneDirPath, getDoneConfFileName(jobId)));
+      Path qualifiedConfFile = logDirFS.makeQualified(confFile);
+      Path qualifiedConfDoneFile = doneDirFS.makeQualified(new Path(doneDirPath, getDoneConfFileName(jobId)));
       moveToDoneNow(qualifiedConfFile, qualifiedConfDoneFile);
       
-      logDirFc.delete(qualifiedLogFile, true);
-      logDirFc.delete(qualifiedConfFile, true);
+      logDirFS.delete(qualifiedLogFile, true);
+      logDirFS.delete(qualifiedConfFile, true);
     } catch (IOException e) {
       LOG.info("Error closing writer for JobID: " + jobId);
       throw e;
@@ -413,35 +415,35 @@ public class JobHistoryEventHandler extends AbstractService
   // Currently JHEventHandler is moving files to the final location.
   private void moveToDoneNow(Path fromPath, Path toPath) throws IOException {
     //check if path exists, in case of retries it may not exist
-    if (logDirFc.util().exists(fromPath)) {
+    if (logDirFS.exists(fromPath)) {
       LOG.info("Moving " + fromPath.toString() + " to " +
           toPath.toString());
       //TODO temporarily removing the existing dst
-      if (logDirFc.util().exists(toPath)) {
-        logDirFc.delete(toPath, true);
+      if (doneDirFS.exists(toPath)) {
+        doneDirFS.delete(toPath, true);
       }
-      boolean copied = logDirFc.util().copy(fromPath, toPath);
+      boolean copied =
+          FileUtil.copy(logDirFS, fromPath, doneDirFS, toPath, false, conf);
       if (copied)
           LOG.info("Copied to done location: "+ toPath);
       else 
           LOG.info("copy failed");
-      doneDirFc.setPermission(toPath,
+      doneDirFS.setPermission(toPath,
           new FsPermission(JobHistoryUtils.HISTORY_FILE_PERMISSION));
     }
   }
 
-  boolean pathExists(FileContext fc, Path path) throws IOException {
-    return fc.util().exists(path);
+  boolean pathExists(FileSystem fileSys, Path path) throws IOException {
+    return fileSys.exists(path);
   }
 
   private void writeStatus(String statusstoredir, HistoryEvent event) throws IOException {
     try {
-      Path statusstorepath = doneDirFc.makeQualified(new Path(statusstoredir));
-      doneDirFc.mkdir(statusstorepath,
-         new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
+      Path statusstorepath = doneDirFS.makeQualified(new Path(statusstoredir));
+      doneDirFS.mkdirs(statusstorepath,
+         new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION));
       Path toPath = new Path(statusstoredir, "jobstats");
-      FSDataOutputStream out = doneDirFc.create(toPath, EnumSet
-           .of(CreateFlag.CREATE, CreateFlag.OVERWRITE));
+      FSDataOutputStream out = doneDirFS.create(toPath, true);
       EventWriter writer = new EventWriter(out);
       writer.write(event);
       writer.close();

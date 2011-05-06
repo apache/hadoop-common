@@ -22,25 +22,25 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Random;
 import java.util.concurrent.Callable;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.LocalDirAllocator;
+import org.apache.hadoop.fs.Options.Rename;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.RunJar;
-import org.apache.hadoop.yarn.util.ConverterUtils;
-
-import static org.apache.hadoop.fs.Options.*;
-
 import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 
 /**
  * Download a single URL to the local disk.
@@ -52,22 +52,18 @@ public class FSDownload implements Callable<Path> {
 
   private Random rand;
   private FileContext files;
+  private final UserGroupInformation userUgi;
   private Configuration conf;
   private LocalResource resource;
   private LocalDirAllocator dirs;
   private FsPermission cachePerms = new FsPermission((short) 0755);
 
-  public FSDownload(Configuration conf, LocalDirAllocator dirs,
-      LocalResource resource) throws IOException {
-    this(FileContext.getLocalFSFileContext(conf), conf, dirs, resource,
-        new Random());
-  }
-
-  FSDownload(FileContext files, Configuration conf, LocalDirAllocator dirs,
-      LocalResource resource, Random rand) {
+  FSDownload(FileContext files, UserGroupInformation ugi, Configuration conf,
+      LocalDirAllocator dirs, LocalResource resource, Random rand) {
     this.conf = conf;
     this.dirs = dirs;
     this.files = files;
+    this.userUgi = ugi;
     this.resource = resource;
     this.rand = rand;
   }
@@ -78,13 +74,14 @@ public class FSDownload implements Callable<Path> {
 
   private Path copy(Path sCopy, Path dstdir) throws IOException {
     Path dCopy = new Path(dstdir, sCopy.getName() + ".tmp");
-    FileStatus sStat = files.getFileStatus(sCopy);
+    FileSystem fs = FileSystem.get(new Configuration());
+    FileStatus sStat = fs.getFileStatus(sCopy);
     if (sStat.getModificationTime() != resource.getTimestamp()) {
       throw new IOException("Resource " + sCopy +
           " changed on src filesystem (expected " + resource.getTimestamp() +
           ", was " + sStat.getModificationTime());
     }
-    files.util().copy(sCopy, dCopy);
+    fs.copyToLocalFile(sCopy, dCopy);
     return dCopy;
   }
 
@@ -115,8 +112,8 @@ public class FSDownload implements Callable<Path> {
   }
 
   @Override
-  public Path call() throws IOException {
-    Path sCopy;
+  public Path call() throws Exception {
+    final Path sCopy;
     try {
       sCopy = ConverterUtils.getPathFromYarnURL(resource.getResource());
     } catch (URISyntaxException e) {
@@ -132,15 +129,19 @@ public class FSDownload implements Callable<Path> {
     } while (files.util().exists(tmp));
     dst = tmp;
     files.mkdir(dst, cachePerms, false);
-    Path dst_work = new Path(dst + "_tmp");
+    final Path dst_work = new Path(dst + "_tmp");
     files.mkdir(dst_work, cachePerms, false);
 
     Path dFinal = files.makeQualified(new Path(dst_work, sCopy.getName()));
     try {
-      Path dTmp = files.makeQualified(copy(sCopy, dst_work));
+      Path dTmp = this.userUgi.doAs(new PrivilegedExceptionAction<Path>() {
+        public Path run() throws Exception {
+          return files.makeQualified(copy(sCopy, dst_work));
+        };
+      });
       unpack(new File(dTmp.toUri()), new File(dFinal.toUri()));
       files.rename(dst_work, dst, Rename.OVERWRITE);
-    } catch (IOException e) {
+    } catch (Exception e) {
       try { files.delete(dst, true); } catch (IOException ignore) { }
       throw e;
     } finally {
