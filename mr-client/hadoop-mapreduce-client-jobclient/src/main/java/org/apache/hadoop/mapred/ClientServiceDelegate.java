@@ -94,6 +94,44 @@ public class ClientServiceDelegate {
 
   private void refreshProxy() throws YarnRemoteException {
     ApplicationMaster appMaster = rm.getApplicationMaster(currentAppId);
+    while (!ApplicationState.COMPLETED.equals(appMaster.getState()) ||
+           !ApplicationState.FAILED.equals(appMaster.getState()) || 
+           !ApplicationState.KILLED.equals(appMaster.getState())) {
+      try {
+        if (appMaster.getHost() == null || "".equals(appMaster.getHost())) {
+          LOG.info("AM not assigned to Job. Waiting to get the AM ...");
+          Thread.sleep(2000);
+          appMaster = rm.getApplicationMaster(currentAppId);
+          continue;
+        }
+        serviceAddr = appMaster.getHost() + ":" + appMaster.getRpcPort();
+        serviceHttpAddr = appMaster.getHost() + ":" + appMaster.getHttpPort();
+        if (UserGroupInformation.isSecurityEnabled()) {
+          String clientTokenEncoded = appMaster.getClientToken();
+          Token<ApplicationTokenIdentifier> clientToken =
+            new Token<ApplicationTokenIdentifier>();
+          clientToken.decodeFromUrlString(clientTokenEncoded);
+            clientToken.setService(new Text(appMaster.getHost() + ":"
+                + appMaster.getRpcPort()));
+            UserGroupInformation.getCurrentUser().addToken(clientToken);
+        }
+        LOG.info("Connecting to " + serviceAddr);
+        instantiateProxy(serviceAddr);
+        return;
+      } catch (Exception e) {
+        //possibly
+        //possibly the AM has crashed
+        //there may be some time before AM is restarted
+        //keep retrying by getting the address from RM
+        LOG.info("Could not connect to " + serviceAddr + 
+            ". Waiting for getting the latest AM address...");
+        try {
+          Thread.sleep(2000);
+        } catch (InterruptedException e1) {
+        }
+        appMaster = rm.getApplicationMaster(currentAppId);
+      }
+    }
     if (ApplicationState.COMPLETED.equals(appMaster.getState())) {
       serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
           YarnMRJobConfig.DEFAULT_HS_BIND_ADDRESS);
@@ -101,32 +139,16 @@ public class ClientServiceDelegate {
             "Redirecting to job history server " + serviceAddr);
       //TODO:
       serviceHttpAddr = "";
-    } else if (ApplicationState.RUNNING.equals(appMaster.getState())){
-      serviceAddr = appMaster.getHost() + ":" + appMaster.getRpcPort();
-      serviceHttpAddr = appMaster.getHost() + ":" + appMaster.getHttpPort();
-      if (UserGroupInformation.isSecurityEnabled()) {
-        String clientTokenEncoded = appMaster.getClientToken();
-        Token<ApplicationTokenIdentifier> clientToken =
-            new Token<ApplicationTokenIdentifier>();
-        try {
-          clientToken.decodeFromUrlString(clientTokenEncoded);
-          clientToken.setService(new Text(appMaster.getHost() + ":"
-              + appMaster.getRpcPort()));
-          UserGroupInformation.getCurrentUser().addToken(clientToken);
-        } catch (IOException e) {
-          throw new YarnException(e);
-        }
+      try {
+        instantiateProxy(serviceAddr);
+        return;
+      } catch (IOException e) {
+        throw new YarnException(e);
       }
-    } else {
-      LOG.warn("Cannot connect to Application with state " + appMaster.getState());
+    }
+    LOG.warn("Cannot connect to Application with state " + appMaster.getState());
       throw new YarnException(
-          "Cannot connect to Application with state " + appMaster.getState());
-    }
-    try {
-      instantiateProxy(serviceAddr);
-    } catch (IOException e) {
-      throw new YarnException(e);
-    }
+        "Cannot connect to Application with state " + appMaster.getState());
   }
 
   private void instantiateProxy(final String serviceAddr) throws IOException {
