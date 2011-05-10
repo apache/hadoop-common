@@ -64,13 +64,17 @@ public class TestUberAM extends TestMRJobs {
   @BeforeClass
   public static void setup() {
     TestMRJobs.setup();
-    mrCluster.getConfig().setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, true);
+    if (mrCluster != null) {
+    	mrCluster.getConfig().setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, true);
+    }
   }
 
   @Override
   public void testSleepJob()
   throws IOException, InterruptedException, ClassNotFoundException {
-    mrCluster.getConfig().setInt("TestMRJobs.testSleepJob.reduces", 1);
+    if (mrCluster != null) {
+    	mrCluster.getConfig().setInt("TestMRJobs.testSleepJob.reduces", 1);
+    }
     super.testSleepJob();
   }
 
