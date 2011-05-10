@@ -134,11 +134,9 @@ char *get_task_launcher_file(const char* work_dir);
 char *get_task_credentials_file(const char* work_dir);
 
 /**
- * Get the job log directory.
- * Ensures that the result is a realpath and that it is underneath the 
- * tt log root.
+ * Get the job log directory under log_root
  */
-char* get_job_log_directory(const char* jobid);
+char* get_job_log_directory(const char* log_root, const char* jobid);
 
 char *get_task_log_dir(const char *log_dir, const char *job_id, 
                        const char *attempt_id);

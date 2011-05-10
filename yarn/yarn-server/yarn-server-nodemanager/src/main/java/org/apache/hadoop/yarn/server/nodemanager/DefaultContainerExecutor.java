@@ -31,6 +31,7 @@ import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainerLaunch;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
@@ -56,24 +57,25 @@ public class DefaultContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public void startLocalizer(Path nmLocal, InetSocketAddress nmAddr,
-      String user, String appId, String locId, Path logDir,
+  public void startLocalizer(Path nmPrivateContainerTokensPath,
+      InetSocketAddress nmAddr, String user, String appId, String locId,
       List<Path> localDirs) throws IOException, InterruptedException {
 
     ContainerLocalizer localizer =
-        new ContainerLocalizer(user, appId, locId, logDir, localDirs);
+        new ContainerLocalizer(this.lfs, user, appId, locId,
+            localDirs, RecordFactoryProvider.getRecordFactory(getConf()));
 
     createUserLocalDirs(localDirs, user);
     createUserCacheDirs(localDirs, user);
     createAppDirs(localDirs, user, appId);
-    createAppLogDir(logDir, appId);
+    createAppLogDirs(appId);
 
-    Path appStorageDir = getApplicationDir(localDirs, user, appId);
+    // TODO: Why pick first app dir. The same in LCE why not random?
+    Path appStorageDir = getFirstApplicationDir(localDirs, user, appId);
 
     String tokenFn = String.format(ContainerLocalizer.TOKEN_FILE_FMT, locId);
-    Path appTokens = new Path(nmLocal, tokenFn);
     Path tokenDst = new Path(appStorageDir, tokenFn);
-    lfs.util().copy(appTokens, tokenDst);
+    lfs.util().copy(nmPrivateContainerTokensPath, tokenDst);
     lfs.setWorkingDirectory(appStorageDir);
 
     // TODO: DO it over RPC for maintaining similarity?
@@ -81,29 +83,39 @@ public class DefaultContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public int launchContainer(Container container, Path nmLocal, String user,
-      String appId, Path appLogDir, List<Path> appDirs) throws IOException {
-    // create container dirs
+  public int launchContainer(Container container,
+      Path nmPrivateContainerScriptPath, Path nmPrivateTokensPath,
+      String userName, String appId, Path containerWorkDir)
+      throws IOException {
+
+    // create container dirs on all disks
     String containerIdStr = ConverterUtils.toString(container.getContainerID());
-    for (Path p : appDirs) {
-      lfs.mkdir(new Path(p, containerIdStr), null, false);
+    String appIdStr =
+        ConverterUtils.toString(container.getContainerID().getAppId());
+    String[] sLocalDirs =
+        getConf().getStrings(NMConfig.NM_LOCAL_DIR, NMConfig.DEFAULT_NM_LOCAL_DIR);
+    for (String sLocalDir : sLocalDirs) {
+      Path usersdir = new Path(sLocalDir, ContainerLocalizer.USERCACHE);
+      Path userdir = new Path(usersdir, userName);
+      Path appCacheDir = new Path(userdir, ContainerLocalizer.APPCACHE);
+      Path appDir = new Path(appCacheDir, appIdStr);
+      Path containerDir = new Path(appDir, containerIdStr);
+      lfs.mkdir(containerDir, null, false);
     }
-    lfs.mkdir(new Path(appLogDir, containerIdStr), null, false);
+
+    // Create the container log-dirs on all disks
+    createContainerLogDirs(appIdStr, containerIdStr);
+
     // copy launch script to work dir
-    // TODO: ROUND_ROBIN Below
-    Path appWorkDir = new Path(appDirs.get(0), containerIdStr);
-    Path launchScript = new Path(nmLocal, ContainerLaunch.CONTAINER_SCRIPT);
-    Path launchDst = new Path(appWorkDir, ContainerLaunch.CONTAINER_SCRIPT);
-    lfs.util().copy(launchScript, launchDst);
+    Path launchDst =
+        new Path(containerWorkDir, ContainerLaunch.CONTAINER_SCRIPT);
+    lfs.util().copy(nmPrivateContainerScriptPath, launchDst);
+
     // copy container tokens to work dir
-    Path appTokens = new Path(nmLocal, String.format(
-        ContainerLocalizer.TOKEN_FILE_FMT,
-        containerIdStr));
-
     Path tokenDst =
-      new Path(appWorkDir, ContainerLaunch.CONTAINER_TOKENS);
+      new Path(containerWorkDir, ContainerLaunch.CONTAINER_TOKENS);
+    lfs.util().copy(nmPrivateTokensPath, tokenDst);
 
-    lfs.util().copy(appTokens, tokenDst);
     // create log dir under app
     // fork script
     ShellCommandExecutor shExec = null;
@@ -113,7 +125,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
       String[] command = 
           new String[] { "bash", "-c", launchDst.toUri().getPath().toString() };
       shExec = new ShellCommandExecutor(command,
-          new File(appWorkDir.toUri().getPath()));
+          new File(containerWorkDir.toUri().getPath()));
       launchCommandObjs.put(container.getLaunchContext().getContainerId(), shExec);
       shExec.execute();
     } catch (Exception e) {
@@ -199,7 +211,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
    * $logdir/$user/$appId */
   private static final short LOGDIR_PERM = (short)0710;
 
-  private Path getApplicationDir(List<Path> localDirs, String user,
+  private Path getFirstApplicationDir(List<Path> localDirs, String user,
       String appId) {
     return getApplicationDir(localDirs.get(0), user, appId);
   }
@@ -233,7 +245,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
     boolean userDirStatus = false;
     FsPermission userperms = new FsPermission(USER_PERM);
     for (Path localDir : localDirs) {
-      // create $local.dir/usercache/$user
+      // create $local.dir/usercache/$user and its immediate parent
       try {
         lfs.mkdir(getUserCacheDir(localDir, user), userperms, true);
       } catch (IOException e) {
@@ -328,26 +340,65 @@ public class DefaultContainerExecutor extends ContainerExecutor {
           + "in any of the configured local directories for app "
           + appId.toString());
     }
-    // pick random work dir for compatibility
-    // create $local.dir/usercache/$user/appcache/$appId/work
-    Path workDir =
-        new Path(getApplicationDir(localDirs, user, appId),
-            ContainerLocalizer.WORKDIR);
-    lfs.mkdir(workDir, null, true);
   }
 
   /**
-   * Create application log directory.
+   * Create application log directories on all disks.
    */
-  private void createAppLogDir(Path logDir, String appId)
+  private void createAppLogDirs(String appId)
       throws IOException {
-    Path appUserLogDir = new Path(logDir, appId);
-    try {
-      lfs.mkdir(appUserLogDir, new FsPermission(LOGDIR_PERM), true);
-    } catch (IOException e) {
-      throw new IOException(
-          "Could not create app user log directory: " + appUserLogDir, e);
+    String[] rootLogDirs =
+        getConf()
+            .getStrings(NMConfig.NM_LOG_DIR, NMConfig.DEFAULT_NM_LOG_DIR);
+    
+    boolean appLogDirStatus = false;
+    FsPermission appLogDirPerms = new FsPermission(LOGDIR_PERM);
+    for (String rootLogDir : rootLogDirs) {
+      // create $log.dir/$appid
+      Path appLogDir = new Path(rootLogDir, appId);
+      try {
+        lfs.mkdir(appLogDir, appLogDirPerms, true);
+      } catch (IOException e) {
+        LOG.warn("Unable to create the app-log directory : " + appLogDir, e);
+        continue;
+      }
+      appLogDirStatus = true;
+    }
+    if (!appLogDirStatus) {
+      throw new IOException("Not able to initialize app-log directories "
+          + "in any of the configured local directories for app " + appId);
     }
   }
 
+  /**
+   * Create application log directories on all disks.
+   */
+  private void createContainerLogDirs(String appId, String containerId)
+      throws IOException {
+    String[] rootLogDirs =
+        getConf()
+            .getStrings(NMConfig.NM_LOG_DIR, NMConfig.DEFAULT_NM_LOG_DIR);
+    
+    boolean containerLogDirStatus = false;
+    FsPermission containerLogDirPerms = new FsPermission(LOGDIR_PERM);
+    for (String rootLogDir : rootLogDirs) {
+      // create $log.dir/$appid/$containerid
+      Path appLogDir = new Path(rootLogDir, appId);
+      Path containerLogDir = new Path(appLogDir, containerId);
+      try {
+        lfs.mkdir(containerLogDir, containerLogDirPerms, true);
+      } catch (IOException e) {
+        LOG.warn("Unable to create the container-log directory : "
+            + appLogDir, e);
+        continue;
+      }
+      containerLogDirStatus = true;
+    }
+    if (!containerLogDirStatus) {
+      throw new IOException(
+          "Not able to initialize container-log directories "
+              + "in any of the configured local directories for container "
+              + containerId);
+    }
+  }
 }

@@ -29,7 +29,7 @@ public class ResourceEvent extends AbstractEvent<ResourceEventType> {
     this.rsrc = rsrc;
   }
 
-  public LocalResourceRequest getLocalResource() {
+  public LocalResourceRequest getLocalResourceRequest() {
     return rsrc;
   }
 

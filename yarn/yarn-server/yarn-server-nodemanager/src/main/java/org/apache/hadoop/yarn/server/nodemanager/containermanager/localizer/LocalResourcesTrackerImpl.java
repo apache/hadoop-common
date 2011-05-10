@@ -21,9 +21,15 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceEvent;
 
+/**
+ * A collection of {@link LocalizedResource}s all of same
+ * {@link LocalResourceVisibility}.
+ * 
+ */
 class LocalResourcesTrackerImpl implements LocalResourcesTracker {
 
   static final Log LOG = LogFactory.getLog(LocalResourcesTrackerImpl.class);
@@ -36,8 +42,9 @@ class LocalResourcesTrackerImpl implements LocalResourcesTracker {
     this.dispatcher = dispatcher;
   }
 
+  @Override
   public void handle(ResourceEvent event) {
-    LocalResourceRequest req = event.getLocalResource();
+    LocalResourceRequest req = event.getLocalResourceRequest();
     LocalizedResource rsrc = localrsrc.get(req);
     switch (event.getType()) {
     case REQUEST:
@@ -57,6 +64,7 @@ class LocalResourcesTrackerImpl implements LocalResourcesTracker {
     rsrc.handle(event);
   }
 
+  @Override
   public boolean contains(LocalResourceRequest resource) {
     return localrsrc.contains(resource);
   }

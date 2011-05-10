@@ -90,15 +90,13 @@ public class TestContainerLocalizer {
     final String appId = "app_RM_0";
     final String cId = "container_0";
     final InetSocketAddress nmAddr = new InetSocketAddress("foobar", 4344);
-    final Path logDir = lfs.makeQualified(new Path(basedir, "logs"));
     final List<Path> localDirs = new ArrayList<Path>();
     for (int i = 0; i < 4; ++i) {
       localDirs.add(lfs.makeQualified(new Path(basedir, i + "")));
     }
     RecordFactory mockRF = getMockLocalizerRecordFactory();
     ContainerLocalizer concreteLoc = new ContainerLocalizer(lfs, user,
-        appId, cId, logDir, localDirs,
-        new HashMap<LocalResource,Future<Path>>(), mockRF);
+        appId, cId, localDirs, mockRF);
     ContainerLocalizer localizer = spy(concreteLoc);
 
     // return credential stream instead of opening local file
@@ -166,28 +164,24 @@ public class TestContainerLocalizer {
     // run localization
     assertEquals(0, localizer.runLocalization(nmAddr));
 
-    // verify created cache, application dirs
+    // verify created cache
     for (Path p : localDirs) {
       Path base = new Path(new Path(p, ContainerLocalizer.USERCACHE), user);
       Path privcache = new Path(base, ContainerLocalizer.FILECACHE);
       // $x/usercache/$user/filecache
-      verify(spylfs).mkdir(eq(privcache), isA(FsPermission.class), eq(true));
+      verify(spylfs).mkdir(eq(privcache), isA(FsPermission.class), eq(false));
       Path appDir =
         new Path(base, new Path(ContainerLocalizer.APPCACHE, appId));
       // $x/usercache/$user/appcache/$appId/filecache
       Path appcache = new Path(appDir, ContainerLocalizer.FILECACHE);
-      verify(spylfs).mkdir(eq(appcache), isA(FsPermission.class), eq(true));
+      verify(spylfs).mkdir(eq(appcache), isA(FsPermission.class), eq(false));
       // $x/usercache/$user/appcache/$appId/output
       Path appOutput = new Path(appDir, ContainerLocalizer.OUTPUTDIR);
-      verify(spylfs).mkdir(eq(appOutput), isA(FsPermission.class), eq(true));
+      verify(spylfs).mkdir(eq(appOutput), isA(FsPermission.class), eq(false));
     }
 
     // verify tokens read at expected location
     verify(spylfs).open(tokenPath);
-
-    // verify log dir creation
-    verify(spylfs).mkdir(eq(new Path(logDir, appId)),
-        isA(FsPermission.class), anyBoolean());
 
     // verify downloaded resources reported to NM
     verify(nmProxy).heartbeat(argThat(new HBMatches(rsrcA)));

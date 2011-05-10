@@ -99,7 +99,8 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
     ApplicationId application1 = BuilderUtils.newApplicationId(1234, 1);
 
     // AppLogDir should be created
-    File app1LogDir = logAggregationService.getLocalAppLogDir(application1);
+    File app1LogDir =
+        new File(localLogDir, ConverterUtils.toString(application1));
     app1LogDir.mkdir();
     logAggregationService
         .handle(new LogAggregatorAppStartedEvent(
@@ -141,7 +142,8 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
     ApplicationId application1 = BuilderUtils.newApplicationId(1234, 1);
 
     // AppLogDir should be created
-    File app1LogDir = logAggregationService.getLocalAppLogDir(application1);
+    File app1LogDir =
+      new File(localLogDir, ConverterUtils.toString(application1));
     app1LogDir.mkdir();
     logAggregationService
         .handle(new LogAggregatorAppStartedEvent(
@@ -173,7 +175,8 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
     ApplicationId application1 = BuilderUtils.newApplicationId(1234, 1);
 
     // AppLogDir should be created
-    File app1LogDir = logAggregationService.getLocalAppLogDir(application1);
+    File app1LogDir =
+      new File(localLogDir, ConverterUtils.toString(application1));
     app1LogDir.mkdir();
     logAggregationService
         .handle(new LogAggregatorAppStartedEvent(
@@ -189,7 +192,8 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
 
     ApplicationId application2 = BuilderUtils.newApplicationId(1234, 2);
 
-    File app2LogDir = logAggregationService.getLocalAppLogDir(application2);
+    File app2LogDir =
+      new File(localLogDir, ConverterUtils.toString(application2));
     app2LogDir.mkdir();
     logAggregationService.handle(new LogAggregatorAppStartedEvent(
         application2, this.user, null,
@@ -209,7 +213,8 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
 
     ApplicationId application3 = BuilderUtils.newApplicationId(1234, 3);
 
-    File app3LogDir = logAggregationService.getLocalAppLogDir(application3);
+    File app3LogDir =
+      new File(localLogDir, ConverterUtils.toString(application3));
     app3LogDir.mkdir();
     logAggregationService.handle(new LogAggregatorAppStartedEvent(
         application3, this.user, null,

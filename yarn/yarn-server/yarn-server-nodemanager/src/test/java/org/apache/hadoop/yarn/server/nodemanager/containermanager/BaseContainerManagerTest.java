@@ -90,7 +90,7 @@ public abstract class BaseContainerManagerTest {
 
   protected Configuration conf = new YarnConfiguration();
   protected Context context = new NMContext();
-  protected ContainerExecutor exec = new DefaultContainerExecutor();
+  protected ContainerExecutor exec;
   protected DeletionService delSrvc;
   protected String user = "nobody";
 
@@ -111,7 +111,9 @@ public abstract class BaseContainerManagerTest {
   protected ContainerManagerImpl containerManager = null;
 
   protected ContainerExecutor createContainerExecutor() {
-    return new DefaultContainerExecutor();
+    DefaultContainerExecutor exec = new DefaultContainerExecutor();
+    exec.setConf(conf);
+    return exec;
   }
 
   @Before

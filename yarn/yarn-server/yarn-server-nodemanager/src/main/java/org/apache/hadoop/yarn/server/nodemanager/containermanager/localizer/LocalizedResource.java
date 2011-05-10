@@ -41,6 +41,11 @@ import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
 
+/**
+ * Datum representing a localized resource. Holds the statemachine of a
+ * resource. State of the resource is one of {@link ResourceState}.
+ * 
+ */
 public class LocalizedResource implements EventHandler<ResourceEvent> {
 
   private static final Log LOG = LogFactory.getLog(LocalizedResource.class);
@@ -52,13 +57,15 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
   final StateMachine<ResourceState,ResourceEventType,ResourceEvent>
     stateMachine;
   final Semaphore sem = new Semaphore(1);
-  final Queue<ContainerId> ref;
+  final Queue<ContainerId> ref; // Queue of containers using this localized
+                                // resource
   final AtomicLong timestamp = new AtomicLong(currentTime());
 
   private static final StateMachineFactory<LocalizedResource,ResourceState,
       ResourceEventType,ResourceEvent> stateMachineFactory =
         new StateMachineFactory<LocalizedResource,ResourceState,
           ResourceEventType,ResourceEvent>(ResourceState.INIT)
+
     // From INIT (ref == 0, awaiting req)
     .addTransition(ResourceState.INIT, ResourceState.DOWNLOADING,
         ResourceEventType.REQUEST, new FetchResourceTransition())
@@ -66,14 +73,16 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
         ResourceEventType.LOCALIZED, new FetchDirectTransition())
     .addTransition(ResourceState.INIT, ResourceState.INIT,
         ResourceEventType.RELEASE, new ReleaseTransition())
+
     // From DOWNLOADING (ref > 0, may be localizing)
     .addTransition(ResourceState.DOWNLOADING, ResourceState.DOWNLOADING,
-        ResourceEventType.REQUEST, new FetchResourceTransition())
+        ResourceEventType.REQUEST, new FetchResourceTransition()) // TODO: Duplicate addition!!
     .addTransition(ResourceState.DOWNLOADING, ResourceState.LOCALIZED,
         ResourceEventType.LOCALIZED, new FetchSuccessTransition())
     .addTransition(ResourceState.DOWNLOADING,
         EnumSet.of(ResourceState.DOWNLOADING, ResourceState.INIT),
         ResourceEventType.RELEASE, new ReleasePendingTransition())
+
     // From LOCALIZED (ref >= 0, on disk)
     .addTransition(ResourceState.LOCALIZED, ResourceState.LOCALIZED,
         ResourceEventType.REQUEST, new LocalizedResourceTransition())
@@ -132,8 +141,10 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
     sem.release();
   }
 
+  @Override
   public synchronized void handle(ResourceEvent event) {
     stateMachine.doTransition(event.getType(), event);
+    // TODO: Invalid transitions?
   }
 
   static abstract class ResourceTransition implements

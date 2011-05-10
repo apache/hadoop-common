@@ -22,6 +22,9 @@ import static org.apache.hadoop.fs.CreateFlag.CREATE;
 import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
 
 import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -30,21 +33,27 @@ import java.util.concurrent.Callable;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.util.Shell.ExitCodeException;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
+import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerExitEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class ContainerLaunch implements Callable<Integer> {
@@ -58,20 +67,17 @@ public class ContainerLaunch implements Callable<Integer> {
   private final ContainerExecutor exec;
   private final Application app;
   private final Container container;
-  private final Path sysDir;
-  private final Path appLogDir;
-  private final List<Path> appDirs;
+  private final Configuration conf;
+  private final LocalDirAllocator logDirsSelector;
 
-  public ContainerLaunch(Dispatcher dispatcher, ContainerExecutor exec,
-      Application app, Container container, Path sysDir, Path appLogDir,
-      List<Path> appDirs) {
+  public ContainerLaunch(Configuration configuration, Dispatcher dispatcher,
+      ContainerExecutor exec, Application app, Container container) {
+    this.conf = configuration;
     this.app = app;
     this.exec = exec;
-    this.sysDir = sysDir;
-    this.appLogDir = appLogDir;
-    this.appDirs = appDirs;
     this.container = container;
     this.dispatcher = dispatcher;
+    this.logDirsSelector = new LocalDirAllocator(NMConfig.NM_LOG_DIR);
   }
 
   @Override
@@ -84,51 +90,90 @@ public class ContainerLaunch implements Callable<Integer> {
     final List<String> command = launchContext.getCommandList();
     int ret = -1;
 
-    // Variable expansion
-    // Before the container script gets written out.
-    List<String> cmds = container.getLaunchContext().getCommandList();
-    List<String> newCmds = new ArrayList<String>(cmds.size());
-    String containerIdStr = ConverterUtils.toString(container.getContainerID());
-    Path containerLogDir = new Path(appLogDir, containerIdStr);
-    for (String str : cmds) {
-      newCmds.add(str.replace("<LOG_DIR>", containerLogDir.toUri()
-          .getPath()));
-    }
-    container.getLaunchContext().clearCommands();
-    container.getLaunchContext().addAllCommands(newCmds);
-
     try {
-      FileContext lfs = FileContext.getLocalFSFileContext();
-      Path launchSysDir = new Path(sysDir, containerIdStr);
-      lfs.mkdir(launchSysDir, null, true);
-      Path launchPath = new Path(launchSysDir, CONTAINER_SCRIPT);
-      Path tokensPath =
-          new Path(launchSysDir, String.format(
-              ContainerLocalizer.TOKEN_FILE_FMT, containerIdStr));
-      DataOutputStream launchOut = null;
-      DataOutputStream tokensOut = null;
-      
-      try {
-        launchOut = lfs.create(launchPath, EnumSet.of(CREATE, OVERWRITE));
-        ContainerLocalizer.writeLaunchEnv(launchOut, env, localResources,
-            command, appDirs);
-        
-        tokensOut = lfs.create(tokensPath, EnumSet.of(CREATE, OVERWRITE));
-        Credentials creds = container.getCredentials();
-        creds.writeTokenStorageToStream(tokensOut);
-      } finally {
-        IOUtils.cleanup(LOG, launchOut, tokensOut);
-        if (launchOut != null) {
-          launchOut.close();
-        }
+      // /////////////////////////// Variable expansion
+      // Before the container script gets written out.
+      List<String> cmds = container.getLaunchContext().getCommandList();
+      List<String> newCmds = new ArrayList<String>(cmds.size());
+      String containerIdStr = ConverterUtils.toString(container.getContainerID());
+      String appIdStr = app.toString();
+      Path containerLogDir =
+          this.logDirsSelector.getLocalPathForWrite(appIdStr + Path.SEPARATOR
+              + containerIdStr, LocalDirAllocator.SIZE_UNKNOWN, this.conf,
+              false);
+      for (String str : cmds) {
+        newCmds.add(str.replace("<LOG_DIR>", containerLogDir.toUri()
+            .getPath()));
       }
+      container.getLaunchContext().clearCommands();
+      container.getLaunchContext().addAllCommands(newCmds);
+      // /////////////////////////// End of variable expansion
+
+      FileContext lfs = FileContext.getLocalFSFileContext();
+      LocalDirAllocator lDirAllocator =
+          new LocalDirAllocator(NMConfig.NM_LOCAL_DIR); // TODO
+      Path nmPrivateContainerScriptPath =
+          lDirAllocator.getLocalPathForWrite(
+              ResourceLocalizationService.NM_PRIVATE_DIR + Path.SEPARATOR
+                  + appIdStr + Path.SEPARATOR + containerIdStr
+                  + Path.SEPARATOR + CONTAINER_SCRIPT, this.conf);
+      Path nmPrivateTokensPath =
+          lDirAllocator.getLocalPathForWrite(
+              ResourceLocalizationService.NM_PRIVATE_DIR
+                  + Path.SEPARATOR
+                  + containerIdStr
+                  + Path.SEPARATOR
+                  + String.format(ContainerLocalizer.TOKEN_FILE_FMT,
+                      containerIdStr), this.conf);
+      DataOutputStream containerScriptOutStream = null;
+      DataOutputStream tokensOutStream = null;
+
+      try {
+        // /////////// Write out the container-script in the nmPrivate space.
+        String[] localDirs =
+            this.conf.getStrings(NMConfig.NM_LOCAL_DIR,
+                NMConfig.DEFAULT_NM_LOCAL_DIR);
+        List<Path> appDirs = new ArrayList<Path>(localDirs.length);
+        for (String localDir : localDirs) {
+          Path usersdir = new Path(localDir, ContainerLocalizer.USERCACHE);
+          Path userdir = new Path(usersdir, user);
+          Path appsdir = new Path(userdir, ContainerLocalizer.APPCACHE);
+          appDirs.add(new Path(appsdir, appIdStr));
+        }
+        containerScriptOutStream =
+          lfs.create(nmPrivateContainerScriptPath,
+              EnumSet.of(CREATE, OVERWRITE));
+        writeLaunchEnv(containerScriptOutStream, env, localResources,
+            command, appDirs);
+        // /////////// End of writing out container-script
+
+        // /////////// Write out the container-tokens in the nmPrivate space.
+        tokensOutStream =
+            lfs.create(nmPrivateTokensPath, EnumSet.of(CREATE, OVERWRITE));
+        Credentials creds = container.getCredentials();
+        creds.writeTokenStorageToStream(tokensOutStream);
+        // /////////// End of writing out container-tokens
+      } finally {
+        IOUtils.cleanup(LOG, containerScriptOutStream, tokensOutStream);
+      }
+
+      // Select the working directory for the container
+      Path containerWorkDir =
+          lDirAllocator.getLocalPathForWrite(ContainerLocalizer.USERCACHE
+              + Path.SEPARATOR + user + Path.SEPARATOR
+              + ContainerLocalizer.APPCACHE + Path.SEPARATOR + appIdStr
+              + Path.SEPARATOR + containerIdStr,
+              LocalDirAllocator.SIZE_UNKNOWN, this.conf, false);
+
+      // LaunchContainer is a blocking call. We are here almost means the
+      // container is launched, so send out the event.
       dispatcher.getEventHandler().handle(new ContainerEvent(
             container.getContainerID(),
             ContainerEventType.CONTAINER_LAUNCHED));
 
       ret =
-        exec.launchContainer(container, launchSysDir, user, app.toString(),
-            appLogDir, appDirs);
+          exec.launchContainer(container, nmPrivateContainerScriptPath,
+              nmPrivateTokensPath, user, appIdStr, containerWorkDir);
       if (ret == ExitCode.KILLED.getExitCode()) {
         // If the process was killed, Send container_cleanedup_after_kill and
         // just break out of this method.
@@ -152,6 +197,101 @@ public class ContainerLaunch implements Callable<Integer> {
     dispatcher.getEventHandler().handle(new ContainerEvent(
           launchContext.getContainerId(), ContainerEventType.CONTAINER_EXITED_WITH_SUCCESS));
     return 0;
+  }
+
+  private static class ShellScriptBuilder {
+    
+    private final StringBuilder sb;
+  
+    public ShellScriptBuilder() {
+      this(new StringBuilder("#!/bin/bash\n\n"));
+    }
+  
+    protected ShellScriptBuilder(StringBuilder sb) {
+      this.sb = sb;
+    }
+  
+    public ShellScriptBuilder env(String key, String value) {
+      line("export ", key, "=\"", value, "\"");
+      return this;
+    }
+  
+    public ShellScriptBuilder symlink(Path src, String dst) throws IOException {
+      return symlink(src, new Path(dst));
+    }
+  
+    public ShellScriptBuilder symlink(Path src, Path dst) throws IOException {
+      if (!src.isAbsolute()) {
+        throw new IOException("Source must be absolute");
+      }
+      if (dst.isAbsolute()) {
+        throw new IOException("Destination must be relative");
+      }
+      if (dst.toUri().getPath().indexOf('/') != -1) {
+        line("mkdir -p ", dst.getParent().toString());
+      }
+      line("ln -sf ", src.toUri().getPath(), " ", dst.toString());
+      return this;
+    }
+  
+    public void write(PrintStream out) throws IOException {
+      out.append(sb);
+    }
+  
+    public void line(String... command) {
+      for (String s : command) {
+        sb.append(s);
+      }
+      sb.append("\n");
+    }
+  
+    @Override
+    public String toString() {
+      return sb.toString();
+    }
+  
+  }
+
+  private static void writeLaunchEnv(OutputStream out,
+      Map<String,String> environment, Map<Path,String> resources,
+      List<String> command, List<Path> appDirs)
+      throws IOException {
+    ShellScriptBuilder sb = new ShellScriptBuilder();
+    if (System.getenv("YARN_HOME") != null) {
+      sb.env("YARN_HOME", System.getenv("YARN_HOME"));
+    }
+    sb.env(YARNApplicationConstants.LOCAL_DIR_ENV,
+        StringUtils.join(",", appDirs));
+    if (environment != null) {
+      for (Map.Entry<String,String> env : environment.entrySet()) {
+        sb.env(env.getKey().toString(), env.getValue().toString());
+      }
+    }
+    if (resources != null) {
+      for (Map.Entry<Path,String> link : resources.entrySet()) {
+        sb.symlink(link.getKey(), link.getValue());
+      }
+    }
+    ArrayList<String> cmd = new ArrayList<String>(2 * command.size() + 5);
+    cmd.add(ContainerExecutor.isSetsidAvailable ? "exec setsid " : "exec ");
+    cmd.add("/bin/bash ");
+    cmd.add("-c ");
+    cmd.add("\"");
+    for (String cs : command) {
+      cmd.add(cs.toString());
+      cmd.add(" ");
+    }
+    cmd.add("\"");
+    sb.line(cmd.toArray(new String[cmd.size()]));
+    PrintStream pout = null;
+    try {
+      pout = new PrintStream(out);
+      sb.write(pout);
+    } finally {
+      if (out != null) {
+        out.close();
+      }
+    }
   }
 
 }

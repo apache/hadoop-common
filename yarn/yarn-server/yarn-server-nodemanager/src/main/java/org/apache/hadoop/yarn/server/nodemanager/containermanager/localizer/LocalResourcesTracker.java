@@ -18,11 +18,17 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceEvent;
 
-public interface LocalResourcesTracker extends EventHandler<ResourceEvent> {
+/**
+ * Component tracking resources all of the same {@link LocalResourceVisibility}
+ * 
+ */
+interface LocalResourcesTracker extends EventHandler<ResourceEvent> {
 
-  public boolean contains(LocalResourceRequest resource);
+  // TODO: Not used at all!!
+  boolean contains(LocalResourceRequest resource);
 
 }

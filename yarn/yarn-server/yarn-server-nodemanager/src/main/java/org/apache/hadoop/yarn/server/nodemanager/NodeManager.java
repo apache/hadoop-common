@@ -51,10 +51,38 @@ public class NodeManager extends CompositeService {
 
   public NodeManager() {
     super(NodeManager.class.getName());
+  }
+
+  protected NodeStatusUpdater createNodeStatusUpdater(Context context,
+      Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
+    return new NodeStatusUpdaterImpl(context, dispatcher, healthChecker);
+  }
+
+  protected NodeResourceMonitor createNodeResourceMonitor() {
+    return new NodeResourceMonitorImpl();
+  }
+
+  protected ContainerManagerImpl createContainerManager(Context context,
+      ContainerExecutor exec, DeletionService del,
+      NodeStatusUpdater nodeStatusUpdater) {
+    return new ContainerManagerImpl(context, exec, del, nodeStatusUpdater);
+  }
+
+  protected WebServer createWebServer(Context nmContext,
+      ResourceView resourceView) {
+    return new WebServer(nmContext, resourceView);
+  }
+
+  protected void doSecureLogin() throws IOException {
+    SecurityUtil.login(getConfig(), NM_KEYTAB,
+        YarnServerConfig.NM_SERVER_PRINCIPAL_KEY);
+  }
+
+  @Override
+  public void init(Configuration conf) {
 
     Context context = new NMContext();
 
-    YarnConfiguration conf = new YarnConfiguration();
     ContainerExecutor exec = ReflectionUtils.newInstance(
         conf.getClass(NM_CONTAINER_EXECUTOR_CLASS,
           DefaultContainerExecutor.class, ContainerExecutor.class), conf);
@@ -90,35 +118,7 @@ public class NodeManager extends CompositeService {
 
     dispatcher.register(ContainerManagerEventType.class, containerManager);
     addService(dispatcher);
-  }
 
-  protected NodeStatusUpdater createNodeStatusUpdater(Context context,
-      Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
-    return new NodeStatusUpdaterImpl(context, dispatcher, healthChecker);
-  }
-
-  protected NodeResourceMonitor createNodeResourceMonitor() {
-    return new NodeResourceMonitorImpl();
-  }
-
-  protected ContainerManagerImpl createContainerManager(Context context,
-      ContainerExecutor exec, DeletionService del,
-      NodeStatusUpdater nodeStatusUpdater) {
-    return new ContainerManagerImpl(context, exec, del, nodeStatusUpdater);
-  }
-
-  protected WebServer createWebServer(Context nmContext,
-      ResourceView resourceView) {
-    return new WebServer(nmContext, resourceView);
-  }
-
-  protected void doSecureLogin() throws IOException {
-    SecurityUtil.login(getConfig(), NM_KEYTAB,
-        YarnServerConfig.NM_SERVER_PRINCIPAL_KEY);
-  }
-
-  @Override
-  public void init(Configuration conf) {
     Runtime.getRuntime().addShutdownHook(new Thread() {
           @Override
           public void run() {

@@ -261,24 +261,11 @@ char *get_task_credentials_file(const char* work_dir) {
 }
 
 /**
- * Get the job log directory.
- * Ensures that the result is a realpath and that it is underneath the 
- * tt log root.
+ * Get the job log directory under the given log_root
  */
-char* get_job_log_directory(const char* jobid) {
-  char* log_dir = get_value(TT_LOG_DIR_KEY);
-  if (log_dir == NULL) {
-    fprintf(LOGFILE, "Log directory %s is not configured.\n", TT_LOG_DIR_KEY);
-    return NULL;
-  }
-  char *result = concatenate("%s/%s", "job log dir", 2, log_dir,
+char* get_job_log_directory(const char *log_root, const char* jobid) {
+  return concatenate("%s/%s", "job log dir", 2, log_root,
                              jobid);
-  if (result == NULL) {
-    fprintf(LOGFILE, "failed to get memory in get_job_log_directory for %s"
-            " and %s\n", log_dir, jobid);
-  }
-  free(log_dir);
-  return result;
 }
 
 /*
@@ -345,7 +332,8 @@ static int create_attempt_directories(const char* user, const char *job_id,
             "Either task_id is null or the user passed is null.\n");
     return -1;
   }
-  int result = 0;
+
+  int result = -1;
 
   char **local_dir = get_values(TT_SYS_DIR_KEY);
 
@@ -366,11 +354,16 @@ static int create_attempt_directories(const char* user, const char *job_id,
       // continue on to create other task directories
       free(task_dir);
     } else {
+      result = 0;
       free(task_dir);
     }
   }
   free_values(local_dir);
+  if (result != 0) {
+    return result;
+  }
 
+  result = -1;
   // also make the directory for the task logs
   char *job_task_name = malloc(strlen(job_id) + strlen(task_id) + 2);
   if (job_task_name == NULL) {
@@ -378,14 +371,28 @@ static int create_attempt_directories(const char* user, const char *job_id,
     result = -1;
   } else {
     sprintf(job_task_name, "%s/%s", job_id, task_id);
-    char *log_dir = get_job_log_directory(job_task_name);
-    free(job_task_name);
+
+    char **log_dir = get_values(TT_LOG_DIR_KEY);
     if (log_dir == NULL) {
-      result = -1;
-    } else if (mkdirs(log_dir, perms) != 0) {
-      result = -1;
+      fprintf(LOGFILE, "%s is not configured.\n", TT_LOG_DIR_KEY);
+      return -1;
     }
-    free(log_dir);
+
+    char **log_dir_ptr;
+    for(log_dir_ptr = log_dir; *log_dir_ptr != NULL; ++log_dir_ptr) {
+      char *job_log_dir = get_job_log_directory(*log_dir_ptr, job_task_name);
+      if (job_log_dir == NULL) {
+        free_values(log_dir);
+        return -1;
+      } else if (mkdirs(job_log_dir, perms) != 0) {
+    	free(job_log_dir);
+      } else {
+    	result = 0;
+    	free(job_log_dir);
+      }
+    }
+    free(job_task_name);
+    free_values(log_dir);
   }
   return result;
 }
@@ -654,22 +661,39 @@ int initialize_job(const char *user, const char *jobid,
     return INVALID_ARGUMENT_NUMBER;
   }
 
-  // create the user directory
+  // create the user directory on all disks
   int result = initialize_user(user);
   if (result != 0) {
     return result;
   }
 
-  // create the log directory for the job
-  char *job_log_dir = get_job_log_directory(jobid);
-  if (job_log_dir == NULL) {
+  ////////////// create the log directories for the app on all disks
+  char **log_roots = get_values(TT_LOG_DIR_KEY);
+  if (log_roots == NULL) {
+    return INVALID_CONFIG_FILE;
+  }
+  char **log_root;
+  char *any_one_job_log_dir = NULL;
+  for(log_root=log_roots; *log_root != NULL; ++log_root) {
+    char *job_log_dir = get_job_log_directory(*log_root, jobid);
+    if (job_log_dir == NULL) {
+      // try the next one
+    } else if (create_directory_for_user(job_log_dir) != 0) {
+      free(job_log_dir);
+      return -1;
+    } else if (any_one_job_log_dir == NULL) {
+    	any_one_job_log_dir = job_log_dir;
+    } else {
+      free(job_log_dir);
+    }
+  }
+  free_values(log_roots);
+  if (any_one_job_log_dir == NULL) {
+    fprintf(LOGFILE, "Did not create any job-log directories\n");
     return -1;
   }
-  result = create_directory_for_user(job_log_dir);
-  free(job_log_dir);
-  if (result != 0) {
-    return -1;
-  }
+  free(any_one_job_log_dir);
+  ////////////// End of creating the log directories for the app on all disks
 
   // open up the credentials file
   int cred_file = open_file_as_task_tracker(nmPrivate_credentials_file);
@@ -711,6 +735,8 @@ int initialize_job(const char *user, const char *jobid,
   }
 
   char *nmPrivate_credentials_file_copy = strdup(nmPrivate_credentials_file);
+  // TODO: FIXME. The user's copy of creds should go to a path selected by
+  // localDirAllocatoir
   char *cred_file_name = concatenate("%s/%s", "cred file", 2,
 				   primary_job_dir, basename(nmPrivate_credentials_file_copy));
   if (cred_file_name == NULL) {
@@ -1014,6 +1040,7 @@ int delete_as_user(const char *user,
 
   char** ptr;
 
+  // TODO: No switching user? !!!!
   if (baseDirs == NULL || *baseDirs == NULL) {
     return delete_path(subdir, strlen(subdir) == 0);
   }
@@ -1038,7 +1065,8 @@ int delete_as_user(const char *user,
  * delete a given log directory
  */
 int delete_log_directory(const char *subdir) {
-  char* log_subdir = get_job_log_directory(subdir);
+  // TODO: FIXME. This isn't used at all!!!!!
+  char* log_subdir = get_job_log_directory(subdir, subdir); // TODO: FIX
   int ret = -1;
   if (log_subdir != NULL) {
     ret = delete_path(log_subdir, strchr(subdir, '/') == NULL);

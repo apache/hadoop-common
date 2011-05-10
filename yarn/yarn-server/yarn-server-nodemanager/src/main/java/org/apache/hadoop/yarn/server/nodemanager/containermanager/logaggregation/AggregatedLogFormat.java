@@ -78,31 +78,41 @@ public class AggregatedLogFormat {
 
   public static class LogValue {
 
-    private final File containerLogDir;
+    private final String[] rootLogDirs;
+    private final ContainerId containerId;
 
-    public LogValue(File containerLogDir) {
-      this.containerLogDir = containerLogDir;
+    public LogValue(String[] rootLogDirs, ContainerId containerId) {
+      this.rootLogDirs = rootLogDirs;
+      this.containerId = containerId;
     }
 
     public void write(DataOutputStream out) throws IOException {
-      if (!this.containerLogDir.isDirectory()) {
-        return; // ContainerDir may have been deleted by the user.
-      }
+      for (String rootLogDir : this.rootLogDirs) {
+        File appLogDir =
+            new File(rootLogDir, ConverterUtils.toString(this.containerId
+                .getAppId()));
+        File containerLogDir =
+            new File(appLogDir, ConverterUtils.toString(this.containerId));
 
-      for (File logFile : this.containerLogDir.listFiles()) {
+        if (!containerLogDir.isDirectory()) {
+          continue; // ContainerDir may have been deleted by the user.
+        }
 
-        // Write the logFile Type
-        out.writeUTF(logFile.getName());
+        for (File logFile : containerLogDir.listFiles()) {
 
-        // Write the log length as UTF so that it is printable
-        out.writeUTF(String.valueOf(logFile.length()));
+          // Write the logFile Type
+          out.writeUTF(logFile.getName());
 
-        // Write the log itself
-        FileInputStream in = new FileInputStream(logFile);
-        byte[] buf = new byte[65535];
-        int len = 0;
-        while ((len = in.read(buf)) != -1) {
-          out.write(buf, 0, len);
+          // Write the log length as UTF so that it is printable
+          out.writeUTF(String.valueOf(logFile.length()));
+
+          // Write the log itself
+          FileInputStream in = new FileInputStream(logFile);
+          byte[] buf = new byte[65535];
+          int len = 0;
+          while ((len = in.read(buf)) != -1) {
+            out.write(buf, 0, len);
+          }
         }
       }
     }

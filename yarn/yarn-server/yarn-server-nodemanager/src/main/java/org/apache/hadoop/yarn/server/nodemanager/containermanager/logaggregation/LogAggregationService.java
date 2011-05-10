@@ -21,9 +21,6 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregatio
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_BIND_ADDRESS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_BIND_ADDRESS;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -33,10 +30,8 @@ import java.util.concurrent.Executors;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DataInputByteBuffer;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
@@ -62,7 +57,7 @@ public class LogAggregationService extends AbstractService implements
 
   private final DeletionService deletionService;
 
-  private File localRootLogDir;
+  private String[] localRootLogDirs;
   Path remoteRootLogDir;
   private String nodeFile;
 
@@ -86,8 +81,8 @@ public class LogAggregationService extends AbstractService implements
   }
 
   public synchronized void init(Configuration conf) {
-    this.localRootLogDir =
-        new File(conf.get(NMConfig.NM_LOG_DIR, NMConfig.DEFAULT_NM_LOG_DIR));
+    this.localRootLogDirs =
+        conf.getStrings(NMConfig.NM_LOG_DIR, NMConfig.DEFAULT_NM_LOG_DIR);
     this.remoteRootLogDir =
         new Path(conf.get(NMConfig.REMOTE_USER_LOG_DIR,
             NMConfig.DEFAULT_REMOTE_APP_LOG_DIR));
@@ -119,10 +114,6 @@ public class LogAggregationService extends AbstractService implements
     return new Path(remoteRootLogDir, ConverterUtils.toString(appId));
   }
 
-  File getLocalAppLogDir(ApplicationId appId) {
-    return new File(this.localRootLogDir, ConverterUtils.toString(appId));
-  }
-
   @Override
   public synchronized void stop() {
     LOG.info(this.getName() + " waiting for pending aggregation during exit");
@@ -148,7 +139,7 @@ public class LogAggregationService extends AbstractService implements
     // New application
     AppLogAggregator appLogAggregator =
         new AppLogAggregatorImpl(this.deletionService, getConfig(), appId,
-            userUgi, getLocalAppLogDir(appId),
+            userUgi, this.localRootLogDirs,
             getRemoteNodeLogFileForApp(appId), logRetentionPolicy);
     if (this.appLogAggregators.putIfAbsent(appId, appLogAggregator) != null) {
       throw new YarnException("Duplicate initApp for " + appId);

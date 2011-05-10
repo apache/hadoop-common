@@ -20,13 +20,14 @@ package org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords;
 import java.util.List;
 
 public interface LocalizerStatus {
-  public String getLocalizerId();
-  public List<LocalResourceStatus> getResources();
 
-  public void setLocalizerId(String id);
-  public void addAllResources(List<LocalResourceStatus> resources);
-  public void addResourceStatus(LocalResourceStatus resource);
-  public LocalResourceStatus getResourceStatus(int index);
-  public void removeResource(int index);
-  public void clearResources();
+  String getLocalizerId();
+  void setLocalizerId(String id);
+
+  List<LocalResourceStatus> getResources();
+  void addAllResources(List<LocalResourceStatus> resources);
+  void addResourceStatus(LocalResourceStatus resource);
+  LocalResourceStatus getResourceStatus(int index);
+  void removeResource(int index);
+  void clearResources();
 }

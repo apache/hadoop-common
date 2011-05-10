@@ -23,13 +23,20 @@ import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.LocalResourceRequest;
 
-public class ContainerLocalizationRequestEvent extends ContainerLocalizationEvent {
+public class ContainerLocalizationRequestEvent extends
+    ContainerLocalizationEvent {
 
   private final LocalResourceVisibility vis;
   private final Collection<LocalResourceRequest> reqs;
 
-  public ContainerLocalizationRequestEvent(Container c, Collection<LocalResourceRequest> reqs,
-      LocalResourceVisibility vis) {
+  /**
+   * Event requesting the localization of the reqs all with visibility vis
+   * @param c
+   * @param reqs
+   * @param vis
+   */
+  public ContainerLocalizationRequestEvent(Container c,
+      Collection<LocalResourceRequest> reqs, LocalResourceVisibility vis) {
     super(LocalizationEventType.INIT_CONTAINER_RESOURCES, c);
     this.vis = vis;
     this.reqs = reqs;

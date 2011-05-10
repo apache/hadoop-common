@@ -122,8 +122,8 @@ public class TestNMWebServer {
         throws IOException {
     // ContainerLogDir should be created
     File containerLogDir =
-        ContainerLogsPage.ContainersLogsBlock.getContainerLogDir(conf,
-            containerId);
+        ContainerLogsPage.ContainersLogsBlock.getContainerLogDirs(conf,
+            containerId).get(0);
     containerLogDir.mkdirs();
     for (String fileType : new String[] { "stdout", "stderr", "syslog" }) {
       Writer writer = new FileWriter(new File(containerLogDir, fileType));

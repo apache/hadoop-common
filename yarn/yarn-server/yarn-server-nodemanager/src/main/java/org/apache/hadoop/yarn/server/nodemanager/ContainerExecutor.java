@@ -67,14 +67,14 @@ public abstract class ContainerExecutor implements Configurable {
    *   Copy $rsrc -> $N/$user/$appId/filecache/idef
    * @param user user name of application owner
    * @param appId id of the application
-   * @param nmLocal path to localized credentials, rsrc by NM
+   * @param nmPrivateContainerTokens path to localized credentials, rsrc by NM
    * @param nmAddr RPC address to contact NM
    * @throws IOException For most application init failures
    * @throws InterruptedException If application init thread is halted by NM
    */
-  public abstract void startLocalizer(Path nmLocal,
+  public abstract void startLocalizer(Path nmPrivateContainerTokens,
       InetSocketAddress nmAddr, String user, String appId, String locId,
-      Path logDir, List<Path> localDirs)
+      List<Path> localDirs)
     throws IOException, InterruptedException;
 
   /**
@@ -83,9 +83,9 @@ public abstract class ContainerExecutor implements Configurable {
    * 
    * @param launchCtxt
    */
-  public abstract int launchContainer(Container container, Path nmLocal,
-      String user, String appId, Path appLogDir, List<Path> appDirs)
-      throws IOException;
+  public abstract int launchContainer(Container container,
+      Path nmPrivateContainerScriptPath, Path nmPrivateTokensPath,
+      String user, String appId, Path containerWorkDir) throws IOException;
 
   public abstract boolean signalContainer(String user, String pid,
       Signal signal)

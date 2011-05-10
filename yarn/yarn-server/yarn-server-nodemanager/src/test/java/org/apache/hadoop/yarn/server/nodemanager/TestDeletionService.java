@@ -96,9 +96,11 @@ public class TestDeletionService {
     System.out.println("SEED: " + seed);
     List<Path> dirs = buildDirs(r, base, 20);
     createDirs(new Path("."), dirs);
-    DeletionService del =
-      new DeletionService(new FakeDefaultContainerExecutor());
-    del.init(new Configuration());
+    FakeDefaultContainerExecutor exec = new FakeDefaultContainerExecutor();
+    Configuration conf = new Configuration();
+    exec.setConf(conf);
+    DeletionService del = new DeletionService(exec);
+    del.init(conf);
     del.start();
     try {
       for (Path p : dirs) {

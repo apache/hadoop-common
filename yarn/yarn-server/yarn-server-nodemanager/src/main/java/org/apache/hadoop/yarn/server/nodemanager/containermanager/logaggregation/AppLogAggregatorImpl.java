@@ -20,8 +20,6 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregatio
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,12 +43,12 @@ public class AppLogAggregatorImpl implements AppLogAggregator {
       .getLog(AppLogAggregatorImpl.class);
   private static final int THREAD_SLEEP_TIME = 1000;
 
-  private final ApplicationId applicationId;
+  private final String applicationId;
   private boolean logAggregationDisabled = false;
   private final Configuration conf;
   private final DeletionService delService;
   private final UserGroupInformation userUgi;
-  private final File localAppLogDir;
+  private final String[] rootLogDirs;
   private final Path remoteNodeLogFileForApp;
   private final ContainerLogsRetentionPolicy retentionPolicy;
 
@@ -62,20 +60,16 @@ public class AppLogAggregatorImpl implements AppLogAggregator {
 
   public AppLogAggregatorImpl(DeletionService deletionService,
       Configuration conf, ApplicationId appId, UserGroupInformation userUgi,
-      File localAppLogDir, Path remoteNodeLogFileForApp,
+      String[] localRootLogDirs, Path remoteNodeLogFileForApp,
       ContainerLogsRetentionPolicy retentionPolicy) {
     this.conf = conf;
     this.delService = deletionService;
-    this.applicationId = appId;
+    this.applicationId = ConverterUtils.toString(appId);
     this.userUgi = userUgi;
-    this.localAppLogDir = localAppLogDir;
+    this.rootLogDirs = localRootLogDirs;
     this.remoteNodeLogFileForApp = remoteNodeLogFileForApp;
     this.retentionPolicy = retentionPolicy;
     this.pendingContainers = new LinkedBlockingQueue<ContainerId>();
-  }
-
-  private File getLocalContainerLogDir(ContainerId containerId) {
-    return new File(this.localAppLogDir, ConverterUtils.toString(containerId));
   }
 
   private void uploadLogsForContainer(ContainerId containerId) {
@@ -99,11 +93,9 @@ public class AppLogAggregatorImpl implements AppLogAggregator {
       }
     }
 
-    File containerLogDir = getLocalContainerLogDir(containerId);
-    LOG.info("Uploading logs for container " + containerId + " from "
-        + containerLogDir);
+    LOG.info("Uploading logs for container " + containerId);
     LogKey logKey = new LogKey(containerId);
-    LogValue logValue = new LogValue(containerLogDir);
+    LogValue logValue = new LogValue(this.rootLogDirs, containerId);
     try {
       this.writer.append(logKey, logValue);
     } catch (IOException e) {
@@ -135,9 +127,12 @@ public class AppLogAggregatorImpl implements AppLogAggregator {
       uploadLogsForContainer(containerId);
     }
 
-    // Remove the local app-log-dir
-    this.delService.delete(this.userUgi.getShortUserName(), new Path(
-        this.localAppLogDir.getAbsolutePath()), new Path[] {});
+    // Remove the local app-log-dirs
+    for (String rootLogDir : this.rootLogDirs) {
+      File localAppLogDir = new File(rootLogDir, this.applicationId);
+      this.delService.delete(this.userUgi.getShortUserName(), new Path(
+          localAppLogDir.getAbsolutePath()), new Path[] {});
+    }
 
     if (this.writer != null) {
       this.writer.closeWriter();

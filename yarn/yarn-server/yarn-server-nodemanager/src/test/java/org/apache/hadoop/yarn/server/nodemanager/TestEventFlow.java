@@ -77,6 +77,7 @@ public class TestEventFlow {
     conf.set(NMConfig.REMOTE_USER_LOG_DIR, remoteLogDir.getAbsolutePath());
 
     ContainerExecutor exec = new DefaultContainerExecutor();
+    exec.setConf(conf);
     DeletionService del = new DeletionService(exec);
     Dispatcher dispatcher = new AsyncDispatcher();
     NodeHealthCheckerService healthChecker = null;

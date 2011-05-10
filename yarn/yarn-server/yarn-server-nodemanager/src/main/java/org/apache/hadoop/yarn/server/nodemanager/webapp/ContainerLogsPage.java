@@ -24,14 +24,19 @@ import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOG_DIR;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.LocalDirAllocator;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
+import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
 import org.apache.hadoop.yarn.util.ConverterUtils;
@@ -52,12 +57,14 @@ public class ContainerLogsPage extends NMView {
       NMWebParams {
 
     private final Configuration conf;
+    private final LocalDirAllocator logsSelector;
     private final Context nmContext;
     private final RecordFactory recordFactory;
 
     @Inject
     public ContainersLogsBlock(Configuration conf, Context context) {
       this.conf = conf;
+      this.logsSelector = new LocalDirAllocator(NMConfig.NM_LOG_DIR);
       this.nmContext = context;
       this.recordFactory = RecordFactoryProvider.getRecordFactory(conf);
     }
@@ -81,10 +88,19 @@ public class ContainerLogsPage extends NMView {
           container.getContainerState())) {
 
         if (!$(CONTAINER_LOG_TYPE).isEmpty()) {
-          // TODO: Get the following from logs' owning component.
-          File containerLogsDir =
-              getContainerLogDir(this.conf, containerId);
-          File logFile = new File(containerLogsDir, $(CONTAINER_LOG_TYPE));
+          File logFile = null;
+          try {
+            logFile =
+                new File(this.logsSelector
+                    .getLocalPathToRead(
+                        ConverterUtils.toString(containerId.getAppId())
+                            + Path.SEPARATOR + $(CONTAINER_ID)
+                            + Path.SEPARATOR
+                            + $(CONTAINER_LOG_TYPE), this.conf).toUri()
+                    .getPath());
+          } catch (Exception e) {
+            div.h1("Cannot find this log on the local disk.")._();
+          }
           div.h1(logFile.getName());
           long start =
               $("start").isEmpty() ? -4 * 1024 : Long.parseLong($("start"));
@@ -130,19 +146,20 @@ public class ContainerLogsPage extends NMView {
           div._();
         } else {
           // Just print out the log-types
-          File containerLogsDir =
-              getContainerLogDir(this.conf, containerId);
-          // TODO: No nested dir structure. Fix MR userlogs.
-          for (File logFile : containerLogsDir.listFiles()) {
-            div
-              .p()
-                .a(
-                    url($(NM_HTTP_URL), "yarn", "containerlogs",
-                        $(CONTAINER_ID),
-                        logFile.getName(), "?start=-4076"),
-                    logFile.getName() + " : Total file length is " 
-                    + logFile.length() + " bytes.")
-              ._();
+          List<File> containerLogsDirs =
+              getContainerLogDirs(this.conf, containerId);
+          for (File containerLogsDir : containerLogsDirs) {
+            for (File logFile : containerLogsDir.listFiles()) {
+              div
+                  .p()
+                  .a(
+                      url($(NM_HTTP_URL), "yarn", "containerlogs",
+                          $(CONTAINER_ID),
+                          logFile.getName(), "?start=-4076"),
+                      logFile.getName() + " : Total file length is "
+                          + logFile.length() + " bytes.")
+                  ._();
+            }
           }
           div._();
         }
@@ -151,16 +168,18 @@ public class ContainerLogsPage extends NMView {
       }
     }
 
-    static File
-        getContainerLogDir(Configuration conf, ContainerId containerId) {
+    static List<File>
+        getContainerLogDirs(Configuration conf, ContainerId containerId) {
       String[] logDirs =
           conf.getStrings(NM_LOG_DIR, DEFAULT_NM_LOG_DIR);
-      File logDir = new File(logDirs[0]); // TODO: In case of ROUND_ROBIN
-      String appIdStr = ConverterUtils.toString(containerId.getAppId());
-      File appLogDir = new File(logDir, appIdStr);
-      String containerIdStr = ConverterUtils.toString(containerId);
-      File containerLogDir = new File(appLogDir, containerIdStr);
-      return containerLogDir;
+      List<File> containerLogDirs = new ArrayList<File>(logDirs.length);
+      for (String logDir : logDirs) {
+        String appIdStr = ConverterUtils.toString(containerId.getAppId());
+        File appLogDir = new File(logDir, appIdStr);
+        String containerIdStr = ConverterUtils.toString(containerId);
+        containerLogDirs.add(new File(appLogDir, containerIdStr));
+      }
+      return containerLogDirs;
     }
     
   }

@@ -100,17 +100,15 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public void startLocalizer(Path nmLocal, InetSocketAddress nmAddr,
-      String user, String appId, String locId, Path logDir,
+  public void startLocalizer(Path nmPrivateContainerTokensPath,
+      InetSocketAddress nmAddr, String user, String appId, String locId,
       List<Path> localDirs) throws IOException, InterruptedException {
-    Path appTokens = new Path(nmLocal, String.format(
-          ContainerLocalizer.TOKEN_FILE_FMT, locId));
     List<String> command = new ArrayList<String>(
       Arrays.asList(containerExecutorExe, 
                     user, 
                     Integer.toString(Commands.INITIALIZE_JOB.getValue()),
                     appId,
-                    appTokens.toUri().getPath().toString()));
+                    nmPrivateContainerTokensPath.toUri().getPath().toString()));
     File jvm =                                  // use same jvm as parent
       new File(new File(System.getProperty("java.home"), "bin"), "java");
     command.add(jvm.toString());
@@ -122,7 +120,6 @@ public class LinuxContainerExecutor extends ContainerExecutor {
     command.add(locId);
     command.add(nmAddr.getHostName());
     command.add(Integer.toString(nmAddr.getPort()));
-    command.add(logDir.toUri().getPath().toString());
     for (Path p : localDirs) {
       command.add(p.toUri().getPath().toString());
     }
@@ -147,22 +144,19 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public int launchContainer(Container container, Path nmLocal, String user,
-      String appId, Path appLogDir, List<Path> appDirs) throws IOException {
-    Path appWorkDir = new Path(appDirs.get(0), container.toString()); // TODO: Use ROUND_ROBIN
-    Path launchScript = new Path(nmLocal, ContainerLaunch.CONTAINER_SCRIPT);
-    Path nmPrivateAppTokenFile = new Path(nmLocal, String.format(
-          ContainerLocalizer.TOKEN_FILE_FMT,
-          ConverterUtils.toString(container.getContainerID())));
+  public int launchContainer(Container container,
+      Path nmPrivateCotainerScriptPath, Path nmPrivateTokensPath,
+      String user, String appId, Path containerWorkDir) throws IOException {
+
     List<String> command = new ArrayList<String>(
       Arrays.asList(containerExecutorExe, 
                     user, 
                     Integer.toString(Commands.LAUNCH_CONTAINER.getValue()),
                     appId,
                     container.toString(),
-                    appWorkDir.toString(),
-                    launchScript.toUri().getPath().toString(),
-                    nmPrivateAppTokenFile.toUri().getPath().toString()));
+                    containerWorkDir.toString(),
+                    nmPrivateCotainerScriptPath.toUri().getPath().toString(),
+                    nmPrivateTokensPath.toUri().getPath().toString()));
     String[] commandArray = command.toArray(new String[command.size()]);
     ShellCommandExecutor shExec = new ShellCommandExecutor(commandArray);
     launchCommandObjs.put(container.getLaunchContext().getContainerId(), shExec);

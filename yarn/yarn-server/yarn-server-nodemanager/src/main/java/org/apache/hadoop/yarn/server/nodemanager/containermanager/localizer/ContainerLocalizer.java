@@ -20,14 +20,8 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
-
 import java.net.InetSocketAddress;
-
 import java.security.PrivilegedAction;
-import java.security.PrivilegedExceptionAction;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -56,16 +50,12 @@ import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.LocalResource;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
-
 import org.apache.hadoop.yarn.server.nodemanager.api.LocalizationProtocol;
 import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.LocalResourceStatus;
 import org.apache.hadoop.yarn.server.nodemanager.api.protocolrecords.LocalizerHeartbeatResponse;
@@ -91,7 +81,6 @@ public class ContainerLocalizer {
 
   private final String user;
   private final String appId;
-  private final Path logDir;
   private final List<Path> localDirs;
   private final String localizerId;
   private final FileContext lfs;
@@ -101,16 +90,8 @@ public class ContainerLocalizer {
   private final RecordFactory recordFactory;
   private final Map<LocalResource,Future<Path>> pendingResources;
 
-  public ContainerLocalizer(String user, String appId, String localizerId,
-      Path logDir, List<Path> localDirs) throws IOException {
-    this(FileContext.getLocalFSFileContext(), user, appId, localizerId, logDir,
-        localDirs, new HashMap<LocalResource,Future<Path>>(),
-        RecordFactoryProvider.getRecordFactory(null));
-  }
-
-  ContainerLocalizer(FileContext lfs, String user, String appId,
-      String localizerId, Path logDir, List<Path> localDirs,
-      Map<LocalResource,Future<Path>> pendingResources,
+  public ContainerLocalizer(FileContext lfs, String user, String appId,
+      String localizerId, List<Path> localDirs,
       RecordFactory recordFactory) throws IOException {
     if (null == user) {
       throw new IOException("Cannot initialize for null user");
@@ -121,7 +102,6 @@ public class ContainerLocalizer {
     this.lfs = lfs;
     this.user = user;
     this.appId = appId;
-    this.logDir = logDir;
     this.localDirs = localDirs;
     this.localizerId = localizerId;
     this.recordFactory = recordFactory;
@@ -130,7 +110,7 @@ public class ContainerLocalizer {
       new LocalDirAllocator(String.format(APPCACHE_CTXT_FMT, appId));
     this.userDirs =
       new LocalDirAllocator(String.format(USERCACHE_CTXT_FMT, appId));
-    this.pendingResources = pendingResources;
+    this.pendingResources = new HashMap<LocalResource,Future<Path>>();
   }
 
   LocalizationProtocol getProxy(final InetSocketAddress nmAddr) {
@@ -148,11 +128,12 @@ public class ContainerLocalizer {
   public int runLocalization(final InetSocketAddress nmAddr)
       throws IOException, InterruptedException {
     // load credentials
-    initDirs(conf, user, appId, lfs, logDir, localDirs);
+    initDirs(conf, user, appId, lfs, localDirs);
     final Credentials creds = new Credentials();
     DataInputStream credFile = null;
     try {
       // assume credentials in cwd
+      // TODO: Fix
       credFile = lfs.open(
           new Path(String.format(TOKEN_FILE_FMT, localizerId)));
       creds.readTokenStorageStream(credFile);
@@ -191,6 +172,8 @@ public class ContainerLocalizer {
       localizeFiles(nodeManager, exec, ugi);
       return 0;
     } catch (Throwable e) {
+      // Print traces to stdout so that they can be logged by the NM address
+      // space.
       e.printStackTrace(System.out);
       return -1;
     } finally {
@@ -201,6 +184,7 @@ public class ContainerLocalizer {
   }
 
   ExecutorService createDownloadThreadPool() {
+    // TODO: Only Single thread?
     return Executors.newSingleThreadExecutor();
   }
 
@@ -213,7 +197,7 @@ public class ContainerLocalizer {
     TimeUnit.SECONDS.sleep(duration);
   }
 
-  void localizeFiles(LocalizationProtocol nodemanager, ExecutorService exec,
+  private void localizeFiles(LocalizationProtocol nodemanager, ExecutorService exec,
       UserGroupInformation ugi) {
     while (true) {
       try {
@@ -236,6 +220,7 @@ public class ContainerLocalizer {
                 lda = appDirs;
                 break;
               }
+              // TODO: Synchronization??
               pendingResources.put(r, exec.submit(download(lda, r, ugi)));
             }
           }
@@ -263,9 +248,17 @@ public class ContainerLocalizer {
     }
   }
 
-  LocalizerStatus createStatus() throws InterruptedException {
+  /**
+   * Create the payload for the HeartBeat. Mainly the list of
+   * {@link LocalResourceStatus}es
+   * 
+   * @return a {@link LocalizerStatus} that can be sent via heartbeat.
+   * @throws InterruptedException
+   */
+  private LocalizerStatus createStatus() throws InterruptedException {
     final List<LocalResourceStatus> currentResources =
       new ArrayList<LocalResourceStatus>();
+    // TODO: Synchronization??
     for (Iterator<LocalResource> i = pendingResources.keySet().iterator();
          i.hasNext();) {
       LocalResource rsrc = i.next();
@@ -315,8 +308,7 @@ public class ContainerLocalizer {
       String locId = argv[2];
       InetSocketAddress nmAddr =
           new InetSocketAddress(argv[3], Integer.parseInt(argv[4]));
-      Path logDir = new Path(argv[5]);
-      String[] sLocaldirs = Arrays.copyOfRange(argv, 6, argv.length);
+      String[] sLocaldirs = Arrays.copyOfRange(argv, 5, argv.length);
       ArrayList<Path> localDirs = new ArrayList<Path>(sLocaldirs.length);
       for (String sLocaldir : sLocaldirs) {
         localDirs.add(new Path(sLocaldir));
@@ -330,7 +322,9 @@ public class ContainerLocalizer {
       }
 
       ContainerLocalizer localizer =
-          new ContainerLocalizer(user, appId, locId, logDir, localDirs);
+          new ContainerLocalizer(FileContext.getLocalFSFileContext(), user,
+              appId, locId, localDirs,
+              RecordFactoryProvider.getRecordFactory(null));
       System.exit(localizer.runLocalization(nmAddr));
     } catch (Throwable e) {
       // Print error to stdout so that LCE can use it.
@@ -339,130 +333,33 @@ public class ContainerLocalizer {
     }
   }
 
+  // TODO: Won't there be a race for creating these dirs.
   private static void initDirs(Configuration conf, String user, String appId,
-      FileContext lfs, Path logDir, List<Path> localDirs) throws IOException {
+      FileContext lfs, List<Path> localDirs) throws IOException {
     if (null == localDirs || 0 == localDirs.size()) {
       throw new IOException("Cannot initialize without local dirs");
     }
-    String[] appCacheDirs = new String[localDirs.size()];
-    String[] userCacheDirs = new String[localDirs.size()];
+    String[] appsFileCacheDirs = new String[localDirs.size()];
+    String[] usersFileCacheDirs = new String[localDirs.size()];
     for (int i = 0, n = localDirs.size(); i < n; ++i) {
       // $x/usercache/$user
       Path base = lfs.makeQualified(
           new Path(new Path(localDirs.get(i), USERCACHE), user));
       // $x/usercache/$user/filecache
-      Path uCacheDir = new Path(base, FILECACHE);
-      userCacheDirs[i] = uCacheDir.toString();
-      lfs.mkdir(uCacheDir, null, true);
+      Path userFileCacheDir = new Path(base, FILECACHE);
+      usersFileCacheDirs[i] = userFileCacheDir.toString();
+      lfs.mkdir(userFileCacheDir, null, false);
       // $x/usercache/$user/appcache/$appId
       Path appBase = new Path(base, new Path(APPCACHE, appId));
-      lfs.mkdir(appBase, null, true);
       // $x/usercache/$user/appcache/$appId/filecache
-      Path aCacheDir = new Path(appBase, FILECACHE);
-      appCacheDirs[i] = aCacheDir.toString();
-      lfs.mkdir(aCacheDir, null, true);
+      Path appFileCacheDir = new Path(appBase, FILECACHE);
+      appsFileCacheDirs[i] = appFileCacheDir.toString();
+      lfs.mkdir(appFileCacheDir, null, false);
       // $x/usercache/$user/appcache/$appId/output
-      lfs.mkdir(new Path(appBase, OUTPUTDIR), null, true);
+      lfs.mkdir(new Path(appBase, OUTPUTDIR), null, false);
     }
-    conf.setStrings(String.format(APPCACHE_CTXT_FMT, appId), appCacheDirs);
-    conf.setStrings(String.format(USERCACHE_CTXT_FMT, appId), userCacheDirs);
-    Path appLogDir = new Path(logDir, appId);
-    lfs.mkdir(appLogDir, null, true);
-  }
-
-  public static void writeLaunchEnv(OutputStream out,
-      Map<String,String> environment, Map<Path,String> resources,
-      List<String> command, List<Path> appDirs)
-      throws IOException {
-    ShellScriptBuilder sb = new ShellScriptBuilder();
-    if (System.getenv("YARN_HOME") != null) {
-      sb.env("YARN_HOME", System.getenv("YARN_HOME"));
-    }
-    sb.env(YARNApplicationConstants.LOCAL_DIR_ENV,
-        StringUtils.join(",", appDirs));
-    if (environment != null) {
-      for (Map.Entry<String,String> env : environment.entrySet()) {
-        sb.env(env.getKey().toString(), env.getValue().toString());
-      }
-    }
-    if (resources != null) {
-      for (Map.Entry<Path,String> link : resources.entrySet()) {
-        sb.symlink(link.getKey(), link.getValue());
-      }
-    }
-    ArrayList<String> cmd = new ArrayList<String>(2 * command.size() + 5);
-    cmd.add(ContainerExecutor.isSetsidAvailable ? "exec setsid " : "exec ");
-    cmd.add("/bin/bash ");
-    cmd.add("-c ");
-    cmd.add("\"");
-    for (String cs : command) {
-      cmd.add(cs.toString());
-      cmd.add(" ");
-    }
-    cmd.add("\"");
-    sb.line(cmd.toArray(new String[cmd.size()]));
-    PrintStream pout = null;
-    try {
-      pout = new PrintStream(out);
-      sb.write(pout);
-    } finally {
-      if (out != null) {
-        out.close();
-      }
-    }
-  }
-
-  private static class ShellScriptBuilder {
-
-    private final StringBuilder sb;
-
-    public ShellScriptBuilder() {
-      this(new StringBuilder("#!/bin/bash\n\n"));
-    }
-
-    protected ShellScriptBuilder(StringBuilder sb) {
-      this.sb = sb;
-    }
-
-    public ShellScriptBuilder env(String key, String value) {
-      line("export ", key, "=\"", value, "\"");
-      return this;
-    }
-
-    public ShellScriptBuilder symlink(Path src, String dst) throws IOException {
-      return symlink(src, new Path(dst));
-    }
-
-    public ShellScriptBuilder symlink(Path src, Path dst) throws IOException {
-      if (!src.isAbsolute()) {
-        throw new IOException("Source must be absolute");
-      }
-      if (dst.isAbsolute()) {
-        throw new IOException("Destination must be relative");
-      }
-      if (dst.toUri().getPath().indexOf('/') != -1) {
-        line("mkdir -p ", dst.getParent().toString());
-      }
-      line("ln -sf ", src.toUri().getPath(), " ", dst.toString());
-      return this;
-    }
-
-    public void write(PrintStream out) throws IOException {
-      out.append(sb);
-    }
-
-    public void line(String... command) {
-      for (String s : command) {
-        sb.append(s);
-      }
-      sb.append("\n");
-    }
-
-    @Override
-    public String toString() {
-      return sb.toString();
-    }
-
+    conf.setStrings(String.format(APPCACHE_CTXT_FMT, appId), appsFileCacheDirs);
+    conf.setStrings(String.format(USERCACHE_CTXT_FMT, appId), usersFileCacheDirs);
   }
 
 }
