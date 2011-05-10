@@ -94,6 +94,9 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING,
   ApplicationEventType.ALLOCATE, allocateTransition)
   
+  .addTransition(ApplicationState.PENDING, ApplicationState.FAILED,
+  ApplicationEventType.FAILED)
+  
   .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
       ApplicationEventType.RECOVER, allocateTransition)
   

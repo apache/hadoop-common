@@ -144,6 +144,7 @@ public class TestApplicationMasterExpiry extends TestCase {
         "dummy", 
         context, "dummytoken");
     ApplicationMasterInfo masterInfo = tracker.get(context.getApplicationId());
+    tracker.runApplication(context.getApplicationId());
     this.context.getDispatcher().getEventHandler().handle(
         new ASMEvent<ApplicationEventType>(ApplicationEventType.ALLOCATED, masterInfo));
     waitForState(masterInfo, ApplicationState.LAUNCHING);

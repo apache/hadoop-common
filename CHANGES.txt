@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    Propagate error back to client in case of a job submission failure (mahadev)
+    
     MAPREDUCE-2480: MR App should not depend on hard coded version of shuffle (luke lu via mahadev)
 
     Fix NM to use multiple disks for local files and the userlogs. (vinodkv)

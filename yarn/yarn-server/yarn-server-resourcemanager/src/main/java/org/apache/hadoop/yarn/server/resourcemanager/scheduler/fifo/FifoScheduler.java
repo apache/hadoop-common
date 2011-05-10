@@ -258,9 +258,9 @@ public class FifoScheduler implements ResourceScheduler {
       // Let the cluster know that the applications are done
       finishedApplication(applicationId, 
           application.getAllNodesForApplication());
+      // Remove the application
+      applications.remove(applicationId);
     }
-    // Remove the application
-    applications.remove(applicationId);
   }
 
   /**
@@ -519,16 +519,9 @@ public class FifoScheduler implements ResourceScheduler {
   public synchronized void handle(ASMEvent<ApplicationTrackerEventType> event) {
     switch(event.getType()) {
     case ADD:
-      try {
-        addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getMaster(), 
-            event.getAppContext().getUser(),
-            event.getAppContext().getQueue(), event.getAppContext().getSubmissionContext().getPriority()
-            , event.getAppContext().getStore());
-      } catch(IOException ie) {
-        LOG.error("Unable to add application " + event.getAppContext().getApplicationID(), ie);
-        /** this is fatal we are not able to add applications for scheduling **/
-        //TODO handle it later.
-      }
+      /**
+       * ignore add since its called syncronously from applications manager.
+       */
       break;
     case REMOVE:
       try {

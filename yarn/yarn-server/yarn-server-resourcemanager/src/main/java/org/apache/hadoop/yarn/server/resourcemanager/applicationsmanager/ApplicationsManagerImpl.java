@@ -177,8 +177,21 @@ public class ApplicationsManagerImpl extends CompositeService
 
     context.setQueue(context.getQueue() == null ? "default" : context.getQueue());
     context.setApplicationName(context.getApplicationName() == null ? "N/A" : context.getApplicationName());
-
     amTracker.addMaster(user, context, clientTokenStr);
+    ApplicationMasterInfo masterInfo = amTracker.get(applicationId);
+    /** this can throw so we need to call it synchronously to let the client
+     * know as soon as it submits. For backwards compatibility we cannot make 
+     * it asynchronous
+     */
+    try {
+      scheduler.addApplication(applicationId, masterInfo.getMaster(), user, masterInfo.getQueue(),
+          context.getPriority(), masterInfo.getStore());
+    } catch(IOException io) {
+      LOG.info("Failed to submit application " + applicationId, io);
+      amTracker.finishNonRunnableApplication(applicationId);
+      throw io;
+    }
+    amTracker.runApplication(applicationId);
     // TODO this should happen via dispatcher. should move it out to scheudler
     // negotiator.
     LOG.info("Application with id " + applicationId.getId() + " submitted by user " + 

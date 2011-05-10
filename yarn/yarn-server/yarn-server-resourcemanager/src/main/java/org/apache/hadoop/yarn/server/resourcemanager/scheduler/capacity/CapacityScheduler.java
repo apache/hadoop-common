@@ -283,9 +283,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
       // Inform all NodeManagers about completion of application
       finishedApplication(applicationId, 
           application.getAllNodesForApplication());
+      // Remove from our data-structure
+      applications.remove(applicationId);
     }
-    // Remove from our data-structure
-    applications.remove(applicationId);
   }
 
   @Override
@@ -466,16 +466,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
   public synchronized void handle(ASMEvent<ApplicationTrackerEventType> event) {
     switch(event.getType()) {
     case ADD:
-      try {
-        addApplication(event.getAppContext().getApplicationID(), event.getAppContext().getMaster(),
-            event.getAppContext().getUser(), event.getAppContext().getQueue(),
-            event.getAppContext().getSubmissionContext().getPriority(),
-            event.getAppContext().getStore());
-      } catch(IOException ie) {
-        LOG.error("Error in adding an application to the scheduler", ie);
-        //TODO do proper error handling to shutdown the Resource Manager is we 
-        // are not able to handle this.
-      }
+      /** ignore add since its called sychronously from the applications manager 
+       * 
+       */
       break;
     case REMOVE:
       try {
@@ -488,6 +481,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
       break;
     case EXPIRE:
       try {
+        /** do not remove the application. Just do everything else exception 
+         * removing the application
+         */
         removeApplication(event.getAppContext().getApplicationID(), false);
       } catch(IOException ie) {
         LOG.error("Error in removing application", ie);

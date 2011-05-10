@@ -223,10 +223,27 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     synchronized(applications) {
       applications.put(applicationMaster.getApplicationID(), applicationMaster);
     }
-    rmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
-        ApplicationEventType.ALLOCATE, applicationMaster));
-   
+    
   }
+  
+  public void runApplication(ApplicationId applicationId) {
+    ApplicationMasterInfo masterInfo = null;
+    synchronized (applications) {
+      masterInfo = applications.get(applicationId);
+    }
+    rmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
+        ApplicationEventType.ALLOCATE, masterInfo));
+    
+  }
+  
+  public void finishNonRunnableApplication(ApplicationId applicationId) {
+    ApplicationMasterInfo masterInfo = null;
+    synchronized (applications) {
+      masterInfo = applications.get(applicationId);
+    }
+    rmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
+        ApplicationEventType.FAILED, masterInfo));
+   }
 
   public void finish(ApplicationId application) {
     ApplicationMasterInfo masterInfo = null;
