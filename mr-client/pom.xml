@@ -68,6 +68,16 @@
         <artifactId>hadoop-mapreduce-client-app</artifactId>
         <version>${hadoop-mapreduce.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-mapreduce-client-hs</artifactId>
+        <version>${hadoop-mapreduce.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-mapreduce-client-shuffle</artifactId>
+        <version>${hadoop-mapreduce.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
