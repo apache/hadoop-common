@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    Fix refreshProxy in ClientServiceDelegate. (sharad)
+
     Client reconnect to restarted AM. (sharad)
 
     Replacing FileContext usage with FileSystem to work around security authentication

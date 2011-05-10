@@ -94,8 +94,8 @@ public class ClientServiceDelegate {
 
   private void refreshProxy() throws YarnRemoteException {
     ApplicationMaster appMaster = rm.getApplicationMaster(currentAppId);
-    while (!ApplicationState.COMPLETED.equals(appMaster.getState()) ||
-           !ApplicationState.FAILED.equals(appMaster.getState()) || 
+    while (!ApplicationState.COMPLETED.equals(appMaster.getState()) &&
+           !ApplicationState.FAILED.equals(appMaster.getState()) && 
            !ApplicationState.KILLED.equals(appMaster.getState())) {
       try {
         if (appMaster.getHost() == null || "".equals(appMaster.getHost())) {
