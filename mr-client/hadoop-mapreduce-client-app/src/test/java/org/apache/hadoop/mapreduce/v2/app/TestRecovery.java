@@ -44,7 +44,7 @@ public class TestRecovery {
   @Test
   public void testCrashed() throws Exception {
     int runCount = 0;
-    MRApp app = new MRApp(2, 1, false, ++runCount);
+    MRApp app = new MRApp(2, 1, false, this.getClass().getName(), true, ++runCount);
     Configuration conf = new Configuration();
     conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
     Job job = app.submit(conf);
@@ -127,7 +127,7 @@ public class TestRecovery {
     
     //rerun
     //in rerun the 1st map will be recovered from previous run
-    app = new MRApp(2, 1, false, ++runCount);
+    app = new MRApp(2, 1, false, this.getClass().getName(), false, ++runCount);
     conf = new Configuration();
     conf.setBoolean(YarnMRJobConfig.RECOVERY_ENABLE, true);
     conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);

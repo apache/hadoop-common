@@ -42,13 +42,66 @@ public class YarnMRJobConfig {
   /** host:port address to which to bind to **/
   public static final String HS_BIND_ADDRESS = HS_PREFIX + "address";
 
+  /** Staging Dir for AppMaster **/
   public static final String HISTORY_STAGING_DIR_KEY =
        "yarn.historyfile.stagingDir";
 
+  /** Done Dir for for AppMaster **/
+  public static final String HISTORY_INTERMEDIATE_DONE_DIR_KEY =
+       "yarn.historyfile.intermediateDoneDir";
+  
+  /** Done Dir for for AppMaster **/
   public static final String HISTORY_DONE_DIR_KEY =
        "yarn.historyfile.doneDir";
+  
+  /** Done Dir for history server. **/
+  public static final String HISTORY_SERVER_DONE_DIR_KEY = 
+       HS_PREFIX + ".historyfile.doneDir";
+  
+  /**
+   * Size of the job list cache.
+   */
+  public static final String HISTORY_SERVER_JOBLIST_CACHE_SIZE_KEY =
+    HS_PREFIX + ".joblist.cache.size";
+     
+  /**
+   * Size of the loaded job cache.
+   */
+  public static final String HISTORY_SERVER_LOADED_JOB_CACHE_SIZE_KEY = 
+    HS_PREFIX + ".loadedjobs.cache.size";
+  
+  /**
+   * Size of the date string cache. Effects the number of directories
+   * which will be scanned to find a job.
+   */
+  public static final String HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY = 
+    HS_PREFIX + ".datestring.cache.size";
+  
+  /**
+   * The time interval in milliseconds for the history server
+   * to wake up and scan for files to be moved.
+   */
+  public static final String HISTORY_SERVER_MOVE_THREAD_INTERVAL = 
+    HS_PREFIX + ".move.thread.interval";
+  
+  /**
+   * The number of threads used to move files.
+   */
+  public static final String HISTORY_SERVER_NUM_MOVE_THREADS = 
+    HS_PREFIX + ".move.threads.count";
+  
+  // Equivalent to 0.20 mapreduce.jobhistory.debug.mode
+  public static final String HISTORY_DEBUG_MODE_KEY = HS_PREFIX + ".debug.mode";
+  
   public static final String HISTORY_MAXAGE =
 	  "yarn.historyfile.maxage";
+  
+  /**
+   * Run interval for the History Cleaner thread.
+   */
+  public static final String HISTORY_CLEANER_RUN_INTERVAL = 
+    HS_PREFIX + ".cleaner.run.interval";
+  
   public static final String HS_WEBAPP_BIND_ADDRESS = HS_PREFIX +
       "address.webapp";
   public static final String DEFAULT_HS_WEBAPP_BIND_ADDRESS =

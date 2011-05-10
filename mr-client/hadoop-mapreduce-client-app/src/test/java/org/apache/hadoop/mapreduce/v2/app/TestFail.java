@@ -164,7 +164,7 @@ public class TestFail {
 
   static class TimeOutTaskMRApp extends MRApp {
     TimeOutTaskMRApp(int maps, int reduces) {
-      super(maps, reduces, false);
+      super(maps, reduces, false, "TimeOutTaskMRApp", true);
     }
     @Override
     protected TaskAttemptListener createTaskAttemptListener(AppContext context) {
@@ -188,7 +188,7 @@ public class TestFail {
   static class MockFirstFailingTaskMRApp extends MRApp {
 
     MockFirstFailingTaskMRApp(int maps, int reduces) {
-      super(maps, reduces, true);
+      super(maps, reduces, true, "MockFirstFailingTaskMRApp", true);
     }
 
     @Override
@@ -209,7 +209,7 @@ public class TestFail {
   //First attempt is failed
   static class MockFirstFailingAttemptMRApp extends MRApp {
     MockFirstFailingAttemptMRApp(int maps, int reduces) {
-      super(maps, reduces, true);
+      super(maps, reduces, true, "MockFirstFailingAttemptMRApp", true);
     }
 
     @Override

@@ -45,7 +45,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
-import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.YarnException;
@@ -71,37 +71,12 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   private TaskAttemptCompletionEvent[] completionEvents;
   private JobInfo jobInfo;
 
-  public CompletedJob(Configuration conf, JobId jobId) throws IOException {
-    this(conf, jobId, true);
-  }
-
-  public CompletedJob(Configuration conf, JobId jobId, boolean loadTasks) throws IOException {
+  public CompletedJob(Configuration conf, JobId jobId, Path historyFile, boolean loadTasks) throws IOException {
     this.conf = conf;
     this.jobId = jobId;
-    //TODO fix
-    /*
-    String  doneLocation =
-      conf.get(JTConfig.JT_JOBHISTORY_COMPLETED_LOCATION,
-      "file:///tmp/yarn/done/status");
-    String user =
-      conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));
-    String statusstoredir =
-      doneLocation + "/" + user + "/" + TypeConverter.fromYarn(jobID).toString();
-    Path statusFile = new Path(statusstoredir, "jobstats");
-    try {
-      FileContext fc = FileContext.getFileContext(statusFile.toUri(), conf);
-      FSDataInputStream in = fc.open(statusFile);
-      JobHistoryParser parser = new JobHistoryParser(in);
-      jobStats = parser.parse();
-    } catch (IOException e) {
-      LOG.info("Could not open job status store file from dfs " +
-        TypeConverter.fromYarn(jobID).toString());
-      throw new IOException(e);
-    }
-    */
     
     //TODO: load the data lazily. for now load the full data upfront
-    loadFullHistoryData(loadTasks);
+    loadFullHistoryData(loadTasks, historyFile);
 
     counters = TypeConverter.toYarn(jobInfo.getTotalCounters());
     diagnostics.add(jobInfo.getErrorInfo());
@@ -159,7 +134,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   //History data is leisurely loaded when task level data is requested
-  private synchronized void loadFullHistoryData(boolean loadTasks) {
+  private synchronized void loadFullHistoryData(boolean loadTasks, Path historyFileAbsolute) {
     if (jobInfo != null) {
       return; //data already loaded
     }
@@ -169,11 +144,21 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     }
     String jobName = TypeConverter.fromYarn(jobId).toString();
     
-    String  jobhistoryDir = JobHistoryUtils.getConfiguredHistoryDoneDirPrefix(conf);
+    String  jobhistoryDir = JobHistoryUtils.getConfiguredHistoryIntermediateDoneDirPrefix(conf);
       
     
     String currentJobHistoryDir = JobHistoryUtils.getCurrentDoneDir(jobhistoryDir);
     
+    if (historyFileAbsolute != null) {
+      try {
+      JobHistoryParser parser = new JobHistoryParser(historyFileAbsolute.getFileSystem(conf), historyFileAbsolute);
+      jobInfo = parser.parse();
+      } catch (IOException e) {
+        throw new YarnException("Could not load history file " + historyFileAbsolute,
+            e);
+      }
+    }
+    else {
     FSDataInputStream in = null;
     Path historyFile = null;
     try {
@@ -191,6 +176,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     } catch (IOException e) {
       throw new YarnException("Could not load history file " + historyFile,
           e);
+    }
     }
     
     if (loadTasks) {

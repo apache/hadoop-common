@@ -52,7 +52,7 @@ public class TestJobHistoryEvents {
   public void testHistoryEvents() throws Exception {
     Configuration conf = new Configuration();
     conf.set(MRJobConfig.USER_NAME, "test");
-    MRApp app = new MRApp(2, 1, true);
+    MRApp app = new MRApp(2, 1, true, this.getClass().getName(), true);
     app.submit(conf);
     Job job = app.getContext().getAllJobs().values().iterator().next();
     JobId jobId = job.getID();

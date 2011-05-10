@@ -16,7 +16,7 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.mapreduce.v2.app;
+package org.apache.hadoop.mapreduce.v2.hs;
 
 import java.io.IOException;
 
@@ -33,22 +33,24 @@ import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.TaskInfo;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
+import org.apache.hadoop.mapreduce.v2.app.MRApp;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
-import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.FileNameIndexUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JobIndexInfo;
 import org.junit.Test;
 
 public class TestJobHistoryParsing {
   private static final Log LOG = LogFactory.getLog(TestJobHistoryParsing.class);
   //TODO FIX once final CompletedStatusStore is available
-  private static final String STATUS_STORE_DIR_KEY =
-    "yarn.server.nodemanager.jobstatus";
+//  private static final String STATUS_STORE_DIR_KEY =
+//    "yarn.server.nodemanager.jobstatus";
   @Test
   public void testHistoryParsing() throws Exception {
     Configuration conf = new Configuration();
-    MRApp app = new MRApp(2, 1, true);
+    MRApp app = new MRApp(2, 1, true, this.getClass().getName(), true);
     app.submit(conf);
     Job job = app.getContext().getAllJobs().values().iterator().next();
     JobId jobId = job.getID();
@@ -56,30 +58,30 @@ public class TestJobHistoryParsing {
     app.waitForState(job, JobState.SUCCEEDED);
     app.stop();
     
-    String jobhistoryFileName = TypeConverter.fromYarn(jobId).toString() + JobHistoryUtils.JOB_HISTORY_FILE_EXTENSION;
+    
     String user =
       conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));
-    String jobhistoryDir = conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
-        "file:///tmp/yarn/done/"); 
-    String jobstatusDir = conf.get(STATUS_STORE_DIR_KEY,
-        "file:///tmp/yarn/done/status/")  + jobhistoryFileName;
+    String jobhistoryDir = JobHistoryUtils.getConfiguredHistoryIntermediateDoneDirPrefix(conf);
+    JobHistory jobHistory = new JobHistory(conf);
     
     String currentJobHistoryDir = JobHistoryUtils.getCurrentDoneDir(jobhistoryDir);
+    JobIndexInfo jobIndexInfo = jobHistory.getJobMetaInfo(jobId).getJobIndexInfo();
+    String jobhistoryFileName = FileNameIndexUtils.getDoneFileName(jobIndexInfo);
     
-    FSDataInputStream in = null;
     Path historyFilePath = new Path(currentJobHistoryDir, jobhistoryFileName);
-    LOG.info("JOBHISTORYDIRE IS " + historyFilePath);
+    FSDataInputStream in = null;
+    LOG.info("JobHistoryFile is: " + historyFilePath);
     try {
-      FileContext fc = FileContext.getFileContext(historyFilePath.toUri());
-      in = fc.open(historyFilePath);
+      FileContext fc = FileContext.getFileContext(conf);
+      in = fc.open(fc.makeQualified(historyFilePath));
     } catch (IOException ioe) {
-      LOG.info("Can not open history file "+ ioe);
+      LOG.info("Can not open history file: " + historyFilePath, ioe);
       throw (new Exception("Can not open History File"));
     }
     
     JobHistoryParser parser = new JobHistoryParser(in);
     JobInfo jobInfo = parser.parse();
-
+    
     Assert.assertTrue ("Incorrect username ",
         jobInfo.getUsername().equals("mapred"));
     Assert.assertTrue("Incorrect jobName ",

@@ -44,7 +44,7 @@ public class TestMRApp {
 
   @Test
   public void testMapReduce() throws Exception {
-    MRApp app = new MRApp(2, 2, true);
+    MRApp app = new MRApp(2, 2, true, this.getClass().getName(), true);
     Job job = app.submit(new Configuration());
     app.waitForState(job, JobState.SUCCEEDED);
     app.verifyCompleted();
@@ -52,7 +52,7 @@ public class TestMRApp {
 
   @Test
   public void testCommitPending() throws Exception {
-    MRApp app = new MRApp(1, 0, false);
+    MRApp app = new MRApp(1, 0, false, this.getClass().getName(), true);
     Job job = app.submit(new Configuration());
     app.waitForState(job, JobState.RUNNING);
     Assert.assertEquals("Num tasks not correct", 1, job.getTasks().size());
@@ -82,7 +82,7 @@ public class TestMRApp {
 
   @Test
   public void testCompletedMapsForReduceSlowstart() throws Exception {
-    MRApp app = new MRApp(2, 1, false);
+    MRApp app = new MRApp(2, 1, false, this.getClass().getName(), true);
     Configuration conf = new Configuration();
     //after half of the map completion, reduce will start
     conf.setFloat(MRJobConfig.COMPLETED_MAPS_FOR_REDUCE_SLOWSTART, 0.5f);
@@ -141,7 +141,7 @@ public class TestMRApp {
 
   @Test
   public void testJobError() throws Exception {
-    MRApp app = new MRApp(1, 0, false);
+    MRApp app = new MRApp(1, 0, false, this.getClass().getName(), true);
     Job job = app.submit(new Configuration());
     app.waitForState(job, JobState.RUNNING);
     Assert.assertEquals("Num tasks not correct", 1, job.getTasks().size());

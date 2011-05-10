@@ -56,7 +56,7 @@ import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleaner;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
-import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
@@ -164,7 +164,7 @@ public class RecoveryService extends CompositeService implements Recovery {
         new Path(jobhistoryDir));
     FileContext fc = FileContext.getFileContext(histDirPath.toUri(),
         getConfig());
-    historyFile = fc.makeQualified(JobHistoryUtils.getJobHistoryFile(
+    historyFile = fc.makeQualified(JobHistoryUtils.getStagingJobHistoryFile(
         histDirPath, jobName, startCount - 1));          //read the previous history file
     in = fc.open(historyFile);
     JobHistoryParser parser = new JobHistoryParser(in);

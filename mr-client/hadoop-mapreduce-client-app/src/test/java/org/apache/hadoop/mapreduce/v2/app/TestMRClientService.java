@@ -172,7 +172,7 @@ public class TestMRClientService {
   class MRAppWithClientService extends MRApp {
     MRClientService clientService = null;
     MRAppWithClientService(int maps, int reduces, boolean autoComplete) {
-      super(maps, reduces, autoComplete);
+      super(maps, reduces, autoComplete, "MRAppWithClientService", true);
     }
     @Override
     protected ClientService createClientService(AppContext context) {

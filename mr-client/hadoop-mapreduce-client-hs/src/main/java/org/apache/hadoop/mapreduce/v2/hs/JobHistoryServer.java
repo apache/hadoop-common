@@ -18,11 +18,14 @@
 
 package org.apache.hadoop.mapreduce.v2.hs;
 
+import java.io.IOException;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.service.CompositeService;
 
@@ -33,8 +36,9 @@ import org.apache.hadoop.yarn.service.CompositeService;
  *****************************************************************/
 public class JobHistoryServer extends CompositeService {
   private static final Log LOG = LogFactory.getLog(JobHistoryServer.class);
+  private HistoryContext historyContext;
   private HistoryClientService clientService;
-  private HistoryCleanerService cleanerService;
+//  private HistoryCleanerService cleanerService;
 
   static{
     Configuration.addDefaultResource("mapred-default.xml");
@@ -47,12 +51,23 @@ public class JobHistoryServer extends CompositeService {
 
   public synchronized void init(Configuration conf) {
     Configuration config = new YarnConfiguration(conf);
-    HistoryContext history = new JobHistory(conf);
-    clientService = new HistoryClientService(history);
-    cleanerService = new HistoryCleanerService(config);
+    historyContext = null;
+    try {
+      historyContext = new JobHistory(conf);
+      ((JobHistory)historyContext).start();
+    } catch (IOException e) {
+      throw new YarnException(e);
+    }
+    clientService = new HistoryClientService(historyContext);
+//    cleanerService = new HistoryCleanerService(config);
     addService(clientService);
-    addService(cleanerService);
+//    addService(cleanerService);
     super.init(config);
+  }
+
+  public void stop() {
+    ((JobHistory)historyContext).stop();
+    super.stop();
   }
 
   public static void main(String[] args) {

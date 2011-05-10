@@ -43,7 +43,7 @@ public class TestFetchFailure {
 
   @Test
   public void testFetchFailure() throws Exception {
-    MRApp app = new MRApp(1, 1, false);
+    MRApp app = new MRApp(1, 1, false, this.getClass().getName(), true);
     Configuration conf = new Configuration();
     // map -> reduce -> fetch-failure -> map retry is incompatible with
     // sequential, single-task-attempt approach in uber-AM, so disable:

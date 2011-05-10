@@ -57,6 +57,10 @@
     <value>/tmp/hadoop-yarn/${user.name}/staging</value>
    </property>
 
+  <property>
+    <name>yarn.apps.history.stagingDir</name>
+    <value>/tmp/hadoop-yarn/${user.name}/staging</value>
+   </property>
 
   <property>
     <name>yarn.server.nodemanager.keytab</name>

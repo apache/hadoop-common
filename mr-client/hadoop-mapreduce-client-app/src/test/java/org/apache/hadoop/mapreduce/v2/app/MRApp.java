@@ -18,18 +18,23 @@
 
 package org.apache.hadoop.mapreduce.v2.app;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.EnumSet;
 
 import junit.framework.Assert;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.WrappedJvmID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
@@ -38,10 +43,6 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
-import org.apache.hadoop.mapreduce.v2.app.AppContext;
-import org.apache.hadoop.mapreduce.v2.app.MRAppMaster;
-import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
@@ -61,8 +62,10 @@ import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleaner;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.yarn.Clock;
+import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -76,8 +79,13 @@ import org.apache.hadoop.yarn.state.StateMachineFactory;
  */
 public class MRApp extends MRAppMaster {
 
+  private static final Log LOG = LogFactory.getLog(MRApp.class);
+  
   int maps;
   int reduces;
+
+  private File testWorkDir;
+  private Path testAbsPath;
 
   private final RecordFactory recordFactory =
       RecordFactoryProvider.getRecordFactory(null);
@@ -93,12 +101,25 @@ public class MRApp extends MRAppMaster {
     applicationId.setId(0);
   }
 
-  public MRApp(int maps, int reduces, boolean autoComplete) {
-    this(maps, reduces, autoComplete, 1);
+  public MRApp(int maps, int reduces, boolean autoComplete, String testName, boolean cleanOnStart) {
+    this(maps, reduces, autoComplete, testName, cleanOnStart, 1);
   }
 
-  public MRApp(int maps, int reduces, boolean autoComplete, int startCount) {
+  public MRApp(int maps, int reduces, boolean autoComplete, String testName, boolean cleanOnStart, int startCount) {
     super(applicationId, startCount);
+    this.testWorkDir = new File("target", testName);
+    testAbsPath = new Path(testWorkDir.getAbsolutePath());
+    LOG.info("PathUsed: " + testAbsPath);
+    if (cleanOnStart) {
+      testAbsPath = new Path(testWorkDir.getAbsolutePath());
+      try {
+        FileContext.getLocalFSFileContext().delete(testAbsPath, true);
+      } catch (Exception e) {
+        LOG.warn("COULD NOT CLEANUP: " + testAbsPath, e);
+        throw new YarnException("could not cleanup test dir", e);
+      }
+    }
+    
     this.maps = maps;
     this.reduces = reduces;
     this.autoComplete = autoComplete;
@@ -107,10 +128,8 @@ public class MRApp extends MRAppMaster {
   public Job submit(Configuration conf) throws Exception {
     String user = conf.get(MRJobConfig.USER_NAME, "mapred");
     conf.set(MRJobConfig.USER_NAME, user);
-    conf.set(YarnMRJobConfig.HISTORY_STAGING_DIR_KEY,
-       "file:///tmp/yarn/");
-    conf.set(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
-       "file:///tmp/yarn/done/");
+    conf.set(YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, testAbsPath.toString());
+
     init(conf);
     start();
     Job job = getContext().getAllJobs().values().iterator().next();

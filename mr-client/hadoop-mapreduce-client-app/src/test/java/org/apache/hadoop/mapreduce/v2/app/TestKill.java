@@ -190,7 +190,7 @@ public class TestKill {
   static class BlockingMRApp extends MRApp {
     private CountDownLatch latch;
     BlockingMRApp(int maps, int reduces, CountDownLatch latch) {
-      super(maps, reduces, true);
+      super(maps, reduces, true, "testKill", true);
       this.latch = latch;
     }
 

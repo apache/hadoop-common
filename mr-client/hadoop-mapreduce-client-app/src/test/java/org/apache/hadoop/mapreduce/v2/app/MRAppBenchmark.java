@@ -76,7 +76,7 @@ public class MRAppBenchmark {
     int maxConcurrentRunningTasks;
     volatile int concurrentRunningTasks;
     ThrottledMRApp(int maps, int reduces, int maxConcurrentRunningTasks) {
-      super(maps, reduces, true);
+      super(maps, reduces, true, "ThrottledMRApp", true);
       this.maxConcurrentRunningTasks = maxConcurrentRunningTasks;
     }
     
@@ -156,7 +156,7 @@ public class MRAppBenchmark {
     int reduces = 100;
     System.out.println("Running benchmark with maps:"+maps +
         " reduces:"+reduces);
-    run(new MRApp(maps, reduces, true));
+    run(new MRApp(maps, reduces, true, this.getClass().getName(), true));
   }
 
   public void benchmark2() throws Exception {

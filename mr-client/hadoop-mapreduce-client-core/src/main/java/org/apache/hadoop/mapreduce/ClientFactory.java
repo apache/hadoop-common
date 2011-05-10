@@ -45,7 +45,8 @@ public abstract class ClientFactory {
     try {
       return factory.newInstance().createClient(conf);
     } catch (Exception e) {
-      throw new IOException("Could not create ClientProtocol", e);
+      throw new IOException("Could not create ClientProtocol using factory: "
+          + factory.getName(), e);
     }
   }
 

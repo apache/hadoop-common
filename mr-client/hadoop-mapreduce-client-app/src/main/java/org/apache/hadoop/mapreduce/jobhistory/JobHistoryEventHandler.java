@@ -20,7 +20,6 @@ package org.apache.hadoop.mapreduce.jobhistory;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -30,7 +29,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileSystem;
@@ -41,7 +39,9 @@ import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
-import org.apache.hadoop.mapreduce.v2.util.JobHistoryUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.FileNameIndexUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JobIndexInfo;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -96,7 +96,7 @@ public class JobHistoryEventHandler extends AbstractService
     this.conf = conf;
 
     String logDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(conf);
-    String  doneDirPrefix = JobHistoryUtils.getConfiguredHistoryDoneDirPrefix(conf);
+    String  doneDirPrefix = JobHistoryUtils.getConfiguredHistoryIntermediateDoneDirPrefix(conf);
 
     try {
       doneDirPrefixPath = FileSystem.get(conf).makeQualified(
@@ -157,6 +157,7 @@ public class JobHistoryEventHandler extends AbstractService
 
   @Override
   public void stop() {
+    LOG.info("Stopping JobHistoryEventHandler");
     stopped = true;
     //do not interrupt while event handling is in progress
     synchronized(this) {
@@ -184,7 +185,7 @@ public class JobHistoryEventHandler extends AbstractService
         LOG.info("Exception while closing file " + e.getMessage());
       }
     }
-
+    LOG.info("Stopped JobHistoryEventHandler. super.stop()");
     super.stop();
   }
 
@@ -199,18 +200,18 @@ public class JobHistoryEventHandler extends AbstractService
   protected void setupEventWriter(JobId jobId)
   throws IOException {
     if (logDirPath == null) {
-      LOG.info("Log Directory is null, returning");
+      LOG.error("Log Directory is null, returning");
       throw new IOException("Missing Log Directory for History");
     }
 
     MetaInfo oldFi = fileMap.get(jobId);
     Configuration conf = getConfig();
 
-    long submitTime = (oldFi == null ? context.getClock().getTime() : oldFi.submitTime);
+    long submitTime = (oldFi == null ? context.getClock().getTime() : oldFi.getJobIndexInfo().getSubmitTime());
 
     // String user = conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));
     
-    Path logFile = JobHistoryUtils.getJobHistoryFile(logDirPath, jobId, startCount);
+    Path logFile = JobHistoryUtils.getStagingJobHistoryFile(logDirPath, jobId, startCount);
     String user = conf.get(MRJobConfig.USER_NAME);
     if (user == null) {
       throw new IOException("User is null while setting up jobhistory eventwriter" );
@@ -223,6 +224,7 @@ public class JobHistoryEventHandler extends AbstractService
         FSDataOutputStream out = logDirFS.create(logFile, true);
         //TODO Permissions for the history file?
         writer = new EventWriter(out);
+        LOG.info("Event Writer setup for JobId: " + jobId + ", File: " + logFile);
       } catch (IOException ioe) {
         LOG.info("Could not create log file: [" + logFile + "] + for job " + "[" + jobName + "]");
         throw ioe;
@@ -232,8 +234,7 @@ public class JobHistoryEventHandler extends AbstractService
     //This could be done at the end as well in moveToDone
     Path logDirConfPath = null;
     if (conf != null) {
-      logDirConfPath = getConfFile(logDirPath, jobId);
-      LOG.info("XXX: Attempting to write config to: " + logDirConfPath);
+      logDirConfPath = JobHistoryUtils.getStagingConfFile(logDirPath, jobId, startCount);
       FSDataOutputStream jobFileOut = null;
       try {
         if (logDirConfPath != null) {
@@ -247,7 +248,7 @@ public class JobHistoryEventHandler extends AbstractService
       }
     }
     
-    MetaInfo fi = new MetaInfo(logFile, logDirConfPath, writer, submitTime, user, jobName);
+    MetaInfo fi = new MetaInfo(logFile, logDirConfPath, writer, submitTime, user, jobName, jobId);
     fileMap.put(jobId, fi);
   }
 
@@ -261,7 +262,7 @@ public class JobHistoryEventHandler extends AbstractService
       }
       
     } catch (IOException e) {
-      LOG.info("Error closing writer for JobID: " + id);
+      LOG.error("Error closing writer for JobID: " + id);
       throw e;
     }
   }
@@ -277,6 +278,7 @@ public class JobHistoryEventHandler extends AbstractService
 
   protected synchronized void handleEvent(JobHistoryEvent event) {
     // check for first event from a job
+    //TODO Log a meta line with version information.
     if (event.getHistoryEvent().getEventType() == EventType.JOB_SUBMITTED) {
       try {
         setupEventWriter(event.getJobID());
@@ -286,7 +288,6 @@ public class JobHistoryEventHandler extends AbstractService
       }
     }
     MetaInfo mi = fileMap.get(event.getJobID());
-    EventWriter writer = fileMap.get(event.getJobID()).writer;
     try {
       HistoryEvent historyEvent = event.getHistoryEvent();
       mi.writeEvent(historyEvent);
@@ -298,6 +299,10 @@ public class JobHistoryEventHandler extends AbstractService
     // check for done
     if (event.getHistoryEvent().getEventType().equals(EventType.JOB_FINISHED)) {
       try {
+        JobFinishedEvent jFinishedEvent = (JobFinishedEvent)event.getHistoryEvent();
+        mi.getJobIndexInfo().setFinishTime(jFinishedEvent.getFinishTime());
+        mi.getJobIndexInfo().setNumMaps(jFinishedEvent.getFinishedMaps());
+        mi.getJobIndexInfo().setNumReduces(jFinishedEvent.getFinishedReduces());
         closeEventWriter(event.getJobID());
       } catch (IOException e) {
         throw new YarnException(e);
@@ -308,46 +313,57 @@ public class JobHistoryEventHandler extends AbstractService
   protected void closeEventWriter(JobId jobId) throws IOException {
     final MetaInfo mi = fileMap.get(jobId);
     
+    if (mi == null) {
+      throw new IOException("No MetaInfo found for JobId: [" + jobId + "]");
+    }
     try {
-      if (mi != null) {
         mi.closeWriter();
+    } catch (IOException e) {
+      LOG.error("Error closing writer for JobID: " + jobId);
+      throw e;
       }
      
-      if (mi == null || mi.getHistoryFile() == null) {
-        LOG.info("No file for job-history with " + jobId + " found in cache!");
+    if (mi.getHistoryFile() == null) {
+      LOG.warn("No file for job-history with " + jobId + " found in cache!");
       }
       if (mi.getConfFile() == null) {
-        LOG.info("No file for jobconf with " + jobId + " found in cache!");
+      LOG.warn("No file for jobconf with " + jobId + " found in cache!");
       }
       
-      
-      //TODO fix - add indexed structure 
-      // 
-      String doneDir = JobHistoryUtils.getCurrentDoneDir(doneDirPrefixPath.toString());
-      Path doneDirPath =
-    	  doneDirFS.makeQualified(new Path(doneDir));
-      if (!pathExists(doneDirFS, doneDirPath)) {
+    String doneDir = JobHistoryUtils.getCurrentDoneDir(doneDirPrefixPath
+        .toString());
+    Path doneDirPath = doneDirFS.makeQualified(new Path(doneDir));
         try {
-          doneDirFS.mkdirs(doneDirPath, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION));
-        } catch (FileAlreadyExistsException e) {
-          LOG.info("Done directory: [" + doneDirPath + "] already exists.");
+      if (!pathExists(doneDirFS, doneDirPath)) {
+        doneDirFS.mkdirs(doneDirPath, new FsPermission(
+            JobHistoryUtils.HISTORY_DIR_PERMISSION));
       }
-      }
+
+      if (mi.getHistoryFile() != null) {
       Path logFile = mi.getHistoryFile();
       Path qualifiedLogFile = logDirFS.makeQualified(logFile);
+        String doneJobHistoryFileName = FileNameIndexUtils.getDoneFileName(mi
+            .getJobIndexInfo());
       Path qualifiedDoneFile = doneDirFS.makeQualified(new Path(doneDirPath,
-          getDoneJobHistoryFileName(jobId)));
+            doneJobHistoryFileName));
       moveToDoneNow(qualifiedLogFile, qualifiedDoneFile);
+      }
       
+      if (mi.getConfFile() != null) {
       Path confFile = mi.getConfFile();
       Path qualifiedConfFile = logDirFS.makeQualified(confFile);
-      Path qualifiedConfDoneFile = doneDirFS.makeQualified(new Path(doneDirPath, getDoneConfFileName(jobId)));
+        String doneConfFileName = JobHistoryUtils
+            .getIntermediateConfFileName(jobId);
+        Path qualifiedConfDoneFile = doneDirFS.makeQualified(new Path(
+            doneDirPath, doneConfFileName));
       moveToDoneNow(qualifiedConfFile, qualifiedConfDoneFile);
-      
-      logDirFS.delete(qualifiedLogFile, true);
-      logDirFS.delete(qualifiedConfFile, true);
+      }
+      String doneFileName = JobHistoryUtils.getIntermediateDoneFileName(jobId);
+      Path doneFilePath = doneDirFS.makeQualified(new Path(doneDirPath,
+          doneFileName));
+      touchFile(doneFilePath);
     } catch (IOException e) {
-      LOG.info("Error closing writer for JobID: " + jobId);
+      LOG.error("Error closing writer for JobID: " + jobId);
       throw e;
     }
   }
@@ -356,23 +372,21 @@ public class JobHistoryEventHandler extends AbstractService
     private Path historyFile;
     private Path confFile;
     private EventWriter writer;
-    long submitTime;
-    String user;
-    String jobName;
+    JobIndexInfo jobIndexInfo;
 
     MetaInfo(Path historyFile, Path conf, EventWriter writer, long submitTime,
-             String user, String jobName) {
+             String user, String jobName, JobId jobId) {
       this.historyFile = historyFile;
       this.confFile = conf;
       this.writer = writer;
-      this.submitTime = submitTime;
-      this.user = user;
-      this.jobName = jobName;
+      this.jobIndexInfo = new JobIndexInfo(submitTime, -1, user, jobName, jobId, -1, -1);
     }
 
     Path getHistoryFile() { return historyFile; }
 
     Path getConfFile() {return confFile; } 
+
+    JobIndexInfo getJobIndexInfo() { return jobIndexInfo; }
 
     synchronized void closeWriter() throws IOException {
       if (writer != null) {
@@ -389,30 +403,6 @@ public class JobHistoryEventHandler extends AbstractService
     }
   }
 
-  //TODO Move some of these functions into a utility class.
-
-
-  private String getDoneJobHistoryFileName(JobId jobId) {
-    return TypeConverter.fromYarn(jobId).toString() + JobHistoryUtils.JOB_HISTORY_FILE_EXTENSION;
-  }
-
-  private String getDoneConfFileName(JobId jobId) {
-    return TypeConverter.fromYarn(jobId).toString() + JobHistoryUtils.CONF_FILE_NAME_SUFFIX;
-  }
-  
-  private Path getConfFile(Path logDir, JobId jobId) {
-    Path jobFilePath = null;
-    if (logDir != null) {
-      jobFilePath = new Path(logDir, TypeConverter.fromYarn(jobId).toString()
-          + "_" + startCount + JobHistoryUtils.CONF_FILE_NAME_SUFFIX);
-    }
-    return jobFilePath;
-  }
-
-
-  //TODO This could be done by the jobHistory server - move files to a temporary location
-  //  which is scanned by the JH server - to move them to the final location.
-  // Currently JHEventHandler is moving files to the final location.
   private void moveToDoneNow(Path fromPath, Path toPath) throws IOException {
     //check if path exists, in case of retries it may not exist
     if (logDirFS.exists(fromPath)) {
@@ -430,7 +420,14 @@ public class JobHistoryEventHandler extends AbstractService
           LOG.info("copy failed");
       doneDirFS.setPermission(toPath,
           new FsPermission(JobHistoryUtils.HISTORY_FILE_PERMISSION));
+      
+      logDirFS.delete(fromPath, false);
     }
+    }
+
+  private void touchFile(Path path) throws IOException {
+    doneDirFS.createNewFile(path);
+    doneDirFS.setPermission(path, JobHistoryUtils.HISTORY_DIR_PERMISSION);
   }
 
   boolean pathExists(FileSystem fileSys, Path path) throws IOException {

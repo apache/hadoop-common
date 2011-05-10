@@ -38,6 +38,8 @@ public class YARNApplicationConstants {
 
   public static final String APPS_STAGING_DIR_KEY = "yarn.apps.stagingDir";
 
+  public static final String APPS_HISTORY_STAGING_DIR_KEY = "yarn.apps.history.stagingDir";
+  
   public static final String YARN_MAPREDUCE_APP_JAR_PATH =
       "$YARN_HOME/modules/" + HADOOP_MAPREDUCE_CLIENT_APP_JAR_NAME;
 

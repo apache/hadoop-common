@@ -653,8 +653,12 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     }
   }
 
-  private void finished() {
+  private void setFinishTime() {
     finishTime = clock.getTime();
+  }
+  
+  private void finished() {
+    if (finishTime == 0) setFinishTime();
     eventHandler.handle(new JobFinishEvent(jobId));
   }
 
@@ -1000,6 +1004,18 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
           numReduceTasks, //TODO finishedReduceTasks
           finalState.toString());
     eventHandler.handle(new JobHistoryEvent(jobId, unsuccessfulJobEvent));
+    
+    JobFinishedEvent jfe =
+      new JobFinishedEvent(TypeConverter.fromYarn(jobId),
+          finishTime,
+          succeededMapTaskCount,
+          succeededReduceTaskCount, failedMapTaskCount,
+          failedReduceTaskCount,
+          TypeConverter.fromYarn(getCounters()), //TODO replace with MapCounter
+          TypeConverter.fromYarn(getCounters()), // TODO reduceCounters
+          TypeConverter.fromYarn(getCounters()));
+    eventHandler.handle(new JobHistoryEvent(jobId, jfe));
+    //TODO Does this require a JobFinishedEvent?
   }
 
   // Task-start has been moved out of InitTransition, so this arc simply
@@ -1125,6 +1141,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         job.allowedMapFailuresPercent*job.numMapTasks ||
         job.failedReduceTaskCount*100 > 
         job.allowedReduceFailuresPercent*job.numReduceTasks) {
+        job.setFinishTime();
         JobUnsuccessfulCompletionEvent failedEvent =
           new JobUnsuccessfulCompletionEvent(TypeConverter.fromYarn(job.jobId),
               job.finishTime,
@@ -1132,18 +1149,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
               job.failedReduceTaskCount, //TODO finishedReduceTasks
               org.apache.hadoop.mapreduce.JobStatus.State.FAILED.toString()); //TODO correct state
         job.eventHandler.handle(new JobHistoryEvent(job.jobId, failedEvent));
+        //TODO This event not likely required - sent via abort(). 
 
-// Adding JobFinishedEvent to dump counters
-        JobFinishedEvent jfe =
-          new JobFinishedEvent(TypeConverter.fromYarn(job.jobId),
-              job.finishTime,
-              job.succeededMapTaskCount,
-              job.succeededReduceTaskCount, job.failedMapTaskCount,
-              job.failedReduceTaskCount,
-              TypeConverter.fromYarn(job.getCounters()), //TODO replace with MapCounter
-              TypeConverter.fromYarn(job.getCounters()), // TODO reduceCounters
-              TypeConverter.fromYarn(job.getCounters()));
-        job.eventHandler.handle(new JobHistoryEvent(job.jobId, jfe));
         job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.FAILED);
         job.finished();
         return JobState.FAILED;
@@ -1157,6 +1164,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
           LOG.warn("Could not do commit for Job", e);
         }
        // Log job-history
+        job.setFinishTime();
         JobFinishedEvent jfe =
         new JobFinishedEvent(TypeConverter.fromYarn(job.jobId),
           job.finishTime,
@@ -1226,6 +1234,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     @Override
     protected JobState checkJobForCompletion(JobImpl job) {
       if (job.completedTaskCount == job.tasks.size()) {
+        job.setFinishTime();
         job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.KILLED);
         job.finished();
         return JobState.KILLED;
@@ -1252,6 +1261,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       SingleArcTransition<JobImpl, JobEvent> {
     @Override
     public void transition(JobImpl job, JobEvent event) {
+      //TODO JH Event?
       job.finished();
     }
   }
