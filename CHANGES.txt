@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    Improved TestJobHistoryEvents and TestJobHistoryParsing. (sharad)
+
     MAPREDUCE-2478. Improve history server. (Siddharth Seth via sharad)
 
     Fix Null Pointer in TestUberAM. (sharad) 

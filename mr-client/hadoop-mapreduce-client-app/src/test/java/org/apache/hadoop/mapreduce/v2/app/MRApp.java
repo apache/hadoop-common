@@ -34,7 +34,6 @@ import org.apache.hadoop.mapred.WrappedJvmID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
@@ -69,6 +68,7 @@ import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.service.Service;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
 
@@ -185,6 +185,18 @@ public class MRApp extends MRAppMaster {
     System.out.println("Job State is : " + report.getJobState());
     Assert.assertEquals("Job state is not correct (timedout)", finalState, 
         job.getState());
+  }
+
+  public void waitForState(Service.STATE finalState) throws Exception {
+    int timeoutSecs = 0;
+    while (!finalState.equals(getServiceState()) && timeoutSecs++ < 20) {
+      System.out.println("MRApp State is : " + getServiceState()
+          + " Waiting for state : " + finalState);
+      Thread.sleep(500);
+    }
+    System.out.println("MRApp State is : " + getServiceState());
+    Assert.assertEquals("MRApp state is not correct (timedout)", finalState,
+        getServiceState());
   }
 
   public void verifyCompleted() {
