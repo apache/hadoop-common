@@ -184,7 +184,8 @@ public class MRClientService extends AbstractService
       if (modifyAccess) {
         operation = JobACL.MODIFY_JOB;
       }
-      checkAccess(job, operation);
+      //TODO disable check access for now.
+      //checkAccess(job, operation);
       return job;
     }
  
