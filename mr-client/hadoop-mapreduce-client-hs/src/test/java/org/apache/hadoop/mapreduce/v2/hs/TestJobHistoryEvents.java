@@ -61,7 +61,8 @@ public class TestJobHistoryEvents {
      * Use HistoryContext to read logged events and verify the number of 
      * completed maps 
     */
-    HistoryContext context = new JobHistory(conf);
+    HistoryContext context = new JobHistory();
+    ((JobHistory)context).init(conf);
     Job parsedJob = context.getJob(jobId);
     Assert.assertEquals("CompletedMaps not correct", 2,
         parsedJob.getCompletedMaps());

@@ -62,12 +62,13 @@ import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.service.AbstractService;
 
 
 /*
  * Loads and manages the Job history cache.
  */
-public class JobHistory implements HistoryContext {
+public class JobHistory extends AbstractService implements HistoryContext   {
 
   private static final int DEFAULT_JOBLIST_CACHE_SIZE = 20000;
   private static final int DEFAULT_LOADEDJOB_CACHE_SIZE = 2000;
@@ -168,8 +169,10 @@ public class JobHistory implements HistoryContext {
    * .....${DONE_DIR}/VERSION_STRING/YYYY/MM/DD/HH/SERIAL_NUM/jh{index_entries}.jhist
    */
 
-  public void init() throws IOException {
+  @Override
+  public void init(Configuration conf) throws YarnException {
     LOG.info("JobHistory Init");
+    this.conf = conf;
     debugMode = conf.getBoolean(YarnMRJobConfig.HISTORY_DEBUG_MODE_KEY, false);
     serialNumberLowDigits = debugMode ? 1 : 3;
     serialNumberFormat = ("%0"
@@ -192,8 +195,7 @@ public class JobHistory implements HistoryContext {
         }
       }
     } catch (IOException e) {
-      LOG.info("error creating done directory on dfs " + e);
-      throw e;
+      throw new YarnException("error creating done directory on dfs ", e);
     }
 
     String doneDirWithVersion = JobHistoryUtils
@@ -211,8 +213,7 @@ public class JobHistory implements HistoryContext {
         }
       }
     } catch (IOException e) {
-      LOG.info("error creating done_version directory on dfs " + e);
-      throw e;
+      throw new YarnException("error creating done_version directory on dfs", e);
     }
 
     String intermediateDoneDirPrefix = JobHistoryUtils
@@ -236,7 +237,7 @@ public class JobHistory implements HistoryContext {
 
     } catch (IOException e) {
       LOG.info("error creating done directory on dfs " + e);
-      throw e;
+      throw new YarnException("error creating done directory on dfs ", e);
     }
     
     
@@ -246,10 +247,15 @@ public class JobHistory implements HistoryContext {
     dateStringCacheSize = conf.getInt(YarnMRJobConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_DATESTRING_CACHE_SIZE);
     moveThreadInterval = conf.getLong(YarnMRJobConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_MOVE_THREAD_INTERVAL);
     numMoveThreads = conf.getInt(YarnMRJobConfig.HISTORY_SERVER_NUM_MOVE_THREADS, DEFAULT_MOVE_THREAD_COUNT);
-
+    try {
     initExisting();
+    } catch (IOException e) {
+      throw new YarnException("Failed to intialize existing directories", e);
+    }
+    super.init(conf);
   }
   
+  @Override
   public void start() {
     //Start moveIntermediatToDoneThread
     moveIntermediateToDoneRunnable = new MoveIntermediateToDoneRunnable(moveThreadInterval, numMoveThreads);
@@ -263,8 +269,10 @@ public class JobHistory implements HistoryContext {
     cleanerScheduledExecutor = new ScheduledThreadPoolExecutor(1);
     long runInterval = conf.getLong(YarnMRJobConfig.HISTORY_CLEANER_RUN_INTERVAL, DEFAULT_RUN_INTERVAL);
     cleanerScheduledExecutor.scheduleAtFixedRate(new HistoryCleaner(maxAgeOfHistoryFiles), 30*1000l, runInterval, TimeUnit.MILLISECONDS);
+    super.start();
   }
   
+  @Override
   public void stop() {
     LOG.info("Stopping JobHistory");
     if (moveIntermediateToDoneThread != null) {
@@ -296,13 +304,13 @@ public class JobHistory implements HistoryContext {
         LOG.warn("HistoryCleanerService shutdown may not have succeeded");
       }
     }
+    super.stop();
   }
   
-  public JobHistory(Configuration conf) throws IOException {
+  public JobHistory() {
+    super(JobHistory.class.getName());
     this.appID = RecordFactoryProvider.getRecordFactory(conf)
         .newRecordInstance(ApplicationId.class);
-    this.conf = conf;
-    init();
   }
   
   /**

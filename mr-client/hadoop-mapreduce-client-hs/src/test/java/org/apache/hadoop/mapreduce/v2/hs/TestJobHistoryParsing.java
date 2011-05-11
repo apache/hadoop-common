@@ -61,7 +61,8 @@ public class TestJobHistoryParsing {
     app.waitForState(Service.STATE.STOPPED);
     
     String jobhistoryDir = JobHistoryUtils.getConfiguredHistoryIntermediateDoneDirPrefix(conf);
-    JobHistory jobHistory = new JobHistory(conf);
+    JobHistory jobHistory = new JobHistory();
+    jobHistory.init(conf);
     
     String currentJobHistoryDir = JobHistoryUtils.getCurrentDoneDir(jobhistoryDir);
     JobIndexInfo jobIndexInfo = jobHistory.getJobMetaInfo(jobId).getJobIndexInfo();
