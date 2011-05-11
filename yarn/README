@@ -13,7 +13,7 @@ mvn install:install-file -Dfile=./avro-maven-plugin/avro-maven-plugin-1.4.0-SNAP
 
 Install protobuf 2.4.0a (Download from http://code.google.com/p/protobuf/downloads/list)
  - install the protoc executable (configure, make, make install)
- - install the maven artifact (mvn install)
+ - install the maven artifact (cd java; mvn install)
 Installing protoc requires gcc 4.1.x or higher.
 If the make step fails with (Valid until a fix is released for protobuf 2.4.0a)
     ./google/protobuf/descriptor.h:1152: error:
