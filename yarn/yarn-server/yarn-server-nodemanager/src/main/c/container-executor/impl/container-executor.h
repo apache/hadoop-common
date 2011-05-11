@@ -25,7 +25,6 @@ enum command {
   LAUNCH_TASK_JVM = 1,
   SIGNAL_TASK = 2,
   DELETE_AS_USER = 3,
-  DELETE_LOG_AS_USER = 4
 };
 
 enum errorcodes {

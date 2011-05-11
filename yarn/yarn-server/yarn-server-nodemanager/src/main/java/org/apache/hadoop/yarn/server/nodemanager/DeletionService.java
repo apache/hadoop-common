@@ -109,7 +109,7 @@ public class DeletionService extends AbstractService {
           return;
         }
         for (Path baseDir : baseDirs) {
-          Path del = new Path(baseDir, subDir);
+          Path del = subDir == null? baseDir : new Path(baseDir, subDir);
           LOG.debug("NM deleting path : " + del);
           try {
             lfs.delete(del, true);

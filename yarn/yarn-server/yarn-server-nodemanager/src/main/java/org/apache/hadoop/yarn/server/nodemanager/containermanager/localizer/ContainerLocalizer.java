@@ -184,7 +184,6 @@ public class ContainerLocalizer {
   }
 
   ExecutorService createDownloadThreadPool() {
-    // TODO: Only Single thread?
     return Executors.newSingleThreadExecutor();
   }
 
@@ -333,7 +332,6 @@ public class ContainerLocalizer {
     }
   }
 
-  // TODO: Won't there be a race for creating these dirs.
   private static void initDirs(Configuration conf, String user, String appId,
       FileContext lfs, List<Path> localDirs) throws IOException {
     if (null == localDirs || 0 == localDirs.size()) {

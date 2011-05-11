@@ -220,27 +220,21 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   }
 
   @Override
-  public void deleteAsUser(String user, Path subDir, Path... baseDirs)
-      throws IOException, InterruptedException {
-
-    if (baseDirs == null || baseDirs.length == 0) {
-      LOG.info("Deleting absolute path : " + subDir);
-      deleteAsUser(user, subDir);
-      return;
-    }
-    for (Path baseDir : baseDirs) {
-      Path del = new Path(baseDir, subDir);
-      LOG.info("Deleting path : " + del);
-      deleteAsUser(user, del);
-    }
-  }
-
-  private void deleteAsUser(String user, Path dir) {
+  public void deleteAsUser(String user, Path dir, Path... baseDirs) {
     List<String> command = new ArrayList<String>(
         Arrays.asList(containerExecutorExe,
                     user,
                     Integer.toString(Commands.DELETE_AS_USER.getValue()),
-                    dir.toUri().getPath()));
+                    dir == null ? "" : dir.toUri().getPath()));
+    if (baseDirs == null || baseDirs.length == 0) {
+      LOG.info("Deleting absolute path : " + dir);
+    } else {
+      for (Path baseDir : baseDirs) {
+        Path del = dir == null ? baseDir : new Path(baseDir, dir);
+        LOG.info("Deleting path : " + del);
+        command.add(baseDir.toUri().getPath());
+      }
+    }
     String[] commandArray = command.toArray(new String[command.size()]);
     ShellCommandExecutor shExec = new ShellCommandExecutor(commandArray);
     LOG.info(" -- DEBUG -- deleteAsUser: " + Arrays.toString(commandArray));

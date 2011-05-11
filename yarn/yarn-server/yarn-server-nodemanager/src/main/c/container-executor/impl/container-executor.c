@@ -1060,17 +1060,3 @@ int delete_as_user(const char *user,
   }
   return ret;
 }
-
-/**
- * delete a given log directory
- */
-int delete_log_directory(const char *subdir) {
-  // TODO: FIXME. This isn't used at all!!!!!
-  char* log_subdir = get_job_log_directory(subdir, subdir); // TODO: FIX
-  int ret = -1;
-  if (log_subdir != NULL) {
-    ret = delete_path(log_subdir, strchr(subdir, '/') == NULL);
-  }
-  free(log_subdir);
-  return ret;
-}

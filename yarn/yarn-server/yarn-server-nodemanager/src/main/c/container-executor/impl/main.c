@@ -45,8 +45,6 @@ void display_usage(FILE *stream) {
 	  SIGNAL_TASK);
   fprintf(stream, "   delete as user: %2d relative-path\n",
 	  DELETE_AS_USER);
-  fprintf(stream, "   delete log:     %2d relative-path\n",
-	  DELETE_LOG_AS_USER);
 }
 
 int main(int argc, char **argv) {
@@ -178,10 +176,6 @@ int main(int argc, char **argv) {
     dir_to_be_deleted = argv[optind++];
     exit_code= delete_as_user(user_detail->pw_name, dir_to_be_deleted,
                               argv + optind);
-    break;
-  case DELETE_LOG_AS_USER:
-    dir_to_be_deleted = argv[optind++];
-    exit_code= delete_log_directory(dir_to_be_deleted);
     break;
   default:
     exit_code = INVALID_COMMAND_PROVIDED;

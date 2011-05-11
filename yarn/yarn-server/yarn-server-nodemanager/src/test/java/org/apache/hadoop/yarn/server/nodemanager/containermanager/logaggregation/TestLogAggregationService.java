@@ -125,6 +125,8 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
       Assert.assertFalse(new File(containerLogDir, fileType).exists());
     }
 
+    Assert.assertFalse(app1LogDir.exists());
+
     Assert.assertTrue(new File(logAggregationService
         .getRemoteNodeLogFileForApp(application1).toUri().getPath()).exists());
   }

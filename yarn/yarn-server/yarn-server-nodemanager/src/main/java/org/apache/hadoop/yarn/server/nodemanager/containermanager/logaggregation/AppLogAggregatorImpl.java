@@ -128,11 +128,14 @@ public class AppLogAggregatorImpl implements AppLogAggregator {
     }
 
     // Remove the local app-log-dirs
+    Path[] localAppLogDirs = new Path[this.rootLogDirs.length];
+    int index = 0;
     for (String rootLogDir : this.rootLogDirs) {
-      File localAppLogDir = new File(rootLogDir, this.applicationId);
-      this.delService.delete(this.userUgi.getShortUserName(), new Path(
-          localAppLogDir.getAbsolutePath()), new Path[] {});
+      localAppLogDirs[index] = new Path(rootLogDir, this.applicationId);
+      index++;
     }
+    this.delService.delete(this.userUgi.getShortUserName(), null,
+        localAppLogDirs);
 
     if (this.writer != null) {
       this.writer.closeWriter();
