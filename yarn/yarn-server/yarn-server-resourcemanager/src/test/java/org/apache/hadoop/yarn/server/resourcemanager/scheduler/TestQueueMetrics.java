@@ -4,6 +4,7 @@ import org.apache.hadoop.metrics2.MetricsSource;
 import org.apache.hadoop.metrics2.impl.MetricsSystemImpl;
 import org.apache.hadoop.metrics2.MetricsSystem;
 import org.apache.hadoop.metrics2.MetricsRecordBuilder;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import static org.apache.hadoop.test.MetricsAsserts.*;
 import static org.apache.hadoop.test.MockitoMaker.*;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
@@ -20,6 +21,7 @@ public class TestQueueMetrics {
   MetricsSystem ms;
 
   @Before public void setup() {
+    DefaultMetricsSystem.shutdown(); // not necessary after HADOOP-6919
     ms = new MetricsSystemImpl();
   }
 
