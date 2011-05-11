@@ -769,7 +769,7 @@ public class LeafQueue implements Queue {
             scheduler.getNumClusterNodes());
       
       if (requiredContainers > 0) {
-        if ((requiredContainers * localityWaitFactor) < missedNodes) {
+        if (missedNodes < (requiredContainers * localityWaitFactor)) {
           LOG.info("Application " + application.getApplicationId() + 
               " has missed " + missedNodes + " opportunities," +
               " waitFactor= " + localityWaitFactor + 
