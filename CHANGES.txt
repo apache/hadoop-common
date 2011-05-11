@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+
+    Fix assembly to add mapreduce shell scripts to the assembly package. (mahadev)
     
     Propagate error back to client in case of a job submission failure (mahadev)
     
