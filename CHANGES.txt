@@ -3,6 +3,9 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    Adding valid state to ASM on a finish when its already completed and 
+    also disble UberAM. (mahadev)
+
     Fix a race in MR task that was causing MR containers to overwrite each
     other's job.xml. Also fix leaking attempt-dirs in app-local-dir. (vinodkv)
 

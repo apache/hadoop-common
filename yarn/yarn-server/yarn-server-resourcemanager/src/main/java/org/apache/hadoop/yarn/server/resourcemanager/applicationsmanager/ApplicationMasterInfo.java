@@ -176,14 +176,21 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   ApplicationEventType.EXPIRE)
 
   .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
+  ApplicationEventType.FINISH)
+  
+  .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
   ApplicationEventType.RECOVER)
   
   .addTransition(ApplicationState.FAILED, ApplicationState.FAILED,
       ApplicationEventType.RECOVER)
+  .addTransition(ApplicationState.FAILED, ApplicationState.FAILED, 
+     ApplicationEventType.FINISH)
   
   .addTransition(ApplicationState.KILLED, ApplicationState.KILLED, 
       ApplicationEventType.RECOVER)
-
+      
+  .addTransition(ApplicationState.KILLED, ApplicationState.KILLED,
+      ApplicationEventType.FINISH)
   .installTopology();
 
 
