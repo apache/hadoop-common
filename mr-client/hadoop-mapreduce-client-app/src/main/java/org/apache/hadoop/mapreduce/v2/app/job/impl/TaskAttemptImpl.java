@@ -430,11 +430,16 @@ public abstract class TaskAttemptImpl implements
     return memory;
   }
 
-  private static LocalResource getLocalResource(FileContext fc, Path file, 
-      LocalResourceType type, LocalResourceVisibility visibility) 
-  throws IOException {
+  /**
+   * Create a {@link LocalResource} record with all the given parameters.
+   * TODO: This should pave way for Builder pattern.
+   */
+  private static LocalResource createLocalResource(FileContext fc,
+      RecordFactory recordFactory, Path file, LocalResourceType type,
+      LocalResourceVisibility visibility) throws IOException {
     FileStatus fstat = fc.getFileStatus(file);
-    LocalResource resource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(LocalResource.class);
+    LocalResource resource =
+        recordFactory.newRecordInstance(LocalResource.class);
     resource.setResource(ConverterUtils.getYarnUrlFromPath(fstat.getPath()));
     resource.setType(type);
     resource.setVisibility(visibility);
@@ -442,45 +447,43 @@ public abstract class TaskAttemptImpl implements
     resource.setTimestamp(fstat.getModificationTime());
     return resource;
   }
-  
-  private ContainerLaunchContext getContainer() {
 
-    ContainerLaunchContext container = recordFactory.newRecordInstance(ContainerLaunchContext.class);
+  /**
+   * Create the {@link ContainerLaunchContext} for this attempt.
+   */
+  private ContainerLaunchContext createContainerLaunchContext() {
+
+    ContainerLaunchContext container =
+        recordFactory.newRecordInstance(ContainerLaunchContext.class);
 
     try {
       FileContext remoteFS = FileContext.getFileContext(conf);
-      
-      Path localizedJobConf = new Path(YARNApplicationConstants.JOB_CONF_FILE);
-      remoteTask.setJobFile(localizedJobConf.toString()); // Screwed!!!!!! (presumably this means "FIXME"...)
-      URL jobConfFileOnRemoteFS = ConverterUtils.getYarnUrlFromPath(localizedJobConf);
-      LOG.info("The job-conf file on the remote FS is " + jobConfFileOnRemoteFS);
-      
-      Path jobJar = remoteFS.makeQualified(new Path(remoteTask.getConf().get(MRJobConfig.JAR)));
-      URL jobJarFileOnRemoteFS = ConverterUtils.getYarnUrlFromPath(jobJar);
-      container.setLocalResource(YARNApplicationConstants.JOB_JAR, getLocalResource(remoteFS, jobJar, 
-          LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
-      LOG.info("The job-jar file on the remote FS is " + jobJarFileOnRemoteFS);
 
-      Path jobSubmitDir =
+      // //////////// Set up JobJar to be localized properly on the remote NM.
+      Path remoteJobJar =
+          remoteFS.makeQualified(new Path(remoteTask.getConf().get(
+              MRJobConfig.JAR)));
+      container.setLocalResource(
+          YARNApplicationConstants.JOB_JAR,
+          createLocalResource(remoteFS, recordFactory, remoteJobJar,
+              LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
+      LOG.info("The job-jar file on the remote FS is "
+          + remoteJobJar.toUri().toASCIIString());
+      // //////////// End of JobJar setup
+
+      // //////////// Set up JobConf to be localized properly on the remote NM.
+      Path remoteJobSubmitDir =
           new Path(conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY),
               oldJobId.toString());
-      Path jobTokenFile =
-          remoteFS.makeQualified(new Path(jobSubmitDir,
-              YarnConfiguration.APPLICATION_TOKENS_FILE));
-      URL applicationTokenFileOnRemoteFS =
-          ConverterUtils.getYarnUrlFromPath(jobTokenFile);
-      // TODO: Looks like this is not needed. Revisit during localization
-      // cleanup.
-      //container.resources_todo.put(YarnConfiguration.APPLICATION_TOKENS_FILE,
-      //    getLocalResource(remoteFS, jobTokenFile, 
-      //        LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
-      
-      container.setLocalResource(YARNApplicationConstants.JOB_CONF_FILE,
-          getLocalResource(remoteFS,
-            new Path(jobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE),
-            LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
-      LOG.info("The application token file on the remote FS is "
-          + applicationTokenFileOnRemoteFS);
+      Path remoteJobConfPath =
+          new Path(remoteJobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
+      container.setLocalResource(
+          YARNApplicationConstants.JOB_CONF_FILE,
+          createLocalResource(remoteFS, recordFactory, remoteJobConfPath,
+              LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
+      LOG.info("The job-conf file on the remote FS is "
+          + remoteJobConfPath.toUri().toASCIIString());
+      // //////////// End of JobConf setup
 
       // Setup DistributedCache
       setupDistributedCache(conf, container);
@@ -869,7 +872,7 @@ public abstract class TaskAttemptImpl implements
               taskAttempt.containerMgrAddress, taskAttempt.containerToken) {
         @Override
         public ContainerLaunchContext getContainer() {
-          return taskAttempt.getContainer();
+          return taskAttempt.createContainerLaunchContext();
         }
         @Override
         public Task getRemoteTask() {  // classic mapred Task, not YARN version

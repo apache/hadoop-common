@@ -254,8 +254,8 @@ public class MapReduceChildJVM {
     for (CharSequence str : vargs) {
       mergedCommand.append(str).append(" ");
     }
-    Vector<String> vargsFinal = new Vector<String>(8);
-    vargsFinal.add("mkdir work;" + mergedCommand.toString());
+    Vector<String> vargsFinal = new Vector<String>(1);
+    vargsFinal.add(mergedCommand.toString());
     return vargsFinal;
   }
 }

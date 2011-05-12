@@ -20,15 +20,13 @@ package org.apache.hadoop.mapred;
 
 import java.io.IOException;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.MRConfig;
-
-import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.classification.InterfaceStability;
 
 /**
  * Manipulate the working area for the transient store for maps and reduces.
@@ -43,11 +41,10 @@ public class YarnOutputFiles extends MapOutputFile {
 
   private JobConf conf;
 
-  //static final String MAP_OUTPUT_FILENAME_STRING = "file.out";
-  //static final String MAP_OUTPUT_INDEX_SUFFIX_STRING = ".index";
-  //static final String REDUCE_INPUT_FILE_FORMAT_STRING = "%s/map_%d.out";
-  static final String JOB_OUTPUT_DIR = "output";
-  static final String TMP_DIR = "%s/tmp";
+  private static final String JOB_OUTPUT_DIR = "output";
+  private static final String SPILL_FILE_PATTERN = "%s_spill_%d.out";
+  private static final String SPILL_INDEX_FILE_PATTERN =
+      "%s_spill_%d.out.index";
 
   public YarnOutputFiles() {
   }
@@ -89,9 +86,7 @@ public class YarnOutputFiles extends MapOutputFile {
    * Create a local map output file name on the same volume.
    */
   public Path getOutputFileForWriteInVolume(Path existing) {
-    // TODO
-    Path outputDir = new Path(existing.getParent().getParent().getParent(),
-        JOB_OUTPUT_DIR);
+    Path outputDir = new Path(existing.getParent(), JOB_OUTPUT_DIR);
     Path attemptOutputDir = new Path(outputDir,
         conf.get(JobContext.TASK_ATTEMPT_ID));
     return new Path(attemptOutputDir, MAP_OUTPUT_FILENAME_STRING);
@@ -129,9 +124,7 @@ public class YarnOutputFiles extends MapOutputFile {
    * Create a local map output index file name on the same volume.
    */
   public Path getOutputIndexFileForWriteInVolume(Path existing) {
-    // TODO
-    Path outputDir = new Path(existing.getParent().getParent().getParent(),
-        JOB_OUTPUT_DIR);
+    Path outputDir = new Path(existing.getParent(), JOB_OUTPUT_DIR);
     Path attemptOutputDir = new Path(outputDir,
         conf.get(JobContext.TASK_ATTEMPT_ID));
     return new Path(attemptOutputDir, MAP_OUTPUT_FILENAME_STRING +
@@ -147,8 +140,8 @@ public class YarnOutputFiles extends MapOutputFile {
    */
   public Path getSpillFile(int spillNumber) throws IOException {
     return lDirAlloc.getLocalPathToRead(
-        String.format(TMP_DIR, conf.get(JobContext.TASK_ATTEMPT_ID)) +
-          "/spill" + spillNumber + ".out", conf);
+        String.format(SPILL_FILE_PATTERN,
+            conf.get(JobContext.TASK_ATTEMPT_ID), spillNumber), conf);
   }
 
   /**
@@ -162,8 +155,8 @@ public class YarnOutputFiles extends MapOutputFile {
   public Path getSpillFileForWrite(int spillNumber, long size)
       throws IOException {
     return lDirAlloc.getLocalPathForWrite(
-        String.format(TMP_DIR, conf.get(JobContext.TASK_ATTEMPT_ID)) +
-          "/spill" + spillNumber + ".out", size, conf);
+        String.format(String.format(SPILL_FILE_PATTERN,
+            conf.get(JobContext.TASK_ATTEMPT_ID), spillNumber)), size, conf);
   }
 
   /**
@@ -175,8 +168,8 @@ public class YarnOutputFiles extends MapOutputFile {
    */
   public Path getSpillIndexFile(int spillNumber) throws IOException {
     return lDirAlloc.getLocalPathToRead(
-        String.format(TMP_DIR, conf.get(JobContext.TASK_ATTEMPT_ID)) +
-          "/spill" + spillNumber + ".out.index", conf);
+        String.format(SPILL_INDEX_FILE_PATTERN,
+            conf.get(JobContext.TASK_ATTEMPT_ID), spillNumber), conf);
   }
 
   /**
@@ -190,8 +183,8 @@ public class YarnOutputFiles extends MapOutputFile {
   public Path getSpillIndexFileForWrite(int spillNumber, long size)
       throws IOException {
     return lDirAlloc.getLocalPathForWrite(
-        String.format(TMP_DIR, conf.get(JobContext.TASK_ATTEMPT_ID)) +
-          "/spill" + spillNumber + ".out.index", size, conf);
+        String.format(SPILL_INDEX_FILE_PATTERN,
+            conf.get(JobContext.TASK_ATTEMPT_ID), spillNumber), size, conf);
   }
 
   /**

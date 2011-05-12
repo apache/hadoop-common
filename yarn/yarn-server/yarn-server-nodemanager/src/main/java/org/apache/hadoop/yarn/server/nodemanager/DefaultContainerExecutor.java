@@ -21,6 +21,7 @@ package org.apache.hadoop.yarn.server.nodemanager;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.logging.Log;
@@ -124,6 +125,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
           ContainerExecutor.TASK_LAUNCH_SCRIPT_PERMISSION);
       String[] command = 
           new String[] { "bash", "-c", launchDst.toUri().getPath().toString() };
+      LOG.info("launchContainer: " + Arrays.toString(command));
       shExec = new ShellCommandExecutor(command,
           new File(containerWorkDir.toUri().getPath()));
       launchCommandObjs.put(container.getLaunchContext().getContainerId(), shExec);

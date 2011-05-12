@@ -1,3 +1,21 @@
+/**
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 package org.apache.hadoop.yarn.api.records;
 
 import java.nio.ByteBuffer;
@@ -5,49 +23,49 @@ import java.util.List;
 import java.util.Map;
 
 public interface ContainerLaunchContext {
-  public abstract ContainerId getContainerId();
-  public abstract String getUser();
-  public abstract Resource getResource();
+  ContainerId getContainerId();
+  String getUser();
+  Resource getResource();
   
-  public abstract Map<String, LocalResource> getAllLocalResources();
-  public abstract LocalResource getLocalResource(String key);
+  Map<String, LocalResource> getAllLocalResources();
+  LocalResource getLocalResource(String key);
   
   
-  public abstract ByteBuffer getContainerTokens();
+  ByteBuffer getContainerTokens();
   
-  public abstract Map<String, ByteBuffer> getAllServiceData();
-  public abstract ByteBuffer getServiceData(String key);
+  Map<String, ByteBuffer> getAllServiceData();
+  ByteBuffer getServiceData(String key);
   
-  public abstract Map<String, String> getAllEnv();
-  public abstract String getEnv(String key);
+  Map<String, String> getAllEnv();
+  String getEnv(String key);
   
-  public abstract List<String> getCommandList();
-  public abstract String getCommand(int index); // TODO: Remove
-  public abstract int getCommandCount(); // TODO: Remove
+  List<String> getCommandList();
+  String getCommand(int index);
+  int getCommandCount();
   
-  public abstract void setContainerId(ContainerId containerId);
-  public abstract void setUser(String user);
-  public abstract void setResource(Resource resource);
+  void setContainerId(ContainerId containerId);
+  void setUser(String user);
+  void setResource(Resource resource);
   
-  public abstract void addAllLocalResources(Map<String, LocalResource> localResources);
-  public abstract void setLocalResource(String key, LocalResource value);
-  public abstract void removeLocalResource(String key);
-  public abstract void clearLocalResources();
+  void addAllLocalResources(Map<String, LocalResource> localResources);
+  void setLocalResource(String key, LocalResource value);
+  void removeLocalResource(String key);
+  void clearLocalResources();
   
-  public abstract void setContainerTokens(ByteBuffer containerToken);
+  void setContainerTokens(ByteBuffer containerToken);
   
-  public abstract void addAllServiceData(Map<String, ByteBuffer> serviceData);
-  public abstract void setServiceData(String key, ByteBuffer value);
-  public abstract void removeServiceData(String key);
-  public abstract void clearServiceData();
+  void addAllServiceData(Map<String, ByteBuffer> serviceData);
+  void setServiceData(String key, ByteBuffer value);
+  void removeServiceData(String key);
+  void clearServiceData();
   
-  public abstract void addAllEnv(Map<String, String> env);
-  public abstract void setEnv(String key, String value);
-  public abstract void removeEnv(String key);
-  public abstract void clearEnv();
+  void addAllEnv(Map<String, String> env);
+  void setEnv(String key, String value);
+  void removeEnv(String key);
+  void clearEnv();
   
-  public abstract void addAllCommands(List<String> commands);
-  public abstract void addCommand(String command);
-  public abstract void removeCommand(int index); // TODO: Remove
-  public abstract void clearCommands();
+  void addAllCommands(List<String> commands);
+  void addCommand(String command);
+  void removeCommand(int index);
+  void clearCommands();
 }

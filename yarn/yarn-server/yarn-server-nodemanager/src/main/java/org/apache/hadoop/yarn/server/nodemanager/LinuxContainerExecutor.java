@@ -147,13 +147,13 @@ public class LinuxContainerExecutor extends ContainerExecutor {
   public int launchContainer(Container container,
       Path nmPrivateCotainerScriptPath, Path nmPrivateTokensPath,
       String user, String appId, Path containerWorkDir) throws IOException {
-
+    String containerIdStr = ConverterUtils.toString(container.getContainerID());
     List<String> command = new ArrayList<String>(
       Arrays.asList(containerExecutorExe, 
                     user, 
                     Integer.toString(Commands.LAUNCH_CONTAINER.getValue()),
                     appId,
-                    container.toString(),
+                    containerIdStr,
                     containerWorkDir.toString(),
                     nmPrivateCotainerScriptPath.toUri().getPath().toString(),
                     nmPrivateTokensPath.toUri().getPath().toString()));

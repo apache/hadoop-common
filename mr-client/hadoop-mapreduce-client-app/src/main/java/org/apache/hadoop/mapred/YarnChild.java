@@ -57,7 +57,7 @@ import org.apache.log4j.LogManager;
  */
 class YarnChild {
 
-  public static final Log LOG = LogFactory.getLog(YarnChild.class);
+  private static final Log LOG = LogFactory.getLog(YarnChild.class);
 
   static volatile TaskAttemptID taskid = null;
 
@@ -194,7 +194,7 @@ class YarnChild {
     }
   }
 
-  static Token<JobTokenIdentifier> loadCredentials(JobConf conf,
+  private static Token<JobTokenIdentifier> loadCredentials(JobConf conf,
       InetSocketAddress address) throws IOException {
     //load token cache storage
     String jobTokenFile =
@@ -216,14 +216,18 @@ class YarnChild {
     return jt;
   }
 
-  static void configureLocalDirs(Task task, JobConf job) {
+  /**
+   * Configure mapred-local dirs. This config is used by the task for finding
+   * out an output directory.
+   */
+  private static void configureLocalDirs(Task task, JobConf job) {
     String[] localSysDirs = StringUtils.getTrimmedStrings(
         System.getenv(YARNApplicationConstants.LOCAL_DIR_ENV));
     job.setStrings(MRConfig.LOCAL_DIR, localSysDirs);
     LOG.info(MRConfig.LOCAL_DIR + " for child: " + job.get(MRConfig.LOCAL_DIR));
   }
 
-  static JobConf configureTask(Task task, Credentials credentials,
+  private static JobConf configureTask(Task task, Credentials credentials,
       Token<JobTokenIdentifier> jt) throws IOException {
     final JobConf job = new JobConf(YARNApplicationConstants.JOB_CONF_FILE);
     job.setCredentials(credentials);
@@ -241,10 +245,9 @@ class YarnChild {
     // setup the child's attempt directories
     // Do the task-type specific localization
     task.localizeConfiguration(job);
-    //write the localized task jobconf
-    LocalDirAllocator lDirAlloc = new LocalDirAllocator(MRConfig.LOCAL_DIR);
-    Path localTaskFile =
-      lDirAlloc.getLocalPathForWrite(Constants.JOBFILE, job);
+    // Overwrite the localized task jobconf which is linked to in the current
+    // work-dir.
+    Path localTaskFile = new Path(Constants.JOBFILE);
     writeLocalJobFile(localTaskFile, job);
     task.setJobFile(localTaskFile.toString());
     task.setConf(job);
@@ -258,7 +261,7 @@ class YarnChild {
    * Write the task specific job-configuration file.
    * @throws IOException
    */
-  public static void writeLocalJobFile(Path jobFile, JobConf conf)
+  private static void writeLocalJobFile(Path jobFile, JobConf conf)
       throws IOException {
     FileSystem localFs = FileSystem.getLocal(conf);
     localFs.delete(jobFile);
