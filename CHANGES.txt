@@ -191,6 +191,9 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-2337. Remove dependence of public MapReduce API on classes in
     server package. (tomwhite)
 
+    MAPREDUCE-869. Documentation for config to set map/reduce task environment
+    (Alejandro Abdelnur via todd)
+
   OPTIMIZATIONS
     
     MAPREDUCE-1354. Enhancements to JobTracker for better performance and
