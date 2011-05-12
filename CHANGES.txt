@@ -197,6 +197,9 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-2410. Add entry to streaming FAQ about how streaming reducers
     receive keys. (Harsh J Chouraria via todd)
 
+    MAPREDUCE-2383. Improve documentation of DistributedCache methods (Harsh J
+    Chouraria via todd)
+
   OPTIMIZATIONS
     
     MAPREDUCE-1354. Enhancements to JobTracker for better performance and
