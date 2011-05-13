@@ -39,7 +39,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.FileOutputCommitter;
 import org.apache.hadoop.mapred.JobACLsManager;
+import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.JobACL;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.MRJobConfig;
@@ -57,8 +59,8 @@ import org.apache.hadoop.mapreduce.lib.chain.ChainReducer;
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
-import org.apache.hadoop.mapreduce.split.SplitMetaInfoReader;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
+import org.apache.hadoop.mapreduce.split.SplitMetaInfoReader;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.hadoop.mapreduce.v2.api.records.Counter;
@@ -693,23 +695,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       job.startTime = job.clock.getTime();
       try {
         setup(job);
-        job.jobContext = new JobContextImpl(job.conf,
-            job.oldJobId);
         job.fs = FileSystem.get(job.conf);
-
-        org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId 
-            attemptID = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId.class);
-        attemptID.setTaskId(RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class));
-        attemptID.getTaskId().setJobId(job.jobId);
-        attemptID.getTaskId().setTaskType(TaskType.MAP);//TODO:fix task type ??
-        
-        TaskAttemptContext taskContext =
-            new TaskAttemptContextImpl(job.conf,
-                TypeConverter.fromYarn(attemptID));
-        OutputFormat outputFormat = ReflectionUtils.newInstance(taskContext
-            .getOutputFormatClass(), job.conf);
-        // TODO: support for old/new committer..
-        job.committer = outputFormat.getOutputCommitter(taskContext);
 
         //log to job history
         //TODO_JH_Validate the values being sent here (along with defaults). Ideally for all JH evnts.
@@ -727,6 +713,43 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
         checkTaskLimits();
 
+        
+        boolean newApiCommitter = false;
+        if ((job.numReduceTasks > 0 && 
+            job.conf.getBoolean("mapred.reducer.new-api", false)) ||
+              (job.numReduceTasks == 0 && 
+               job.conf.getBoolean("mapred.mapper.new-api", false)))  {
+          newApiCommitter = true;
+          LOG.info("Using mapred newApiCommitter.");
+        }
+        
+        LOG.info("OutputCommitter set in config " + job.conf.get("mapred.output.committer.class"));
+        
+        if (newApiCommitter) {
+          job.jobContext = new JobContextImpl(job.conf,
+              job.oldJobId);
+          org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID = RecordFactoryProvider
+              .getRecordFactory(null)
+              .newRecordInstance(
+                  org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId.class);
+          attemptID.setTaskId(RecordFactoryProvider.getRecordFactory(null)
+              .newRecordInstance(TaskId.class));
+          attemptID.getTaskId().setJobId(job.jobId);
+          attemptID.getTaskId().setTaskType(TaskType.MAP);
+          TaskAttemptContext taskContext = new TaskAttemptContextImpl(job.conf,
+              TypeConverter.fromYarn(attemptID));
+          OutputFormat outputFormat = ReflectionUtils.newInstance(
+              taskContext.getOutputFormatClass(), job.conf);
+          job.committer = outputFormat.getOutputCommitter(taskContext);
+        } else {
+          job.jobContext = new org.apache.hadoop.mapred.JobContextImpl(
+              new JobConf(job.conf), job.oldJobId);
+          job.committer = ReflectionUtils.newInstance(
+              job.conf.getClass("mapred.output.committer.class", FileOutputCommitter.class,
+              org.apache.hadoop.mapred.OutputCommitter.class), job.conf);
+        }
+        LOG.info("OutputCommitter is " + job.committer.getClass().getName());
+        
         long inputLength = 0;
         for (int i = 0; i < job.numMapTasks; ++i) {
           inputLength += taskSplitMetaInfo[i].getInputDataLength();
