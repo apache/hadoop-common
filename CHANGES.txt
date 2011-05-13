@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixed reservation's bad interaction with delay scheduling in CS.
+    (acmurthy)
+
     Fixed CS user limits. (acmurthy)
 
     Adding valid state to ASM on a finish when its already completed and 

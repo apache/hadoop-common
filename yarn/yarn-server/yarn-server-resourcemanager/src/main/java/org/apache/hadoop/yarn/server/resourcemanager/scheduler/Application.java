@@ -405,9 +405,7 @@ public class Application {
   
   private static final int OVERRIDE = 1000000;
   synchronized public void overrideSchedulingOpportunities(Priority priority) {
-    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
-    schedulingOpportunities = OVERRIDE;
-    this.schedulingOpportunities.put(priority, schedulingOpportunities);
+    this.schedulingOpportunities.put(priority, OVERRIDE);
   }
   
   synchronized public void showRequests() {

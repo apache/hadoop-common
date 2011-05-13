@@ -577,6 +577,9 @@ public class LeafQueue implements Queue {
         // Do we reserve containers at this 'priority'?
         if (application.isReserved(node, priority)) {
           
+          // Do not care about locality
+          application.overrideSchedulingOpportunities(priority);
+          
           // Do we really need this reservation still?
           ResourceRequest offSwitchRequest = 
             application.getResourceRequest(priority, NodeManager.ANY);
