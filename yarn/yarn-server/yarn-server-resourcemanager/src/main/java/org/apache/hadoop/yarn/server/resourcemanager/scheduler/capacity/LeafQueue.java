@@ -529,7 +529,7 @@ public class LeafQueue implements Queue {
 
             // User limits
             if (!assignToUser(application.getUser(), clusterResource, required.getCapability())) {
-              return Resources.none();
+              continue; 
             }
 
           }
