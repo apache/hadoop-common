@@ -538,7 +538,8 @@ public class LeafQueue implements Queue {
           
           // Try to schedule
           Resource assigned = 
-            assignContainersOnNode(clusterResource, node, application, priority);
+            assignContainersOnNode(clusterResource, node, application, priority, 
+                false);
   
           // Did we schedule or reserve a container?
           if (Resources.greaterThan(assigned, Resources.none())) {
@@ -577,9 +578,6 @@ public class LeafQueue implements Queue {
         // Do we reserve containers at this 'priority'?
         if (application.isReserved(node, priority)) {
           
-          // Do not care about locality
-          application.overrideSchedulingOpportunities(priority);
-          
           // Do we really need this reservation still?
           ResourceRequest offSwitchRequest = 
             application.getResourceRequest(priority, NodeManager.ANY);
@@ -590,7 +588,8 @@ public class LeafQueue implements Queue {
           }
 
           // Try to assign if we have sufficient resources
-          assignContainersOnNode(clusterResource, node, application, priority);
+          assignContainersOnNode(clusterResource, node, application, priority, 
+              true);
         }
       }
     }
@@ -691,7 +690,7 @@ public class LeafQueue implements Queue {
   }
 
   Resource assignContainersOnNode(Resource clusterResource, NodeInfo node, 
-      Application application, Priority priority) {
+      Application application, Priority priority, boolean reserved) {
 
     Resource assigned = Resources.none();
 
@@ -708,7 +707,8 @@ public class LeafQueue implements Queue {
     }
     
     // Off-switch
-    return assignOffSwitchContainers(clusterResource, node, application, priority);
+    return assignOffSwitchContainers(clusterResource, node, application, 
+        priority, reserved);
   }
 
   Resource assignNodeLocalContainers(Resource clusterResource, NodeInfo node, 
@@ -716,7 +716,7 @@ public class LeafQueue implements Queue {
     ResourceRequest request = 
       application.getResourceRequest(priority, node.getNodeAddress());
     if (request != null) {
-      if (canAssign(application, priority, node, NodeType.DATA_LOCAL)) {
+      if (canAssign(application, priority, node, NodeType.DATA_LOCAL, false)) {
         return assignContainer(clusterResource, node, application, priority, request, 
             NodeType.DATA_LOCAL);
       }
@@ -730,7 +730,7 @@ public class LeafQueue implements Queue {
     ResourceRequest request = 
       application.getResourceRequest(priority, node.getRackName());
     if (request != null) {
-      if (canAssign(application, priority, node, NodeType.RACK_LOCAL)) {
+      if (canAssign(application, priority, node, NodeType.RACK_LOCAL, false)) {
         return assignContainer(clusterResource, node, application, priority, request, 
             NodeType.RACK_LOCAL);
       }
@@ -739,11 +739,11 @@ public class LeafQueue implements Queue {
   }
 
   Resource assignOffSwitchContainers(Resource clusterResource, NodeInfo node, 
-      Application application, Priority priority) {
+      Application application, Priority priority, boolean reserved) {
     ResourceRequest request = 
       application.getResourceRequest(priority, NodeManager.ANY);
     if (request != null) {
-      if (canAssign(application, priority, node, NodeType.OFF_SWITCH)) {
+      if (canAssign(application, priority, node, NodeType.OFF_SWITCH, reserved)) {
         return assignContainer(clusterResource, node, application, priority, request, 
             NodeType.OFF_SWITCH);
       }
@@ -753,7 +753,7 @@ public class LeafQueue implements Queue {
   }
 
   boolean canAssign(Application application, Priority priority, 
-      NodeInfo node, NodeType type) {
+      NodeInfo node, NodeType type, boolean reserved) {
 
     ResourceRequest offSwitchRequest = 
       application.getResourceRequest(priority, NodeManager.ANY);
@@ -772,6 +772,12 @@ public class LeafQueue implements Queue {
             scheduler.getNumClusterNodes());
       
       if (requiredContainers > 0) {
+        // No 'delay' for reserved containers
+        if (reserved) {
+          return true;
+        }
+        
+        // Check if we have waited long enough
         if (missedNodes < (requiredContainers * localityWaitFactor)) {
           LOG.info("Application " + application.getApplicationId() + 
               " has missed " + missedNodes + " opportunities," +

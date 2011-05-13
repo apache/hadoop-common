@@ -403,11 +403,6 @@ public class Application {
     return schedulingOpportunities;
   }
   
-  private static final int OVERRIDE = 1000000;
-  synchronized public void overrideSchedulingOpportunities(Priority priority) {
-    this.schedulingOpportunities.put(priority, OVERRIDE);
-  }
-  
   synchronized public void showRequests() {
     for (Priority priority : getPriorities()) {
       Map<String, ResourceRequest> requests = getResourceRequests(priority);
