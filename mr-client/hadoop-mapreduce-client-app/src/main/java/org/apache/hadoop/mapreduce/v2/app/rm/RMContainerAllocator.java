@@ -129,20 +129,24 @@ public class RMContainerAllocator extends RMCommunicator
     }
     eventList.add(event);
 
-    // Create resource requests
-    for (String host : event.getHosts()) {
-      // Data-local
-      addResourceRequest(event.getPriority(), host, event.getCapability());
+    if (event.getEarlierAttemptFailed()) {
+      addResourceRequest(event.getPriority(), ANY, event.getCapability());  
+    } else {
+
+      // Create resource requests
+      for (String host : event.getHosts()) {
+        // Data-local
+        addResourceRequest(event.getPriority(), host, event.getCapability());
+      }
+
+      // Nothing Rack-local for now
+      for (String rack : event.getRacks()) {
+        addResourceRequest(event.getPriority(), rack, event.getCapability());
+      }
+
+      // Off-switch
+      addResourceRequest(event.getPriority(), ANY, event.getCapability());
     }
-
-    // Nothing Rack-local for now
-    for (String rack : event.getRacks()) {
-      addResourceRequest(event.getPriority(), rack, event.getCapability());
-    }
-
-    // Off-switch
-    addResourceRequest(event.getPriority(), ANY, event.getCapability());
-
   }
 
   private void addResourceRequest(Priority priority, String resourceName,
@@ -296,6 +300,13 @@ public class RMContainerAllocator extends RMCommunicator
       Iterator<ContainerRequestEvent> it = requestList.iterator();
       while (it.hasNext()) {
         ContainerRequestEvent event = it.next();
+        if (event.getEarlierAttemptFailed()) {
+          // we want to fail fast. Ignore locality for rescheduling
+          // failed attempts.
+          assigned = event;
+          it.remove();
+          break;
+        }
         if (Arrays.asList(event.getHosts()).contains(host)) { // TODO: Fix
           assigned = event;
           it.remove();

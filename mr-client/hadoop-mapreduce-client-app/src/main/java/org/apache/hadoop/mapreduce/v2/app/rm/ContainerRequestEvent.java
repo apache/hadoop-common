@@ -30,6 +30,7 @@ public class ContainerRequestEvent extends ContainerAllocatorEvent {
   private Resource capability;
   private String[] hosts;
   private String[] racks;
+  private boolean earlierAttemptFailed = false;
 
   public ContainerRequestEvent(TaskAttemptId attemptID, 
       Resource capability, int priority,
@@ -40,6 +41,18 @@ public class ContainerRequestEvent extends ContainerAllocatorEvent {
     this.priority.setPriority(priority);
     this.hosts = hosts;
     this.racks = racks;
+  }
+  
+  ContainerRequestEvent(TaskAttemptId attemptID, Resource capability, 
+      int priority) {
+    this(attemptID, capability, priority, null, null);
+    this.earlierAttemptFailed = true;
+  }
+  
+  public static ContainerRequestEvent createContainerRequestEventForFailedContainer(
+      TaskAttemptId attemptID, 
+      Resource capability, int priority) {
+    return new ContainerRequestEvent(attemptID,capability,priority);
   }
 
   public Resource getCapability() {
@@ -56,5 +69,9 @@ public class ContainerRequestEvent extends ContainerAllocatorEvent {
   
   public String[] getRacks() {
     return racks;
+  }
+  
+  public boolean getEarlierAttemptFailed() {
+    return earlierAttemptFailed;
   }
 }

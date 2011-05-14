@@ -158,7 +158,9 @@ public abstract class TaskAttemptImpl implements
 
      // Transitions from the NEW state.
      .addTransition(TaskAttemptState.NEW, TaskAttemptState.UNASSIGNED,
-         TaskAttemptEventType.TA_SCHEDULE, new RequestContainerTransition())
+         TaskAttemptEventType.TA_SCHEDULE, new RequestContainerTransition(false))
+     .addTransition(TaskAttemptState.NEW, TaskAttemptState.UNASSIGNED,
+         TaskAttemptEventType.TA_RESCHEDULE, new RequestContainerTransition(true))
      .addTransition(TaskAttemptState.NEW, TaskAttemptState.KILLED,
          TaskAttemptEventType.TA_KILL, new KilledTransition())
      .addTransition(TaskAttemptState.NEW, TaskAttemptState.FAILED,
@@ -833,6 +835,10 @@ public abstract class TaskAttemptImpl implements
   private static String[] racks = new String[] {NetworkTopology.DEFAULT_RACK};
   private static class RequestContainerTransition implements
       SingleArcTransition<TaskAttemptImpl, TaskAttemptEvent> {
+    boolean rescheduled = false;
+    public RequestContainerTransition(boolean rescheduled) {
+      this.rescheduled = rescheduled;
+    }
     @Override
     public void transition(TaskAttemptImpl taskAttempt, 
         TaskAttemptEvent event) {
@@ -840,10 +846,18 @@ public abstract class TaskAttemptImpl implements
       taskAttempt.eventHandler.handle
           (new SpeculatorEvent(taskAttempt.getID().getTaskId(), +1));
       //request for container
-      taskAttempt.eventHandler.handle(
-          new ContainerRequestEvent(taskAttempt.attemptId, 
-              taskAttempt.resourceCapability, 
-              taskAttempt.getPriority(), taskAttempt.dataLocalHosts, racks));
+      if (rescheduled) {
+        taskAttempt.eventHandler.handle(
+            ContainerRequestEvent.createContainerRequestEventForFailedContainer(
+                taskAttempt.attemptId, 
+                taskAttempt.resourceCapability, 
+                taskAttempt.getPriority()));
+      } else {
+        taskAttempt.eventHandler.handle(
+            new ContainerRequestEvent(taskAttempt.attemptId, 
+                taskAttempt.resourceCapability, 
+                taskAttempt.getPriority(), taskAttempt.dataLocalHosts, racks));
+      }
     }
   }
 
