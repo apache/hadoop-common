@@ -48,4 +48,9 @@ public class YARNApplicationConstants {
   // TODO: Move into MR.
   public static final String MR_APPMASTER_COMMAND_OPTS =
       "yarn.appMaster.commandOpts";
+  
+  public static final String AM_RM_SCHEDULE_INTERVAL = 
+    "yarn.appMaster.scheduler.interval";
+  
+  public static final int DEFAULT_AM_RM_SCHEDULE_INTERVAL = 2000;
 }

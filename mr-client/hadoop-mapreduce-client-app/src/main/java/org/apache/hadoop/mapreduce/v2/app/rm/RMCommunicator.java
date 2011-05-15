@@ -46,6 +46,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -84,7 +85,9 @@ public class RMCommunicator extends AbstractService  {
   @Override
   public void init(Configuration conf) {
     super.init(conf);
-    rmPollInterval = conf.getInt(YarnConfiguration.AM_EXPIRY_INTERVAL, 10000)/3;
+    rmPollInterval = 
+      conf.getInt(YARNApplicationConstants.AM_RM_SCHEDULE_INTERVAL, 
+          YARNApplicationConstants.DEFAULT_AM_RM_SCHEDULE_INTERVAL);
   }
 
   @Override
