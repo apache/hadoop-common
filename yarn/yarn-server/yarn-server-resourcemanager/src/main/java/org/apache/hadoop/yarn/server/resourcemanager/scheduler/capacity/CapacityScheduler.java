@@ -261,7 +261,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public void removeApplication(ApplicationId applicationId, boolean finishApplication)
+  public void doneApplication(ApplicationId applicationId, boolean finishApplication)
   throws IOException {
     Application application = getApplication(applicationId);
 
@@ -271,16 +271,18 @@ implements ResourceScheduler, CapacitySchedulerContext {
       LOG.info("Unknown application " + applicationId + " has completed!");
       return;
     }
-
-    // Inform the queue
-    Queue queue = queues.get(application.getQueue().getQueueName());
-    LOG.info("DEBUG --- removeApplication - appId: " + applicationId + " queue: " + queue);
-    queue.finishApplication(application, queue.getQueueName());
-
-    // Release containers and update queue capacities
+    /*
+     * release all the containes and make sure we clean up the pending 
+     * requests for this application
+     */
     processReleasedContainers(application, application.getCurrentContainers());
+    application.clearRequests();
+    /** The application can be retried. So only remove it from scheduler data
+     * structures if the finishapplication flag is set.
+     */
     if (finishApplication) {
-      // Inform all NodeManagers about completion of application
+      Queue queue = queues.get(application.getQueue().getQueueName());
+      queue.finishApplication(application, queue.getQueueName());
       finishedApplication(applicationId, 
           application.getAllNodesForApplication());
       // Remove from our data-structure
@@ -472,7 +474,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
       break;
     case REMOVE:
       try {
-        removeApplication(event.getAppContext().getApplicationID(), true);
+        doneApplication(event.getAppContext().getApplicationID(), true);
       } catch(IOException ie) {
         LOG.error("Error in removing application", ie);
         //TODO have to be shutdown the RM in case of this.
@@ -484,7 +486,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
         /** do not remove the application. Just do everything else exception 
          * removing the application
          */
-        removeApplication(event.getAppContext().getApplicationID(), false);
+        doneApplication(event.getAppContext().getApplicationID(), false);
       } catch(IOException ie) {
         LOG.error("Error in removing application", ie);
         //TODO have to be shutdown the RM in case of this.

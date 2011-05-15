@@ -135,6 +135,13 @@ public class Application {
   }
 
   /**
+   * Clear any pending requests from this application.
+   */
+  public synchronized void clearRequests() {
+    requests.clear();
+  }
+  
+  /**
    * the currently acquired/allocated containers  by the application masters.
    * @return the current containers being used by the application masters.
    */

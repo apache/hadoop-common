@@ -240,7 +240,7 @@ public class FifoScheduler implements ResourceScheduler {
   }
 
   @Override
-  public synchronized void removeApplication(ApplicationId applicationId, boolean finishApplication)
+  public synchronized void doneApplication(ApplicationId applicationId, boolean finishApplication)
   throws IOException {
     Application application = getApplication(applicationId);
     if (application == null) {
@@ -250,11 +250,11 @@ public class FifoScheduler implements ResourceScheduler {
 
     // Release current containers
     releaseContainers(application, application.getCurrentContainers());
-
+    application.clearRequests();
     // Update metrics
-    metrics.finishApp(application);
-    application.finish();
     if (finishApplication) {
+      metrics.finishApp(application);
+      application.finish();
       // Let the cluster know that the applications are done
       finishedApplication(applicationId, 
           application.getAllNodesForApplication());
@@ -525,14 +525,14 @@ public class FifoScheduler implements ResourceScheduler {
       break;
     case REMOVE:
       try {
-        removeApplication(event.getAppContext().getApplicationID(), true);
+        doneApplication(event.getAppContext().getApplicationID(), true);
       } catch(IOException ie) {
         LOG.error("Unable to remove application " + event.getAppContext().getApplicationID(), ie);
       }
       break;  
     case EXPIRE:
       try {
-        removeApplication(event.getAppContext().getApplicationID(), false);
+        doneApplication(event.getAppContext().getApplicationID(), false);
       } catch(IOException ie) {
         LOG.error("Unable to remove application " + event.getAppContext().getApplicationID(), ie);
       }
@@ -585,7 +585,8 @@ public class FifoScheduler implements ResourceScheduler {
   public synchronized void releaseContainer(ApplicationId applicationId, 
       Container container) {
     // Reap containers
-    LOG.info("Application " + applicationId + " released container " + container);
+    LOG.info("Application " + applicationId + " released container " +
+        container.getId());
     clusterTracker.releaseContainer(container);
   }
 

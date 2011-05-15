@@ -322,7 +322,7 @@ public class YARNRunner implements ClientProtocol {
     Vector<CharSequence> vargs = new Vector<CharSequence>(8);
     vargs.add(javaHome + "/bin/java");
     vargs.add(conf.get(YARNApplicationConstants.MR_APPMASTER_COMMAND_OPTS,
-        "-Dhadoop.root.logger=DEBUG,console -Xmx1024m"));
+        "-Dhadoop.root.logger=INFO,console -Xmx1024m"));
 
     // Add { job jar, MR app jar } to classpath.
     Map<String, String> environment = new HashMap<String, String>();

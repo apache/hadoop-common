@@ -71,11 +71,7 @@ public class NodeManagerImpl implements NodeManager {
   
   public static final String ANY = "*";  
   /* set of containers that are allocated containers */
-  private final Map<ContainerId, Container> allocatedContainers = 
-    new TreeMap<ContainerId, Container>();
-    
-  /* set of containers that are currently active on a node manager */
-  private final Map<ContainerId, Container> activeContainers =
+  private final Map<ContainerId, Container> runningContainers = 
     new TreeMap<ContainerId, Container>();
   
   /* set of containers that need to be cleaned */
@@ -165,14 +161,9 @@ public class NodeManagerImpl implements NodeManager {
     List<ApplicationId> lastfinishedApplications = new ArrayList<ApplicationId>();
     
     for (Container container : containers) {
-      if (allocatedContainers.remove(container.getId()) != null) {
-        activeContainers.put(container.getId(), container);
-        LOG.info("Activated container " + container.getId() + " on node " + 
-         getNodeAddress());
-      }
-
+    
       if (container.getState() == ContainerState.COMPLETE) {
-        if (activeContainers.remove(container.getId()) != null) {
+        if (runningContainers.remove(container.getId()) != null) {
           updateResource(container);
           LOG.info("Completed container " + container);
         }
@@ -181,8 +172,7 @@ public class NodeManagerImpl implements NodeManager {
             getNodeAddress());
       }
       else if (container.getState() != ContainerState.COMPLETE && 
-          (!allocatedContainers.containsKey(container.getId())) && 
-          !activeContainers.containsKey(container.getId())) {
+          (!runningContainers.containsKey(container.getId()))) {
         containersToCleanUp.add(container);
       }
     }
@@ -199,7 +189,7 @@ public class NodeManagerImpl implements NodeManager {
     deductAvailableResource(container.getResource());
     ++numContainers;
     
-    allocatedContainers.put(container.getId(), container);
+    runningContainers.put(container.getId(), container);
     LOG.info("Allocated container " + container.getId() + 
         " to node " + getNodeAddress());
     
@@ -211,7 +201,7 @@ public class NodeManagerImpl implements NodeManager {
   }
 
   private synchronized boolean isValidContainer(Container c) {    
-    if (activeContainers.containsKey(c.getId()) || allocatedContainers.containsKey(c.getId()))
+    if (runningContainers.containsKey(c.getId()))
       return true;
     return false;
   }
@@ -236,8 +226,7 @@ public class NodeManagerImpl implements NodeManager {
     /* remove the containers from the nodemanger */
     
     // Was this container launched?
-    activeContainers.remove(container.getId());
-    allocatedContainers.remove(container.getId());
+    runningContainers.remove(container.getId());
     containersToClean.add(container);
     updateResource(container);
 

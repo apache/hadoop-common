@@ -175,7 +175,7 @@ public class TestAMRestart extends TestCase {
     }
 
     @Override
-    public void removeApplication(ApplicationId applicationId, boolean finishApplication)
+    public void doneApplication(ApplicationId applicationId, boolean finishApplication)
         throws IOException {
     }
     @Override

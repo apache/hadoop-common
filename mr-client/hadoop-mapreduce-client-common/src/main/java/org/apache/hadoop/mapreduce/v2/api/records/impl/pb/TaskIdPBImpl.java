@@ -1,6 +1,8 @@
 package org.apache.hadoop.mapreduce.v2.api.records.impl.pb;
 
 
+import java.text.NumberFormat;
+
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
@@ -17,6 +19,18 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
   TaskIdProto proto = TaskIdProto.getDefaultInstance();
   TaskIdProto.Builder builder = null;
   boolean viaProto = false;
+  protected static final NumberFormat idFormat = NumberFormat.getInstance();
+  static {
+    idFormat.setGroupingUsed(false);
+    idFormat.setMinimumIntegerDigits(6);
+  }
+  
+  protected static final NumberFormat jobidFormat = NumberFormat.getInstance();
+  static {
+    jobidFormat.setGroupingUsed(false);
+    jobidFormat.setMinimumIntegerDigits(4);
+  }
+  
   
   private JobId jobId = null;
   
@@ -125,4 +139,13 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
     return MRProtoUtils.convertFromProtoFormat(e);
   }
 
+  
+  @Override
+  public String toString() {
+    String jobIdentifier =  (jobId == null) ? "none":
+      jobId.getAppId().getClusterTimestamp() + "_" + 
+      jobidFormat.format(jobId.getAppId().getId()) + "_" + 
+      ((getTaskType() == TaskType.MAP) ? "m":"r") + "_" + idFormat.format(getId());
+    return "task_" + jobIdentifier;
+  }
 }  

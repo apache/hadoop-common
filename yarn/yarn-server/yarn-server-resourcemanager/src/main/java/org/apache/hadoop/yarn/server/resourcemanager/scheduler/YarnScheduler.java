@@ -68,7 +68,7 @@ public interface YarnScheduler {
    * @param finishApplication true if the application is completed and the
    * scheduler needs to notify other components of application completion.
    */
-  public void removeApplication(ApplicationId applicationId, boolean finishApplication)
+  public void doneApplication(ApplicationId applicationId, boolean finishApplication)
   throws IOException;
 
 

@@ -1,6 +1,8 @@
 package org.apache.hadoop.yarn.api.records.impl.pb;
 
 
+import java.text.NumberFormat;
+
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ProtoBase;
@@ -16,6 +18,18 @@ public class ContainerIdPBImpl extends ProtoBase<ContainerIdProto> implements Co
   boolean viaProto = false;
   
   private ApplicationId applicationId = null;
+  protected static final NumberFormat idFormat = NumberFormat.getInstance();
+  static {
+    idFormat.setGroupingUsed(false);
+    idFormat.setMinimumIntegerDigits(4);
+  }
+  
+  protected static final NumberFormat counterFormat = NumberFormat.getInstance();
+  static {
+    counterFormat.setGroupingUsed(false);
+    counterFormat.setMinimumIntegerDigits(6);
+  }
+  
   
   public ContainerIdPBImpl() {
     builder = ContainerIdProto.newBuilder();
@@ -117,5 +131,11 @@ public class ContainerIdPBImpl extends ProtoBase<ContainerIdProto> implements Co
     }
     
   }
-
+  
+  @Override
+  public String toString() {
+    String id = (this.getAppId() != null) ? this.getAppId().getClusterTimestamp() + "_" +
+        idFormat.format(this.getAppId().getId()): "none";
+    return "containerid_" + id + "_" + counterFormat.format(getId());
+  }
 }  
