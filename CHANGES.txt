@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Launching bin/yarn and bin/mapred only *once* in AM for constructing
+    classpaths to avoid multiple forks and huge vmem usage by AM. (vinodkv)
+
     Fix calculation of maximum capacity in ParentQueue to use its parent's 
     absolute-capacity rather than its own absolute-capacity. (acmurthy)
 

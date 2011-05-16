@@ -29,6 +29,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -143,6 +144,8 @@ public abstract class TaskAttemptImpl implements
   private final Lock writeLock;
   private Collection<Token<? extends TokenIdentifier>> fsTokens;
   private Token<JobTokenIdentifier> jobToken;
+  private AtomicBoolean initialEnvFlag = new AtomicBoolean();
+  private Map<String, String> initialEnv = null;
 
   private long launchTime;
   private long finishTime;
@@ -451,6 +454,23 @@ public abstract class TaskAttemptImpl implements
   }
 
   /**
+   * Lock this on initialEnv so that there is only one fork in the AM for
+   * getting the initial class-path. TODO: This should go away once we construct
+   * a parent CLC and use it for all the containers.
+   */
+  private Map<String, String> getInitialEnv() throws IOException {
+    synchronized (initialEnvFlag) {
+      if (initialEnvFlag.get()) {
+        return initialEnv;
+      }
+      initialEnv = new HashMap<String, String>();
+      MRApps.setInitialClasspath(initialEnv);
+      initialEnvFlag.set(true);
+      return initialEnv;
+    }
+  }
+
+  /**
    * Create the {@link ContainerLaunchContext} for this attempt.
    */
   private ContainerLaunchContext createContainerLaunchContext() {
@@ -524,9 +544,7 @@ public abstract class TaskAttemptImpl implements
               ByteBuffer.wrap(jobToken_dob.getData(), 0,
                   jobToken_dob.getLength()));
 
-      Map<String, String> env = new HashMap<String, String>();
-      MRApps.setInitialClasspath(env);
-      container.addAllEnv(env);
+      container.addAllEnv(getInitialEnv());
     } catch (IOException e) {
       throw new YarnException(e);
     }
