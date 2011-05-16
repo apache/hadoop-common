@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix calculation of maximum capacity to use parent's absolute-capacity
+    rather than the leaf queue's absolute-capacity. (acmurthy)
+
     Speed up communication between MR AM and RM by relying on a new config
     rather than AM_EXPIRY_INTERVAL which is too large. (acmurthy)
 
