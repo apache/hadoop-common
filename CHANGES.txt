@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+
+    Makes uber-task disabled by default (ddas)
     
     Fix CapacityScheduler (LeafQueue) to not allocate DATA_LOCAL containers
     when they are not required on the rack. (acmurthy)
