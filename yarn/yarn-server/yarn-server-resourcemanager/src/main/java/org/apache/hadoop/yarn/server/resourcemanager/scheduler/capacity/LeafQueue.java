@@ -794,18 +794,26 @@ public class LeafQueue implements Queue {
 //        (requiredContainers * localityWaitFactor) < missedNodes));
     }
 
+    // Check if we need containers on this rack 
+    ResourceRequest rackLocalRequest = 
+      application.getResourceRequest(priority, node.getRackName());
     if (type == NodeType.RACK_LOCAL) {
-      ResourceRequest rackLocalRequest = 
-        application.getResourceRequest(priority, node.getRackName());
       if (rackLocalRequest == null) {
         // No point waiting for rack-locality if we don't need this rack
         return offSwitchRequest.getNumContainers() > 0;
       } else {
-        return rackLocalRequest.getNumContainers() > 0;
+        return rackLocalRequest.getNumContainers() > 0;      
       }
     }
 
+    // Check if we need containers on this host
     if (type == NodeType.DATA_LOCAL) {
+      // First: Do we need containers on this rack?
+      if (rackLocalRequest != null && rackLocalRequest.getNumContainers() == 0) {
+        return false;
+      }
+      
+      // Now check if we need containers on this host...
       ResourceRequest nodeLocalRequest = 
         application.getResourceRequest(priority, node.getNodeAddress());
       if (nodeLocalRequest != null) {

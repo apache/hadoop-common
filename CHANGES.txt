@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    Fix CapacityScheduler (LeafQueue) to not allocate DATA_LOCAL containers
+    when they are not required on the rack. (acmurthy)
+
     Fix CapacityScheduler to release unused reservations on application
     completion. (acmurthy)
 
