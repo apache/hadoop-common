@@ -206,6 +206,8 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-2103. task-controller shouldn't require o-r permissions.
     (todd via eli)
 
+    MAPREDUCE-2499. MR part of HADOOP-7291. (eli)
+
   OPTIMIZATIONS
     
     MAPREDUCE-1354. Enhancements to JobTracker for better performance and
