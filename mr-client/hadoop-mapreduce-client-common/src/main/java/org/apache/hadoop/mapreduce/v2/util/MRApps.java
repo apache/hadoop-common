@@ -18,6 +18,9 @@
 
 package org.apache.hadoop.mapreduce.v2.util;
 
+import static org.apache.hadoop.yarn.util.StringHelper._join;
+import static org.apache.hadoop.yarn.util.StringHelper._split;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,17 +28,15 @@ import java.io.InputStreamReader;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.util.Apps;
-import org.apache.hadoop.mapreduce.v2.api.records.JobId;
-import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
-import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
-import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
-
-import static org.apache.hadoop.yarn.util.StringHelper.*;
 
 /**
  * Helper class for MR applications

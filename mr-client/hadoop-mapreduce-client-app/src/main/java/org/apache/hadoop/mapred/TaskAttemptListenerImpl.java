@@ -244,7 +244,7 @@ public class TaskAttemptListenerImpl extends CompositeService
 
     taskHeartbeatHandler.receivedPing(attemptID);
 
-    //filter the events to return only map completion events in old format
+    // filter the events to return only map completion events in old format
     List<TaskCompletionEvent> mapEvents = new ArrayList<TaskCompletionEvent>();
     for (org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent event : events) {
       if (TaskType.MAP.equals(event.getAttemptId().getTaskId().getTaskType())) {

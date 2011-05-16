@@ -24,10 +24,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapred.JobPriority;
-import org.apache.hadoop.mapred.TIPStatus;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
-import org.apache.hadoop.mapreduce.TaskReport;
 import org.apache.hadoop.mapreduce.JobStatus.State;
 import org.apache.hadoop.mapreduce.v2.api.records.Counter;
 import org.apache.hadoop.mapreduce.v2.api.records.CounterGroup;

@@ -1003,7 +1003,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       job.startTime = job.clock.getTime();
       job.scheduleTasks(job.mapTasks);  // schedule (i.e., start) the maps
       JobInitedEvent jie =
-        new JobInitedEvent(TypeConverter.fromYarn(job.jobId),
+        new JobInitedEvent(job.oldJobId,
              job.startTime,
              job.numMapTasks, job.numReduceTasks,
              job.isUber, 0, 0,  // FIXME: lose latter two args again (old-style uber junk:  needs to go along with 98% of other old-style uber junk)
@@ -1021,7 +1021,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     }
     cleanupProgress = 1.0f;
     JobUnsuccessfulCompletionEvent unsuccessfulJobEvent =
-      new JobUnsuccessfulCompletionEvent(TypeConverter.fromYarn(jobId),
+      new JobUnsuccessfulCompletionEvent(oldJobId,
           finishTime,
           succeededMapTaskCount,
           numReduceTasks, //TODO finishedReduceTasks
@@ -1029,7 +1029,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     eventHandler.handle(new JobHistoryEvent(jobId, unsuccessfulJobEvent));
     
     JobFinishedEvent jfe =
-      new JobFinishedEvent(TypeConverter.fromYarn(jobId),
+      new JobFinishedEvent(oldJobId,
           finishTime,
           succeededMapTaskCount,
           succeededReduceTaskCount, failedMapTaskCount,
@@ -1048,7 +1048,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     @Override
     public void transition(JobImpl job, JobEvent event) {
       JobUnsuccessfulCompletionEvent failedEvent =
-          new JobUnsuccessfulCompletionEvent(TypeConverter.fromYarn(job.jobId),
+          new JobUnsuccessfulCompletionEvent(job.oldJobId,
               job.finishTime, 0, 0,
               org.apache.hadoop.mapreduce.JobStatus.State.FAILED.toString()); //TODO correct state
       job.eventHandler.handle(new JobHistoryEvent(job.jobId, failedEvent));
@@ -1166,7 +1166,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         job.allowedReduceFailuresPercent*job.numReduceTasks) {
         job.setFinishTime();
         JobUnsuccessfulCompletionEvent failedEvent =
-          new JobUnsuccessfulCompletionEvent(TypeConverter.fromYarn(job.jobId),
+          new JobUnsuccessfulCompletionEvent(job.oldJobId,
               job.finishTime,
               job.failedMapTaskCount,
               job.failedReduceTaskCount, //TODO finishedReduceTasks
