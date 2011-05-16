@@ -3,6 +3,9 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    
+    Fix CapacityScheduler to release unused reservations on application
+    completion. (acmurthy)
 
     Launching bin/yarn and bin/mapred only *once* in AM for constructing
     classpaths to avoid multiple forks and huge vmem usage by AM. (vinodkv)

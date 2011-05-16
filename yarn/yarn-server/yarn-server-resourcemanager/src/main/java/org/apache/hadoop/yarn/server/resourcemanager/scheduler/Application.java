@@ -504,4 +504,8 @@ public class Application {
       }
     }
   }
+
+  public Map<Priority, Set<NodeInfo>> getAllReservations() {
+    return new HashMap<Priority, Set<NodeInfo>>(reservedContainers);
+  }
 }

@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -54,6 +55,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.util.BuilderUtils;
@@ -271,12 +273,19 @@ implements ResourceScheduler, CapacitySchedulerContext {
       LOG.info("Unknown application " + applicationId + " has completed!");
       return;
     }
+    
     /*
      * release all the containes and make sure we clean up the pending 
      * requests for this application
      */
     processReleasedContainers(application, application.getCurrentContainers());
     application.clearRequests();
+    
+    /*
+     * release all reserved containers
+     */
+    releaseReservedContainers(application);
+    
     /** The application can be retried. So only remove it from scheduler data
      * structures if the finishapplication flag is set.
      */
@@ -460,6 +469,26 @@ implements ResourceScheduler, CapacitySchedulerContext {
     processCompletedContainers(unusedContainers);
   }
 
+  private synchronized void releaseReservedContainers(Application application) {
+    LOG.info("Releasing reservations for completed application: " + 
+        application.getApplicationId());
+    Queue queue = queues.get(application.getQueue().getQueueName());
+    Map<Priority, Set<NodeInfo>> reservations = application.getAllReservations();
+    for (Map.Entry<Priority, Set<NodeInfo>> e : reservations.entrySet()) {
+      Priority priority = e.getKey();
+      Set<NodeInfo> reservedNodes = e.getValue();
+      for (NodeInfo node : reservedNodes) {
+        Resource allocatedResource = 
+          application.getResourceRequest(priority, NodeManagerImpl.ANY).getCapability();
+    
+        application.unreserveResource(node, priority);
+        node.unreserveResource(application, priority);
+        
+        queue.completedContainer(clusterResource, null, allocatedResource, application);
+      }
+    }
+  }
+  
   private synchronized Application getApplication(ApplicationId applicationId) {
     return applications.get(applicationId);
   }
