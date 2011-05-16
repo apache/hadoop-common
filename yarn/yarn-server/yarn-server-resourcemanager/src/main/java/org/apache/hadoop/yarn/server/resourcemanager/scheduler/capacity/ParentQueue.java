@@ -119,7 +119,7 @@ public class ParentQueue implements Queue {
       cs.getConfiguration().getMaximumCapacity(getQueuePath());
     float absoluteMaxCapacity = 
       (maximumCapacity == CapacitySchedulerConfiguration.UNDEFINED) ? 
-          Float.MAX_VALUE :  (parentAbsoluteCapacity * maximumCapacity) / 100;
+          1000000000f :  (parentAbsoluteCapacity * maximumCapacity) / 100;
     
     QueueState state = cs.getConfiguration().getState(getQueuePath());
 
@@ -511,7 +511,7 @@ public class ParentQueue implements Queue {
           getQueueName());
       
       // Are we over maximum-capacity for this queue?
-      if (!assignToQueue()) {
+      if (!assignToQueue(clusterResource)) {
         LOG.info(getQueueName() + 
             " current-capacity (" + getUtilization() + ") > max-capacity (" + 
             absoluteMaxCapacity + ")");
@@ -553,8 +553,21 @@ public class ParentQueue implements Queue {
     return assigned;
   }
   
-  private synchronized boolean assignToQueue() {
-    return (getUtilization() < absoluteMaxCapacity);
+  private synchronized boolean assignToQueue(Resource clusterResource) {
+    // Check how of the parent's capacity we are currently using...
+    float parentAbsoluteCapacity = 
+          (parent == null) ? 100.0f : parent.getAbsoluteCapacity();
+    float currentCapacity = 
+      (float)(usedResources.getMemory()) / 
+      (clusterResource.getMemory() * parentAbsoluteCapacity);
+    if (currentCapacity > absoluteMaxCapacity) {
+      LOG.info(getQueueName() + 
+          " current-capacity (" + currentCapacity + ") +" +
+          " > max-capacity (" + absoluteMaxCapacity + ")");
+      return false;
+    }
+    return true;
+
   }
   
   private boolean canAssign(NodeInfo node) {

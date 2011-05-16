@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix calculation of maximum capacity in ParentQueue to use its parent's 
+    absolute-capacity rather than its own absolute-capacity. (acmurthy)
+
     Fixing a bug in JobIDPbImpl that's causing AM to crash randomly. (vinodkv)
 
     Fix calculation of maximum capacity to use parent's absolute-capacity
