@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix the tests to use jvm fork mode to avoid errors in shutting down
+    services (sidharth seth)
+
     Fixed Composite Service to shutdown services if an error occurs on 
     starting any one of those (mahadev & chris)
 
