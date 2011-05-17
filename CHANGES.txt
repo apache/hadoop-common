@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixed Composite Service to shutdown services if an error occurs on 
+    starting any one of those (mahadev & chris)
+
     Fixing a bug to do with setting the staging dir. (ddas)
 
     Fixing a bug in previous patch (r1103657). Now bin/yarn truly shouldn't be
