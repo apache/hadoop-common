@@ -109,6 +109,7 @@ import org.apache.hadoop.yarn.state.StateMachineFactory;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.ContainerBuilderHelper;
+import org.apache.hadoop.yarn.util.SecurityUtil;
 import org.apache.hadoop.mapreduce.v2.api.records.Counters;
 import org.apache.hadoop.mapreduce.v2.api.records.Phase;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
@@ -494,9 +495,10 @@ public abstract class TaskAttemptImpl implements
       // //////////// End of JobJar setup
 
       // //////////// Set up JobConf to be localized properly on the remote NM.
+      Path path = SecurityUtil.getStagingAreaDir(conf, 
+          UserGroupInformation.getCurrentUser().getShortUserName());
       Path remoteJobSubmitDir =
-          new Path(conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY),
-              oldJobId.toString());
+          new Path(path, oldJobId.toString());
       Path remoteJobConfPath =
           new Path(remoteJobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
       container.setLocalResource(

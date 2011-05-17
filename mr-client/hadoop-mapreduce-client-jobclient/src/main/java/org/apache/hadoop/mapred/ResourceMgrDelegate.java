@@ -42,6 +42,7 @@ import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.ClientRMProtocol;
 import org.apache.hadoop.yarn.api.protocolrecords.GetAllApplicationsRequest;
@@ -69,6 +70,7 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
+import org.apache.hadoop.yarn.util.SecurityUtil;
 
 
 // TODO: This should be part of something like yarn-client.
@@ -242,7 +244,9 @@ public class ResourceMgrDelegate {
 
   public String getStagingAreaDir() throws IOException, InterruptedException {
 //    Path path = new Path(MRJobConstants.JOB_SUBMIT_DIR);
-    Path path = new Path(conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY));
+    String user = 
+      UserGroupInformation.getCurrentUser().getShortUserName();
+    Path path = SecurityUtil.getStagingAreaDir(conf, user);
     LOG.info("DEBUG --- getStagingAreaDir: dir=" + path);
     return path.toString();
   }
@@ -251,7 +255,7 @@ public class ResourceMgrDelegate {
   public String getSystemDir() throws IOException, InterruptedException {
     Path sysDir = new Path(
         YARNApplicationConstants.JOB_SUBMIT_DIR);
-    FileContext.getFileContext(conf).delete(sysDir, true);
+    //FileContext.getFileContext(conf).delete(sysDir, true);
     return sysDir.toString();
   }
   

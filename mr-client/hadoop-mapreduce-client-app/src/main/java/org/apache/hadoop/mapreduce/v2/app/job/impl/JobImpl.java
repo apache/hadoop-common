@@ -106,6 +106,7 @@ import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
+import org.apache.hadoop.yarn.util.SecurityUtil;
 
 /** Implementation of Job interface. Maintains the state machines of Job.
  * The read and write calls use ReadWriteLock for concurrency.
@@ -863,17 +864,18 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     protected void setup(JobImpl job) throws IOException {
 
       String oldJobIDString = job.oldJobId.toString();
+      String user = 
+        UserGroupInformation.getCurrentUser().getShortUserName();
+      Path path = SecurityUtil.getStagingAreaDir(job.conf, user);
       LOG.info("DEBUG --- startJobs:"
           + " parent="
-          + job.conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY,
-              "/tmp/hadoop-yarn/${user.name}/staging") + " child="
+          + path + " child="
           + oldJobIDString);
 
       job.remoteJobSubmitDir =
           FileSystem.get(job.conf).makeQualified(
               new Path(
-                  job.conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY),
-                  oldJobIDString));
+                  path, oldJobIDString));
       job.remoteJobConfFile =
           new Path(job.remoteJobSubmitDir,
               YARNApplicationConstants.JOB_CONF_FILE);

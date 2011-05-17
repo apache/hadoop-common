@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixing a bug to do with setting the staging dir. (ddas)
+
     Fixing a bug in previous patch (r1103657). Now bin/yarn truly shouldn't be
     launched multiple times in a single AM. (vinodkv)
 

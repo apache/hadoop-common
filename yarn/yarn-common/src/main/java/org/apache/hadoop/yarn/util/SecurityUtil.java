@@ -34,6 +34,7 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
@@ -115,5 +116,12 @@ public class SecurityUtil {
       LOG.info("Token added for service " + t.getService()
           + " with identifer " + t.getIdentifier());
     }
+  }
+  
+  private static final String STAGING_CONSTANT = ".staging";
+  public static Path getStagingAreaDir(Configuration conf, String user) {
+    return new Path(
+        conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY) + 
+        Path.SEPARATOR + user + Path.SEPARATOR + STAGING_CONSTANT);
   }
 }
