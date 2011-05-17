@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixing a bug in previous patch (r1103657). Now bin/yarn truly shouldn't be
+    launched multiple times in a single AM. (vinodkv)
+
     Make logging and memory for AM configurable for the user via command 
     line (mahadev) 
 

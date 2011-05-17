@@ -144,8 +144,8 @@ public abstract class TaskAttemptImpl implements
   private final Lock writeLock;
   private Collection<Token<? extends TokenIdentifier>> fsTokens;
   private Token<JobTokenIdentifier> jobToken;
-  private AtomicBoolean initialEnvFlag = new AtomicBoolean();
-  private Map<String, String> initialEnv = null;
+  private static AtomicBoolean initialEnvFlag = new AtomicBoolean();
+  private static Map<String, String> initialEnv = null;
 
   private long launchTime;
   private long finishTime;
