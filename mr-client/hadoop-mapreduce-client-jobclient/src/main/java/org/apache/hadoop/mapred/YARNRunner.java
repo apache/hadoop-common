@@ -89,7 +89,7 @@ public class YARNRunner implements ClientProtocol {
 
   public static final String YARN_AM_VMEM_MB =
       "yarn.am.mapreduce.resource.mb";
-  private static final int DEFAULT_YARN_AM_VMEM_MB = 1536;
+  private static final int DEFAULT_YARN_AM_VMEM_MB = 2048;
   
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private ResourceMgrDelegate resMgrDelegate;
@@ -321,8 +321,11 @@ public class YARNRunner implements ClientProtocol {
     String javaHome = "$JAVA_HOME";
     Vector<CharSequence> vargs = new Vector<CharSequence>(8);
     vargs.add(javaHome + "/bin/java");
+    vargs.add("-Dhadoop.root.logger=" + conf.get(YARNApplicationConstants.MR_APPMASTER_LOG_OPTS,
+        YARNApplicationConstants.DEFAULT_MR_APPMASTER_LOG_OPTS) + ",console");
+    
     vargs.add(conf.get(YARNApplicationConstants.MR_APPMASTER_COMMAND_OPTS,
-        "-Dhadoop.root.logger=INFO,console -Xmx1024m"));
+        YARNApplicationConstants.DEFAULT_MR_APPMASTER_COMMAND_OPTS));
 
     // Add { job jar, MR app jar } to classpath.
     Map<String, String> environment = new HashMap<String, String>();

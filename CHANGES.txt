@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Make logging and memory for AM configurable for the user via command 
+    line (mahadev) 
+
     Makes uber-task disabled by default (ddas)
     
     Fix CapacityScheduler (LeafQueue) to not allocate DATA_LOCAL containers
