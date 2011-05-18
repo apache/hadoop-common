@@ -72,6 +72,7 @@ public class JobHistoryEventHandler extends AbstractService
     new LinkedBlockingQueue<JobHistoryEvent>();
   private Thread eventHandlingThread;
   private volatile boolean stopped;
+  private final Object lock = new Object();
 
   private static final Log LOG = LogFactory.getLog(
       JobHistoryEventHandler.class);
@@ -140,14 +141,24 @@ public class JobHistoryEventHandler extends AbstractService
       @Override
       public void run() {
         JobHistoryEvent event = null;
-        while (!stopped || !Thread.currentThread().isInterrupted()) {
+        while (!stopped && !Thread.currentThread().isInterrupted()) {
           try {
             event = eventQueue.take();
           } catch (InterruptedException e) {
-            LOG.error("Returning, interrupted : " + e);
+            LOG.info("EventQueue take interrupted. Returning");
             return;
           }
+          // If an event has been removed from the queue. Handle it.
+          // The rest of the queue is handled via stop()
+          // Clear the interrupt status if it's set before calling handleEvent
+          // and set it if it was set before calling handleEvent. 
+          // Interrupts received from other threads during handleEvent cannot be
+          // dealth with - Shell.runCommand() ignores them.
+          synchronized (lock) {
+            boolean isInterrupted = Thread.interrupted();
           handleEvent(event);
+            if (isInterrupted) Thread.currentThread().interrupt();
+          }
         }
       }
     });
@@ -160,7 +171,7 @@ public class JobHistoryEventHandler extends AbstractService
     LOG.info("Stopping JobHistoryEventHandler");
     stopped = true;
     //do not interrupt while event handling is in progress
-    synchronized(this) {
+    synchronized(lock) {
       eventHandlingThread.interrupt();
     }
 
@@ -276,9 +287,10 @@ public class JobHistoryEventHandler extends AbstractService
     }
   }
 
-  protected synchronized void handleEvent(JobHistoryEvent event) {
+  protected void handleEvent(JobHistoryEvent event) {
     // check for first event from a job
     //TODO Log a meta line with version information.
+    synchronized (lock) {
     if (event.getHistoryEvent().getEventType() == EventType.JOB_SUBMITTED) {
       try {
         setupEventWriter(event.getJobID());
@@ -308,6 +320,7 @@ public class JobHistoryEventHandler extends AbstractService
         throw new YarnException(e);
       }
     }
+  }
   }
 
   protected void closeEventWriter(JobId jobId) throws IOException {
@@ -368,7 +381,7 @@ public class JobHistoryEventHandler extends AbstractService
     }
   }
 
-  private static class MetaInfo {
+  private class MetaInfo {
     private Path historyFile;
     private Path confFile;
     private EventWriter writer;
@@ -388,19 +401,23 @@ public class JobHistoryEventHandler extends AbstractService
 
     JobIndexInfo getJobIndexInfo() { return jobIndexInfo; }
 
-    synchronized void closeWriter() throws IOException {
+    void closeWriter() throws IOException {
+      synchronized (lock) {
       if (writer != null) {
         writer.close();
       }
       writer = null;
     }
+    }
 
-    synchronized void writeEvent(HistoryEvent event) throws IOException {
+    void writeEvent(HistoryEvent event) throws IOException {
+      synchronized (lock) {
       if (writer != null) {
         writer.write(event);
         writer.flush();
       }
     }
+  }
   }
 
   private void moveToDoneNow(Path fromPath, Path toPath) throws IOException {
