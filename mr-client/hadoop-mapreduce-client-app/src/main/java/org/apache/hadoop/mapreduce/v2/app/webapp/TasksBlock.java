@@ -19,8 +19,6 @@
 package org.apache.hadoop.mapreduce.v2.app.webapp;
 
 import com.google.inject.Inject;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
@@ -31,15 +29,12 @@ import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
 import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
 
-
 import static org.apache.hadoop.mapreduce.v2.app.webapp.AMWebApp.*;
 import static org.apache.hadoop.yarn.util.StringHelper.*;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
 
 public class TasksBlock extends HtmlBlock {
   final App app;
-  final SimpleDateFormat dateFormat =
-      new SimpleDateFormat("d-MMM-yyyy HH:mm:ss");
 
   @Inject TasksBlock(App app) {
     this.app = app;
@@ -74,7 +69,9 @@ public class TasksBlock extends HtmlBlock {
       String tid = MRApps.toString(task.getID());
       TaskReport report = task.getReport();
       String pct = percent(report.getProgress());
-      long elapsed = Times.elapsed(report.getStartTime(), report.getFinishTime());
+      long startTime = report.getStartTime();
+      long finishTime = report.getFinishTime();
+      long elapsed = Times.elapsed(startTime, finishTime);
       tbody.
         tr().
           td().
@@ -88,11 +85,11 @@ public class TasksBlock extends HtmlBlock {
                 $style(join("width:", pct, '%'))._()._()._().
           td(report.getTaskState().toString()).
           td().
-            br().$title(String.valueOf(report.getStartTime()))._().
-            _(dateFormat.format(new Date(report.getStartTime())))._().
+            br().$title(String.valueOf(startTime))._().
+            _(Times.format(startTime))._().
           td().
-            br().$title(String.valueOf(report.getFinishTime()))._().
-            _(dateFormat.format(new Date(report.getFinishTime())))._().
+            br().$title(String.valueOf(finishTime))._().
+            _(Times.format(finishTime))._().
           td().
             br().$title(String.valueOf(elapsed))._().
             _(StringUtils.formatTime(elapsed))._()._();

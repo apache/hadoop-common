@@ -68,14 +68,16 @@ public class JobBlock extends HtmlBlock {
     int mapsComplete = job.getCompletedMaps();
     int reduces = job.getTotalReduces();
     int reducesComplete = job.getCompletedReduces();
+    long startTime = jobReport.getStartTime();
+    long finishTime = jobReport.getFinishTime();
     countTasks(job);
     info("Job Overview").
         _("Job Name:", job.getName()).
         _("State:", job.getState()).
         _("Uberized:", job.isUber()).
-        _("Started:", new Date(jobReport.getStartTime())).
-        _("Elapsed:", StringUtils.formatTime(System.currentTimeMillis()
-                                             - jobReport.getStartTime()));
+        _("Started:", new Date(startTime)).
+        _("Elapsed:", StringUtils.formatTime(
+            Times.elapsed(startTime, finishTime)));
     html.
       _(InfoBlock.class).
       div(_INFO_WRAP).

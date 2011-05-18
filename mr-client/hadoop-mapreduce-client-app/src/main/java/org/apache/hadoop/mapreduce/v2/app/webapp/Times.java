@@ -18,12 +18,26 @@
 
 package org.apache.hadoop.mapreduce.v2.app.webapp;
 
-final class Times {
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+class Times {
+  static final ThreadLocal<SimpleDateFormat> dateFormat =
+      new ThreadLocal<SimpleDateFormat>() {
+        @Override protected SimpleDateFormat initialValue() {
+          return new SimpleDateFormat("d-MMM-yyyy HH:mm:ss");
+        }
+      };
 
   static long elapsed(long started, long finished) {
     if (finished > 0) {
       return finished - started;
     }
-    return System.currentTimeMillis() - started;
+    return started > 0 ? System.currentTimeMillis() - started : 0;
+  }
+
+  static String format(long ts) {
+    return ts > 0 ? String.valueOf(dateFormat.get().format(new Date(ts)))
+                  : "N/A";
   }
 }

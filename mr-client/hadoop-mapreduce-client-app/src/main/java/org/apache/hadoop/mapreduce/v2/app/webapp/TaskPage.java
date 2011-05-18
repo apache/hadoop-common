@@ -21,16 +21,15 @@ package org.apache.hadoop.mapreduce.v2.app.webapp;
 import com.google.common.base.Joiner;
 import com.google.inject.Inject;
 
-import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptReport;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
 import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
-
 import static org.apache.hadoop.yarn.util.StringHelper.*;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
 
@@ -69,23 +68,28 @@ public class TaskPage extends AppView {
         String progress = percent(ta.getProgress());
         ContainerId containerId = ta.getAssignedContainerID();
         String nodeHttpAddr = ta.getNodeHttpAddress();
-        TaskAttemptReport report = ta.getReport();
-        long elapsed = Times.elapsed(report.getStartTime(), report.getFinishTime());
-        String containerIdStr = ConverterUtils.toString(containerId);
-        tbody.
+        long startTime = ta.getLaunchTime();
+        long finishTime = ta.getFinishTime();
+        long elapsed = Times.elapsed(startTime, finishTime);
+        TR<TBODY<TABLE<Hamlet>>> tr = tbody.
           tr().
             td(".id", taid).
             td(".progress", progress).
-            td(".state", ta.getState().toString()).
-            td()
-              .a(".logs",
-                  url("http://", nodeHttpAddr, "yarn", "containerlogs",
-                      containerIdStr),
-                  "Logs for " + containerIdStr)._().
-            td(".ts", String.valueOf(report.getStartTime())).
-            td(".ts", String.valueOf(report.getFinishTime())).
-            td(".dt", String.valueOf(elapsed)).
-            td(".note", Joiner.on('\n').join(ta.getDiagnostics()))._();
+            td(".state", ta.getState().toString());
+        if (containerId != null) {
+          String containerIdStr = ConverterUtils.toString(containerId);
+          tr.
+            td().
+              a(".logs", url("http://", nodeHttpAddr, "yarn", "containerlogs",
+                containerIdStr), "Logs for " + containerIdStr)._();
+        } else {
+          tr.td("N/A");
+        }
+        tr.
+          td(".ts", Times.format(startTime)).
+          td(".ts", Times.format(finishTime)).
+          td(".dt", StringUtils.formatTime(elapsed)).
+          td(".note", Joiner.on('\n').join(ta.getDiagnostics()))._();
       }
       tbody._()._();
     }
