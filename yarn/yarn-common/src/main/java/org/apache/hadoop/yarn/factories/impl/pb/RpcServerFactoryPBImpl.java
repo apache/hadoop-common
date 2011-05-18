@@ -1,3 +1,21 @@
+/**
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 package org.apache.hadoop.yarn.factories.impl.pb;
 
 import java.io.IOException;
@@ -5,8 +23,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.ipc.RPC;
@@ -29,8 +47,8 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
   private static final RpcServerFactoryPBImpl self = new RpcServerFactoryPBImpl();
 
   private Configuration localConf = new Configuration();
-  private Map<Class<?>, Constructor<?>> serviceCache = new HashMap<Class<?>, Constructor<?>>();
-  private Map<Class<?>, Method> protoCache = new HashMap<Class<?>, Method>();
+  private ConcurrentMap<Class<?>, Constructor<?>> serviceCache = new ConcurrentHashMap<Class<?>, Constructor<?>>();
+  private ConcurrentMap<Class<?>, Method> protoCache = new ConcurrentHashMap<Class<?>, Method>();
   
   public static RpcServerFactoryPBImpl get() {
     return RpcServerFactoryPBImpl.self;
@@ -46,8 +64,8 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
       SecretManager<? extends TokenIdentifier> secretManager)
       throws YarnException {
     
-    Constructor<?> constructor = null;
-    if (serviceCache.get(protocol) == null) {
+    Constructor<?> constructor = serviceCache.get(protocol);
+    if (constructor == null) {
       Class<?> pbServiceImplClazz = null;
       try {
         pbServiceImplClazz = localConf
@@ -59,14 +77,12 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
       try {
         constructor = pbServiceImplClazz.getConstructor(protocol);
         constructor.setAccessible(true);
-        serviceCache.put(protocol, constructor);
+        serviceCache.putIfAbsent(protocol, constructor);
       } catch (NoSuchMethodException e) {
         throw new YarnException("Could not find constructor with params: "
             + Long.TYPE + ", " + InetSocketAddress.class + ", "
             + Configuration.class, e);
       }
-    } else {
-      constructor = serviceCache.get(protocol);
     }
     
     Object service = null;
@@ -80,8 +96,8 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
       throw new YarnException(e);
     }
 
-    Method method = null;
-    if (protoCache.get(protocol) == null) {
+    Method method = protoCache.get(protocol);
+    if (method == null) {
       Class<?> protoClazz = null;
       try {
         protoClazz = localConf.getClassByName(getProtoClassName(protocol));
@@ -92,12 +108,10 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
       try {
         method = protoClazz.getMethod("newReflectiveBlockingService", service.getClass().getInterfaces()[0]);
         method.setAccessible(true);
-        protoCache.put(protocol, method);
+        protoCache.putIfAbsent(protocol, method);
       } catch (NoSuchMethodException e) {
         throw new YarnException(e);
       }
-    } else {
-      method = protoCache.get(protocol);
     }
     
     try {

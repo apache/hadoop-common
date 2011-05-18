@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    MAPREDUCE-2500. PB factories are not thread safe (siddharth seth via mahadev) 
+
     Fix the tests to use jvm fork mode to avoid errors in shutting down
     services (sidharth seth)
 

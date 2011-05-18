@@ -24,8 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapred.JobPriority;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapreduce.JobStatus.State;
@@ -49,9 +47,16 @@ import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.NodeManagerInfo;
 import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
+import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 public class TypeConverter {
+
+  private static RecordFactory recordFactory;
+  
+  static {
+    recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  }
 
   public static org.apache.hadoop.mapred.JobID fromYarn(JobId id) {
     String identifier = fromClusterTimeStamp(id.getAppId().getClusterTimestamp());
@@ -65,10 +70,10 @@ public class TypeConverter {
   }
 
   public static JobId toYarn(org.apache.hadoop.mapreduce.JobID id) {
-    JobId jobId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(JobId.class);
+    JobId jobId = recordFactory.newRecordInstance(JobId.class);
     jobId.setId(id.getId()); //currently there is 1-1 mapping between appid and jobid
     
-    ApplicationId appId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(ApplicationId.class);
+    ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
     appId.setId(id.getId());
     appId.setClusterTimestamp(toClusterTimeStamp(id.getJtIdentifier()));
     jobId.setAppId(appId);
@@ -113,7 +118,7 @@ public class TypeConverter {
   }
 
   public static TaskId toYarn(org.apache.hadoop.mapreduce.TaskID id) {
-    TaskId taskId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskId.class);
+    TaskId taskId = recordFactory.newRecordInstance(TaskId.class);
     taskId.setId(id.getId());
     taskId.setTaskType(toYarn(id.getTaskType()));
     taskId.setJobId(toYarn(id.getJobID()));
@@ -184,7 +189,7 @@ public class TypeConverter {
 
   public static TaskAttemptId toYarn(
       org.apache.hadoop.mapred.TaskAttemptID id) {
-    TaskAttemptId taskAttemptId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskAttemptId.class);
+    TaskAttemptId taskAttemptId = recordFactory.newRecordInstance(TaskAttemptId.class);
     taskAttemptId.setTaskId(toYarn(id.getTaskID()));
     taskAttemptId.setId(id.getId());
     return taskAttemptId;
@@ -192,7 +197,7 @@ public class TypeConverter {
 
   public static TaskAttemptId toYarn(
       org.apache.hadoop.mapreduce.TaskAttemptID id) {
-    TaskAttemptId taskAttemptId = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskAttemptId.class);
+    TaskAttemptId taskAttemptId = recordFactory.newRecordInstance(TaskAttemptId.class);
     taskAttemptId.setTaskId(toYarn(id.getTaskID()));
     taskAttemptId.setId(id.getId());
     return taskAttemptId;
@@ -214,15 +219,15 @@ public class TypeConverter {
   }
 
   public static Counters toYarn(org.apache.hadoop.mapred.Counters counters) {
-    Counters yCntrs = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counters.class);
+    Counters yCntrs = recordFactory.newRecordInstance(Counters.class);
     yCntrs.addAllCounterGroups(new HashMap<String, CounterGroup>());
     for (org.apache.hadoop.mapred.Counters.Group grp : counters) {
-      CounterGroup yGrp = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CounterGroup.class);
+      CounterGroup yGrp = recordFactory.newRecordInstance(CounterGroup.class);
       yGrp.setName(grp.getName());
       yGrp.setDisplayName(grp.getDisplayName());
       yGrp.addAllCounters(new HashMap<String, Counter>());
       for (org.apache.hadoop.mapred.Counters.Counter cntr : grp) {
-        Counter yCntr = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counter.class);
+        Counter yCntr = recordFactory.newRecordInstance(Counter.class);
         yCntr.setName(cntr.getName());
         yCntr.setDisplayName(cntr.getDisplayName());
         yCntr.setValue(cntr.getValue());
@@ -234,15 +239,15 @@ public class TypeConverter {
   }
 
   public static Counters toYarn(org.apache.hadoop.mapreduce.Counters counters) {
-    Counters yCntrs = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counters.class);
+    Counters yCntrs = recordFactory.newRecordInstance(Counters.class);
     yCntrs.addAllCounterGroups(new HashMap<String, CounterGroup>());
     for (org.apache.hadoop.mapreduce.CounterGroup grp : counters) {
-      CounterGroup yGrp = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CounterGroup.class);
+      CounterGroup yGrp = recordFactory.newRecordInstance(CounterGroup.class);
       yGrp.setName(grp.getName());
       yGrp.setDisplayName(grp.getDisplayName());
       yGrp.addAllCounters(new HashMap<String, Counter>());
       for (org.apache.hadoop.mapreduce.Counter cntr : grp) {
-        Counter yCntr = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Counter.class);
+        Counter yCntr = recordFactory.newRecordInstance(Counter.class);
         yCntr.setName(cntr.getName());
         yCntr.setDisplayName(cntr.getDisplayName());
         yCntr.setValue(cntr.getValue());

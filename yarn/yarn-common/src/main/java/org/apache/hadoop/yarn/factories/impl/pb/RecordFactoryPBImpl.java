@@ -20,8 +20,8 @@ package org.apache.hadoop.yarn.factories.impl.pb;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.YarnException;
@@ -34,7 +34,7 @@ public class RecordFactoryPBImpl implements RecordFactory {
 
   private static final RecordFactoryPBImpl self = new RecordFactoryPBImpl();
   private Configuration localConf = new Configuration();
-  private Map<Class<?>, Constructor<?>> cache = new HashMap<Class<?>, Constructor<?>>();
+  private ConcurrentMap<Class<?>, Constructor<?>> cache = new ConcurrentHashMap<Class<?>, Constructor<?>>();
 
   private RecordFactoryPBImpl() {
   }
@@ -43,11 +43,12 @@ public class RecordFactoryPBImpl implements RecordFactory {
     return self;
   }
   
+  @SuppressWarnings("unchecked")
   @Override
   public <T> T newRecordInstance(Class<T> clazz) throws YarnException {
     
-    Constructor<?> constructor = null;
-    if (cache.get(clazz) == null) {
+    Constructor<?> constructor = cache.get(clazz);
+    if (constructor == null) {
       Class<?> pbClazz = null;
       try {
         pbClazz = localConf.getClassByName(getPBImplClassName(clazz));
@@ -56,14 +57,12 @@ public class RecordFactoryPBImpl implements RecordFactory {
             + getPBImplClassName(clazz) + "]", e);
       }
       try {
-        constructor = pbClazz.getConstructor(null);
+        constructor = pbClazz.getConstructor();
         constructor.setAccessible(true);
-        cache.put(clazz, constructor);
+        cache.putIfAbsent(clazz, constructor);
       } catch (NoSuchMethodException e) {
         throw new YarnException("Could not find 0 argument constructor", e);
       }
-    } else {
-      constructor = cache.get(clazz);
     }
     try {
       Object retObject = constructor.newInstance();

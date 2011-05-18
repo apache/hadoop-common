@@ -15,6 +15,12 @@ public class RecordFactoryProvider {
   
   public static String RECORD_FACTORY_CLASS_KEY = "org.apache.yarn.ipc.record.factory.class";
   
+  private static Configuration defaultConf;
+  
+  static {
+    defaultConf = new Configuration();
+  }
+  
   private RecordFactoryProvider() {
   }
   
@@ -22,7 +28,7 @@ public class RecordFactoryProvider {
     if (conf == null) {
       //Assuming the default configuration has the correct factories set.
       //Users can specify a particular factory by providing a configuration.
-      conf = new Configuration();
+      conf = defaultConf;
     }
     String recordFactoryClassName = conf.get(RECORD_FACTORY_CLASS_KEY);
     if (recordFactoryClassName == null) {
