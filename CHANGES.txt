@@ -208,6 +208,9 @@ Release 0.22.0 - Unreleased
 
     MAPREDUCE-2499. MR part of HADOOP-7291. (eli)
 
+    MAPREDUCE-2505. Explain how to use ACLs in the fair scheduler.
+    (matei via eli)
+
     MAPREDUCE-2502. JobSubmitter should use mapreduce.job.maps instead of
     its deprecated equivalent. (eli via todd)
 
