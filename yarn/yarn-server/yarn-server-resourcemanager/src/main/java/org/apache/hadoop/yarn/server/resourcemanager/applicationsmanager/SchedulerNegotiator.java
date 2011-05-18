@@ -202,6 +202,17 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
     case SCHEDULE:
       addPending(appContext);
       break;
+    case RELEASE:
+      try {
+      scheduler.allocate(appContext.getApplicationID(), 
+          EMPTY_ASK, Collections.singletonList(appContext.getMasterContainer()));
+      } catch(IOException ie) {
+        //TODO remove IOException from the scheduler.
+        LOG.error("Error while releasing container for AM " + appContext.getApplicationID());
+      }
+      handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.RELEASED, 
+          appContext));
+      break;
     case CLEANUP:
       try {
         finishApplication(appContext);

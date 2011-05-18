@@ -30,6 +30,7 @@ import org.apache.hadoop.classification.InterfaceStability.Evolving;
 public class ApplicationMasterEvents {
   public enum SNEventType {
     SCHEDULE,
+    RELEASE,
     CLEANUP
   };
 
@@ -48,10 +49,12 @@ public class ApplicationMasterEvents {
   public enum ApplicationEventType {
     ALLOCATE,
     REGISTERED,
+    RELEASED,
     RECOVER,
     REMOVE,
     STATUSUPDATE,
     LAUNCH,
+    LAUNCH_FAILED,
     LAUNCHED,
     FAILED,
     FAILED_MAX_RETRIES,

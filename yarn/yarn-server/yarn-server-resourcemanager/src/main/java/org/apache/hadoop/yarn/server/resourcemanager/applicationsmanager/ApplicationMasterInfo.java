@@ -80,6 +80,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   private final AllocateTransition allocateTransition = new AllocateTransition();
   private final LaunchTransition launchTransition =  new LaunchTransition();
   private final LaunchedTransition launchedTransition = new LaunchedTransition();
+  private final FailedLaunchTransition failedLaunchTransition = new FailedLaunchTransition();
   
   private final StateMachine<ApplicationState, ApplicationEventType, 
   ASMEvent<ApplicationEventType>> stateMachine;
@@ -132,6 +133,12 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
       
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.LAUNCHED,
   ApplicationEventType.LAUNCHED, launchedTransition)
+  
+  .addTransition(ApplicationState.LAUNCHING, ApplicationState.PENDING,
+  ApplicationEventType.LAUNCH_FAILED, failedLaunchTransition)
+  
+  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
+  ApplicationEventType.RELEASED, new ScheduleTransition())
   
   /** we cant say if the application was launched or not on a recovery, so for now 
    * we assume it was launched and wait for its restart.
@@ -326,6 +333,16 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     }
   }
   
+  private static class FailedLaunchTransition implements 
+  SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
+    @Override
+    public void transition(ApplicationMasterInfo masterInfo,
+    ASMEvent<ApplicationEventType> event) {
+      masterInfo.handler.handle(new ASMEvent<SNEventType>(
+      SNEventType.RELEASE, masterInfo));
+    }
+  }
+  
   private static class LaunchTransition implements
   SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
     @Override
@@ -389,6 +406,19 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   }
 
 
+  /* Transition to schedule again on a container launch failure for AM */
+  private static class ScheduleTransition implements 
+  SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
+    @Override
+    public void transition(ApplicationMasterInfo masterInfo,
+    ASMEvent<ApplicationEventType> event) {
+      masterInfo.masterContainer = null;
+      /* schedule for a slot */
+      masterInfo.handler.handle(new ASMEvent<SNEventType>(SNEventType.SCHEDULE,
+      masterInfo));
+    }
+  }
+  
   /* Transition to start the process of allocating for the AM container */
   private static class AllocateTransition implements 
   SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {

@@ -256,14 +256,15 @@ public class AMLauncher implements Runnable {
   public void run() {
     switch (event) {
     case LAUNCH:
+      ApplicationEventType eventType = ApplicationEventType.LAUNCHED;
       try {
         LOG.info("Launching master" + master.getMaster());
         launch();
-        } catch(IOException ie) {
+      } catch(Exception ie) {
         LOG.info("Error launching ", ie);
-        handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.FAILED, master));
+        eventType = ApplicationEventType.LAUNCH_FAILED;
       }
-      handler.handle(new ASMEvent<ApplicationEventType>(ApplicationEventType.LAUNCHED,  master));
+      handler.handle(new ASMEvent<ApplicationEventType>(eventType,  master));
       break;
     case CLEANUP:
       try {
