@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Add junit jar to lib in assembly (mahadev and luke)
+
     MAPREDUCE-2509. Fix NPE in UI for pending attempts. (luke lu via mahadev) 
 
     Fix job hang if the AM launch fails. (mahadev) 
