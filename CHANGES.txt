@@ -214,6 +214,9 @@ Release 0.22.0 - Unreleased
     MAPREDUCE-2502. JobSubmitter should use mapreduce.job.maps instead of
     its deprecated equivalent. (eli via todd)
 
+    MAPREDUCE-2372. TaskLogAppender mechanism shouldn't be set up in
+    log4j.properties (todd)
+
   OPTIMIZATIONS
     
     MAPREDUCE-1354. Enhancements to JobTracker for better performance and
