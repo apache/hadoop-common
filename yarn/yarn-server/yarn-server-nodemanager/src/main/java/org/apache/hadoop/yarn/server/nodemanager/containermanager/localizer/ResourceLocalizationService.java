@@ -534,6 +534,8 @@ public class ResourceLocalizationService extends AbstractService
             LOG.info("DEBUG: FAILED " + req, stat.getException());
             assoc.getResource().unlock();
             response.setLocalizerAction(LocalizerAction.DIE);
+            // TODO: Why is this event going directly to the container. Why not
+            // the resource itself? What happens to the resource? Is it removed?
             dispatcher.getEventHandler().handle(
                 new ContainerResourceFailedEvent(context.getContainerId(),
                   req, stat.getException()));

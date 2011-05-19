@@ -510,7 +510,7 @@ public abstract class TaskAttemptImpl implements
       // //////////// End of JobConf setup
 
       // Setup DistributedCache
-      setupDistributedCache(conf, container);
+      setupDistributedCache(remoteFS, conf, container);
 
       // Setup up tokens
       Credentials taskCredentials = new Credentials();
@@ -586,11 +586,11 @@ public abstract class TaskAttemptImpl implements
     return container;
   }
 
-  private void setupDistributedCache(Configuration conf, 
+  private void setupDistributedCache(FileContext remoteFS, Configuration conf, 
       ContainerLaunchContext container) throws IOException {
     
     // Cache archives
-    parseDistributedCacheArtifacts(container, LocalResourceType.ARCHIVE, 
+    parseDistributedCacheArtifacts(remoteFS, container, LocalResourceType.ARCHIVE, 
         DistributedCache.getCacheArchives(conf), 
         DistributedCache.getArchiveTimestamps(conf), 
         getFileSizes(conf, MRJobConfig.CACHE_ARCHIVES_SIZES), 
@@ -598,7 +598,7 @@ public abstract class TaskAttemptImpl implements
         DistributedCache.getArchiveClassPaths(conf));
     
     // Cache files
-    parseDistributedCacheArtifacts(container, LocalResourceType.FILE, 
+    parseDistributedCacheArtifacts(remoteFS, container, LocalResourceType.FILE, 
         DistributedCache.getCacheFiles(conf),
         DistributedCache.getFileTimestamps(conf),
         getFileSizes(conf, MRJobConfig.CACHE_FILES_SIZES),
@@ -609,8 +609,8 @@ public abstract class TaskAttemptImpl implements
   // TODO - Move this to MR!
   // Use TaskDistributedCacheManager.CacheFiles.makeCacheFiles(URI[], 
   // long[], boolean[], Path[], FileType)
-  private static void parseDistributedCacheArtifacts(
-      ContainerLaunchContext container, LocalResourceType type,
+  private void parseDistributedCacheArtifacts(
+      FileContext remoteFS, ContainerLaunchContext container, LocalResourceType type,
       URI[] uris, long[] timestamps, long[] sizes, boolean visibilities[], 
       Path[] classpaths) throws IOException {
 
@@ -634,7 +634,11 @@ public abstract class TaskAttemptImpl implements
       }
       for (int i = 0; i < uris.length; ++i) {
         URI u = uris[i];
-        Path p = new Path(u.toString());
+        Path p = new Path(u);
+        if (!p.isAbsolute()) {
+          p = p.makeQualified(remoteFS.getDefaultFileSystem()
+              .getUri(), remoteFS.getWorkingDirectory());
+        }
         // Add URI fragment or just the filename
         Path name = new Path((null == u.getFragment())
           ? p.getName()
@@ -645,7 +649,7 @@ public abstract class TaskAttemptImpl implements
         container.setLocalResource(
             name.toUri().getPath(),
             BuilderUtils.newLocalResource(recordFactory,
-                uris[i], type, 
+                p.toUri(), type, 
                 visibilities[i]
                   ? LocalResourceVisibility.PUBLIC
                   : LocalResourceVisibility.PRIVATE,

@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Distributed cache bug fix to pass Terasort. (vinodkv)
+
     Add junit jar to lib in assembly (mahadev and luke)
 
     MAPREDUCE-2509. Fix NPE in UI for pending attempts. (luke lu via mahadev) 

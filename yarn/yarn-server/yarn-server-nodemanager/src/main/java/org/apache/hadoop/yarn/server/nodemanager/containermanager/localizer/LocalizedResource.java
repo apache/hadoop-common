@@ -22,6 +22,9 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -36,6 +39,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.even
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceLocalizedEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceReleaseEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceRequestEvent;
+import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
@@ -59,6 +63,9 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
   final Semaphore sem = new Semaphore(1);
   final Queue<ContainerId> ref; // Queue of containers using this localized
                                 // resource
+  private final Lock readLock;
+  private final Lock writeLock;
+
   final AtomicLong timestamp = new AtomicLong(currentTime());
 
   private static final StateMachineFactory<LocalizedResource,ResourceState,
@@ -96,6 +103,11 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
     this.rsrc = rsrc;
     this.dispatcher = dispatcher;
     this.ref = new LinkedList<ContainerId>();
+
+    ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    this.readLock = readWriteLock.readLock();
+    this.writeLock = readWriteLock.writeLock();
+
     this.stateMachine = stateMachineFactory.make(this);
   }
 
@@ -112,21 +124,26 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
     return sb.toString();
   }
 
-  public void release(ContainerId container) {
+  private void release(ContainerId container) {
     if (!ref.remove(container)) {
       LOG.info("Attempt to release claim on " + this +
                " from unregistered container " + container);
-      assert false;
+      assert false; // TODO: FIX
     }
     timestamp.set(currentTime());
   }
 
-  long currentTime() {
+  private long currentTime() {
     return System.nanoTime();
   }
 
   public ResourceState getState() {
-    return stateMachine.getCurrentState();
+    this.readLock.lock();
+    try {
+      return stateMachine.getCurrentState();
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   public LocalResourceRequest getRequest() {
@@ -142,9 +159,28 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
   }
 
   @Override
-  public synchronized void handle(ResourceEvent event) {
-    stateMachine.doTransition(event.getType(), event);
-    // TODO: Invalid transitions?
+  public void handle(ResourceEvent event) {
+    try {
+      this.writeLock.lock();
+
+      Path resourcePath = event.getLocalResourceRequest().getPath();
+      LOG.info("Processing " + resourcePath + " of type " + event.getType());
+
+      ResourceState oldState = this.stateMachine.getCurrentState();
+      ResourceState newState = null;
+      try {
+        newState = this.stateMachine.doTransition(event.getType(), event);
+      } catch (InvalidStateTransitonException e) {
+        LOG.warn("Can't handle this event at current state", e);
+      }
+      if (oldState != newState) {
+        LOG.info("Resource " + resourcePath + " transitioned from "
+            + oldState
+            + " to " + newState);
+      }
+    } finally {
+      this.writeLock.unlock();
+    }
   }
 
   static abstract class ResourceTransition implements

@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -59,6 +62,8 @@ import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class ContainerImpl implements Container {
 
+  private final Lock readLock;
+  private final Lock writeLock;
   private final Dispatcher dispatcher;
   private final Credentials credentials;
   private final ContainerLaunchContext launchContext;
@@ -79,6 +84,10 @@ public class ContainerImpl implements Container {
     this.diagnostics = new StringBuilder();
     this.credentials = creds;
 
+    ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    this.readLock = readWriteLock.readLock();
+    this.writeLock = readWriteLock.writeLock();
+
     stateMachine = stateMachineFactory.make(this);
   }
 
@@ -95,7 +104,8 @@ public class ContainerImpl implements Container {
       new StateMachineFactory<ContainerImpl, ContainerState, ContainerEventType, ContainerEvent>(ContainerState.NEW)
     // From NEW State
     .addTransition(ContainerState.NEW,
-        EnumSet.of(ContainerState.LOCALIZING, ContainerState.LOCALIZED),
+        EnumSet.of(ContainerState.LOCALIZING, ContainerState.LOCALIZED,
+            ContainerState.LOCALIZATION_FAILED),
         ContainerEventType.INIT_CONTAINER, new RequestResourcesTransition())
     .addTransition(ContainerState.NEW, ContainerState.NEW,
         ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
@@ -107,7 +117,8 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.LOCALIZING,
         EnumSet.of(ContainerState.LOCALIZING, ContainerState.LOCALIZED),
         ContainerEventType.RESOURCE_LOCALIZED, new LocalizedTransition())
-    .addTransition(ContainerState.LOCALIZING, ContainerState.KILLING,
+    .addTransition(ContainerState.LOCALIZING,
+        ContainerState.LOCALIZATION_FAILED,
         ContainerEventType.RESOURCE_FAILED,
         new KillDuringLocalizationTransition()) // TODO update diagnostics
     .addTransition(ContainerState.LOCALIZING, ContainerState.LOCALIZING,
@@ -116,6 +127,12 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.LOCALIZING, ContainerState.KILLING,
         ContainerEventType.KILL_CONTAINER,
         new KillDuringLocalizationTransition())
+
+    // From LOCALIZATION_FAILED State
+    .addTransition(ContainerState.LOCALIZATION_FAILED,
+        ContainerState.DONE,
+        ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
+        CONTAINER_DONE_TRANSITION)
 
     // From LOCALIZED State
     .addTransition(ContainerState.LOCALIZED, ContainerState.RUNNING,
@@ -211,10 +228,11 @@ public class ContainerImpl implements Container {
   private final StateMachine<ContainerState, ContainerEventType, ContainerEvent>
     stateMachine;
 
-  private synchronized org.apache.hadoop.yarn.api.records.ContainerState getCurrentState() {
+  private org.apache.hadoop.yarn.api.records.ContainerState getCurrentState() {
     switch (stateMachine.getCurrentState()) {
     case NEW:
     case LOCALIZING:
+    case LOCALIZATION_FAILED:
     case LOCALIZED:
       return org.apache.hadoop.yarn.api.records.ContainerState.INITIALIZING;
     case RUNNING:
@@ -232,55 +250,96 @@ public class ContainerImpl implements Container {
 
   @Override
   public ContainerId getContainerID() {
-    return this.launchContext.getContainerId();
+    this.readLock.lock();
+    try {
+      return this.launchContext.getContainerId();
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   @Override
   public String getUser() {
-    return this.launchContext.getUser();
+    this.readLock.lock();
+    try {
+      return this.launchContext.getUser();
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   @Override
   public Map<Path,String> getLocalizedResources() {
-    assert ContainerState.LOCALIZED == getContainerState();
+    this.readLock.lock();
+    try {
+    assert ContainerState.LOCALIZED == getContainerState(); // TODO: FIXME!!
     return localizedResources;
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   @Override
   public Credentials getCredentials() {
-    return credentials;
+    this.readLock.lock();
+    try {
+      return credentials;
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   @Override
   public ContainerState getContainerState() {
-    return stateMachine.getCurrentState();
+    this.readLock.lock();
+    try {
+      return stateMachine.getCurrentState();
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   @Override
-  public synchronized
+  public
       org.apache.hadoop.yarn.api.records.Container cloneAndGetContainer() {
-    org.apache.hadoop.yarn.api.records.Container c =
-      recordFactory.newRecordInstance(
-          org.apache.hadoop.yarn.api.records.Container.class);
-    c.setId(this.launchContext.getContainerId());
-    c.setResource(this.launchContext.getResource());
-    c.setState(getCurrentState());
-    return c;
+    this.readLock.lock();
+    try {
+      org.apache.hadoop.yarn.api.records.Container c =
+        recordFactory.newRecordInstance(
+            org.apache.hadoop.yarn.api.records.Container.class);
+      c.setId(this.launchContext.getContainerId());
+      c.setResource(this.launchContext.getResource());
+      c.setState(getCurrentState());
+      return c;
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   @Override
   public ContainerLaunchContext getLaunchContext() {
-    return launchContext;
+    this.readLock.lock();
+    try {
+      return launchContext;
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   @Override
   public ContainerStatus cloneAndGetContainerStatus() {
-    ContainerStatus containerStatus = recordFactory.newRecordInstance(ContainerStatus.class);
-    containerStatus.setState(getCurrentState());
-    containerStatus.setContainerId(this.launchContext.getContainerId());
-    containerStatus.setDiagnostics(diagnostics.toString());
-	  containerStatus.setExitStatus(String.valueOf(exitCode));
-    return containerStatus;
+    this.readLock.lock();
+    try {
+      ContainerStatus containerStatus =
+          recordFactory.newRecordInstance(ContainerStatus.class);
+      containerStatus.setState(getCurrentState());
+      containerStatus.setContainerId(this.launchContext.getContainerId());
+      containerStatus.setDiagnostics(diagnostics.toString());
+  	  containerStatus.setExitStatus(String.valueOf(exitCode));
+      return containerStatus;
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
   static class ContainerTransition implements
@@ -304,8 +363,8 @@ public class ContainerImpl implements Container {
       // Inform the AuxServices about the opaque serviceData
       Map<String,ByteBuffer> csd = ctxt.getAllServiceData();
       if (csd != null) {
-        // TODO: Isn't this supposed to happen only once per Application?
-        // ^ each container may have distinct service data
+        // This can happen more than once per Application as each container may
+        // have distinct service data
         for (Map.Entry<String,ByteBuffer> service : csd.entrySet()) {
           container.dispatcher.getEventHandler().handle(
               new AuxServicesEvent(AuxServicesEventType.APPLICATION_INIT,
@@ -325,6 +384,7 @@ public class ContainerImpl implements Container {
           new ArrayList<LocalResourceRequest>();
         try {
           for (Map.Entry<String,LocalResource> rsrc : cntrRsrc.entrySet()) {
+            try {
             LocalResourceRequest req =
               new LocalResourceRequest(rsrc.getValue());
             container.pendingResources.put(req, rsrc.getKey());
@@ -339,13 +399,19 @@ public class ContainerImpl implements Container {
               appRsrc.add(req);
               break;
             }
+            } catch (URISyntaxException e) {
+              LOG.info("Got exception parsing " + rsrc.getKey()
+                  + " and value " + rsrc.getValue());
+              throw e;
+            }
           }
         } catch (URISyntaxException e) {
           // malformed resource; abort container launch
+          LOG.warn("Failed to parse resource-request", e);
           container.dispatcher.getEventHandler().handle(
               new ContainerLocalizationEvent(
                LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
-          return ContainerState.LOCALIZING;
+          return ContainerState.LOCALIZATION_FAILED;
         }
         if (!publicRsrc.isEmpty()) {
           container.dispatcher.getEventHandler().handle(
@@ -516,28 +582,39 @@ public class ContainerImpl implements Container {
   }
 
   @Override
-  public synchronized void handle(ContainerEvent event) {
-
-    ContainerId containerID = event.getContainerID();
-    LOG.info("Processing " + containerID + " of type " + event.getType());
-
-    ContainerState oldState = stateMachine.getCurrentState();
-    ContainerState newState = null;
+  public void handle(ContainerEvent event) {
     try {
-      newState =
-          stateMachine.doTransition(event.getType(), event);
-    } catch (InvalidStateTransitonException e) {
-      LOG.warn("Can't handle this event at current state", e);
-    }
-    if (oldState != newState) {
-      LOG.info("Container " + containerID + " transitioned from " + oldState
-          + " to " + newState);
+      this.writeLock.lock();
+
+      ContainerId containerID = event.getContainerID();
+      LOG.info("Processing " + containerID + " of type " + event.getType());
+
+      ContainerState oldState = stateMachine.getCurrentState();
+      ContainerState newState = null;
+      try {
+        newState =
+            stateMachine.doTransition(event.getType(), event);
+      } catch (InvalidStateTransitonException e) {
+        LOG.warn("Can't handle this event at current state", e);
+      }
+      if (oldState != newState) {
+        LOG.info("Container " + containerID + " transitioned from "
+            + oldState
+            + " to " + newState);
+      }
+    } finally {
+      this.writeLock.unlock();
     }
   }
 
   @Override
   public String toString() {
-    return ConverterUtils.toString(launchContext.getContainerId());
+    this.readLock.lock();
+    try {
+      return ConverterUtils.toString(launchContext.getContainerId());
+    } finally {
+      this.readLock.unlock();
+    }
   }
 
 }

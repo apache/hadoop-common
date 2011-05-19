@@ -95,19 +95,20 @@ public class YARNRunner implements ClientProtocol {
   private ResourceMgrDelegate resMgrDelegate;
   private ClientServiceDelegate clientServiceDelegate;
   private YarnConfiguration conf;
+  private final FileContext defaultFileContext;
 
   /**
    * Yarn runner incapsulates the client interface of
    * yarn
    * @param conf the configuration object for the client
    */
-  public YARNRunner(Configuration conf)
-      throws YarnRemoteException {
+  public YARNRunner(Configuration conf) {
     this.conf = new YarnConfiguration(conf);
     try {
       this.resMgrDelegate = new ResourceMgrDelegate(conf);
       this.clientServiceDelegate = new ClientServiceDelegate(conf,
           resMgrDelegate);
+      this.defaultFileContext = FileContext.getFileContext(conf);
     } catch (UnsupportedFileSystemException ufe) {
       throw new RuntimeException("Error in instantiating YarnClient", ufe);
     }
@@ -269,26 +270,23 @@ public class YARNRunner implements ClientProtocol {
     LOG.info("AppMaster capability = " + capability);
     appContext.setMasterCapability(capability);
 
-    FileContext defaultFS = FileContext.getFileContext(conf);
     Path jobConfPath =
         new Path(jobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
     
     URL yarnUrlForJobSubmitDir =
-        ConverterUtils.getYarnUrlFromPath(defaultFS.makeQualified(new Path(
+        ConverterUtils.getYarnUrlFromPath(defaultFileContext.makeQualified(new Path(
             jobSubmitDir)));
-//    appContext.resources = new HashMap<CharSequence, URL>();
     LOG.debug("Creating setup context, jobSubmitDir url is "
         + yarnUrlForJobSubmitDir);
 
     appContext.setResource(YARNApplicationConstants.JOB_SUBMIT_DIR,
         yarnUrlForJobSubmitDir);
 
-//    appContext.resources_todo = new HashMap<CharSequence,LocalResource>();
     appContext.setResourceTodo(YARNApplicationConstants.JOB_CONF_FILE,
-        createApplicationResource(defaultFS,
+        createApplicationResource(defaultFileContext,
             jobConfPath));
     appContext.setResourceTodo(YARNApplicationConstants.JOB_JAR,
-          createApplicationResource(defaultFS,
+          createApplicationResource(defaultFileContext,
             new Path(jobSubmitDir, YARNApplicationConstants.JOB_JAR)));
     
     // TODO gross hack
@@ -296,7 +294,7 @@ public class YARNRunner implements ClientProtocol {
         YarnConfiguration.APPLICATION_TOKENS_FILE }) {
       appContext.setResourceTodo(
           YARNApplicationConstants.JOB_SUBMIT_DIR + "/" + s,
-          createApplicationResource(defaultFS, new Path(jobSubmitDir, s)));
+          createApplicationResource(defaultFileContext, new Path(jobSubmitDir, s)));
     }
 
     // TODO: Only if security is on.
@@ -385,7 +383,7 @@ public class YARNRunner implements ClientProtocol {
 
   // TODO - Move this to MR!
   // Use TaskDistributedCacheManager.CacheFiles.makeCacheFiles(URI[], long[], boolean[], Path[], FileType)
-  private static void parseDistributedCacheArtifacts(
+  private void parseDistributedCacheArtifacts(
       ApplicationSubmissionContext container, LocalResourceType type,
       URI[] uris, long[] timestamps, long[] sizes, boolean visibilities[], 
       Path[] classpaths) throws IOException {
@@ -410,7 +408,11 @@ public class YARNRunner implements ClientProtocol {
       }
       for (int i = 0; i < uris.length; ++i) {
         URI u = uris[i];
-        Path p = new Path(u.toString());
+        Path p = new Path(u);
+        if (!p.isAbsolute()) {
+          p = p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
+              .getUri(), this.defaultFileContext.getWorkingDirectory());
+        }
         // Add URI fragment or just the filename
         Path name = new Path((null == u.getFragment())
           ? p.getName()
@@ -420,8 +422,8 @@ public class YARNRunner implements ClientProtocol {
         }
         container.setResourceTodo(
             name.toUri().getPath(),
-            getLocalResource(
-                uris[i], type, 
+            createLocalResource(
+                p.toUri(), type, 
                 visibilities[i]
                   ? LocalResourceVisibility.PUBLIC
                   : LocalResourceVisibility.PRIVATE,
@@ -449,7 +451,7 @@ public class YARNRunner implements ClientProtocol {
     return result;
   }
   
-  private static LocalResource getLocalResource(URI uri, 
+  private static LocalResource createLocalResource(URI uri, 
       LocalResourceType type, LocalResourceVisibility visibility, 
       long size, long timestamp) {
     LocalResource resource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(LocalResource.class);

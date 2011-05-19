@@ -58,8 +58,7 @@ public class ConverterUtils {
     String authority = url.getHost() != null ? url.getHost() + ":" + url.getPort()
         : "";
     return new Path(
-        (new URI(scheme, authority, url.getFile(), null, null))
-            .normalize());
+        (new URI(scheme, authority, url.getFile(), null, null)).normalize());
   }
   
   /**

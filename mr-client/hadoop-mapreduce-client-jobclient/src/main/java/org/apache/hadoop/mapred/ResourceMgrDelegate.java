@@ -82,7 +82,7 @@ public class ResourceMgrDelegate {
   private ApplicationId applicationId;
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
-  public ResourceMgrDelegate(Configuration conf) throws UnsupportedFileSystemException {
+  public ResourceMgrDelegate(Configuration conf) {
     this.conf = conf;
     YarnRPC rpc = YarnRPC.create(conf);
     InetSocketAddress rmAddress =
