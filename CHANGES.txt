@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix for the reduces getting ahead of maps in the scheduling (ddas)    
+
     Distributed cache bug fix to pass Terasort. (vinodkv)
 
     Add junit jar to lib in assembly (mahadev and luke)

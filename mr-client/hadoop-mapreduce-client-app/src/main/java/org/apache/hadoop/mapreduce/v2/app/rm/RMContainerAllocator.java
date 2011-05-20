@@ -74,7 +74,7 @@ public class RMContainerAllocator extends RMCommunicator
 
   private final Map<Priority,
   Map<Resource,LinkedList<ContainerRequestEvent>>> localRequestsQueue =
-      new HashMap<Priority, Map<Resource,LinkedList<ContainerRequestEvent>>>();
+      new TreeMap<Priority, Map<Resource,LinkedList<ContainerRequestEvent>>>();
 
   //Key -> Priority
   //Value -> Map
