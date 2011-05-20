@@ -36,6 +36,8 @@ import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.MRAppMasterConstants;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
+import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
+import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -208,7 +210,10 @@ public class ContainerLauncherImpl extends AbstractService implements
         // and not yet processed
         if (eventQueue.contains(event)) {
           eventQueue.remove(event); // TODO: Any synchro needed?
-          // k: raise any event?
+          //deallocate the container
+          context.getEventHandler().handle(
+              new ContainerAllocatorEvent(event.getTaskAttemptID(),
+              ContainerAllocator.EventType.CONTAINER_DEALLOCATE));
         } else {
           try {
             ContainerManager proxy = 

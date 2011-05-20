@@ -33,12 +33,15 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerRequestEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.yarn.Clock;
+import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.AMRMProtocol;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
@@ -175,7 +178,7 @@ public class TestRMContainerAllocator {
     allocator.sendRequest(event1);
 
     //send 1 more request with different priority
-    ContainerRequestEvent event2 = createReq(2, 2048, 2, new String[]{"h1"});
+    ContainerRequestEvent event2 = createReq(2, 3000, 2, new String[]{"h1"});
     allocator.sendRequest(event2);
 
     //send 1 more request with different priority
@@ -256,8 +259,19 @@ public class TestRMContainerAllocator {
 
   private ContainerRequestEvent createReq(
       int attemptid, int memory, int priority, String[] hosts) {
+    ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
+    appId.setClusterTimestamp(0);
+    appId.setId(0);
+    JobId jobId = recordFactory.newRecordInstance(JobId.class);
+    jobId.setAppId(appId);
+    jobId.setId(0);
+    TaskId taskId = recordFactory.newRecordInstance(TaskId.class);
+    taskId.setId(0);
+    taskId.setJobId(jobId);
+    taskId.setTaskType(TaskType.MAP);
     TaskAttemptId attemptId = recordFactory.newRecordInstance(TaskAttemptId.class);
     attemptId.setId(attemptid);
+    attemptId.setTaskId(taskId);
     Resource containerNeed = recordFactory.newRecordInstance(Resource.class);
     containerNeed.setMemory(memory);
     return new ContainerRequestEvent(attemptId, 
@@ -384,7 +398,8 @@ public class TestRMContainerAllocator {
       try {
         heartbeat();
       } catch (Exception e) {
-
+        LOG.error("error in heartbeat ", e);
+        throw new YarnException(e);
       }
 
       List<TaskAttemptContainerAssignedEvent> result = new ArrayList(events);

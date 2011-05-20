@@ -63,4 +63,52 @@ public class ContainerLauncherEvent
   public String toString() {
     return super.toString() + " for taskAttempt " + taskAttemptID;
   }
+
+  @Override
+  public int hashCode() {
+    final int prime = 31;
+    int result = 1;
+    result = prime * result
+        + ((containerID == null) ? 0 : containerID.hashCode());
+    result = prime * result
+        + ((containerMgrAddress == null) ? 0 : containerMgrAddress.hashCode());
+    result = prime * result
+        + ((containerToken == null) ? 0 : containerToken.hashCode());
+    result = prime * result
+        + ((taskAttemptID == null) ? 0 : taskAttemptID.hashCode());
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    ContainerLauncherEvent other = (ContainerLauncherEvent) obj;
+    if (containerID == null) {
+      if (other.containerID != null)
+        return false;
+    } else if (!containerID.equals(other.containerID))
+      return false;
+    if (containerMgrAddress == null) {
+      if (other.containerMgrAddress != null)
+        return false;
+    } else if (!containerMgrAddress.equals(other.containerMgrAddress))
+      return false;
+    if (containerToken == null) {
+      if (other.containerToken != null)
+        return false;
+    } else if (!containerToken.equals(other.containerToken))
+      return false;
+    if (taskAttemptID == null) {
+      if (other.taskAttemptID != null)
+        return false;
+    } else if (!taskAttemptID.equals(other.taskAttemptID))
+      return false;
+    return true;
+  }
+
 }

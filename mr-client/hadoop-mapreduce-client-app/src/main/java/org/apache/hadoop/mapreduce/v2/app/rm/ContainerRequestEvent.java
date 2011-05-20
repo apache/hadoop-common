@@ -45,7 +45,7 @@ public class ContainerRequestEvent extends ContainerAllocatorEvent {
   
   ContainerRequestEvent(TaskAttemptId attemptID, Resource capability, 
       int priority) {
-    this(attemptID, capability, priority, null, null);
+    this(attemptID, capability, priority, new String[0], new String[0]);
     this.earlierAttemptFailed = true;
   }
   
