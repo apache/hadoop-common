@@ -348,7 +348,9 @@ public class MRClientService extends AbstractService
       appContext.getEventHandler().handle(
           new TaskAttemptEvent(taskAttemptId, 
               TaskAttemptEventType.TA_FAILMSG));
-      return null;
+      FailTaskAttemptResponse response = recordFactory.
+        newRecordInstance(FailTaskAttemptResponse.class);
+      return response;
     }
 
     @Override
