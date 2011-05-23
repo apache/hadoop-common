@@ -145,7 +145,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
 
       /* the expiry queue does not need to be in sync with applications,
        * if an applications in the expiry queue cannot be found in applications
-       * its alright. We do not want to hold a hold on applications while going
+       * its alright. We do not want to hold a lock on applications while going
        * through the expiry queue.
        */
       List<ApplicationId> expired = new ArrayList<ApplicationId>();

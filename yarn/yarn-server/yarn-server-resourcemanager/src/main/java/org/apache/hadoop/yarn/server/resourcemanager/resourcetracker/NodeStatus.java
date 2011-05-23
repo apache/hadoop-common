@@ -38,7 +38,6 @@ public class NodeStatus {
     nodeStatus.setNodeHealthStatus(recordFactory
         .newRecordInstance(NodeHealthStatus.class));
     nodeStatus.getNodeHealthStatus().setIsNodeHealthy(true);
-    nodeStatus.setLastSeen(System.currentTimeMillis());
     return nodeStatus;
   }
 }

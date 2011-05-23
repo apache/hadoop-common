@@ -11,7 +11,6 @@ public interface NodeStatus {
   
   public abstract NodeId getNodeId();
   public abstract int getResponseId();
-  public abstract long getLastSeen();
   
   public abstract Map<String, List<Container>> getAllContainers();
   public abstract List<Container> getContainers(String key);
@@ -21,7 +20,6 @@ public interface NodeStatus {
 
   public abstract void setNodeId(NodeId nodeId);
   public abstract void setResponseId(int responseId);
-  public abstract void setLastSeen(long lastSeen);
   
   public abstract void addAllContainers(Map<String, List<Container>> containers);
   public abstract void setContainers(String key, List<Container> containers);

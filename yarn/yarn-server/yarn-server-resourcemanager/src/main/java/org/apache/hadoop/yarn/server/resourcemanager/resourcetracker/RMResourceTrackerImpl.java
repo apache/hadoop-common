@@ -67,6 +67,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.NodeStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfoTracker.NodeHeartbeatStatus;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
@@ -93,21 +94,19 @@ ResourceTracker, ClusterTracker {
 
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
-  private final TreeSet<NodeId> nmExpiryQueue =
-    new TreeSet<NodeId>(
-        new Comparator<NodeId>() {
-          public int compare(NodeId n1, NodeId n2) {
-            NodeInfoTracker nit1 = nodeManagers.get(n1);
-            NodeInfoTracker nit2 = nodeManagers.get(n2);
-            long p1LastSeen = nit1.getNodeLastSeen();
-            long p2LastSeen = nit2.getNodeLastSeen();
+  private final TreeSet<NodeHeartbeatStatus> nmExpiryQueue =
+    new TreeSet<NodeHeartbeatStatus>(
+        new Comparator<NodeHeartbeatStatus>() {
+          public int compare(NodeHeartbeatStatus n1,  NodeHeartbeatStatus n2) {
+            long p1LastSeen = n1.getLastSeen();
+            long p2LastSeen = n2.getLastSeen();
             if (p1LastSeen < p2LastSeen) {
               return -1;
             } else if (p1LastSeen > p2LastSeen) {
               return 1;
             } else {
-              return (nit1.getNodeManager().getNodeID().getId() -
-                  nit2.getNodeManager().getNodeID().getId());
+              return (n1.getNodeId().getId() -
+                  n2.getNodeId().getId());
             }
           }
         }
@@ -199,7 +198,6 @@ ResourceTracker, ClusterTracker {
         nodeManagers.put(nodeId, nTracker);
       } else {
         nTracker = nodeManagers.get(nodeId);
-        nTracker.updateLastSeen(System.currentTimeMillis());
       }
     }
     return nTracker;
@@ -226,7 +224,7 @@ ResourceTracker, ClusterTracker {
     } catch(IOException io) {
       throw  RPCUtil.getRemoteException(io);
     }
-    addForTracking(nodeId);
+    addForTracking(nTracker.getlastHeartBeat());
     LOG.info("NodeManager from node " + node + "(web-url: " + httpAddress
         + ") registered with capability: " + capability.getMemory()
         + ", assigned nodeId " + nodeId.getId());
@@ -271,7 +269,6 @@ ResourceTracker, ClusterTracker {
   @Override
   public NodeHeartbeatResponse nodeHeartbeat(NodeHeartbeatRequest request) throws YarnRemoteException {
     org.apache.hadoop.yarn.server.api.records.NodeStatus remoteNodeStatus = request.getNodeStatus();
-    remoteNodeStatus.setLastSeen(System.currentTimeMillis());
     NodeInfoTracker nTracker = null;
     NodeHeartbeatResponse nodeHbResponse = recordFactory.newRecordInstance(NodeHeartbeatResponse.class);
     synchronized(nodeManagers) {
@@ -283,7 +280,8 @@ ResourceTracker, ClusterTracker {
       nodeHbResponse.setHeartbeatResponse(reboot);
       return nodeHbResponse;
     }
-
+    /* update the heart beat status */
+    nTracker.refreshLastHeartBeat();
     NodeManager nodeManager = nTracker.getNodeManager();
     /* check to see if its an old heartbeat */    
     if (remoteNodeStatus.getResponseId() + 1 == nTracker
@@ -310,15 +308,14 @@ ResourceTracker, ClusterTracker {
     updateListener(
         nodeManager, remoteNodeStatus.getAllContainers());
   
-
+    
     HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
     response.addAllContainersToCleanup(nodeResponse.getContainersToCleanUp());
 
     response.addAllApplicationsToCleanup(nodeResponse.getFinishedApplications());
     response.setResponseId(nTracker.getLastHeartBeatResponse().getResponseId() + 1);
-
+    
     nTracker.refreshHeartBeatResponse(response);
-    nTracker.updateLastSeen(remoteNodeStatus.getLastSeen());
     boolean prevHealthStatus =
       nTracker.getNodeManager().getNodeHealthStatus().getIsNodeHealthy();
     NodeHealthStatus remoteNodeHealthStatus =
@@ -401,9 +398,9 @@ ResourceTracker, ClusterTracker {
     return infoList;
   }
 
-  protected void addForTracking(NodeId nodeID) {
+  protected void addForTracking(NodeHeartbeatStatus nmStatus) {
     synchronized(nmExpiryQueue) {
-      nmExpiryQueue.add(nodeID);
+      nmExpiryQueue.add(nmStatus);
     }
   }
 
@@ -449,27 +446,30 @@ ResourceTracker, ClusterTracker {
         long now = System.currentTimeMillis();
         expired.clear();
         synchronized(nmExpiryQueue) {
-          NodeId leastRecent;
+          NodeHeartbeatStatus leastRecent;
           while ((nmExpiryQueue.size() > 0) &&
-              (leastRecent = nmExpiryQueue.first()) != null) {
+              (leastRecent = nmExpiryQueue.first()) != null && 
+              ((now - leastRecent.getLastSeen()) > 
+              nmExpiryInterval)) {
             nmExpiryQueue.remove(leastRecent);
             NodeInfoTracker info;
             synchronized(nodeManagers) {
-              info = nodeManagers.get(leastRecent);
+              info = nodeManagers.get(leastRecent.getNodeId());
             }
             if (info == null) {
               continue;
             }
-            NodeId nodeID = info.getNodeManager().getNodeID();
-            if ((now - info.getNodeLastSeen()) > nmExpiryInterval) {
-              LOG.info("Going to expire the node-manager " + nodeID
+            NodeId nodeId = leastRecent.getNodeId();
+            NodeHeartbeatStatus heartBeatStatus = info.getlastHeartBeat();
+            if ((now - heartBeatStatus.getLastSeen()) > nmExpiryInterval) {
+              LOG.info("Going to expire the node-manager " + info.getNodeManager().getNodeAddress()
                   + " because of no updates for "
-                  + (now - info.getNodeLastSeen())
+                  + (now - heartBeatStatus.getLastSeen())
                   + " seconds ( > expiry interval of " + nmExpiryInterval
                   + ").");
-              expired.add(nodeID);
+              expired.add(nodeId);
             } else {
-              nmExpiryQueue.add(nodeID);
+              nmExpiryQueue.add(heartBeatStatus);
               break;
             }
           }

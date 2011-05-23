@@ -14,9 +14,8 @@ message NodeHealthStatusProto {
 message NodeStatusProto {
   optional NodeIdProto node_id = 1;
   optional int32 response_id = 2;
-  optional int64 last_seen = 3;
-  repeated StringContainerListMapProto containers = 4;
-  optional NodeHealthStatusProto nodeHealthStatus = 5;
+  repeated StringContainerListMapProto containers = 3;
+  optional NodeHealthStatusProto nodeHealthStatus = 4;
 }
 
 message RegistrationResponseProto {

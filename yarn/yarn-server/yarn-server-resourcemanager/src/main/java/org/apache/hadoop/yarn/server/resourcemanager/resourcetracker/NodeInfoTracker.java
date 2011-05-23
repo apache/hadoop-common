@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
+import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 
@@ -29,24 +30,35 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 public class NodeInfoTracker {
   private final NodeManager node;
   HeartbeatResponse lastHeartBeatResponse;
-  private long lastSeen;
-
+  private NodeHeartbeatStatus heartBeatStatus;
+  
+  class NodeHeartbeatStatus {
+    private long lastSeen = 0;
+   
+    public NodeHeartbeatStatus(long lastSeen) {
+      this.lastSeen = lastSeen;
+    }
+    public NodeId getNodeId() {
+     return node.getNodeID();
+    }
+    
+    public long getLastSeen() {
+      return  lastSeen;
+    }
+  }
   public NodeInfoTracker(NodeManager node, HeartbeatResponse lastHeartBeatResponse) {
     this.node = node;
     this.lastHeartBeatResponse = lastHeartBeatResponse;
-    this.lastSeen = System.currentTimeMillis();
+    this.heartBeatStatus = new NodeHeartbeatStatus(System.currentTimeMillis());
   }
 
   public synchronized NodeManager getNodeManager() {
     return this.node;
   }
 
-  public synchronized void updateLastSeen(long lastSeen) {
-    this.lastSeen = lastSeen;
-  }
 
-  public synchronized long getNodeLastSeen() {
-    return this.lastSeen;
+  public synchronized NodeHeartbeatStatus getlastHeartBeat() {
+    return this.heartBeatStatus;
   }
 
   public synchronized HeartbeatResponse getLastHeartBeatResponse() {
@@ -55,5 +67,9 @@ public class NodeInfoTracker {
 
   public synchronized void refreshHeartBeatResponse(HeartbeatResponse heartBeatResponse) {
     this.lastHeartBeatResponse = heartBeatResponse;
+  }
+  
+  public synchronized void refreshLastHeartBeat() {
+   this.heartBeatStatus = new NodeHeartbeatStatus(System.currentTimeMillis()); 
   }
 }

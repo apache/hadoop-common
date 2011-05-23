@@ -108,16 +108,6 @@ public class NodeStatusPBImpl extends ProtoBase<NodeStatusProto> implements Node
     this.nodeId = nodeId;
     
   }
-  @Override
-  public long getLastSeen() {
-    NodeStatusProtoOrBuilder p = viaProto ? proto : builder;
-    return p.getLastSeen();
-  }
-  @Override
-  public void setLastSeen(long lastSeen) {
-    maybeInitBuilder();
-    builder.setLastSeen(lastSeen);
-  }
   
   @Override
   public Map<String, List<Container>> getAllContainers() {
