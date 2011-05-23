@@ -33,6 +33,8 @@ import org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.server.MiniYARNCluster;
+import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
+import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServices;
 import org.apache.hadoop.yarn.service.AbstractService;
@@ -80,6 +82,8 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
     conf.setClass(String.format(AuxServices.AUX_SERVICE_CLASS_FMT,
         ShuffleHandler.MAPREDUCE_SHUFFLE_SERVICEID), ShuffleHandler.class,
         Service.class);
+    conf.setClass(NMConfig.NM_CONTAINER_EXECUTOR_CLASS,
+        DefaultContainerExecutor.class, ContainerExecutor.class);
     super.init(conf);
   }
 

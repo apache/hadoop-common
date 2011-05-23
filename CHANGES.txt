@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Use DefaultContainerExecutor for integration tests. (cdouglas)
+
     Fix nodemanager expiry to not throw OOM. (mahadev)
 
     Changed Scheduler to return available limit to AM in the allocate api.
