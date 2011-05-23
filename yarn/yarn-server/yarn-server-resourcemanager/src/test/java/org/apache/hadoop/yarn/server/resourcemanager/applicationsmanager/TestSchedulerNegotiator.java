@@ -50,8 +50,10 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
@@ -72,7 +74,7 @@ public class TestSchedulerNegotiator extends TestCase {
   
   private class DummyScheduler implements ResourceScheduler {
     @Override
-    public List<Container> allocate(ApplicationId applicationId,
+    public Allocation allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       ArrayList<Container> containers = new ArrayList<Container>();
       Container container = recordFactory.newRecordInstance(Container.class);
@@ -80,7 +82,7 @@ public class TestSchedulerNegotiator extends TestCase {
       container.getId().setAppId(applicationId);
       container.getId().setId(testNum);
       containers.add(container);
-      return containers;
+      return new Allocation(containers, Resources.none());
     }
   
   

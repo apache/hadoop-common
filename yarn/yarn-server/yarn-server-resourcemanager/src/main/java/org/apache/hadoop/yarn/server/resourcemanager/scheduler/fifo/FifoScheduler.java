@@ -57,6 +57,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
@@ -167,14 +168,14 @@ public class FifoScheduler implements ResourceScheduler {
   }
 
   @Override
-  public synchronized List<Container> allocate(ApplicationId applicationId,
+  public synchronized Allocation allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release) 
       throws IOException {
     Application application = getApplication(applicationId);
     if (application == null) {
       LOG.error("Calling allocate on removed " +
           "or non existant application " + applicationId);
-      return EMPTY_CONTAINER_LIST; 
+      return new Allocation(EMPTY_CONTAINER_LIST, Resources.none()); 
     }
     normalizeRequests(ask);
 
@@ -200,7 +201,7 @@ public class FifoScheduler implements ResourceScheduler {
         " #ask=" + ask.size() + 
         " #release=" + release.size() +
         " #allContainers=" + allContainers.size());
-    return allContainers;
+    return new Allocation(allContainers, application.getResourceLimit());
   }
 
   private void releaseContainers(Application application, List<Container> release) {
@@ -294,6 +295,9 @@ public class FifoScheduler implements ResourceScheduler {
           }
         }
       }
+      
+      application.setAvailableResourceLimit(clusterResource);
+      
       LOG.debug("post-assignContainers");
       application.showRequests();
 
@@ -475,7 +479,7 @@ public class FifoScheduler implements ResourceScheduler {
        * the nodemanger is just updating about a completed container.
        */
       if (app != null) {
-        app.completedContainer(c);
+        app.completedContainer(c, c.getResource());
       }
     }
   }
@@ -507,8 +511,8 @@ public class FifoScheduler implements ResourceScheduler {
         MINIMUM_ALLOCATION)) {
       assignContainers(node);
     }
-    metrics.setAvailableQueueMemory(
-        clusterResource.getMemory() - usedResource.getMemory());
+    metrics.setAvailableResourcesToQueue(
+        Resources.subtract(clusterResource, usedResource));
     LOG.info("Node after allocation " + node.getNodeID() + " resource = "
         + node.getAvailableResource());
 
@@ -541,7 +545,6 @@ public class FifoScheduler implements ResourceScheduler {
   }
 
 
-  private Map<String, NodeManager> nodes = new HashMap<String, NodeManager>();
   private Resource clusterResource = recordFactory.newRecordInstance(Resource.class);
   private Resource usedResource = recordFactory.newRecordInstance(Resource.class);
 

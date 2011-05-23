@@ -42,10 +42,10 @@ public interface YarnScheduler {
    * @param applicationId
    * @param ask
    * @param release
-   * @return
+   * @return the scheduler's {@link Allocation} response 
    * @throws IOException
    */
-  List<Container> allocate(ApplicationId applicationId,
+  Allocation allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release)
   throws IOException;
   

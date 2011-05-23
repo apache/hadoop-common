@@ -8,6 +8,7 @@ import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import static org.apache.hadoop.test.MetricsAsserts.*;
 import static org.apache.hadoop.test.MockitoMaker.*;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 
 import org.junit.Before;
@@ -37,7 +38,7 @@ public class TestQueueMetrics {
     MetricsSource userSource = userSource(ms, queueName, user);
     checkApps(queueSource, 1, 1, 0, 0, 0, 0);
 
-    metrics.setAvailableQueueMemory(100*GB);
+    metrics.setAvailableResourcesToQueue(Resource.createResource(100*GB));
     metrics.incrPendingResources(user, 5, Resources.createResource(15*GB));
     // Available resources is set externally, as it depends on dynamic
     // configurable cluster/queue resources
@@ -71,8 +72,8 @@ public class TestQueueMetrics {
     checkApps(queueSource, 1, 1, 0, 0, 0, 0);
     checkApps(userSource, 1, 1, 0, 0, 0, 0);
 
-    metrics.setAvailableQueueMemory(100*GB);
-    metrics.setAvailableUserMemory(user, 10*GB);
+    metrics.setAvailableResourcesToQueue(Resources.createResource(100*GB));
+    metrics.setAvailableResourcesToUser(user, Resources.createResource(10*GB));
     metrics.incrPendingResources(user, 5, Resources.createResource(15*GB));
     // Available resources is set externally, as it depends on dynamic
     // configurable cluster/queue resources
@@ -120,10 +121,10 @@ public class TestQueueMetrics {
     checkApps(userSource, 1, 1, 0, 0, 0, 0);
     checkApps(parentUserSource, 1, 1, 0, 0, 0, 0);
 
-    parentMetrics.setAvailableQueueMemory(100*GB);
-    metrics.setAvailableQueueMemory(100*GB);
-    parentMetrics.setAvailableUserMemory(user, 10*GB);
-    metrics.setAvailableUserMemory(user, 10*GB);
+    parentMetrics.setAvailableResourcesToQueue(Resources.createResource(100*GB));
+    metrics.setAvailableResourcesToQueue(Resources.createResource(100*GB));
+    parentMetrics.setAvailableResourcesToUser(user, Resources.createResource(10*GB));
+    metrics.setAvailableResourcesToUser(user, Resources.createResource(10*GB));
     metrics.incrPendingResources(user, 5, Resources.createResource(15*GB));
     checkResources(queueSource, 0, 0, 100, 15, 5);
     checkResources(parentQueueSource, 0, 0, 100, 15, 5);

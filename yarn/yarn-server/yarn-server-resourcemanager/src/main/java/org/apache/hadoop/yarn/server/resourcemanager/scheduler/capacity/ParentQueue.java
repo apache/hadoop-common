@@ -619,13 +619,13 @@ public class ParentQueue implements Queue {
   
   @Override
   public void completedContainer(Resource clusterResource,
-      Container container, Resource allocatedResource, 
+      Container container, Resource containerResource, 
       Application application) {
     if (application != null) {
       // Careful! Locking order is important!
       // Book keeping
       synchronized (this) {
-        releaseResource(clusterResource, allocatedResource);
+        releaseResource(clusterResource, containerResource);
 
         LOG.info("completedContainer" +
             " queue=" + getQueueName() + 
@@ -637,7 +637,7 @@ public class ParentQueue implements Queue {
       // Inform the parent
       if (parent != null) {
         parent.completedContainer(clusterResource, container, 
-            allocatedResource, application);
+            containerResource, application);
       }    
     }
   }
@@ -658,10 +658,15 @@ public class ParentQueue implements Queue {
 
   @Override
   public synchronized void updateResource(Resource clusterResource) {
-    float memLimit = clusterResource.getMemory() * absoluteCapacity;
-    setUtilization(usedResources.getMemory() / memLimit);
-    setUsedCapacity(usedResources.getMemory() / (clusterResource.getMemory() * capacity));
-    metrics.setAvailableQueueMemory((int) memLimit - usedResources.getMemory());
+    float queueLimit = clusterResource.getMemory() * absoluteCapacity; 
+    setUtilization(usedResources.getMemory() / queueLimit);
+    setUsedCapacity(
+        usedResources.getMemory() / (clusterResource.getMemory() * capacity));
+    
+    Resource resourceLimit = 
+      Resources.createResource((int)queueLimit);
+    metrics.setAvailableResourcesToQueue(
+        Resources.subtractFrom(resourceLimit, usedResources));
   }
 
   @Override

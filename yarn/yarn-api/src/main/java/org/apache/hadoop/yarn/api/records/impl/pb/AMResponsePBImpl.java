@@ -8,9 +8,12 @@ import java.util.List;
 import org.apache.hadoop.yarn.api.records.AMResponse;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ProtoBase;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.proto.YarnProtos.AMResponseProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.AMResponseProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerProto;
+import org.apache.hadoop.yarn.proto.YarnProtos.NodeManagerInfoProtoOrBuilder;
+import org.apache.hadoop.yarn.proto.YarnProtos.ResourceProto;
 
 
     
@@ -19,6 +22,8 @@ public class AMResponsePBImpl extends ProtoBase<AMResponseProto> implements AMRe
   AMResponseProto.Builder builder = null;
   boolean viaProto = false;
   
+  Resource limit;
+
   private List<Container> containerList = null;
 //  private boolean hasLocalContainerList = false;
   
@@ -83,6 +88,28 @@ public class AMResponsePBImpl extends ProtoBase<AMResponseProto> implements AMRe
     maybeInitBuilder();
     builder.setResponseId((responseId));
   }
+  @Override
+  public Resource getAvailableResources() {
+    if (this.limit != null) {
+      return this.limit;
+    }
+
+    AMResponseProtoOrBuilder p = viaProto ? proto : builder;
+    if (!p.hasLimit()) {
+      return null;
+    }
+    this.limit = convertFromProtoFormat(p.getLimit());
+    return this.limit;
+  }
+
+  @Override
+  public void setAvailableResources(Resource limit) {
+    maybeInitBuilder();
+    if (limit == null)
+      builder.clearLimit();
+    this.limit = limit;
+  }
+
   @Override
   public List<Container> getContainerList() {
     initLocalContainerList();
@@ -183,6 +210,12 @@ public class AMResponsePBImpl extends ProtoBase<AMResponseProto> implements AMRe
     return ((ContainerPBImpl)t).getProto();
   }
 
+  private ResourcePBImpl convertFromProtoFormat(ResourceProto p) {
+    return new ResourcePBImpl(p);
+  }
 
+  private ResourceProto convertToProtoFormat(Resource r) {
+    return ((ResourcePBImpl) r).getProto();
+  }
 
 }  

@@ -268,7 +268,7 @@ public class Application {
     List<Container> response = 
       resourceManager.getResourceScheduler().allocate(applicationId, 
           new ArrayList<ResourceRequest>(ask), 
-          new ArrayList<Container>(release));
+          new ArrayList<Container>(release)).getContainers();
     
     List<Container> containers = new ArrayList<Container>(response.size());
     for (Container container : response) {

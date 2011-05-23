@@ -68,6 +68,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
@@ -229,7 +230,7 @@ public class TestRMContainerAllocator {
       //RMContainerAllocator
       
       @Override
-      public synchronized List<Container> allocate(ApplicationId applicationId,
+      public synchronized Allocation allocate(ApplicationId applicationId,
           List<ResourceRequest> ask, List<Container> release) 
           throws IOException {
         List<ResourceRequest> askCopy = new ArrayList<ResourceRequest>();
@@ -347,7 +348,9 @@ public class TestRMContainerAllocator {
         List<Container> release = request.getReleaseList();
         try {
           AMResponse response = recordFactory.newRecordInstance(AMResponse.class);
-          response.addAllContainers(resourceScheduler.allocate(status.getApplicationId(), ask, release));
+          Allocation allocation = resourceScheduler.allocate(status.getApplicationId(), ask, release);
+          response.addAllContainers(allocation.getContainers());
+          response.setAvailableResources(allocation.getResourceLimit());
           AllocateResponse allocateResponse = recordFactory.newRecordInstance(AllocateResponse.class);
           allocateResponse.setAMResponse(response);
           return allocateResponse;

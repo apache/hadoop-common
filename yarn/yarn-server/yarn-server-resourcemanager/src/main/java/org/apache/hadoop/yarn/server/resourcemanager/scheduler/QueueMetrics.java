@@ -171,22 +171,22 @@ public class QueueMetrics {
   /**
    * Set available resources. To be called by scheduler periodically as
    * resources become available.
-   * @param mb memory in MB
+   * @param limit resource limit
    */
-  public void setAvailableQueueMemory(int mb) {
-    availableGB.set(mb/GB);
+  public void setAvailableResourcesToQueue(Resource limit) {
+    availableGB.set(limit.getMemory()/GB);
   }
 
   /**
    * Set available resources. To be called by scheduler periodically as
    * resources become available.
    * @param user
-   * @param mb memory in MB
+   * @param limit resource limit
    */
-  public void setAvailableUserMemory(String user, int mb) {
+  public void setAvailableResourcesToUser(String user, Resource limit) {
     QueueMetrics userMetrics = getUserMetrics(user);
     if (userMetrics != null) {
-      userMetrics.setAvailableQueueMemory(mb);
+      userMetrics.setAvailableResourcesToQueue(limit);
     }
   }
 

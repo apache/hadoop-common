@@ -51,6 +51,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.junit.After;
 import org.junit.Before;
@@ -71,9 +73,9 @@ public class TestAMLaunchFailure extends TestCase {
     private Container container = recordFactory.newRecordInstance(Container.class);
 
     @Override
-    public List<Container> allocate(ApplicationId applicationId,
+    public Allocation allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
-      return Arrays.asList(container);
+      return new Allocation(Arrays.asList(container), Resources.none());
     }
 
     @Override

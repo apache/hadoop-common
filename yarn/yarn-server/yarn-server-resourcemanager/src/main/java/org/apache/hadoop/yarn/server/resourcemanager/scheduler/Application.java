@@ -1,20 +1,20 @@
 /**
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
@@ -49,9 +49,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 
 /**
- * This class keeps track of all the consumption of an application.
- * This also keeps track of current running/completed
- *  containers for the application.
+ * This class keeps track of all the consumption of an application. This also
+ * keeps track of current running/completed containers for the application.
  */
 @LimitedPrivate("yarn")
 @Evolving
@@ -60,46 +59,45 @@ public class Application {
   final ApplicationId applicationId;
   final Queue queue;
   final String user;
-  private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+  private final RecordFactory recordFactory = RecordFactoryProvider
+      .getRecordFactory(null);
 
-  final Set<Priority> priorities = 
-    new TreeSet<Priority>(
-        new org.apache.hadoop.yarn.server.resourcemanager.resource.Priority.Comparator());
-  final Map<Priority, Map<String, ResourceRequest>> requests = 
-    new HashMap<Priority, Map<String, ResourceRequest>>();
-  final Resource currentConsumption = recordFactory.newRecordInstance(Resource.class);
-  final Resource overallConsumption = recordFactory.newRecordInstance(Resource.class);
-
-  Map<Priority, Integer> schedulingOpportunities = 
-    new HashMap<Priority, Integer>();
+  final Set<Priority> priorities = new TreeSet<Priority>(
+      new org.apache.hadoop.yarn.server.resourcemanager.resource.Priority.Comparator());
+  final Map<Priority, Map<String, ResourceRequest>> requests = new HashMap<Priority, Map<String, ResourceRequest>>();
+  final Resource currentConsumption = recordFactory
+      .newRecordInstance(Resource.class);
+  final Resource overallConsumption = recordFactory
+      .newRecordInstance(Resource.class);
+  Resource resourceLimit = recordFactory.newRecordInstance(Resource.class);
   
+  Map<Priority, Integer> schedulingOpportunities = new HashMap<Priority, Integer>();
+
   private final ApplicationStore store;
-  
+
   /* Current consumption */
   List<Container> acquired = new ArrayList<Container>();
   List<Container> completedContainers = new ArrayList<Container>();
   /* Allocated by scheduler */
-  List<Container> allocated = new ArrayList<Container>(); 
+  List<Container> allocated = new ArrayList<Container>();
   Set<NodeInfo> applicationOnNodes = new HashSet<NodeInfo>();
   ApplicationMaster master;
   boolean pending = true; // for app metrics
-  
+
   /* Reserved containers */
-  private final Comparator<NodeInfo> nodeComparator = 
-    new Comparator<NodeInfo>() {
+  private final Comparator<NodeInfo> nodeComparator = new Comparator<NodeInfo>() {
     @Override
     public int compare(NodeInfo o1, NodeInfo o2) {
       return o1.getNodeID().getId() - o2.getNodeID().getId();
     }
   };
-  final Map<Priority, Set<NodeInfo>> reservedContainers =
-    new HashMap<Priority, Set<NodeInfo>>();
+  final Map<Priority, Set<NodeInfo>> reservedContainers = new HashMap<Priority, Set<NodeInfo>>();
 
   public Application(ApplicationId applicationId, ApplicationMaster master,
       Queue queue, String user, ApplicationStore store) {
     this.applicationId = applicationId;
     this.queue = queue;
-    this.user = user; 
+    this.user = user;
     this.master = master;
     this.store = store;
   }
@@ -111,7 +109,7 @@ public class Application {
   public Queue getQueue() {
     return queue;
   }
-  
+
   public String getUser() {
     return user;
   }
@@ -140,19 +138,21 @@ public class Application {
   public synchronized void clearRequests() {
     requests.clear();
   }
-  
+
   /**
-   * the currently acquired/allocated containers  by the application masters.
+   * the currently acquired/allocated containers by the application masters.
+   * 
    * @return the current containers being used by the application masters.
    */
   public synchronized List<Container> getCurrentContainers() {
-    List<Container> currentContainers =  new ArrayList<Container>(acquired);
+    List<Container> currentContainers = new ArrayList<Container>(acquired);
     currentContainers.addAll(allocated);
     return currentContainers;
   }
 
   /**
    * The ApplicationMaster is acquiring the allocated/completed resources.
+   * 
    * @return allocated resources
    */
   synchronized public List<Container> acquire() {
@@ -165,22 +165,23 @@ public class Application {
       Resources.addTo(overallConsumption, container.getResource());
     }
 
-    LOG.debug("acquire:" +
-        " application=" + applicationId + 
-        " #acquired=" + heartbeatContainers.size());
-    heartbeatContainers =  (heartbeatContainers == null) ? 
-        new ArrayList<Container>() : heartbeatContainers;
+    LOG.debug("acquire:" + " application=" + applicationId + " #acquired="
+        + heartbeatContainers.size());
+    heartbeatContainers = (heartbeatContainers == null) ? new ArrayList<Container>()
+        : heartbeatContainers;
 
-        heartbeatContainers.addAll(completedContainers);
-        completedContainers.clear();
-        return heartbeatContainers;
+    heartbeatContainers.addAll(completedContainers);
+    completedContainers.clear();
+    return heartbeatContainers;
   }
 
   /**
-   * The ApplicationMaster is updating resource requirements for the 
-   * application, by asking for more resources and releasing resources 
-   * acquired by the application.
-   * @param requests resources to be acquired
+   * The ApplicationMaster is updating resource requirements for the
+   * application, by asking for more resources and releasing resources acquired
+   * by the application.
+   * 
+   * @param requests
+   *          resources to be acquired
    */
   synchronized public void updateResourceRequests(List<ResourceRequest> requests) {
     QueueMetrics metrics = queue.getMetrics();
@@ -192,9 +193,8 @@ public class Application {
       ResourceRequest lastRequest = null;
 
       if (hostName.equals(NodeManager.ANY)) {
-        LOG.debug("update:" +
-            " application=" + applicationId +
-            " request=" + request);
+        LOG.debug("update:" + " application=" + applicationId + " request="
+            + request);
         updatePendingResources = true;
       }
 
@@ -211,28 +211,26 @@ public class Application {
       asks.put(hostName, request);
 
       if (updatePendingResources) {
-        int lastRequestContainers = lastRequest != null ?
-            lastRequest.getNumContainers() : 0;
-        Resource lastRequestCapability = lastRequest != null ?
-            lastRequest.getCapability() : Resources.none();
-        metrics.incrPendingResources(user,
-            request.getNumContainers() - lastRequestContainers,
-            Resources.subtractFrom( // save a clone
-                Resources.multiply(request.getCapability(),
-                                   request.getNumContainers()),
-                Resources.multiply(lastRequestCapability,
-                                   lastRequestContainers)));
+        int lastRequestContainers = lastRequest != null ? lastRequest
+            .getNumContainers() : 0;
+        Resource lastRequestCapability = lastRequest != null ? lastRequest
+            .getCapability() : Resources.none();
+        metrics.incrPendingResources(user, request.getNumContainers()
+            - lastRequestContainers, Resources.subtractFrom( // save a clone
+            Resources.multiply(request.getCapability(), request
+                .getNumContainers()), Resources.multiply(lastRequestCapability,
+                lastRequestContainers)));
       }
     }
   }
 
   public synchronized void releaseContainers(List<Container> release) {
-    // Release containers and update consumption 
+    // Release containers and update consumption
     for (Container container : release) {
-      LOG.debug("update: " +
-          "application=" + applicationId + " released=" + container);
+      LOG.debug("update: " + "application=" + applicationId + " released="
+          + container);
       Resources.subtractFrom(currentConsumption, container.getResource());
-      for (Iterator<Container> i=acquired.iterator(); i.hasNext();) {
+      for (Iterator<Container> i = acquired.iterator(); i.hasNext();) {
         Container c = i.next();
         if (c.getId().equals(container.getId())) {
           i.remove();
@@ -246,21 +244,25 @@ public class Application {
     return priorities;
   }
 
-  synchronized public Map<String, ResourceRequest> 
-  getResourceRequests(Priority priority) {
+  synchronized public Map<String, ResourceRequest> getResourceRequests(
+      Priority priority) {
     return requests.get(priority);
   }
 
-  synchronized public ResourceRequest getResourceRequest(Priority priority, 
+  synchronized public ResourceRequest getResourceRequest(Priority priority,
       String nodeAddress) {
     Map<String, ResourceRequest> nodeRequests = requests.get(priority);
     return (nodeRequests == null) ? null : nodeRequests.get(nodeAddress);
   }
 
-  synchronized public void completedContainer(Container container) {
-    LOG.info("Completed container: " + container);
-    completedContainers.add(container);
-    queue.getMetrics().releaseResources(user, 1, container.getResource());
+  synchronized public void completedContainer(Container container, 
+      Resource containerResource) {
+    if (container != null) {
+      LOG.info("Completed container: " + container);
+      completedContainers.add(container);
+    }
+    queue.getMetrics().releaseResources(user, 1, containerResource);
+    Resources.subtractFrom(currentConsumption, containerResource);
   }
 
   synchronized public void completedContainers(List<Container> containers) {
@@ -268,15 +270,21 @@ public class Application {
   }
 
   /**
-   * Resources have been allocated to this application by the resource scheduler.
-   * Track them.
-   * @param type the type of the node
-   * @param node the nodeinfo of the node
-   * @param priority the priority of the request.
-   * @param request the request
-   * @param containers the containers allocated.
+   * Resources have been allocated to this application by the resource
+   * scheduler. Track them.
+   * 
+   * @param type
+   *          the type of the node
+   * @param node
+   *          the nodeinfo of the node
+   * @param priority
+   *          the priority of the request.
+   * @param request
+   *          the request
+   * @param containers
+   *          the containers allocated.
    */
-  synchronized public void allocate(NodeType type, NodeInfo node, 
+  synchronized public void allocate(NodeType type, NodeInfo node,
       Priority priority, ResourceRequest request, List<Container> containers) {
     applicationOnNodes.add(node);
     if (type == NodeType.DATA_LOCAL) {
@@ -293,81 +301,90 @@ public class Application {
       pending = false;
       metrics.incrAppsRunning(user);
     }
-    LOG.debug("allocate: user: "+ user +", memory: "+ request.getCapability());
+    LOG.debug("allocate: user: " + user + ", memory: "
+        + request.getCapability());
     metrics.allocateResources(user, containers.size(), request.getCapability());
   }
 
   /**
-   * The {@link ResourceScheduler} is allocating data-local resources 
-   * to the application.
-   * @param allocatedContainers resources allocated to the application
+   * The {@link ResourceScheduler} is allocating data-local resources to the
+   * application.
+   * 
+   * @param allocatedContainers
+   *          resources allocated to the application
    */
-  synchronized private void allocateNodeLocal(NodeInfo node, 
-      Priority priority, ResourceRequest nodeLocalRequest, 
-      List<Container> containers) {
+  synchronized private void allocateNodeLocal(NodeInfo node, Priority priority,
+      ResourceRequest nodeLocalRequest, List<Container> containers) {
     // Update consumption and track allocations
     allocate(containers);
 
     // Update future requirements
-    nodeLocalRequest.setNumContainers(nodeLocalRequest.getNumContainers() - containers.size());
+    nodeLocalRequest.setNumContainers(nodeLocalRequest.getNumContainers()
+        - containers.size());
     if (nodeLocalRequest.getNumContainers() == 0) {
       this.requests.get(priority).remove(node.getNodeAddress());
     }
-    
-    ResourceRequest rackLocalRequest = 
-      requests.get(priority).get(node.getRackName());
-    rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers() - containers.size());
+
+    ResourceRequest rackLocalRequest = requests.get(priority).get(
+        node.getRackName());
+    rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers()
+        - containers.size());
     if (rackLocalRequest.getNumContainers() == 0) {
       this.requests.get(priority).remove(node.getRackName());
     }
-    
+
     // Do not remove ANY
-    ResourceRequest offSwitchRequest = 
-      requests.get(priority).get(NodeManager.ANY);
-    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
+    ResourceRequest offSwitchRequest = requests.get(priority).get(
+        NodeManager.ANY);
+    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers()
+        - containers.size());
   }
 
   /**
-   * The {@link ResourceScheduler} is allocating data-local resources 
-   * to the application.
-   * @param allocatedContainers resources allocated to the application
+   * The {@link ResourceScheduler} is allocating data-local resources to the
+   * application.
+   * 
+   * @param allocatedContainers
+   *          resources allocated to the application
    */
-  synchronized private void allocateRackLocal(NodeInfo node, 
-      Priority priority, ResourceRequest rackLocalRequest, 
-      List<Container> containers) {
+  synchronized private void allocateRackLocal(NodeInfo node, Priority priority,
+      ResourceRequest rackLocalRequest, List<Container> containers) {
 
     // Update consumption and track allocations
     allocate(containers);
 
     // Update future requirements
-    rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers() - containers.size());
+    rackLocalRequest.setNumContainers(rackLocalRequest.getNumContainers()
+        - containers.size());
     if (rackLocalRequest.getNumContainers() == 0) {
       this.requests.get(priority).remove(node.getRackName());
     }
-    
+
     // Do not remove ANY
-    ResourceRequest offSwitchRequest = 
-      requests.get(priority).get(NodeManager.ANY);
-    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers() - containers.size());
-} 
+    ResourceRequest offSwitchRequest = requests.get(priority).get(
+        NodeManager.ANY);
+    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers()
+        - containers.size());
+  }
 
   /**
-   * The {@link ResourceScheduler} is allocating data-local resources 
-   * to the application.
-   * @param allocatedContainers resources allocated to the application
+   * The {@link ResourceScheduler} is allocating data-local resources to the
+   * application.
+   * 
+   * @param allocatedContainers
+   *          resources allocated to the application
    */
-  synchronized private void allocateOffSwitch(NodeInfo node, 
-      Priority priority, ResourceRequest offSwitchRequest, 
-      List<Container> containers) {
+  synchronized private void allocateOffSwitch(NodeInfo node, Priority priority,
+      ResourceRequest offSwitchRequest, List<Container> containers) {
 
     // Update consumption and track allocations
     allocate(containers);
 
     // Update future requirements
-    
+
     // Do not remove ANY
-    offSwitchRequest.setNumContainers(
-        offSwitchRequest.getNumContainers() - containers.size());
+    offSwitchRequest.setNumContainers(offSwitchRequest.getNumContainers()
+        - containers.size());
   }
 
   synchronized public void allocate(List<Container> containers) {
@@ -378,61 +395,63 @@ public class Application {
       allocated.add(container);
       try {
         store.storeContainer(container);
-      } catch(IOException ie) {
-        //TODO fix this. we shouldnt ignore
+      } catch (IOException ie) {
+        // TODO fix this. we shouldnt ignore
       }
-      LOG.debug("allocate: applicationId=" + applicationId + 
-          " container=" + container.getId() + " host=" + container.getContainerManagerAddress());
+      LOG.debug("allocate: applicationId=" + applicationId + " container="
+          + container.getId() + " host="
+          + container.getContainerManagerAddress());
     }
   }
 
   synchronized public void resetSchedulingOpportunities(Priority priority) {
-    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
+    Integer schedulingOpportunities = this.schedulingOpportunities
+        .get(priority);
     schedulingOpportunities = 0;
     this.schedulingOpportunities.put(priority, schedulingOpportunities);
   }
-  
+
   synchronized public void addSchedulingOpportunity(Priority priority) {
-    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
+    Integer schedulingOpportunities = this.schedulingOpportunities
+        .get(priority);
     if (schedulingOpportunities == null) {
       schedulingOpportunities = 0;
     }
     ++schedulingOpportunities;
     this.schedulingOpportunities.put(priority, schedulingOpportunities);
   }
-  
+
   synchronized public int getSchedulingOpportunities(Priority priority) {
-    Integer schedulingOpportunities = this.schedulingOpportunities.get(priority);
+    Integer schedulingOpportunities = this.schedulingOpportunities
+        .get(priority);
     if (schedulingOpportunities == null) {
       schedulingOpportunities = 0;
       this.schedulingOpportunities.put(priority, schedulingOpportunities);
     }
     return schedulingOpportunities;
   }
-  
+
   synchronized public void showRequests() {
     for (Priority priority : getPriorities()) {
       Map<String, ResourceRequest> requests = getResourceRequests(priority);
       if (requests != null) {
+        LOG.debug("showRequests:" + " application=" + applicationId + 
+            " available=" + getResourceLimit() + " current=" + currentConsumption);
         for (ResourceRequest request : requests.values()) {
-          LOG.debug("showRequests:" +
-              " application=" + applicationId + 
-              " request=" + request);
+          LOG.debug("showRequests:" + " application=" + applicationId
+              + " request=" + request);
         }
       }
     }
   }
-  
+
   synchronized public List<NodeInfo> getAllNodesForApplication() {
     return new ArrayList<NodeInfo>(applicationOnNodes);
   }
 
-
-  synchronized public org.apache.hadoop.yarn.api.records.Application 
-  getApplicationInfo() {
-    org.apache.hadoop.yarn.api.records.Application application = 
-      recordFactory.newRecordInstance(
-          org.apache.hadoop.yarn.api.records.Application.class);
+  synchronized public org.apache.hadoop.yarn.api.records.Application getApplicationInfo() {
+    org.apache.hadoop.yarn.api.records.Application application = recordFactory
+        .newRecordInstance(org.apache.hadoop.yarn.api.records.Application.class);
     application.setApplicationId(applicationId);
     application.setMasterHost("");
     application.setName("");
@@ -440,8 +459,8 @@ public class Application {
     application.setState(ApplicationState.RUNNING);
     application.setUser(user);
 
-    ApplicationStatus status = 
-      recordFactory.newRecordInstance(ApplicationStatus.class);
+    ApplicationStatus status = recordFactory
+        .newRecordInstance(ApplicationStatus.class);
     status.setApplicationId(applicationId);
     application.setStatus(status);
 
@@ -461,9 +480,9 @@ public class Application {
       reservedContainers.put(priority, reservedNodes);
     }
     reservedNodes.add(node);
-    LOG.info("Application " + applicationId + " reserved " + resource + 
-        " on node " + node + ", currently has " + reservedNodes.size() + 
-        " at priority " + priority);
+    LOG.info("Application " + applicationId + " reserved " + resource
+        + " on node " + node + ", currently has " + reservedNodes.size()
+        + " at priority " + priority);
   }
 
   public synchronized void unreserveResource(NodeInfo node, Priority priority) {
@@ -473,14 +492,14 @@ public class Application {
       this.reservedContainers.remove(priority);
     }
 
-    LOG.info("Application " + applicationId + " unreserved " + 
-        " on node " + node + ", currently has " + reservedNodes.size() + 
-        " at priority " + priority);
+    LOG.info("Application " + applicationId + " unreserved " + " on node "
+        + node + ", currently has " + reservedNodes.size() + " at priority "
+        + priority);
   }
 
   public synchronized boolean isReserved(NodeInfo node, Priority priority) {
     Set<NodeInfo> reservedNodes = reservedContainers.get(priority);
-    if (reservedNodes != null) { 
+    if (reservedNodes != null) {
       return reservedNodes.contains(node);
     }
     return false;
@@ -488,10 +507,10 @@ public class Application {
 
   public float getLocalityWaitFactor(Priority priority, int clusterNodes) {
     // Estimate: Required unique resources (i.e. hosts + racks)
-    int requiredResources = Math.max(this.requests.get(priority).size()-1, 1);
-    return ((float)requiredResources / clusterNodes); 
+    int requiredResources = Math.max(this.requests.get(priority).size() - 1, 1);
+    return ((float) requiredResources / clusterNodes);
   }
-  
+
   synchronized public void finish() {
     // GC pending resources metrics
     QueueMetrics metrics = queue.getMetrics();
@@ -499,13 +518,30 @@ public class Application {
       ResourceRequest request = asks.get(NodeManager.ANY);
       if (request != null) {
         metrics.decrPendingResources(user, request.getNumContainers(),
-            Resources.multiply(request.getCapability(),
-                               request.getNumContainers()));
+            Resources.multiply(request.getCapability(), request
+                .getNumContainers()));
       }
     }
   }
 
   public Map<Priority, Set<NodeInfo>> getAllReservations() {
     return new HashMap<Priority, Set<NodeInfo>>(reservedContainers);
+  }
+
+  public synchronized void setAvailableResourceLimit(Resource globalLimit) {
+    resourceLimit = Resources.subtract(globalLimit, currentConsumption);
+    
+    // Corner case to deal with applications being slightly over-limit
+    if (resourceLimit.getMemory() < 0) {
+      resourceLimit.setMemory(0);
+    }
+  }
+
+  /**
+   * Get available headroom in terms of resources for the application's user.
+   * @return available resource headroom
+   */
+  public synchronized Resource getResourceLimit() {
+    return resourceLimit;
   }
 }

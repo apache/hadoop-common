@@ -3,6 +3,10 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+
+    Changed Scheduler to return available limit to AM in the allocate api.
+    (acmurthy)
+
     Refactored RMContainerAllocator to release unused containers. (sharad) 
 
     Fix null pointer exception in kill task attempt (mahadev)

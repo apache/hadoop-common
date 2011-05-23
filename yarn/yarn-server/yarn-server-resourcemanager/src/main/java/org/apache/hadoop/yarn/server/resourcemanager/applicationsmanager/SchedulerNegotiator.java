@@ -146,7 +146,7 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
             AppContext masterInfo = it.next();
             ApplicationId appId = masterInfo.getMaster().getApplicationId();
             containers = scheduler.allocate(appId, 
-                EMPTY_ASK, EMPTY_RELEASE);
+                EMPTY_ASK, EMPTY_RELEASE).getContainers();
             if (!containers.isEmpty()) {
               // there should be only one container for an application
               assert(containers.size() == 1);

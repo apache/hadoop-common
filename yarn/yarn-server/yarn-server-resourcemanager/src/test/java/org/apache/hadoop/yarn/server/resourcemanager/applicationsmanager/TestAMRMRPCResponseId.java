@@ -46,6 +46,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.Applica
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.junit.After;
 import org.junit.Before;
@@ -81,7 +82,7 @@ public class TestAMRMRPCResponseId extends TestCase {
   
   private class DummyScheduler implements YarnScheduler {
     @Override
-    public List<Container> allocate(ApplicationId applicationId,
+    public Allocation allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       return null;
     }

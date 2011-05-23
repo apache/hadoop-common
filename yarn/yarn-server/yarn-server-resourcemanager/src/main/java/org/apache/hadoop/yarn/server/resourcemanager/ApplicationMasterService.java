@@ -58,6 +58,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationMasterHandler;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.service.AbstractService;
 
@@ -160,10 +161,12 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
           return allocateResponse;
         }
         applicationsManager.applicationHeartbeat(status);
-        List<Container> containers = rScheduler.allocate(status.getApplicationId(), ask, release);
+        Allocation allocation = 
+          rScheduler.allocate(status.getApplicationId(), ask, release); 
         AMResponse  response = recordFactory.newRecordInstance(AMResponse.class);
-        response.addAllContainers(containers);
+        response.addAllContainers(allocation.getContainers());
         response.setResponseId(lastResponse.getResponseId() + 1);
+        response.setAvailableResources(allocation.getResourceLimit());
         responseMap.put(status.getApplicationId(), response);
         allocateResponse.setAMResponse(response);
         return allocateResponse;

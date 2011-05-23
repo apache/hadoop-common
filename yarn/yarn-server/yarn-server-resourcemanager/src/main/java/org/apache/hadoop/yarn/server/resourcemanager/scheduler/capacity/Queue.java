@@ -170,11 +170,11 @@ extends org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue {
    * @param clusterResource the resource of the cluster
    * @param container completed container, 
    *                  <code>null</code> if it was just a reservation
-   * @param allocatedResource allocated resource
+   * @param containerResource allocated resource
    * @param application application to which the container was assigned
    */
   public void completedContainer(Resource clusterResource,
-      Container container, Resource allocatedResource, 
+      Container container, Resource containerResource, 
       Application application);
 
   /**

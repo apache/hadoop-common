@@ -54,6 +54,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.ApplicationI
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Application;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
@@ -300,7 +301,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public List<Container> allocate(ApplicationId applicationId,
+  public Allocation allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release)
       throws IOException {
 
@@ -308,8 +309,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
     if (application == null) {
       LOG.info("Calling allocate on removed " +
           "or non existant application " + applicationId);
-      return EMPTY_CONTAINER_LIST; 
+      return new Allocation(EMPTY_CONTAINER_LIST, Resources.none()); 
     }
+    
     normalizeRequests(ask);
 
     LOG.info("DEBUG --- allocate: pre-update" +
@@ -332,7 +334,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
         " #ask=" + ask.size() + 
         " #release=" + release.size() +
         " #allContainers=" + allContainers.size());
-    return allContainers;
+    return new Allocation(allContainers, application.getResourceLimit());
   }
 
   @Override

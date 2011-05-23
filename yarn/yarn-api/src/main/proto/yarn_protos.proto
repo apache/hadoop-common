@@ -146,6 +146,7 @@ message AMResponseProto {
   optional bool reboot = 1;
   optional int32 response_id = 2;
   repeated ContainerProto containers = 3;
+  optional ResourceProto limit = 4;
 }
 
 

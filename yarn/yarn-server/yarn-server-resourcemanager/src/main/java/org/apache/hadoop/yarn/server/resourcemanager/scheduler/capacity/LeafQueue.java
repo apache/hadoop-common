@@ -528,7 +528,7 @@ public class LeafQueue implements Queue {
             }
 
             // User limits
-            if (!assignToUser(application.getUser(), clusterResource, required.getCapability())) {
+            if (!assignToUser(application, clusterResource, required.getCapability())) {
               continue; 
             }
 
@@ -615,8 +615,8 @@ public class LeafQueue implements Queue {
     return true;
   }
 
-  private synchronized boolean assignToUser(String userName, Resource clusterResource,
-      Resource required) {
+  private synchronized boolean assignToUser(Application application, 
+      Resource clusterResource, Resource required) {
     // What is our current capacity? 
     // * It is equal to the max(required, queue-capacity) if
     //   we're running below capacity. The 'max' ensures that jobs in queues
@@ -642,6 +642,8 @@ public class LeafQueue implements Queue {
     // Also, the queue's configured capacity should be higher than 
     // queue-hard-limit * ulMin
 
+    String userName = application.getUser();
+    
     final int activeUsers = users.size();  
     User user = getUser(userName);
 
@@ -652,8 +654,8 @@ public class LeafQueue implements Queue {
               (int)(queueCapacity * userLimitFactor)
       );
 
-    metrics.setAvailableUserMemory(userName,
-        limit - user.getConsumedResources().getMemory());
+    application.setAvailableResourceLimit(Resources.createResource(limit));
+    metrics.setAvailableResourcesToUser(userName, application.getResourceLimit());
 
     // Note: We aren't considering the current request since there is a fixed
     // overhead of the AM, so... 
@@ -935,16 +937,14 @@ public class LeafQueue implements Queue {
 
   @Override
   public void completedContainer(Resource clusterResource, 
-      Container container, Resource allocatedResource, Application application) {
+      Container container, Resource containerResource, Application application) {
     if (application != null) {
       // Careful! Locking order is important!
       synchronized (this) {
         
-        // Inform the application iff this was an allocated container, 
-        // as opposed to an unfulfilled reservation
-        if (container != null) {
-          application.completedContainer(container);
-        }
+        // Inform the application - this might be an allocated container or
+        // an unfulfilled reservation
+        application.completedContainer(container, containerResource);
         
         // Book-keeping
         releaseResource(clusterResource, 
@@ -952,7 +952,7 @@ public class LeafQueue implements Queue {
 
         LOG.info("completedContainer" +
             " container=" + container +
-            " resource=" + allocatedResource +
+            " resource=" + containerResource +
         		" queue=" + this + 
             " util=" + getUtilization() + 
             " used=" + usedResources + 
@@ -961,7 +961,7 @@ public class LeafQueue implements Queue {
 
       // Inform the parent queue
       parent.completedContainer(clusterResource, container, 
-          allocatedResource, application);
+          containerResource, application);
     }
   }
 
@@ -987,10 +987,15 @@ public class LeafQueue implements Queue {
 
   @Override
   public synchronized void updateResource(Resource clusterResource) {
-    float memLimit = clusterResource.getMemory() * absoluteCapacity;
-    setUtilization(usedResources.getMemory() / memLimit);
-    setUsedCapacity(usedResources.getMemory() / (clusterResource.getMemory() * capacity));
-    metrics.setAvailableQueueMemory((int) memLimit - usedResources.getMemory());
+    float queueLimit = clusterResource.getMemory() * absoluteCapacity; 
+    setUtilization(usedResources.getMemory() / queueLimit);
+    setUsedCapacity(
+        usedResources.getMemory() / (clusterResource.getMemory() * capacity));
+    
+    Resource resourceLimit = 
+      Resources.createResource((int)queueLimit);
+    metrics.setAvailableResourcesToQueue(
+        Resources.subtractFrom(resourceLimit, usedResources));
   }
 
   @Override

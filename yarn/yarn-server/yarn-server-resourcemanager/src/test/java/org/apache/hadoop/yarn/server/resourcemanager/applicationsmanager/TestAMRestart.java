@@ -41,8 +41,10 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
+import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
@@ -140,7 +142,7 @@ public class TestAMRestart extends TestCase {
     }
     
     @Override
-    public List<Container> allocate(ApplicationId applicationId,
+    public Allocation allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
       Container container = recordFactory.newRecordInstance(Container.class);
       container.setContainerToken(recordFactory.newRecordInstance(ContainerToken.class));
@@ -150,7 +152,7 @@ public class TestAMRestart extends TestCase {
       container.getId().setAppId(appID);
       container.getId().setId(count);
       count++;
-      return Arrays.asList(container);
+      return new Allocation(Arrays.asList(container), Resources.none());
     }
 
     @Override
