@@ -235,9 +235,7 @@ public class ContainerManagerImpl extends CompositeService implements
   public StartContainerResponse startContainer(StartContainerRequest request) throws YarnRemoteException {
     ContainerLaunchContext launchContext = request.getContainerLaunchContext();
 
-    if (LOG.isDebugEnabled()) {
-      LOG.debug(" container is " + request);
-    }
+    LOG.info(" container is " + request);
 
     // parse credentials
     ByteBuffer tokens = launchContext.getContainerTokens();

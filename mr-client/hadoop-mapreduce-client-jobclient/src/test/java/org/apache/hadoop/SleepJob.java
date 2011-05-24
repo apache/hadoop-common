@@ -18,7 +18,6 @@
 
 package org.apache.hadoop;
 
-
 import java.io.IOException;
 import java.io.DataInput;
 import java.io.DataOutput;

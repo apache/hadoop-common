@@ -26,8 +26,12 @@ import junit.framework.Assert;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.FailingMapper;
 import org.apache.hadoop.SleepJob;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.TypeConverter;
@@ -44,6 +48,20 @@ public class TestMRJobsWithHistoryService {
 
   private static MiniMRYarnCluster mrCluster;
 
+  private static Configuration conf = new Configuration();
+  private static FileSystem localFs;
+  static {
+    try {
+      localFs = FileSystem.getLocal(conf);
+    } catch (IOException io) {
+      throw new RuntimeException("problem getting local fs", io);
+    }
+  }
+
+  private static Path TEST_ROOT_DIR = new Path("target",
+      TestMRJobs.class.getName() + "-tmpDir").makeQualified(localFs);
+  static Path APP_JAR = new Path(TEST_ROOT_DIR, "MRAppJar.jar");
+
   @Before
   public void setup() throws InterruptedException, IOException {
 
@@ -58,6 +76,11 @@ public class TestMRJobsWithHistoryService {
       mrCluster.init(new Configuration());
       mrCluster.start();
     }
+
+    // Copy MRAppJar and make it private. TODO: FIXME. This is a hack to
+    // workaround the absent public discache.
+    localFs.copyFromLocalFile(new Path(MiniMRYarnCluster.APPJAR), APP_JAR);
+    localFs.setPermission(APP_JAR, new FsPermission("700"));
   }
 
   @After
@@ -86,7 +109,8 @@ public class TestMRJobsWithHistoryService {
     sleepJob.setConf(mrCluster.getConfig());
     // Job with 3 maps and 2 reduces
     Job job = sleepJob.createJob(3, 2, 1000, 1, 500, 1);
-    job.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
+    job.setJarByClass(SleepJob.class);
+    job.addFileToClassPath(APP_JAR); // The AppMaster jar itself.
     job.waitForCompletion(true);
     Counters counterMR = job.getCounters();
     ApplicationId appID = TypeConverter.toYarn(job.getJobID()).getAppId();

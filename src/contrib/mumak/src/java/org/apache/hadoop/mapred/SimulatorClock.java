@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.mapred;
 
+import org.apache.hadoop.Clock;
+
 /**
  * A clock class - can be mocked out for testing.
  */
@@ -33,7 +35,7 @@ class SimulatorClock extends Clock {
   }
 
   @Override
-  long getTime() {
+  public long getTime() {
     return currentTime;
   }
 }

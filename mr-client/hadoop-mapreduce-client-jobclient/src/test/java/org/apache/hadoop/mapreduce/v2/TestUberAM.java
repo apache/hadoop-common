@@ -33,13 +33,14 @@ import org.apache.hadoop.mapreduce.TaskCompletionEvent;
 import org.apache.hadoop.mapreduce.TaskID;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class TestUberAM extends TestMRJobs {
 
   private static final Log LOG = LogFactory.getLog(TestUberAM.class);
 
   @BeforeClass
-  public static void setup() {
+  public static void setup() throws IOException {
     TestMRJobs.setup();
     if (mrCluster != null) {
     	mrCluster.getConfig().setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, true);
@@ -109,4 +110,10 @@ public class TestUberAM extends TestMRJobs {
     super.testSleepJobWithSecurityOn();
   }
 
+  // Add a test for distcache when uber mode is enabled. TODO
+  @Override
+  @Test
+  public void testDistributedCache() throws Exception {
+    //
+  }
 }

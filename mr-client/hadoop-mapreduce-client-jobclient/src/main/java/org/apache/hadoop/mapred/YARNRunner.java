@@ -73,7 +73,6 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
@@ -227,7 +226,7 @@ public class YARNRunner implements ClientProtocol {
 
     // Construct necessary information to start the MR AM
     ApplicationSubmissionContext appContext = 
-      getApplicationSubmissionContext(conf, jobSubmitDir, ts);
+      createApplicationSubmissionContext(conf, jobSubmitDir, ts);
     setupDistributedCache(conf, appContext);
     
     // XXX Remove
@@ -258,7 +257,7 @@ public class YARNRunner implements ClientProtocol {
     return rsrc;
   }
 
-  private ApplicationSubmissionContext getApplicationSubmissionContext(
+  private ApplicationSubmissionContext createApplicationSubmissionContext(
       Configuration jobConf,
       String jobSubmitDir, Credentials ts) throws IOException {
     ApplicationSubmissionContext appContext =
@@ -357,9 +356,14 @@ public class YARNRunner implements ClientProtocol {
     appContext.setUser(UserGroupInformation.getCurrentUser().getShortUserName());
     return appContext;
   }
-  
+
   /**
    * TODO: Copied for now from TaskAttemptImpl.java ... fixme
+   * 
+   * TODO: This is currently needed in YarnRunner as user code like setupJob,
+   * cleanupJob may need access to dist-cache. Once we separate distcache for
+   * maps, reduces, setup etc, this can include only a subset of artificats.
+   * This is also needed for uberAM case where we run everything inside AM.
    */
   private void setupDistributedCache(Configuration conf, 
       ApplicationSubmissionContext container) throws IOException {
@@ -386,7 +390,7 @@ public class YARNRunner implements ClientProtocol {
   private void parseDistributedCacheArtifacts(
       ApplicationSubmissionContext container, LocalResourceType type,
       URI[] uris, long[] timestamps, long[] sizes, boolean visibilities[], 
-      Path[] classpaths) throws IOException {
+      Path[] pathsToPutOnClasspath) {
 
     if (uris != null) {
       // Sanity check
@@ -401,18 +405,18 @@ public class YARNRunner implements ClientProtocol {
       }
       
       Map<String, Path> classPaths = new HashMap<String, Path>();
-      if (classpaths != null) {
-        for (Path p : classpaths) {
+      if (pathsToPutOnClasspath != null) {
+        for (Path p : pathsToPutOnClasspath) {
+          p = p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
+                .getUri(), this.defaultFileContext.getWorkingDirectory());
           classPaths.put(p.toUri().getPath().toString(), p);
         }
       }
       for (int i = 0; i < uris.length; ++i) {
         URI u = uris[i];
         Path p = new Path(u);
-        if (!p.isAbsolute()) {
-          p = p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
+        p = p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
               .getUri(), this.defaultFileContext.getWorkingDirectory());
-        }
         // Add URI fragment or just the filename
         Path name = new Path((null == u.getFragment())
           ? p.getName()
@@ -420,8 +424,9 @@ public class YARNRunner implements ClientProtocol {
         if (name.isAbsolute()) {
           throw new IllegalArgumentException("Resource name must be relative");
         }
+        String linkName = name.toUri().getPath();
         container.setResourceTodo(
-            name.toUri().getPath(),
+            linkName,
             createLocalResource(
                 p.toUri(), type, 
                 visibilities[i]
@@ -431,8 +436,7 @@ public class YARNRunner implements ClientProtocol {
         );
         if (classPaths.containsKey(u.getPath())) {
           Map<String, String> environment = container.getAllEnvironment();
-          MRApps.addToClassPath(environment, name.toUri().getPath());
-          container.addAllEnvironment(environment);
+          MRApps.addToClassPath(environment, linkName);
         }
       }
     }

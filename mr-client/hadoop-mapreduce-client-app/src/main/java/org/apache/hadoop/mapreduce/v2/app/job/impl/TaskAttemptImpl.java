@@ -145,8 +145,8 @@ public abstract class TaskAttemptImpl implements
   private final Lock writeLock;
   private Collection<Token<? extends TokenIdentifier>> fsTokens;
   private Token<JobTokenIdentifier> jobToken;
-  private static AtomicBoolean initialEnvFlag = new AtomicBoolean();
-  private static Map<String, String> initialEnv = null;
+  private static AtomicBoolean initialClasspathFlag = new AtomicBoolean();
+  private static String initialClasspath = null;
 
   private long launchTime;
   private long finishTime;
@@ -455,19 +455,20 @@ public abstract class TaskAttemptImpl implements
   }
 
   /**
-   * Lock this on initialEnv so that there is only one fork in the AM for
+   * Lock this on initialClasspath so that there is only one fork in the AM for
    * getting the initial class-path. TODO: This should go away once we construct
    * a parent CLC and use it for all the containers.
    */
-  private Map<String, String> getInitialEnv() throws IOException {
-    synchronized (initialEnvFlag) {
-      if (initialEnvFlag.get()) {
-        return initialEnv;
+  private String getInitialClasspath() throws IOException {
+    synchronized (initialClasspathFlag) {
+      if (initialClasspathFlag.get()) {
+        return initialClasspath;
       }
-      initialEnv = new HashMap<String, String>();
-      MRApps.setInitialClasspath(initialEnv);
-      initialEnvFlag.set(true);
-      return initialEnv;
+      Map<String, String> env = new HashMap<String, String>();
+      MRApps.setInitialClasspath(env);
+      initialClasspath = env.get(MRApps.CLASSPATH);
+      initialClasspathFlag.set(true);
+      return initialClasspath;
     }
   }
 
@@ -546,7 +547,7 @@ public abstract class TaskAttemptImpl implements
               ByteBuffer.wrap(jobToken_dob.getData(), 0,
                   jobToken_dob.getLength()));
 
-      container.addAllEnv(getInitialEnv());
+      MRApps.addToClassPath(container.getAllEnv(), getInitialClasspath());
     } catch (IOException e) {
       throw new YarnException(e);
     }
@@ -612,7 +613,7 @@ public abstract class TaskAttemptImpl implements
   private void parseDistributedCacheArtifacts(
       FileContext remoteFS, ContainerLaunchContext container, LocalResourceType type,
       URI[] uris, long[] timestamps, long[] sizes, boolean visibilities[], 
-      Path[] classpaths) throws IOException {
+      Path[] pathsToPutOnClasspath) throws IOException {
 
     if (uris != null) {
       // Sanity check
@@ -627,18 +628,18 @@ public abstract class TaskAttemptImpl implements
       }
       
       Map<String, Path> classPaths = new HashMap<String, Path>();
-      if (classpaths != null) {
-        for (Path p : classpaths) {
+      if (pathsToPutOnClasspath != null) {
+        for (Path p : pathsToPutOnClasspath) {
+          p = p.makeQualified(remoteFS.getDefaultFileSystem()
+                .getUri(), remoteFS.getWorkingDirectory());
           classPaths.put(p.toUri().getPath().toString(), p);
         }
       }
       for (int i = 0; i < uris.length; ++i) {
         URI u = uris[i];
         Path p = new Path(u);
-        if (!p.isAbsolute()) {
-          p = p.makeQualified(remoteFS.getDefaultFileSystem()
+        p = p.makeQualified(remoteFS.getDefaultFileSystem()
               .getUri(), remoteFS.getWorkingDirectory());
-        }
         // Add URI fragment or just the filename
         Path name = new Path((null == u.getFragment())
           ? p.getName()
@@ -646,8 +647,9 @@ public abstract class TaskAttemptImpl implements
         if (name.isAbsolute()) {
           throw new IllegalArgumentException("Resource name must be relative");
         }
+        String linkName = name.toUri().getPath();
         container.setLocalResource(
-            name.toUri().getPath(),
+            linkName,
             BuilderUtils.newLocalResource(recordFactory,
                 p.toUri(), type, 
                 visibilities[i]
@@ -656,22 +658,11 @@ public abstract class TaskAttemptImpl implements
                 sizes[i], timestamps[i])
         );
         if (classPaths.containsKey(u.getPath())) {
-          addCacheArtifactToClassPath(container, name.toUri().getPath());
+          Map<String, String> environment = container.getAllEnv();
+          MRApps.addToClassPath(environment, linkName);
         }
       }
     }
-  }
-
-  private static final String CLASSPATH = "CLASSPATH";
-  private static void addCacheArtifactToClassPath(
-      ContainerLaunchContext container, String fileName) {
-    String classpath = container.getEnv(CLASSPATH);
-    if (classpath == null) {
-      classpath = fileName;
-    } else {
-      classpath = classpath + ":" + fileName;
-    }
-    container.setEnv(CLASSPATH, classpath);
   }
   
   // TODO - Move this to MR!
