@@ -182,6 +182,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
     // Ensure all existing queues are still present
     validateExistingQueues(queues, newQueues);
 
+    // Add new queues
+    addNewQueues(queues, newQueues);
+    
     // Re-configure queues
     root.reinitialize(newRoot, clusterResource);
   }
@@ -201,6 +204,24 @@ implements ResourceScheduler, CapacitySchedulerContext {
     }
   }
 
+  /**
+   * Add the new queues (only) to our list of queues...
+   * ... be careful, do not overwrite existing queues.
+   * @param queues
+   * @param newQueues
+   */
+  private void addNewQueues(
+      Map<String, Queue> queues, Map<String, Queue> newQueues) 
+  {
+    for (Map.Entry<String, Queue> e : newQueues.entrySet()) {
+      String queueName = e.getKey();
+      Queue queue = e.getValue();
+      if (!queues.containsKey(queueName)) {
+        queues.put(queueName, queue);
+      }
+    }
+  }
+  
   private Queue parseQueue(CapacitySchedulerConfiguration conf, 
       Queue parent, String queueName, Map<String, Queue> queues,
       Map<String, Queue> oldQueues) {

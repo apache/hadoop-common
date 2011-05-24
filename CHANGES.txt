@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix queue refresh to correctly record newly added queues in
+    CapacityScheduler. (acmurthy)
+
     Fix TestRuntimeEstimators (Siddharth Seth via ddas)
 
     Ensure unused containers released by AM are correctly counted for

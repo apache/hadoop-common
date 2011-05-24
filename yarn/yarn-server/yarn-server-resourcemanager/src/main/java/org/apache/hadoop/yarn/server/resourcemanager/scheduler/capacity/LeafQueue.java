@@ -193,7 +193,7 @@ public class LeafQueue implements Queue {
       aclsString.append(e.getKey() + ":" + e.getValue().getAclString());
     }
 
-    LOG.info(queueName +
+    LOG.info("Initializing " + queueName +
         ", capacity=" + capacity + 
         ", asboluteCapacity=" + absoluteCapacity + 
         ", maxCapacity=" + maxCapacity +
