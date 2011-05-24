@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix NPE in test case (mahadev)
+
     Use DefaultContainerExecutor for integration tests. (cdouglas)
 
     Fix nodemanager expiry to not throw OOM. (mahadev)

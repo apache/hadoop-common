@@ -19,6 +19,7 @@
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import junit.framework.TestCase;
@@ -35,6 +36,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -42,8 +44,6 @@ import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ApplicationMasterService;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
-import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManagerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
@@ -57,7 +57,9 @@ public class TestAMRMRPCResponseId extends TestCase {
   ApplicationTokenSecretManager appTokenManager = new ApplicationTokenSecretManager();
   DummyApplicationsManager applicationsManager;
   DummyScheduler scheduler;
-
+  private final static Container[] EMPTY_CONTAINER_ARRAY = new Container[] {};
+  private final static List<Container> EMPTY_CONTAINER_LIST = Arrays.asList(EMPTY_CONTAINER_ARRAY);
+  
   private RMContext context;
   private class DummyApplicationsManager extends ApplicationsManagerImpl {
     public DummyApplicationsManager(
@@ -84,7 +86,7 @@ public class TestAMRMRPCResponseId extends TestCase {
     @Override
     public Allocation allocate(ApplicationId applicationId,
         List<ResourceRequest> ask, List<Container> release) throws IOException {
-      return null;
+      return new Allocation(EMPTY_CONTAINER_LIST, recordFactory.newRecordInstance(Resource.class));
     }
 
     @Override
