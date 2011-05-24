@@ -462,8 +462,7 @@ public class LeafQueue implements Queue {
       removeApplication(application, getUser(application.getUser()));
     }
 
-    // Update metrics
-    metrics.finishApp(application);
+    // Clean up metrics etc.
     application.finish();
     
     // Inform the parent queue

@@ -100,6 +100,8 @@ public interface NodeInfo {
    */
   public Application getReservedApplication();
 
+  Resource getReservedResource();
+
   public void reserveResource(Application application, Priority priority, 
       Resource resource);
 

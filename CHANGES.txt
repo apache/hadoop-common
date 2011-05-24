@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Added metrics for tracking reservations in CapacityScheduler. (Luke Lu via
+    acmurthy)
+
     Fix queue refresh to correctly record newly added queues in
     CapacityScheduler. (acmurthy)
 

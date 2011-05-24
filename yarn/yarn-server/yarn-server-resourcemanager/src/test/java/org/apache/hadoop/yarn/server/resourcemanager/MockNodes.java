@@ -149,6 +149,11 @@ public class MockNodes {
       }
 
       @Override
+      public Resource getReservedResource() {
+        return null;
+      }
+
+      @Override
       public void reserveResource(Application application, Priority priority,
           Resource resource) {
       }

@@ -26,6 +26,7 @@ import org.apache.avro.AvroRuntimeException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -72,7 +73,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
   private ClientRMService clientRM;
   private ApplicationMasterService masterService;
   private AdminService adminService;
-  private AtomicBoolean shutdown = new AtomicBoolean(false);
+  private final AtomicBoolean shutdown = new AtomicBoolean(false);
   private WebApp webApp;
   private RMContext rmContext;
   private final Store store;
@@ -174,6 +175,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
       YarnConfiguration.DEFAULT_RM_WEBAPP_BIND_ADDRESS)).
     start(new RMWebApp(this));
 
+    DefaultMetricsSystem.initialize("ResourceManager");
+
     super.start();
 
     synchronized(shutdown) {
@@ -202,6 +205,9 @@ public class ResourceManager extends CompositeService implements Recoverable {
       shutdown.set(true);
       shutdown.notifyAll();
     }
+
+    DefaultMetricsSystem.shutdown();
+
     super.stop();
   }
   

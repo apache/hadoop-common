@@ -327,6 +327,7 @@ public class NodeManagerImpl implements NodeManager {
   }
 
   private Application reservedApplication = null;
+  private Resource reservedResource = null;
 
   @Override
   public synchronized void reserveResource(
@@ -338,7 +339,7 @@ public class NodeManagerImpl implements NodeManager {
       if (!reservedApplication.applicationId.equals(application.applicationId)) {
         throw new IllegalStateException("Trying to reserve resource " + resource + 
             " for application " + application.getApplicationId() + 
-            " when currently reserved resource " + resource + 
+            " when currently reserved resource " + reservedResource +
             " for application " + reservedApplication.getApplicationId() + 
             " on node " + this);
       }
@@ -350,6 +351,7 @@ public class NodeManagerImpl implements NodeManager {
       LOG.info("Reserved resource " + resource + " on node " + this + 
           " for application " + application);
     }
+    reservedResource = resource;
   }
 
   @Override
@@ -364,12 +366,18 @@ public class NodeManagerImpl implements NodeManager {
           " on node " + this);
     }
     
-    this.reservedApplication = null;
+    reservedApplication = null;
+    reservedResource = null;
   }
 
   @Override
   public synchronized Application getReservedApplication() {
     return reservedApplication;
+  }
+
+  @Override
+  public synchronized Resource getReservedResource() {
+    return reservedResource;
   }
 
   @Override

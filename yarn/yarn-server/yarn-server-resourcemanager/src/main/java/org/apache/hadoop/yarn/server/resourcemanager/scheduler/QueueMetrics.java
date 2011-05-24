@@ -37,6 +37,8 @@ public class QueueMetrics {
   @Metric("Available memory in GiB") MutableGaugeInt availableGB;
   @Metric("Pending memory allocation in GiB") MutableGaugeInt pendingGB;
   @Metric("# of pending containers") MutableGaugeInt pendingContainers;
+  @Metric("# of reserved memory in GiB") MutableGaugeInt reservedGB;
+  @Metric("# of reserved containers") MutableGaugeInt reservedContainers;
 
   static final Logger LOG = LoggerFactory.getLogger(QueueMetrics.class);
   static final int GB = 1024; // resource.memory is in MB
@@ -46,10 +48,6 @@ public class QueueMetrics {
   static final MetricsInfo USER_INFO = info("User", "Metrics by user");
   static final Splitter Q_SPLITTER =
       Splitter.on('.').omitEmptyStrings().trimResults();
-
-  // MSXXX: until metrics system handle this automatically
-  private static QueueMetrics dummyMetrics = null;
-  private static boolean firstTime = true;
 
   final MetricsRegistry registry;
   final String queueName;
@@ -83,20 +81,8 @@ public class QueueMetrics {
   public synchronized
   static QueueMetrics forQueue(String queueName, Queue parent,
                                boolean enableUserMetrics) {
-    MetricsSystem ms = null;
-    if (firstTime) {
-      firstTime = false;
-      ms = DefaultMetricsSystem.instance();
-    } else if (!Self.isUnitTest()) {
-      ms = DefaultMetricsSystem.instance();
-    } else {
-      return dummyMetrics; // metrics specific tests should use the long form
-    }
-    QueueMetrics metrics = forQueue(ms, queueName, parent, enableUserMetrics);
-    if (dummyMetrics == null) {
-      dummyMetrics = metrics;
-    }
-    return metrics;
+    return forQueue(DefaultMetricsSystem.instance(), queueName, parent,
+                    enableUserMetrics);
   }
 
   public static QueueMetrics forQueue(MetricsSystem ms, String queueName,
@@ -251,6 +237,30 @@ public class QueueMetrics {
     }
     if (parent != null) {
       parent.releaseResources(user, containers, res);
+    }
+  }
+
+  public void reserveResource(String user, Resource res) {
+    reservedContainers.incr();
+    reservedGB.incr(res.getMemory()/GB);
+    QueueMetrics userMetrics = getUserMetrics(user);
+    if (userMetrics != null) {
+      userMetrics.reserveResource(user, res);
+    }
+    if (parent != null) {
+      parent.reserveResource(user, res);
+    }
+  }
+
+  public void unreserveResource(String user, Resource res) {
+    reservedContainers.decr();
+    reservedGB.decr(res.getMemory()/GB);
+    QueueMetrics userMetrics = getUserMetrics(user);
+    if (userMetrics != null) {
+      userMetrics.unreserveResource(user, res);
+    }
+    if (parent != null) {
+      parent.unreserveResource(user, res);
     }
   }
 }

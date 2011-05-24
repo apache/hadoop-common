@@ -72,7 +72,8 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
   private InetSocketAddress masterServiceAddress;
   private Server server;
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
-  private Map<ApplicationId, AMResponse> responseMap = new HashMap<ApplicationId, AMResponse>();
+  private final Map<ApplicationId, AMResponse> responseMap =
+      new HashMap<ApplicationId, AMResponse>();
   private final AMResponse reboot = recordFactory.newRecordInstance(AMResponse.class);
   private final RMContext asmContext;
   
@@ -97,6 +98,7 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
     super.init(conf);
   }
 
+  @Override
   public void start() {
     YarnRPC rpc = YarnRPC.create(getConfig());
     Configuration serverConf = new Configuration(getConfig());
@@ -202,7 +204,6 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
         break;
       case EXPIRE:
         responseMap.remove(id);
-      default: 
         break;
       }
     }

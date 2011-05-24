@@ -483,6 +483,7 @@ public class Application {
     LOG.info("Application " + applicationId + " reserved " + resource
         + " on node " + node + ", currently has " + reservedNodes.size()
         + " at priority " + priority);
+    queue.getMetrics().reserveResource(user, resource);
   }
 
   public synchronized void unreserveResource(NodeInfo node, Priority priority) {
@@ -495,6 +496,7 @@ public class Application {
     LOG.info("Application " + applicationId + " unreserved " + " on node "
         + node + ", currently has " + reservedNodes.size() + " at priority "
         + priority);
+    queue.getMetrics().unreserveResource(user, node.getReservedResource());
   }
 
   public synchronized boolean isReserved(NodeInfo node, Priority priority) {
@@ -512,7 +514,7 @@ public class Application {
   }
 
   synchronized public void finish() {
-    // GC pending resources metrics
+    // clear pending resources metrics for the application
     QueueMetrics metrics = queue.getMetrics();
     for (Map<String, ResourceRequest> asks : requests.values()) {
       ResourceRequest request = asks.get(NodeManager.ANY);
@@ -522,6 +524,7 @@ public class Application {
                 .getNumContainers()));
       }
     }
+    metrics.finishApp(this);
   }
 
   public Map<Priority, Set<NodeInfo>> getAllReservations() {
