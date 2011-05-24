@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fix for regression on the scheduling of reduces before maps are done (ddas)
+
     Fix NPE in test case (mahadev)
 
     Use DefaultContainerExecutor for integration tests. (cdouglas)

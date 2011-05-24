@@ -237,6 +237,7 @@ public class RMContainerAllocator extends RMContainerRequestor
             assigned = maps.remove(tId);
             mapsAssigned++;
             LOG.info("Assigned from earlierFailedMaps");
+            break;
           }
         }
         
@@ -248,6 +249,7 @@ public class RMContainerAllocator extends RMContainerRequestor
             assigned = reduces.remove(tId);
             reducesAssigned++;
             LOG.info("Assigned from earlierFailedReduces");
+            break;
           }
         }
         
@@ -269,6 +271,7 @@ public class RMContainerAllocator extends RMContainerRequestor
               mapsAssigned++;
               hostLocalAssigned++;
               LOG.info("Assigned based on host match " + host);
+              break;
             }
           }
           if (assigned == null) {
@@ -282,6 +285,7 @@ public class RMContainerAllocator extends RMContainerRequestor
                 mapsAssigned++;
                 rackLocalAssigned++;
                 LOG.info("Assigned based on rack match " + rack);
+                break;
               }
             }
             if (assigned == null && maps.size() > 0) {
@@ -289,6 +293,7 @@ public class RMContainerAllocator extends RMContainerRequestor
               assigned = maps.remove(tId);
               mapsAssigned++;
               LOG.info("Assigned based on * match");
+              break;
             }
           }
         }
