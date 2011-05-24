@@ -513,8 +513,7 @@ ResourceTracker, ClusterTracker {
   @Override
   public  boolean releaseContainer(Container container) {
     NodeManager node = getNodeManagerForContainer(container);
-    node.releaseContainer(container);
-    return false;
+    return node.releaseContainer(container);
   }
   
   @Override

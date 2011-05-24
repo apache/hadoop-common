@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Ensure unused containers released by AM are correctly counted for
+    queue-capacity. (acmurthy)
+
     Fix distributed-cache related bugs. (vinodkv)
 
     Fix for regression on the scheduling of reduces before maps are done (ddas)
