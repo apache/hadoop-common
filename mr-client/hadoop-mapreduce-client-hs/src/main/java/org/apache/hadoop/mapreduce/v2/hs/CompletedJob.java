@@ -27,8 +27,6 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobACLsManager;
 import org.apache.hadoop.mapreduce.JobACL;
@@ -45,7 +43,6 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptCompletionEvent;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
-import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.yarn.YarnException;
@@ -138,16 +135,6 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
     if (jobInfo != null) {
       return; //data already loaded
     }
-    String user = conf.get(MRJobConfig.USER_NAME);
-    if (user == null) {
-      LOG.error("user null is not allowed");
-    }
-    String jobName = TypeConverter.fromYarn(jobId).toString();
-    
-    String  jobhistoryDir = JobHistoryUtils.getConfiguredHistoryIntermediateDoneDirPrefix(conf);
-      
-    
-    String currentJobHistoryDir = JobHistoryUtils.getCurrentDoneDir(jobhistoryDir);
     
     if (historyFileAbsolute != null) {
       try {
@@ -157,26 +144,6 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
         throw new YarnException("Could not load history file " + historyFileAbsolute,
             e);
       }
-    }
-    else {
-    FSDataInputStream in = null;
-    Path historyFile = null;
-    try {
-      Path doneDirPath = FileContext.getFileContext(conf).makeQualified(
-          new Path(currentJobHistoryDir));
-      FileContext fc =
-        FileContext.getFileContext(doneDirPath.toUri(),conf);
-      //TODO_JH_There could be multiple instances
-      //TODO_JH_FileName
-      historyFile =
-        fc.makeQualified(new Path(doneDirPath, jobName + JobHistoryUtils.JOB_HISTORY_FILE_EXTENSION));
-      in = fc.open(historyFile);
-      JobHistoryParser parser = new JobHistoryParser(in);
-      jobInfo = parser.parse();
-    } catch (IOException e) {
-      throw new YarnException("Could not load history file " + historyFile,
-          e);
-    }
     }
     
     if (loadTasks) {

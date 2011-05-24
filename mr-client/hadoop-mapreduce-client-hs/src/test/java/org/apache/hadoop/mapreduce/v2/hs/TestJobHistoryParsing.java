@@ -60,15 +60,14 @@ public class TestJobHistoryParsing {
     //make sure all events are flushed
     app.waitForState(Service.STATE.STOPPED);
     
-    String jobhistoryDir = JobHistoryUtils.getConfiguredHistoryIntermediateDoneDirPrefix(conf);
+    String jobhistoryDir = JobHistoryUtils.getHistoryIntermediateDoneDirForUser(conf);
     JobHistory jobHistory = new JobHistory();
     jobHistory.init(conf);
     
-    String currentJobHistoryDir = JobHistoryUtils.getCurrentDoneDir(jobhistoryDir);
     JobIndexInfo jobIndexInfo = jobHistory.getJobMetaInfo(jobId).getJobIndexInfo();
     String jobhistoryFileName = FileNameIndexUtils.getDoneFileName(jobIndexInfo);
     
-    Path historyFilePath = new Path(currentJobHistoryDir, jobhistoryFileName);
+    Path historyFilePath = new Path(jobhistoryDir, jobhistoryFileName);
     FSDataInputStream in = null;
     LOG.info("JobHistoryFile is: " + historyFilePath);
     try {

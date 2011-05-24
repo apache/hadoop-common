@@ -36,30 +36,56 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 
 public class JobHistoryUtils {
   
-  private static final Log LOG = LogFactory.getLog(JobHistoryUtils.class);
+  /**
+   * Permissions for the history staging dir while JobInProgress.
+   */
+  public static final FsPermission HISTORY_STAGING_DIR_PERMISSIONS =
+    
+    FsPermission.createImmutable( (short) 0700);
   
-  public static final FsPermission HISTORY_DIR_PERMISSION =
-    FsPermission.createImmutable((short) 0750); // rwxr-x---
+  /**
+   * Permissions for the user directory under the staging directory.
+   */
+  public static final FsPermission HISTORY_STAGING_USER_DIR_PERMISSIONS = 
+    FsPermission.createImmutable((short) 0700);
   
-  public static final FsPermission HISTORY_FILE_PERMISSION =
-    FsPermission.createImmutable((short) 0740); // rwxr-----
+  
+  
+  /**
+   * Permissions for the history done dir and derivatives.
+   */
+  public static final FsPermission HISTORY_DONE_DIR_PERMISSION =
+    FsPermission.createImmutable((short) 0770); 
+
+  public static final FsPermission HISTORY_DONE_FILE_PERMISSION =
+    FsPermission.createImmutable((short) 0770); // rwx------
+  
+  /**
+   * Permissions for the intermediate done directory.
+   */
+  public static final FsPermission HISTORY_INTERMEDIATE_DONE_DIR_PERMISSIONS = 
+    FsPermission.createImmutable((short) 01777);
+  
+  /**
+   * Permissions for the user directory under the intermediate done directory.
+   */
+  public static final FsPermission HISTORY_INTERMEDIATE_USER_DIR_PERMISSIONS = 
+    FsPermission.createImmutable((short) 0770);
+  
+  public static final FsPermission HISTORY_INTERMEDIATE_FILE_PERMISSIONS = 
+    FsPermission.createImmutable((short) 0770); // rwx------
   
   /**
    * Suffix for configuration files.
    */
   public static final String CONF_FILE_NAME_SUFFIX = "_conf.xml";
-  
-  /**
-   * Suffix for done files.
-   */
-  public static final String DONE_FILE_NAME_SUFFIX = ".done";
   
   /**
    * Job History File extension.
@@ -110,12 +136,13 @@ public class JobHistoryUtils {
     return JOB_HISTORY_FILE_FILTER;
   }
   
+  //The version string may need to be removed.
   /**
    * Returns the current done directory.
    * @param doneDirPrefix the prefix for the done directory.
    * @return A string representation of the done directory.
    */
-  public static String getCurrentDoneDir(String doneDirPrefix) {
+  private static String getCurrentDoneDir(String doneDirPrefix) {
     return doneDirPrefix + File.separator + LOG_VERSION_STRING + File.separator;
   }
 
@@ -126,8 +153,9 @@ public class JobHistoryUtils {
    */
   public static String getConfiguredHistoryLogDirPrefix(Configuration conf) {
     String defaultLogDir = conf.get(
-        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY) + "/history/staging";
-    String logDir = conf.get(YarnMRJobConfig.HISTORY_STAGING_DIR_KEY,
+        //TODO Change this to staging directory
+        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, "/tmp") + "/history/staging";
+    String logDir = conf.get(JHConfig.HISTORY_STAGING_DIR_KEY,
       defaultLogDir);
     return logDir;
   }
@@ -139,9 +167,9 @@ public class JobHistoryUtils {
    */
   public static String getConfiguredHistoryIntermediateDoneDirPrefix(Configuration conf) {
     String defaultDoneDir = conf.get(
-        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY) + "/history/done_intermediate";
+        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, "/tmp") + "/history/done_intermediate";
     String  doneDirPrefix =
-      conf.get(YarnMRJobConfig.HISTORY_INTERMEDIATE_DONE_DIR_KEY,
+      conf.get(JHConfig.HISTORY_INTERMEDIATE_DONE_DIR_KEY,
           defaultDoneDir);
     return doneDirPrefix;
   }
@@ -153,11 +181,37 @@ public class JobHistoryUtils {
    */
   public static String getConfiguredHistoryServerDoneDirPrefix(Configuration conf) {
     String defaultDoneDir = conf.get(
-        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY) + "/history/done";
+        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, "/tmp") + "/history/done";
     String  doneDirPrefix =
-      conf.get(YarnMRJobConfig.HISTORY_DONE_DIR_KEY,
+      conf.get(JHConfig.HISTORY_DONE_DIR_KEY,
           defaultDoneDir);
-    return doneDirPrefix; 
+    return getCurrentDoneDir(doneDirPrefix);
+  }
+
+  /**
+   * Gets the user directory for In progress history files.
+   * @param conf
+   * @return
+   */
+  public static String getHistoryLogDirForUser(Configuration conf) {
+    return getConfiguredHistoryLogDirPrefix(conf) + File.separator
+        + conf.get(MRJobConfig.USER_NAME);
+  }
+  
+  /**
+   * Gets the user directory for intermediate done history files.
+   * @param conf
+   * @return
+   */
+  public static String getHistoryIntermediateDoneDirForUser(Configuration conf) {
+    return getConfiguredHistoryIntermediateDoneDirPrefix(conf) + File.separator
+        + conf.get(MRJobConfig.USER_NAME);
+  }
+
+  public static boolean shouldCreateNonUserDirectory(Configuration conf) {
+    // Returning true by default to allow non secure single node clusters to work
+    // without any configuration change.
+    return conf.getBoolean(JHConfig.CREATE_HISTORY_INTERMEDIATE_BASE_DIR_KEY, true); 
   }
 
   /**
@@ -182,10 +236,6 @@ public class JobHistoryUtils {
    */
   public static String getIntermediateConfFileName(JobId jobId) {
     return TypeConverter.fromYarn(jobId).toString() + CONF_FILE_NAME_SUFFIX;
-  }
-  
-  public static String getIntermediateDoneFileName(JobId jobId) {
-    return TypeConverter.fromYarn(jobId).toString() + DONE_FILE_NAME_SUFFIX;
   }
   
   /**
@@ -240,11 +290,12 @@ public class JobHistoryUtils {
    * @return
    */
   public static String historyLogSubdirectory(JobId id, String timestampComponent, String serialNumberFormat) {
-    String result = LOG_VERSION_STRING;
+//    String result = LOG_VERSION_STRING;
+    String result = "";
     String serialNumberDirectory = serialNumberDirectoryComponent(id, serialNumberFormat);
     
     result = result 
-      + File.separator + timestampComponent
+      + timestampComponent
       + File.separator + serialNumberDirectory
       + File.separator;
     
@@ -273,11 +324,8 @@ public class JobHistoryUtils {
   }
   
   public static String doneSubdirsBeforeSerialTail() {
-    // Version Info
-    String result = ("/" + LOG_VERSION_STRING);
-
     // date
-    result = result + "/*/*/*"; // YYYY/MM/DD ;
+    String result = "/*/*/*"; // YYYY/MM/DD ;
     return result;
   }
   

@@ -18,11 +18,16 @@
 
 package org.apache.hadoop.mapreduce.v2.hs;
 
+import java.io.IOException;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
+import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.service.CompositeService;
 
@@ -46,14 +51,25 @@ public class JobHistoryServer extends CompositeService {
     super(JobHistoryServer.class.getName());
   }
 
+  @Override
   public synchronized void init(Configuration conf) {
     Configuration config = new YarnConfiguration(conf);
+    try {
+      doSecureLogin(conf);
+    } catch(IOException ie) {
+      throw new YarnException("History Server Failed to login", ie);
+    }
     jobHistoryService = new JobHistory();
     historyContext = (HistoryContext)jobHistoryService;
     clientService = new HistoryClientService(historyContext);
     addService(jobHistoryService);
     addService(clientService);
     super.init(config);
+  }
+
+  protected void doSecureLogin(Configuration conf) throws IOException {
+    SecurityUtil.login(conf, JHConfig.HS_KEYTAB_KEY,
+        JHConfig.HS_SERVER_PRINCIPAL_KEY);
   }
 
   public static void main(String[] args) {
@@ -69,5 +85,4 @@ public class JobHistoryServer extends CompositeService {
       System.exit(-1);
     }
   }
-
 }

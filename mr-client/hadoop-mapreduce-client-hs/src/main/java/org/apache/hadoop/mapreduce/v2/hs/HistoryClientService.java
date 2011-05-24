@@ -18,9 +18,12 @@
 
 package org.apache.hadoop.mapreduce.v2.hs;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.security.AccessControlException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -28,6 +31,8 @@ import org.apache.avro.ipc.Server;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.mapreduce.JobACL;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptResponse;
@@ -58,9 +63,12 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.hs.webapp.HSWebApp;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
+import org.apache.hadoop.mapreduce.v2.security.client.ClientHSSecurityInfo;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.security.SecurityInfo;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.YarnException;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -69,7 +77,6 @@ import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.webapp.WebApp;
 import org.apache.hadoop.yarn.webapp.WebApps;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 
 /**
  * This module is responsible for talking to the 
@@ -93,15 +100,18 @@ public class HistoryClientService extends AbstractService {
   }
 
   public void start() {
+    YarnRPC rpc = YarnRPC.create(getConfig());
     Configuration conf = new Configuration(getConfig());
-    YarnRPC rpc = YarnRPC.create(conf);
-    initializeWebApp(conf);
-    String serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
-        YarnMRJobConfig.DEFAULT_HS_BIND_ADDRESS);
+    conf.setClass(
+        CommonConfigurationKeys.HADOOP_SECURITY_INFO_CLASS_NAME,
+        ClientHSSecurityInfo.class, SecurityInfo.class);
+    initializeWebApp(getConfig());
+    String serviceAddr = conf.get(JHConfig.HS_BIND_ADDRESS,
+        JHConfig.DEFAULT_HS_BIND_ADDRESS);
     InetSocketAddress address = NetUtils.createSocketAddr(serviceAddr);
     InetAddress hostNameResolved = null;
     try {
-      hostNameResolved = address.getAddress().getLocalHost();
+      hostNameResolved = InetAddress.getLocalHost(); //address.getAddress().getLocalHost();
     } catch (UnknownHostException e) {
       throw new YarnException(e);
     }
@@ -122,8 +132,8 @@ public class HistoryClientService extends AbstractService {
 
   private void initializeWebApp(Configuration conf) {
     webApp = new HSWebApp(history);
-    String bindAddress = conf.get(YarnMRJobConfig.HS_WEBAPP_BIND_ADDRESS,
-        YarnMRJobConfig.DEFAULT_HS_WEBAPP_BIND_ADDRESS);
+    String bindAddress = conf.get(JHConfig.HS_WEBAPP_BIND_ADDRESS,
+        JHConfig.DEFAULT_HS_WEBAPP_BIND_ADDRESS);
     WebApps.$for("yarn", this).at(bindAddress).start(webApp); 
   }
 
@@ -142,18 +152,37 @@ public class HistoryClientService extends AbstractService {
 
     private RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
     
-    private Job getJob(JobId jobId) throws YarnRemoteException {
-      Job job = history.getJob(jobId);
-      if (job == null) {
-        throw RPCUtil.getRemoteException("Unknown job " + jobId);
+    private Job verifyAndGetJob(final JobId jobID) throws YarnRemoteException {
+      UserGroupInformation loginUgi = null;
+      Job job = null;
+      try {
+        loginUgi = UserGroupInformation.getLoginUser();
+        job = loginUgi.doAs(new PrivilegedExceptionAction<Job>() {
+
+          @Override
+          public Job run() throws Exception {
+            Job job = history.getJob(jobID);
+            return job;
+          }
+        });
+      } catch (IOException e) {
+        throw RPCUtil.getRemoteException(e);
+      } catch (InterruptedException e) {
+        throw RPCUtil.getRemoteException(e);
       }
+      if (job == null) {
+        throw RPCUtil.getRemoteException("Unknown job " + jobID);
+      }
+      JobACL operation = JobACL.VIEW_JOB;
+      //TODO disable check access for now.
+      checkAccess(job, operation);
       return job;
     }
 
     @Override
     public GetCountersResponse getCounters(GetCountersRequest request) throws YarnRemoteException {
       JobId jobId = request.getJobId();
-      Job job = getJob(jobId);
+      Job job = verifyAndGetJob(jobId);
       GetCountersResponse response = recordFactory.newRecordInstance(GetCountersResponse.class);
       response.setCounters(job.getCounters());
       return response;
@@ -162,7 +191,7 @@ public class HistoryClientService extends AbstractService {
     @Override
     public GetJobReportResponse getJobReport(GetJobReportRequest request) throws YarnRemoteException {
       JobId jobId = request.getJobId();
-      Job job = getJob(jobId);
+      Job job = verifyAndGetJob(jobId);
       GetJobReportResponse response = recordFactory.newRecordInstance(GetJobReportResponse.class);
       response.setJobReport(job.getReport());
       return response;
@@ -171,7 +200,7 @@ public class HistoryClientService extends AbstractService {
     @Override
     public GetTaskAttemptReportResponse getTaskAttemptReport(GetTaskAttemptReportRequest request) throws YarnRemoteException {
       TaskAttemptId taskAttemptId = request.getTaskAttemptId();
-      Job job = getJob(taskAttemptId.getTaskId().getJobId());
+      Job job = verifyAndGetJob(taskAttemptId.getTaskId().getJobId());
       GetTaskAttemptReportResponse response = recordFactory.newRecordInstance(GetTaskAttemptReportResponse.class);
       response.setTaskAttemptReport(job.getTask(taskAttemptId.getTaskId()).getAttempt(taskAttemptId).getReport());
       return response;
@@ -180,7 +209,7 @@ public class HistoryClientService extends AbstractService {
     @Override
     public GetTaskReportResponse getTaskReport(GetTaskReportRequest request) throws YarnRemoteException {
       TaskId taskId = request.getTaskId();
-      Job job = getJob(taskId.getJobId());
+      Job job = verifyAndGetJob(taskId.getJobId());
       GetTaskReportResponse response = recordFactory.newRecordInstance(GetTaskReportResponse.class);
       response.setTaskReport(job.getTask(taskId).getReport());
       return response;
@@ -192,7 +221,7 @@ public class HistoryClientService extends AbstractService {
       int fromEventId = request.getFromEventId();
       int maxEvents = request.getMaxEvents();
       
-      Job job = getJob(jobId);
+      Job job = verifyAndGetJob(jobId);
       GetTaskAttemptCompletionEventsResponse response = recordFactory.newRecordInstance(GetTaskAttemptCompletionEventsResponse.class);
       response.addAllCompletionEvents(Arrays.asList(job.getTaskAttemptCompletionEvents(fromEventId, maxEvents)));
       return response;
@@ -200,21 +229,16 @@ public class HistoryClientService extends AbstractService {
       
     @Override
     public KillJobResponse killJob(KillJobRequest request) throws YarnRemoteException {
-      JobId jobId = request.getJobId();
       throw RPCUtil.getRemoteException("Invalid operation on completed job");
     }
     
     @Override
     public KillTaskResponse killTask(KillTaskRequest request) throws YarnRemoteException {
-      TaskId taskId = request.getTaskId();
-      getJob(taskId.getJobId());
       throw RPCUtil.getRemoteException("Invalid operation on completed job");
     }
     
     @Override
     public KillTaskAttemptResponse killTaskAttempt(KillTaskAttemptRequest request) throws YarnRemoteException {
-      TaskAttemptId taskAttemptId = request.getTaskAttemptId();
-      getJob(taskAttemptId.getTaskId().getJobId());
       throw RPCUtil.getRemoteException("Invalid operation on completed job");
     }
 
@@ -222,7 +246,7 @@ public class HistoryClientService extends AbstractService {
     public GetDiagnosticsResponse getDiagnostics(GetDiagnosticsRequest request) throws YarnRemoteException {
       TaskAttemptId taskAttemptId = request.getTaskAttemptId();
     
-      Job job = getJob(taskAttemptId.getTaskId().getJobId());
+      Job job = verifyAndGetJob(taskAttemptId.getTaskId().getJobId());
       
       GetDiagnosticsResponse response = recordFactory.newRecordInstance(GetDiagnosticsResponse.class);
       response.addAllDiagnostics(job.getTask(taskAttemptId.getTaskId()).getAttempt(taskAttemptId).getDiagnostics());
@@ -231,8 +255,6 @@ public class HistoryClientService extends AbstractService {
 
     @Override 
     public FailTaskAttemptResponse failTaskAttempt(FailTaskAttemptRequest request) throws YarnRemoteException {
-      TaskAttemptId taskAttemptId = request.getTaskAttemptId();
-      getJob(taskAttemptId.getTaskId().getJobId());
       throw RPCUtil.getRemoteException("Invalid operation on completed job");
     }
 
@@ -242,7 +264,7 @@ public class HistoryClientService extends AbstractService {
       TaskType taskType = request.getTaskType();
       
       GetTaskReportsResponse response = recordFactory.newRecordInstance(GetTaskReportsResponse.class);
-      Job job = getJob(jobId);
+      Job job = verifyAndGetJob(jobId);
       Collection<Task> tasks = job.getTasks(taskType).values();
       for (Task task : tasks) {
         response.addTaskReport(task.getReport());
@@ -250,6 +272,22 @@ public class HistoryClientService extends AbstractService {
       return response;
     }
 
+    private void checkAccess(Job job, JobACL jobOperation)
+        throws YarnRemoteException {
+      if (!UserGroupInformation.isSecurityEnabled()) {
+        return;
+      }
+      UserGroupInformation callerUGI;
+      try {
+        callerUGI = UserGroupInformation.getCurrentUser();
+      } catch (IOException e) {
+        throw RPCUtil.getRemoteException(e);
+      }
+      if (!job.checkAccess(callerUGI, jobOperation)) {
+        throw RPCUtil.getRemoteException(new AccessControlException("User "
+            + callerUGI.getShortUserName() + " cannot perform operation "
+            + jobOperation.name() + " on " + job.getID()));
+      }
+    }
   }
-
 }

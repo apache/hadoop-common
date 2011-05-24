@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.JobID;
@@ -32,7 +33,6 @@ import org.apache.hadoop.mapreduce.JobStatus;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetCountersRequest;
@@ -43,6 +43,7 @@ import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportsRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillJobRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskAttemptRequest;
 import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -58,6 +59,7 @@ import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.SchedulerSecurityInfo;
+import org.apache.hadoop.yarn.security.client.ClientRMSecurityInfo;
 
 public class ClientServiceDelegate {
   private static final Log LOG = LogFactory.getLog(ClientServiceDelegate.class);
@@ -116,7 +118,7 @@ public class ClientServiceDelegate {
             UserGroupInformation.getCurrentUser().addToken(clientToken);
         }
         LOG.info("Connecting to " + serviceAddr);
-        instantiateProxy(serviceAddr);
+        instantiateAMProxy(serviceAddr);
         return;
       } catch (Exception e) {
         //possibly
@@ -132,15 +134,16 @@ public class ClientServiceDelegate {
         appMaster = rm.getApplicationMaster(currentAppId);
       }
     }
+    //TODO Should this be additional states ?
     if (ApplicationState.COMPLETED.equals(appMaster.getState())) {
-      serviceAddr = conf.get(YarnMRJobConfig.HS_BIND_ADDRESS,
-          YarnMRJobConfig.DEFAULT_HS_BIND_ADDRESS);
+      serviceAddr = conf.get(JHConfig.HS_BIND_ADDRESS,
+          JHConfig.DEFAULT_HS_BIND_ADDRESS);
       LOG.info("Application state is completed. " +
             "Redirecting to job history server " + serviceAddr);
       //TODO:
       serviceHttpAddr = "";
       try {
-        instantiateProxy(serviceAddr);
+        instantiateHistoryProxy(serviceAddr);
         return;
       } catch (IOException e) {
         throw new YarnException(e);
@@ -151,8 +154,9 @@ public class ClientServiceDelegate {
         "Cannot connect to Application with state " + appMaster.getState());
   }
 
-  private void instantiateProxy(final String serviceAddr) throws IOException {
+  private void instantiateAMProxy(final String serviceAddr) throws IOException {
     UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
+    LOG.trace("Connecting to ApplicationMaster at: " + serviceAddr);
     realProxy = currentUser.doAs(new PrivilegedAction<MRClientProtocol>() {
       @Override
       public MRClientProtocol run() {
@@ -165,6 +169,20 @@ public class ClientServiceDelegate {
         NetUtils.createSocketAddr(serviceAddr), myConf);
       }
     });
+    LOG.trace("Connected to ApplicationMaster at: " + serviceAddr);
+  }
+
+  private void instantiateHistoryProxy(final String serviceAddr)
+      throws IOException {
+    LOG.trace("Connecting to HistoryServer at: " + serviceAddr);
+    Configuration myConf = new Configuration(conf);
+    //TODO This should ideally be using it's own class (instead of ClientRMSecurityInfo)
+    myConf.setClass(CommonConfigurationKeys.HADOOP_SECURITY_INFO_CLASS_NAME,
+        ClientRMSecurityInfo.class, SecurityInfo.class);
+    YarnRPC rpc = YarnRPC.create(myConf);
+    realProxy = (MRClientProtocol) rpc.getProxy(MRClientProtocol.class,
+        NetUtils.createSocketAddr(serviceAddr), myConf);
+    LOG.trace("Connected to HistoryServer at: " + serviceAddr);
   }
 
   public org.apache.hadoop.mapreduce.Counters getJobCounters(JobID arg0) throws IOException,

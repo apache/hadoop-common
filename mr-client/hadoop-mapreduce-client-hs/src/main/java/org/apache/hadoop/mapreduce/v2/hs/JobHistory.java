@@ -45,16 +45,17 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.jobhistory.FileNameIndexUtils;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JobIndexInfo;
 import org.apache.hadoop.yarn.Clock;
@@ -127,6 +128,11 @@ public class JobHistory extends AbstractService implements HistoryContext   {
   private final SortedMap<JobId, Job> loadedJobCache = new ConcurrentSkipListMap<JobId, Job>(
       JOB_ID_COMPARATOR);
 
+  /**
+   * Maintains a mapping between intermediate user directories and the last known modification time.
+   */
+  private Map<String, Long> userDirModificationTimeMap = new HashMap<String, Long>();
+  
   //The number of jobs to maintain in the job list cache.
   private int jobListCacheSize;
   
@@ -153,16 +159,11 @@ public class JobHistory extends AbstractService implements HistoryContext   {
   private FileContext doneDirFc; // done Dir FileContext
   
   private Path intermediateDoneDirPath = null; //Intermediate Done Dir Path
-  private FileContext intermediaDoneDirFc; //Intermediate Done Dir FileContext
+  private FileContext intermediateDoneDirFc; //Intermediate Done Dir FileContext
 
   private Thread moveIntermediateToDoneThread = null;
   private MoveIntermediateToDoneRunnable moveIntermediateToDoneRunnable = null;
   private ScheduledThreadPoolExecutor cleanerScheduledExecutor = null;
-  
-  /*
-   * TODO
-   * Fix completion time in JobFinishedEvent
-   */
   
   /**
    * Writes out files to the path
@@ -173,7 +174,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
   public void init(Configuration conf) throws YarnException {
     LOG.info("JobHistory Init");
     this.conf = conf;
-    debugMode = conf.getBoolean(YarnMRJobConfig.HISTORY_DEBUG_MODE_KEY, false);
+    debugMode = conf.getBoolean(JHConfig.HISTORY_DEBUG_MODE_KEY, false);
     serialNumberLowDigits = debugMode ? 1 : 3;
     serialNumberFormat = ("%0"
         + (JobHistoryUtils.SERIAL_NUMBER_DIRECTORY_DIGITS + serialNumberLowDigits) + "d");
@@ -185,68 +186,31 @@ public class JobHistory extends AbstractService implements HistoryContext   {
       doneDirPrefixPath = FileContext.getFileContext(conf).makeQualified(
           new Path(doneDirPrefix));
       doneDirFc = FileContext.getFileContext(doneDirPrefixPath.toUri(), conf);
-      if (!doneDirFc.util().exists(doneDirPrefixPath)) {
-        try {
-          doneDirFc.mkdir(doneDirPrefixPath, new FsPermission(
-              JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
-        } catch (FileAlreadyExistsException e) {
-          LOG.info("JobHistory Done Directory: [" + doneDirPrefixPath
-              + "] already exists.");
-        }
-      }
+      mkdir(doneDirFc, doneDirPrefixPath, new FsPermission(JobHistoryUtils.HISTORY_DONE_DIR_PERMISSION));
     } catch (IOException e) {
-      throw new YarnException("error creating done directory on dfs ", e);
-    }
-
-    String doneDirWithVersion = JobHistoryUtils
-        .getCurrentDoneDir(doneDirPrefix);
-    try {
-      Path doneDirWithVersionPath = FileContext.getFileContext(conf)
-          .makeQualified(new Path(doneDirWithVersion));
-      if (!doneDirFc.util().exists(doneDirWithVersionPath)) {
-        try {
-          doneDirFc.mkdir(doneDirWithVersionPath, new FsPermission(
-              JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
-        } catch (FileAlreadyExistsException e) {
-          LOG.info("JobHistory Done Directory: [" + doneDirPrefixPath
-              + "] already exists.");
-        }
-      }
-    } catch (IOException e) {
-      throw new YarnException("error creating done_version directory on dfs", e);
+      throw new YarnException("Error creating done directory: [" + doneDirPrefixPath + "]", e);
     }
 
     String intermediateDoneDirPrefix = JobHistoryUtils
     .getConfiguredHistoryIntermediateDoneDirPrefix(conf);
-    String intermediateDoneDir = JobHistoryUtils
-    .getCurrentDoneDir(intermediateDoneDirPrefix);
     try {
       intermediateDoneDirPath = FileContext.getFileContext(conf)
-          .makeQualified(new Path(intermediateDoneDir));
-      intermediaDoneDirFc = FileContext.getFileContext(
+          .makeQualified(new Path(intermediateDoneDirPrefix));
+      intermediateDoneDirFc = FileContext.getFileContext(
           intermediateDoneDirPath.toUri(), conf);
-      if (!intermediaDoneDirFc.util().exists(intermediateDoneDirPath)) {
-        try {
-          intermediaDoneDirFc.mkdir(intermediateDoneDirPath,
-              new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
-        } catch (FileAlreadyExistsException e) {
-          LOG.info("Intermediate JobHistory Done Directory: ["
-              + intermediateDoneDirPath + "] already exists.");
-        }
-      }
-
+      mkdir(intermediateDoneDirFc, intermediateDoneDirPath, new FsPermission(JobHistoryUtils.HISTORY_INTERMEDIATE_DONE_DIR_PERMISSIONS.toShort()));
     } catch (IOException e) {
       LOG.info("error creating done directory on dfs " + e);
-      throw new YarnException("error creating done directory on dfs ", e);
+      throw new YarnException("Error creating intermediate done directory: [" + intermediateDoneDirPath + "]", e);
     }
     
     
     
-    jobListCacheSize = conf.getInt(YarnMRJobConfig.HISTORY_SERVER_JOBLIST_CACHE_SIZE_KEY, DEFAULT_JOBLIST_CACHE_SIZE);
-    loadedJobCacheSize = conf.getInt(YarnMRJobConfig.HISTORY_SERVER_LOADED_JOB_CACHE_SIZE_KEY, DEFAULT_LOADEDJOB_CACHE_SIZE);
-    dateStringCacheSize = conf.getInt(YarnMRJobConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_DATESTRING_CACHE_SIZE);
-    moveThreadInterval = conf.getLong(YarnMRJobConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_MOVE_THREAD_INTERVAL);
-    numMoveThreads = conf.getInt(YarnMRJobConfig.HISTORY_SERVER_NUM_MOVE_THREADS, DEFAULT_MOVE_THREAD_COUNT);
+    jobListCacheSize = conf.getInt(JHConfig.HISTORY_SERVER_JOBLIST_CACHE_SIZE_KEY, DEFAULT_JOBLIST_CACHE_SIZE);
+    loadedJobCacheSize = conf.getInt(JHConfig.HISTORY_SERVER_LOADED_JOB_CACHE_SIZE_KEY, DEFAULT_LOADEDJOB_CACHE_SIZE);
+    dateStringCacheSize = conf.getInt(JHConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_DATESTRING_CACHE_SIZE);
+    moveThreadInterval = conf.getLong(JHConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_MOVE_THREAD_INTERVAL);
+    numMoveThreads = conf.getInt(JHConfig.HISTORY_SERVER_NUM_MOVE_THREADS, DEFAULT_MOVE_THREAD_COUNT);
     try {
     initExisting();
     } catch (IOException e) {
@@ -255,6 +219,26 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     super.init(conf);
   }
   
+  private void mkdir(FileContext fc, Path path, FsPermission fsp)
+      throws IOException {
+    if (!fc.util().exists(path)) {
+      try {
+        fc.mkdir(path, fsp, true);
+
+        FileStatus fsStatus = fc.getFileStatus(path);
+        LOG.info("Perms after creating " + fsStatus.getPermission().toShort()
+            + ", Expected: " + fsp.toShort());
+        if (fsStatus.getPermission().toShort() != fsp.toShort()) {
+          LOG.info("Explicitly setting permissions to : " + fsp.toShort()
+              + ", " + fsp);
+          fc.setPermission(path, fsp);
+        }
+      } catch (FileAlreadyExistsException e) {
+        LOG.info("Directory: [" + path + "] already exists.");
+      }
+    }
+  }
+
   @Override
   public void start() {
     //Start moveIntermediatToDoneThread
@@ -264,11 +248,17 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     moveIntermediateToDoneThread.start();
     
     //Start historyCleaner
-    long maxAgeOfHistoryFiles = conf.getLong(
-        YarnMRJobConfig.HISTORY_MAXAGE, DEFAULT_HISTORY_MAX_AGE);
+    boolean startCleanerService = conf.getBoolean(JHConfig.RUN_HISTORY_CLEANER_KEY, true);
+    if (startCleanerService) {
+      long maxAgeOfHistoryFiles = conf.getLong(JHConfig.HISTORY_MAXAGE,
+          DEFAULT_HISTORY_MAX_AGE);
     cleanerScheduledExecutor = new ScheduledThreadPoolExecutor(1);
-    long runInterval = conf.getLong(YarnMRJobConfig.HISTORY_CLEANER_RUN_INTERVAL, DEFAULT_RUN_INTERVAL);
-    cleanerScheduledExecutor.scheduleAtFixedRate(new HistoryCleaner(maxAgeOfHistoryFiles), 30*1000l, runInterval, TimeUnit.MILLISECONDS);
+      long runInterval = conf.getLong(JHConfig.HISTORY_CLEANER_RUN_INTERVAL,
+          DEFAULT_RUN_INTERVAL);
+      cleanerScheduledExecutor
+          .scheduleAtFixedRate(new HistoryCleaner(maxAgeOfHistoryFiles),
+              30 * 1000l, runInterval, TimeUnit.MILLISECONDS);
+    }
     super.start();
   }
   
@@ -441,40 +431,51 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     }
   }
   
+  
   /**
-   * Populates files from the intermediate directory into the intermediate cache.
+   * Scans the intermediate directory to find user directories. Scans these
+   * for history files if the modification time for the directory has changed.
    * @throws IOException
    */
   private void scanIntermediateDirectory() throws IOException {
-    List<FileStatus> fileStatusList = scanDirectoryForHistoryFiles(intermediateDoneDirPath, intermediaDoneDirFc);
-    for (FileStatus fs : fileStatusList) {
-      JobIndexInfo jobIndexInfo = FileNameIndexUtils.getIndexInfo(fs.getPath().getName());
-      String doneFileName = JobHistoryUtils.getIntermediateDoneFileName(jobIndexInfo.getJobId());
-      if (intermediaDoneDirFc.util().exists(intermediaDoneDirFc.makeQualified(new Path(intermediateDoneDirPath, doneFileName)))) {
-        String confFileName = JobHistoryUtils.getIntermediateConfFileName(jobIndexInfo.getJobId());
-        MetaInfo metaInfo = new MetaInfo(fs.getPath(), new Path(fs.getPath().getParent(), confFileName), jobIndexInfo);
-        if (!intermediateListCache.containsKey(jobIndexInfo.getJobId())) {
-          intermediateListCache.put(jobIndexInfo.getJobId(), metaInfo);
+    List<FileStatus> userDirList = JobHistoryUtils.localGlobber(intermediateDoneDirFc, intermediateDoneDirPath, "");
+    
+    for (FileStatus userDir : userDirList) {
+      String name = userDir.getPath().getName();
+      long newModificationTime = userDir.getModificationTime();
+      boolean shouldScan = false;
+      synchronized (userDirModificationTimeMap) {
+        if (!userDirModificationTimeMap.containsKey(name) || newModificationTime > userDirModificationTimeMap.get(name)) {
+            shouldScan = true;
+            userDirModificationTimeMap.put(name, newModificationTime);
         }  
+        }  
+      if (shouldScan) {
+        scanIntermediateDirectory(userDir.getPath());
       }
     }
   }
 
   /**
-   * Checks for the existance of the done file in the intermediate done
-   * directory for the specified jobId.
-   * 
-   * @param jobId the jobId.
-   * @return true if a done file exists for the specified jobId.
+   * Scans the specified path and populates the intermediate cache.
+   * @param absPath
    * @throws IOException
    */
-  private boolean doneFileExists(JobId jobId) throws IOException {
-    String doneFileName = JobHistoryUtils.getIntermediateDoneFileName(jobId);
-    Path qualifiedDoneFilePath = intermediaDoneDirFc.makeQualified(new Path(intermediateDoneDirPath, doneFileName));
-    if (intermediaDoneDirFc.util().exists(qualifiedDoneFilePath)) {
-      return true;
+  private void scanIntermediateDirectory(final Path absPath)
+      throws IOException {
+    List<FileStatus> fileStatusList = scanDirectoryForHistoryFiles(absPath,
+        intermediateDoneDirFc);
+    for (FileStatus fs : fileStatusList) {
+      JobIndexInfo jobIndexInfo = FileNameIndexUtils.getIndexInfo(fs.getPath()
+          .getName());
+      String confFileName = JobHistoryUtils
+          .getIntermediateConfFileName(jobIndexInfo.getJobId());
+      MetaInfo metaInfo = new MetaInfo(fs.getPath(), new Path(fs.getPath()
+          .getParent(), confFileName), jobIndexInfo);
+      if (!intermediateListCache.containsKey(jobIndexInfo.getJobId())) {
+        intermediateListCache.put(jobIndexInfo.getJobId(), metaInfo);
+      }
     }
-    return false;
   }
   
   /**
@@ -486,15 +487,10 @@ public class JobHistory extends AbstractService implements HistoryContext   {
    * @return A MetaInfo object for the jobId, null if not found.
    * @throws IOException
    */
-  private MetaInfo getJobMetaInfo(List<FileStatus> fileStatusList, JobId jobId, boolean checkForDoneFile) throws IOException {
+  private MetaInfo getJobMetaInfo(List<FileStatus> fileStatusList, JobId jobId) throws IOException {
     for (FileStatus fs : fileStatusList) {
       JobIndexInfo jobIndexInfo = FileNameIndexUtils.getIndexInfo(fs.getPath().getName());
       if (jobIndexInfo.getJobId().equals(jobId)) {
-        if (checkForDoneFile) {
-          if (!doneFileExists(jobIndexInfo.getJobId())) {
-            return null;
-          }
-        }
         String confFileName = JobHistoryUtils
             .getIntermediateConfFileName(jobIndexInfo.getJobId());
         MetaInfo metaInfo = new MetaInfo(fs.getPath(), new Path(fs.getPath()
@@ -524,7 +520,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     for (String timestampPart : dateStringSet) {
       Path logDir = canonicalHistoryLogPath(jobId, timestampPart);
       List<FileStatus> fileStatusList = scanDirectoryForHistoryFiles(logDir, doneDirFc);
-      MetaInfo metaInfo = getJobMetaInfo(fileStatusList, jobId, false);
+      MetaInfo metaInfo = getJobMetaInfo(fileStatusList, jobId);
       if (metaInfo != null) {
         return metaInfo;
       }
@@ -539,21 +535,8 @@ public class JobHistory extends AbstractService implements HistoryContext   {
    * @throws IOException
    */
   private MetaInfo scanIntermediateForJob(JobId jobId) throws IOException {
-    MetaInfo matchedMi = null;
-    List<FileStatus> fileStatusList = scanDirectoryForHistoryFiles(intermediateDoneDirPath, intermediaDoneDirFc);
-    
-    MetaInfo metaInfo = getJobMetaInfo(fileStatusList, jobId, true);
-    if (metaInfo == null) {
-      return null;
-    }
-    JobIndexInfo jobIndexInfo = metaInfo.getJobIndexInfo();
-    if (!intermediateListCache.containsKey(jobIndexInfo.getJobId())) {
-      intermediateListCache.put(jobIndexInfo.getJobId(), metaInfo);
-      matchedMi = metaInfo;
-    } else {
-      matchedMi = intermediateListCache.get(jobId);
-    }
-    return matchedMi;
+    scanIntermediateDirectory();
+    return intermediateListCache.get(jobId);
   }
   
   
@@ -862,7 +845,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
         try {
           moveToDoneNow(historyFile, toPath);
         } catch (IOException e) {
-          LOG.info("Failed to move file: " + historyFile + " for jobId: " + jobId);
+          LOG.info("Failed to move file: " + historyFile + " for jobId: " + jobId, e);
           return;
         }
         metaInfo.setHistoryFile(toPath);
@@ -872,29 +855,24 @@ public class JobHistory extends AbstractService implements HistoryContext   {
         try {
           moveToDoneNow(confFile, toPath);
         } catch (IOException e) {
-          LOG.info("Failed to move file: " + historyFile + " for jobId: " + jobId);
+          LOG.info("Failed to move file: " + historyFile + " for jobId: " + jobId, e);
           return;
         }
         metaInfo.setConfFile(toPath);
       }
     }
-    //TODO Does this need to be synchronized ?
-    Path doneFileToDelete = intermediaDoneDirFc.makeQualified(new Path(intermediateDoneDirPath, JobHistoryUtils.getIntermediateDoneFileName(jobId)));
-    try {
-      intermediaDoneDirFc.delete(doneFileToDelete, false);
-    } catch (IOException e) {
-      LOG.info("Unable to remove done file: " + doneFileToDelete);
-    }
     addToJobListCache(jobId, metaInfo);
     intermediateListCache.remove(jobId);
   }
   
-  private void moveToDoneNow(Path src, Path target) throws IOException {
+  private void moveToDoneNow(final Path src, final Path target)
+      throws IOException {
     LOG.info("Moving " + src.toString() + " to " + target.toString());
-    intermediaDoneDirFc.util().copy(src, target);
-    intermediaDoneDirFc.delete(src, false);
-    doneDirFc.setPermission(target,
-        new FsPermission(JobHistoryUtils.HISTORY_FILE_PERMISSION));
+    intermediateDoneDirFc.rename(src, target, Options.Rename.NONE);
+    // fc.util().copy(src, target);
+    //fc.delete(src, false);
+    //intermediateDoneDirFc.setPermission(target, new FsPermission(
+    //JobHistoryUtils.HISTORY_DONE_FILE_PERMISSION));
   }
   
   private void maybeMakeSubdirectory(Path path) throws IOException {
@@ -913,7 +891,16 @@ public class JobHistory extends AbstractService implements HistoryContext   {
       }
     } catch (FileNotFoundException fnfE) {
       try {
-        doneDirFc.mkdir(path, new FsPermission(JobHistoryUtils.HISTORY_DIR_PERMISSION), true);
+        FsPermission fsp = new FsPermission(JobHistoryUtils.HISTORY_DONE_DIR_PERMISSION);
+        doneDirFc.mkdir(path, fsp, true);
+        FileStatus fsStatus = doneDirFc.getFileStatus(path);
+        LOG.info("Perms after creating " + fsStatus.getPermission().toShort()
+            + ", Expected: " + fsp.toShort());
+        if (fsStatus.getPermission().toShort() != fsp.toShort()) {
+          LOG.info("Explicitly setting permissions to : " + fsp.toShort()
+              + ", " + fsp);
+          doneDirFc.setPermission(path, fsp);
+        }
         synchronized(existingDoneSubdirs) {
           existingDoneSubdirs.add(path);
         }
@@ -931,6 +918,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     return new Path(doneDirPrefixPath, JobHistoryUtils.historyLogSubdirectory(id, timestampComponent, serialNumberFormat));
   }  
   
+
   @Override
   public synchronized Job getJob(JobId jobId) {
     Job job = null;
@@ -970,7 +958,6 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     return getAllJobsInternal();
         }
 
-  
   
   
   
@@ -1065,28 +1052,19 @@ public class JobHistory extends AbstractService implements HistoryContext   {
       deleteFile(metaInfo.getConfFile());
       jobListCache.remove(metaInfo.getJobIndexInfo().getJobId());
       loadedJobCache.remove(metaInfo.getJobIndexInfo().getJobId());
-      //TODO Get rid of entries in the cache.
     }
     
-    private void deleteFile(Path path) throws IOException {
-      delete(path, false);
+    private void deleteFile(final Path path) throws IOException {
+      doneDirFc.delete(doneDirFc.makeQualified(path), false);
       filesDeleted++;
     }
     
     private void deleteDir(Path path) throws IOException {
-      delete(path, true);
+      doneDirFc.delete(doneDirFc.makeQualified(path), true);
       dirsDeleted++;
     }
-    
-    private void delete(Path path, boolean recursive) throws IOException {
-      doneDirFc.delete(doneDirFc.makeQualified(path), recursive);
     }
     
-  }
-  
-  
-  
-  
   
   
   

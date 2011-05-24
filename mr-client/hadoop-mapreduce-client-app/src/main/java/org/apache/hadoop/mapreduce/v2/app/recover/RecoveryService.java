@@ -151,13 +151,7 @@ public class RecoveryService extends CompositeService implements Recovery {
   private void parse() throws IOException {
     // TODO: parse history file based on startCount
     String jobName = TypeConverter.fromYarn(appID).toString();
-//    String defaultStagingDir = getConfig().get(
-//        YARNApplicationConstants.APPS_STAGING_DIR_KEY)
-//        + "/history/staging";
-    
-//    String jobhistoryDir = getConfig().get(
-//        YarnMRJobConfig.HISTORY_STAGING_DIR_KEY, defaultStagingDir);
-    String jobhistoryDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(getConfig());
+    String jobhistoryDir = JobHistoryUtils.getHistoryLogDirForUser(getConfig());
     FSDataInputStream in = null;
     Path historyFile = null;
     Path histDirPath = FileContext.getFileContext(getConfig()).makeQualified(

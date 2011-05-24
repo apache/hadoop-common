@@ -142,6 +142,7 @@ public class ApplicationsManagerImpl extends CompositeService
   public synchronized ApplicationMaster getApplicationMaster(ApplicationId applicationId) {
     ApplicationMaster appMaster =
       amTracker.get(applicationId).getMaster();
+    //TODO NPE (When the RM is restarted - it doesn't know about previous AMs)
     return appMaster;
   }
   
