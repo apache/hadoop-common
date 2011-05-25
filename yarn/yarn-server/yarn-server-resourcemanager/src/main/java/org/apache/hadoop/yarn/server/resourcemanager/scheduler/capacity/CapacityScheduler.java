@@ -586,11 +586,6 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
 
-  public synchronized void addAllocatedContainers(NodeInfo nodeInfo, 
-      ApplicationId applicationId, List<Container> containers) {
-    nodeInfo.allocateContainer(applicationId, containers);
-  }
-
   public synchronized void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
     clusterTracker.finishedApplication(applicationId, nodesToNotify);

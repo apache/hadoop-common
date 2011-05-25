@@ -165,7 +165,7 @@ public class Application {
       Resources.addTo(overallConsumption, container.getResource());
     }
 
-    LOG.debug("acquire:" + " application=" + applicationId + " #acquired="
+    LOG.info("acquire:" + " application=" + applicationId + " #acquired="
         + heartbeatContainers.size());
     heartbeatContainers = (heartbeatContainers == null) ? new ArrayList<Container>()
         : heartbeatContainers;
