@@ -119,7 +119,9 @@ public class HistoryClientService extends AbstractService {
     //TODO: security
     server =
         rpc.getServer(MRClientProtocol.class, protocolHandler, address,
-            conf, null);
+            conf, null,
+            conf.getInt(JHConfig.HS_CLIENT_THREADS, 
+                JHConfig.DEFAULT_HS_CLIENT_THREADS));
     server.start();
     this.bindAddress =
         NetUtils.createSocketAddr(hostNameResolved.getHostAddress()

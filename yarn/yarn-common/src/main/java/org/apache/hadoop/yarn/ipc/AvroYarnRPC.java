@@ -50,7 +50,8 @@ public class AvroYarnRPC extends YarnRPC {
   @Override
   public Server getServer(Class protocol, Object instance,
       InetSocketAddress addr, Configuration conf,
-      SecretManager<? extends TokenIdentifier> secretManager) {
+      SecretManager<? extends TokenIdentifier> secretManager,
+      int numHandlers) {
     try {
       return new SocketServer(new SpecificResponder(protocol, instance),
             addr);

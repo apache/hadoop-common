@@ -49,4 +49,20 @@ public class RMConfig {
       YarnConfiguration.RM_PREFIX
           + "nmliveliness-monitor.monitoring-interval";
   public static final long DEFAULT_NMLIVELINESS_MONITORING_INTERVAL = 1000;
+  
+  public static final String RM_RESOURCE_TRACKER_THREADS =
+    YarnConfiguration.RM_PREFIX + "resource.tracker.threads";
+  public static final int DEFAULT_RM_RESOURCE_TRACKER_THREADS = 10;
+  
+  public static final String RM_CLIENT_THREADS =
+    YarnConfiguration.RM_PREFIX + "client.threads";
+  public static final int DEFAULT_RM_CLIENT_THREADS = 10;
+  
+  public static final String RM_AM_THREADS =
+    YarnConfiguration.RM_PREFIX + "am.threads";
+  public static final int DEFAULT_RM_AM_THREADS = 10;
+  
+  public static final String RM_ADMIN_THREADS =
+    YarnConfiguration.RM_PREFIX + "admin.threads";
+  public static final int DEFAULT_RM_ADMIN_THREADS = 1;
 }

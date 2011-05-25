@@ -34,6 +34,7 @@ import org.apache.hadoop.ipc.RPC.Server;
 import org.apache.hadoop.mapred.SortedRanges.Range;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
@@ -100,7 +101,9 @@ public class TaskAttemptListenerImpl extends CompositeService
     Configuration conf = getConfig();
     try {
       server =
-          RPC.getServer(TaskUmbilicalProtocol.class, this, "0.0.0.0", 0, 1,
+          RPC.getServer(TaskUmbilicalProtocol.class, this, "0.0.0.0", 0, 
+              conf.getInt(YarnMRJobConfig.AM_TASK_LISTENER_THREADS, 
+                  YarnMRJobConfig.DEFAULT_AM_TASK_LISTENER_THREADS),
               false, conf, jobTokenSecretManager);
       server.start();
       InetSocketAddress listenerAddress = server.getListenerAddress();

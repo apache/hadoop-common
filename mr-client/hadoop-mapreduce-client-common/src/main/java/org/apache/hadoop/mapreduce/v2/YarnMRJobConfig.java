@@ -25,16 +25,25 @@ import org.apache.hadoop.classification.InterfaceStability;
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
 public class YarnMRJobConfig {
+  public static final String YARN_MR_PREFIX = "yarn.mapreduce.job.";
   public static final String SPECULATOR_CLASS
-      = "yarn.mapreduce.job.speculator.class";
+      = YARN_MR_PREFIX + "speculator.class";
   public static final String TASK_RUNTIME_ESTIMATOR_CLASS
-      = "yarn.mapreduce.job.task.runtime.estimator.class";
+      = YARN_MR_PREFIX + "task.runtime.estimator.class";
   public static final String TASK_ATTEMPT_PROGRESS_RUNTIME_LINEARIZER_CLASS
-      = "yarn.mapreduce.job.task.runtime.linearizer.class";
+      = YARN_MR_PREFIX + "task.runtime.linearizer.class";
   public static final String EXPONENTIAL_SMOOTHING_LAMBDA_MILLISECONDS
-      = "yarn.mapreduce.job.task.runtime.estimator.exponential.smooth.lambda";
+      = YARN_MR_PREFIX + "task.runtime.estimator.exponential.smooth.lambda";
   public static final String EXPONENTIAL_SMOOTHING_SMOOTH_RATE
-      = "yarn.mapreduce.job.task.runtime.estimator.exponential.smooth.smoothsrate";
+      = YARN_MR_PREFIX + "task.runtime.estimator.exponential.smooth.smoothsrate";
   public static final String RECOVERY_ENABLE
-      = "yarn.mapreduce.job.recovery.enable";
+      = YARN_MR_PREFIX + "recovery.enable";
+  
+  public static final String AM_TASK_LISTENER_THREADS =
+    YARN_MR_PREFIX + "task.listener.threads";
+  public static final int DEFAULT_AM_TASK_LISTENER_THREADS = 10;
+
+  public static final String AM_JOB_CLIENT_THREADS =
+    YARN_MR_PREFIX + "job.client.threads";
+  public static final int DEFAULT_AM_JOB_CLIENT_THREADS = 1;
 }

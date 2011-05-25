@@ -177,7 +177,7 @@ public class TestClientRedirect {
       YarnRPC rpc = YarnRPC.create(getConfig());
       Configuration clientServerConf = new Configuration(getConfig());
       this.server = rpc.getServer(ClientRMProtocol.class, this,
-          clientBindAddress, clientServerConf, null);
+          clientBindAddress, clientServerConf, null, 1);
       this.server.start();
       super.start();
     }
@@ -296,7 +296,7 @@ public class TestClientRedirect {
 
       server =
           rpc.getServer(MRClientProtocol.class, this, address,
-              conf, null);
+              conf, null, 1);
       server.start();
       this.bindAddress =
         NetUtils.createSocketAddr(hostNameResolved.getHostAddress()

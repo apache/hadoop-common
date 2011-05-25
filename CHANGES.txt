@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Made number of RPC server threads configurable. (acmurthy) 
+
     Add public cache. (cdouglas)
 
     MAPREDUCE-2534. Fix CI breaking hard coded version in jobclient pom. 

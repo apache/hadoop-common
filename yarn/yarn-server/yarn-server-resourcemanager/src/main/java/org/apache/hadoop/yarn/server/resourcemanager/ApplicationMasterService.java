@@ -107,7 +107,9 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
         SchedulerSecurityInfo.class, SecurityInfo.class);
     this.server =
       rpc.getServer(AMRMProtocol.class, this, masterServiceAddress,
-          serverConf, this.appTokenManager);
+          serverConf, this.appTokenManager,
+          serverConf.getInt(RMConfig.RM_AM_THREADS, 
+              RMConfig.DEFAULT_RM_AM_THREADS));
     this.server.start();
     super.start();
   }

@@ -58,7 +58,9 @@ public class AdminService extends AbstractService implements RMAdminProtocol {
         SchedulerSecurityInfo.class, SecurityInfo.class);
     this.server =
       rpc.getServer(RMAdminProtocol.class, this, masterServiceAddress,
-          serverConf, null);
+          serverConf, null,
+          serverConf.getInt(RMConfig.RM_ADMIN_THREADS, 
+              RMConfig.DEFAULT_RM_ADMIN_THREADS));
     this.server.start();
     super.start();
   }

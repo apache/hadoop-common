@@ -33,6 +33,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.mapreduce.JobACL;
+import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptResponse;
@@ -136,7 +137,9 @@ public class MRClientService extends AbstractService
     }
     server =
         rpc.getServer(MRClientProtocol.class, protocolHandler, address,
-            conf, secretManager);
+            conf, secretManager,
+            conf.getInt(YarnMRJobConfig.AM_JOB_CLIENT_THREADS, 
+                YarnMRJobConfig.DEFAULT_AM_JOB_CLIENT_THREADS));
     server.start();
     this.bindAddress =
         NetUtils.createSocketAddr(hostNameResolved.getHostAddress()

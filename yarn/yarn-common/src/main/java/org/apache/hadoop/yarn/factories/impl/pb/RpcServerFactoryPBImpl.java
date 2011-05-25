@@ -61,7 +61,7 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
   @Override
   public Server getServer(Class<?> protocol, Object instance,
       InetSocketAddress addr, Configuration conf,
-      SecretManager<? extends TokenIdentifier> secretManager)
+      SecretManager<? extends TokenIdentifier> secretManager, int numHandlers)
       throws YarnException {
     
     Constructor<?> constructor = serviceCache.get(protocol);
@@ -115,7 +115,8 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
     }
     
     try {
-      return createServer(addr, conf, secretManager, (BlockingService)method.invoke(null, service));
+      return createServer(addr, conf, secretManager, numHandlers,
+          (BlockingService)method.invoke(null, service));
     } catch (InvocationTargetException e) {
       throw new YarnException(e);
     } catch (IllegalAccessException e) {
@@ -147,9 +148,13 @@ public class RpcServerFactoryPBImpl implements RpcServerFactory {
     return clazz.getPackage().getName();
   }
 
-  private Server createServer(InetSocketAddress addr, Configuration conf, SecretManager<? extends TokenIdentifier> secretManager, BlockingService blockingService) throws IOException {
+  private Server createServer(InetSocketAddress addr, Configuration conf, 
+      SecretManager<? extends TokenIdentifier> secretManager, int numHandlers, 
+      BlockingService blockingService) throws IOException {
     RPC.setProtocolEngine(conf, BlockingService.class, ProtoOverHadoopRpcEngine.class);
-    Server server = RPC.getServer(BlockingService.class, blockingService, addr.getHostName(), addr.getPort(), 1, false, conf, secretManager);
+    Server server = RPC.getServer(BlockingService.class, blockingService, 
+        addr.getHostName(), addr.getPort(), numHandlers, false, conf, 
+        secretManager);
     return server;
   }
 }

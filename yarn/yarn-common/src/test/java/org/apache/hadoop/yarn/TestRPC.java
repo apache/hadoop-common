@@ -81,7 +81,7 @@ public class TestRPC {
     String bindAddr = "localhost:0";
     InetSocketAddress addr = NetUtils.createSocketAddr(bindAddr);
     Server server = rpc.getServer(ContainerManager.class, 
-            new DummyContainerManager(), addr, conf, null);
+            new DummyContainerManager(), addr, conf, null, 1);
     server.start();
     ContainerManager proxy = (ContainerManager) 
         rpc.getProxy(ContainerManager.class, 

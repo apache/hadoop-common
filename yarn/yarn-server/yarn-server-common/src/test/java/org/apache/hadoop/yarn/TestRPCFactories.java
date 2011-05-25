@@ -37,7 +37,9 @@ public class TestRPCFactories {
     ResourceTracker instance = new ResourceTrackerTestImpl();
     Server server = null;
     try {
-      server = RpcServerFactoryPBImpl.get().getServer(ResourceTracker.class, instance, addr, conf, null);
+      server = 
+        RpcServerFactoryPBImpl.get().getServer(
+            ResourceTracker.class, instance, addr, conf, null, 1);
       server.start();
     } catch (YarnException e) {
       e.printStackTrace();
@@ -55,7 +57,9 @@ public class TestRPCFactories {
     ResourceTracker instance = new ResourceTrackerTestImpl();
     Server server = null;
     try {
-      server = RpcServerFactoryPBImpl.get().getServer(ResourceTracker.class, instance, addr, conf, null);
+      server = 
+        RpcServerFactoryPBImpl.get().getServer(
+            ResourceTracker.class, instance, addr, conf, null, 1);
       server.start();
       System.err.println(server.getListenerAddress());
       System.err.println(NetUtils.getConnectAddress(server));

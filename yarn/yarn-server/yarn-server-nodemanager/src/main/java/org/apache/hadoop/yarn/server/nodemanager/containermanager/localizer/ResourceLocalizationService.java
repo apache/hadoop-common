@@ -41,6 +41,7 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+
 import static org.apache.hadoop.fs.CreateFlag.CREATE;
 import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_MAX_PUBLIC_FETCH_THREADS;
@@ -219,8 +220,12 @@ public class ResourceLocalizationService extends AbstractService
           LocalizerSecurityInfo.class, SecurityInfo.class);
       secretManager = new LocalizerTokenSecretManager();
     }
+    
     return rpc.getServer(LocalizationProtocol.class, this,
-        localizationServerAddress, conf, secretManager);
+        localizationServerAddress, conf, secretManager, 
+        conf.getInt(NMConfig.NM_LOCALIZATION_THREADS, 
+            NMConfig.DEFAULT_NM_LOCALIZATION_THREADS));
+
   }
 
   @Override

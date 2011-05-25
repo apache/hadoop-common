@@ -161,7 +161,9 @@ ResourceTracker, ClusterTracker {
         RMNMSecurityInfoClass.class, SecurityInfo.class);
     this.server =
       rpc.getServer(ResourceTracker.class, this, resourceTrackerAddress,
-          rtServerConf, null);
+          rtServerConf, null,
+          rtServerConf.getInt(RMConfig.RM_RESOURCE_TRACKER_THREADS, 
+              RMConfig.DEFAULT_RM_RESOURCE_TRACKER_THREADS));
     this.server.start();
     this.nmLivelinessMonitor.start();
     LOG.info("Expiry interval of NodeManagers set to " + nmExpiryInterval);

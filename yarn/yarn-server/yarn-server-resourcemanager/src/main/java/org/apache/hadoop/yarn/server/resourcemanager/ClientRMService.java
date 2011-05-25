@@ -113,7 +113,9 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
     this.server =   
       rpc.getServer(ClientRMProtocol.class, this,
             clientBindAddress,
-            clientServerConf, null);
+            clientServerConf, null,
+            clientServerConf.getInt(RMConfig.RM_CLIENT_THREADS, 
+                RMConfig.DEFAULT_RM_CLIENT_THREADS));
     this.server.start();
     super.start();
   }

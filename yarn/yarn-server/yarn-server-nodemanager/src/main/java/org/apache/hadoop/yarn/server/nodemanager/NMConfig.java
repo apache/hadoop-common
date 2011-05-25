@@ -79,4 +79,14 @@ public class NMConfig {
     "max.public.fetch.threads";
 
   public static final int DEFAULT_MAX_PUBLIC_FETCH_THREADS = 4;
+  
+  public static final String NM_LOCALIZATION_THREADS =
+    NM_PREFIX + "localiation.threads";
+  
+  public static final int DEFAULT_NM_LOCALIZATION_THREADS = 5;
+
+  public static final String NM_CONTAINER_MGR_THREADS =
+    NM_PREFIX + "container.manager.threads";
+  
+  public static final int DEFAULT_NM_CONTAINER_MGR_THREADS = 5;
 }

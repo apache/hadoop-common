@@ -36,7 +36,7 @@ public class TestPBLocalizerRPC {
       Configuration conf = new Configuration();
       YarnRPC rpc = YarnRPC.create(conf);
       server = rpc.getServer(
-          LocalizationProtocol.class, this, locAddr, conf, null);
+          LocalizationProtocol.class, this, locAddr, conf, null, 1);
       server.start();
     }
 

@@ -66,6 +66,7 @@ import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerManagerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
+import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationEvent;
@@ -207,7 +208,9 @@ public class ContainerManagerImpl extends CompositeService implements
         ContainerManagerSecurityInfo.class, SecurityInfo.class);
     server =
         rpc.getServer(ContainerManager.class, this, cmBindAddressStr, cmConf,
-            this.containerTokenSecretManager);
+            this.containerTokenSecretManager,
+            cmConf.getInt(NMConfig.NM_CONTAINER_MGR_THREADS, 
+                NMConfig.DEFAULT_NM_CONTAINER_MGR_THREADS));
     LOG.info("ContainerManager started at " + cmBindAddressStr);
     server.start();
     super.start();

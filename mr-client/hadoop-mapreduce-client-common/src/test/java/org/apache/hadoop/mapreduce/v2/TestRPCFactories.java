@@ -56,7 +56,9 @@ public class TestRPCFactories {
     MRClientProtocol instance = new MRClientProtocolTestImpl();
     Server server = null;
     try {
-      server = RpcServerFactoryPBImpl.get().getServer(MRClientProtocol.class, instance, addr, conf, null);
+      server = 
+        RpcServerFactoryPBImpl.get().getServer(
+          MRClientProtocol.class, instance, addr, conf, null, 1);
       server.start();
     } catch (YarnException e) {
       e.printStackTrace();
@@ -74,7 +76,9 @@ public class TestRPCFactories {
     MRClientProtocol instance = new MRClientProtocolTestImpl();
     Server server = null;
     try {
-      server = RpcServerFactoryPBImpl.get().getServer(MRClientProtocol.class, instance, addr, conf, null);
+      server = 
+        RpcServerFactoryPBImpl.get().getServer(
+            MRClientProtocol.class, instance, addr, conf, null, 1);
       server.start();
       System.err.println(server.getListenerAddress());
       System.err.println(NetUtils.getConnectAddress(server));

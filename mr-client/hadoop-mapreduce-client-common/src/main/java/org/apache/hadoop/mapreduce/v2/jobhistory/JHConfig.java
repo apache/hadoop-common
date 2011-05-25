@@ -90,4 +90,8 @@ public class JHConfig {
       "address.webapp";
   public static final String DEFAULT_HS_WEBAPP_BIND_ADDRESS =
     "0.0.0.0:19888";
+  
+  public static final String HS_CLIENT_THREADS = 
+    HS_PREFIX + "client.threads";
+  public static final int DEFAULT_HS_CLIENT_THREADS = 10;
 }

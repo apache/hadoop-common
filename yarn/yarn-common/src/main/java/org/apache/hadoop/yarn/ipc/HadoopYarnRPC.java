@@ -61,15 +61,17 @@ public class HadoopYarnRPC extends YarnRPC {
   @Override
   public Server getServer(Class protocol, Object instance,
       InetSocketAddress addr, Configuration conf,
-      SecretManager<? extends TokenIdentifier> secretManager) {
-    LOG.info("Creating a HadoopYarnRpc server for protocol " + protocol);
+      SecretManager<? extends TokenIdentifier> secretManager,
+      int numHandlers) {
+    LOG.info("Creating a HadoopYarnRpc server for protocol " + protocol + 
+        " with " + numHandlers + " handlers");
     LOG.info("Configured SecurityInfo class name is "
         + conf.get(CommonConfigurationKeys.HADOOP_SECURITY_INFO_CLASS_NAME));
     RPC.setProtocolEngine(conf, protocol, AvroSpecificRpcEngine.class);
     final RPC.Server hadoopServer;
     try {
       hadoopServer = RPC.getServer(protocol, instance, addr.getHostName(), 
-          addr.getPort(), 1, false, conf, secretManager);
+          addr.getPort(), numHandlers, false, conf, secretManager);
     } catch (IOException e) {
       throw new YarnException(e);
     }
