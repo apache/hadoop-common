@@ -79,15 +79,16 @@
           </execution>
         </executions>
       </plugin>
-       <plugin>
-         <groupId>org.apache.maven.plugins</groupId>
-         <artifactId>maven-surefire-plugin</artifactId>
-           <configuration>
-             <additionalClasspathElements>
-               <additionalClasspathElement>${basedir}/target/hadoop-mapreduce-client-jobclient-1.0-SNAPSHOT-tests.jar</additionalClasspathElement>
-             </additionalClasspathElements>
-           </configuration>
-        </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <additionalClasspathElements>
+            <!-- workaround for JobConf#setJarByClass -->
+            <additionalClasspathElement>${project.build.directory}/${project.artifactId}-${project.version}-tests.jar</additionalClasspathElement>
+          </additionalClasspathElements>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
