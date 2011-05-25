@@ -16,6 +16,11 @@
   </property>
 
   <property>
+    <name>yarn.capacity-scheduler.root.acl_administer_queues</name>
+    <value>*</value>
+  </property>
+
+  <property>
     <name>yarn.capacity-scheduler.root.default.capacity</name>
     <value>100</value>
   </property>
@@ -33,6 +38,16 @@
   <property>
     <name>yarn.capacity-scheduler.root.default.state</name>
     <value>RUNNING</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.default.acl_submit_jobs</name>
+    <value>*</value>
+  </property>
+
+  <property>
+    <name>yarn.capacity-scheduler.root.default.acl_administer_jobs</name>
+    <value>*</value>
   </property>
 
 </configuration>

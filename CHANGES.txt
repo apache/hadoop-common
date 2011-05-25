@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Added acl check for RMAdmin. (acmurthy)
+
     Made number of RPC server threads configurable. (acmurthy) 
 
     Add public cache. (cdouglas)
