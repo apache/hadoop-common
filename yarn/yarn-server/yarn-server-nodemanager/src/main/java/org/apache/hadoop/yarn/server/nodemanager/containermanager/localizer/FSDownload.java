@@ -108,7 +108,9 @@ public class FSDownload implements Callable<Path> {
       localrsrc.renameTo(dst);
       break;
     }
-    return FileUtil.getDU(destDir);
+    return 0;
+    // TODO Should calculate here before returning
+    //return FileUtil.getDU(destDir);
   }
 
   @Override
@@ -134,10 +136,12 @@ public class FSDownload implements Callable<Path> {
 
     Path dFinal = files.makeQualified(new Path(dst_work, sCopy.getName()));
     try {
-      Path dTmp = this.userUgi.doAs(new PrivilegedExceptionAction<Path>() {
-        public Path run() throws Exception {
-          return files.makeQualified(copy(sCopy, dst_work));
-        };
+      Path dTmp = null == userUgi
+        ? files.makeQualified(copy(sCopy, dst_work))
+        : userUgi.doAs(new PrivilegedExceptionAction<Path>() {
+            public Path run() throws Exception {
+              return files.makeQualified(copy(sCopy, dst_work));
+            };
       });
       unpack(new File(dTmp.toUri()), new File(dFinal.toUri()));
       files.rename(dst_work, dst, Rename.OVERWRITE);

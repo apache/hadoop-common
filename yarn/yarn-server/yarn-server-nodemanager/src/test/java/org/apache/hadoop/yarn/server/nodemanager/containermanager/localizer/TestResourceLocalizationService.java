@@ -13,12 +13,10 @@ import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
 
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 import static org.mockito.Mockito.*;
 
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCAL_DIR;
-import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCAL_DIR;
 
 public class TestResourceLocalizationService {
 

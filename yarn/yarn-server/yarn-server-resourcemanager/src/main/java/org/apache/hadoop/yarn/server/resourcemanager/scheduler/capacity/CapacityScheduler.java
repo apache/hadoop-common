@@ -230,6 +230,10 @@ implements ResourceScheduler, CapacitySchedulerContext {
       conf.getQueues((parent == null) ? 
           queueName : (parent.getQueuePath()+"."+queueName));
     if (childQueueNames == null || childQueueNames.length == 0) {
+      if (null == parent) {
+        throw new IllegalStateException(
+            "Queue configuration missing child queue names for " + queueName);
+      }
       queue = new LeafQueue(this, queueName, parent, applicationComparator,
                             oldQueues.get(queueName));
     } else {

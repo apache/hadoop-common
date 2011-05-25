@@ -23,9 +23,12 @@ import java.net.URISyntaxException;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 
-public class LocalResourceRequest implements Comparable<LocalResourceRequest> {
+public class LocalResourceRequest
+    implements LocalResource, Comparable<LocalResourceRequest> {
 
   private final Path loc;
   private final long timestamp;
@@ -83,12 +86,54 @@ public class LocalResourceRequest implements Comparable<LocalResourceRequest> {
     return loc;
   }
 
+  @Override
   public long getTimestamp() {
     return timestamp;
   }
 
+  @Override
   public LocalResourceType getType() {
     return type;
+  }
+
+  @Override
+  public URL getResource() {
+    return ConverterUtils.getYarnUrlFromPath(loc);
+  }
+
+  @Override
+  public long getSize() {
+    return -1L;
+  }
+
+  @Override
+  public LocalResourceVisibility getVisibility() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void setResource(URL resource) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void setSize(long size) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void setTimestamp(long timestamp) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void setType(LocalResourceType type) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void setVisibility(LocalResourceVisibility visibility) {
+    throw new UnsupportedOperationException();
   }
 
   @Override

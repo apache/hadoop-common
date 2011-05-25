@@ -18,6 +18,7 @@
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
 import java.io.DataOutputStream;
+import java.io.File;
 
 import java.net.URISyntaxException;
 
@@ -25,20 +26,31 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import static org.apache.hadoop.fs.CreateFlag.CREATE;
+import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_MAX_PUBLIC_FETCH_THREADS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCALIZER_BIND_ADDRESS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCAL_DIR;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOG_DIR;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCALIZER_BIND_ADDRESS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCAL_DIR;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOG_DIR;
-import static org.apache.hadoop.fs.CreateFlag.CREATE;
-import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_MAX_PUBLIC_FETCH_THREADS;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -115,7 +127,7 @@ public class ResourceLocalizationService extends AbstractService
   private RecordFactory recordFactory;
   private final LocalDirAllocator localDirsSelector;
 
-  //private final LocalResourcesTracker publicRsrc;
+  private final LocalResourcesTracker publicRsrc;
   private final ConcurrentMap<String,LocalResourcesTracker> privateRsrc =
     new ConcurrentHashMap<String,LocalResourcesTracker>();
   private final ConcurrentMap<String,LocalResourcesTracker> appRsrc =
@@ -128,6 +140,7 @@ public class ResourceLocalizationService extends AbstractService
     this.dispatcher = dispatcher;
     this.delService = delService;
     this.localDirsSelector = new LocalDirAllocator(NMConfig.NM_LOCAL_DIR);
+    this.publicRsrc = new LocalResourcesTrackerImpl(dispatcher);
   }
 
   FileContext getLocalFileContext(Configuration conf) {
@@ -178,7 +191,7 @@ public class ResourceLocalizationService extends AbstractService
     sysDirs = Collections.unmodifiableList(sysDirs);
     localizationServerAddress = NetUtils.createSocketAddr(
       conf.get(NM_LOCALIZER_BIND_ADDRESS, DEFAULT_NM_LOCALIZER_BIND_ADDRESS));
-    localizerTracker = new LocalizerTracker();
+    localizerTracker = new LocalizerTracker(conf);
     dispatcher.register(LocalizerEventType.class, localizerTracker);
     super.init(conf);
   }
@@ -254,8 +267,7 @@ public class ResourceLocalizationService extends AbstractService
       switch (vis) {
       default:
       case PUBLIC:
-        // TODO
-        tracker = null;
+        tracker = publicRsrc;
         break;
       case PRIVATE:
         tracker = privateRsrc.get(c.getUser());
@@ -341,25 +353,28 @@ public class ResourceLocalizationService extends AbstractService
 
   /**
    * Sub-component handling the spawning of {@link ContainerLocalizer}s
-   * 
    */
   class LocalizerTracker implements EventHandler<LocalizerEvent> {
 
-    private final Map<String,LocalizerRunner> localizerRunners;
+    private final PublicLocalizer publicLocalizer;
+    private final Map<String,LocalizerRunner> privLocalizers;
 
-    LocalizerTracker() {
-      this(new HashMap<String,LocalizerRunner>());
+    LocalizerTracker(Configuration conf) {
+      this(conf, new HashMap<String,LocalizerRunner>());
     }
 
-    LocalizerTracker(Map<String,LocalizerRunner> trackers) {
-      this.localizerRunners = trackers;
+    LocalizerTracker(Configuration conf,
+        Map<String,LocalizerRunner> privLocalizers) {
+      this.publicLocalizer = new PublicLocalizer(conf);
+      this.privLocalizers = privLocalizers;
+      publicLocalizer.start();
     }
 
     public LocalizerHeartbeatResponse processHeartbeat(LocalizerStatus status) {
       String locId = status.getLocalizerId();
-      synchronized (localizerRunners) {
-        LocalizerRunner localizerRunner = localizerRunners.get(locId);
-        if (null == localizerRunner) {
+      synchronized (privLocalizers) {
+        LocalizerRunner localizer = privLocalizers.get(locId);
+        if (null == localizer) {
           // TODO process resources anyway
           LOG.info("Unknown localizer with localizerId " + locId
               + " is sending heartbeat. Ordering it to DIE");
@@ -368,48 +383,139 @@ public class ResourceLocalizationService extends AbstractService
           response.setLocalizerAction(LocalizerAction.DIE);
           return response;
         }
-        return localizerRunner.update(status.getResources());
+        return localizer.update(status.getResources());
       }
     }
 
     public void stop() {
-      for (LocalizerRunner localizer : localizerRunners.values()) {
+      for (LocalizerRunner localizer : privLocalizers.values()) {
         localizer.interrupt();
       }
+      publicLocalizer.interrupt();
     }
 
     @Override
     public void handle(LocalizerEvent event) {
-      synchronized (localizerRunners) {
-        String localizerId = event.getLocalizerId();
-        LocalizerRunner localizerRunner = localizerRunners.get(localizerId);
-        switch(event.getType()) {
-          case REQUEST_RESOURCE_LOCALIZATION:
-            // 0) find running localizer or start new thread
-            LocalizerResourceRequestEvent req =
-              (LocalizerResourceRequestEvent)event;
-            if (null == localizerRunner) {
-              LOG.info("Created localizerRunner for " + req.getLocalizerId());
-            localizerRunner =
-                new LocalizerRunner(req.getContext(), req.getLocalizerId());
-              localizerRunners.put(localizerId, localizerRunner);
-              localizerRunner.start();
+      String locId = event.getLocalizerId();
+      switch (event.getType()) {
+      case REQUEST_RESOURCE_LOCALIZATION:
+        // 0) find running localizer or start new thread
+        LocalizerResourceRequestEvent req =
+          (LocalizerResourceRequestEvent)event;
+        switch (req.getVisibility()) {
+        case PUBLIC:
+          publicLocalizer.addResource(req);
+          break;
+        case PRIVATE:
+        case APPLICATION:
+          synchronized (privLocalizers) {
+            LocalizerRunner localizer = privLocalizers.get(locId);
+            if (null == localizer) {
+              LOG.info("Created localizer for " + req.getLocalizerId());
+              localizer = new LocalizerRunner(req.getContext(),
+                  req.getLocalizerId());
+              privLocalizers.put(locId, localizer);
+              localizer.start();
             }
             // 1) propagate event
-            localizerRunner.addResource(req);
-            break;
-          case ABORT_LOCALIZATION:
-            // TODO: Who calls this?
-            // 0) find running localizer, interrupt and remove
-            if (null == localizerRunner) {
-              return; // ignore; already gone
-            }
-            localizerRunners.remove(localizerId);
-            localizerRunner.interrupt();
-            break;
+            localizer.addResource(req);
+          }
+          break;
         }
+        break;
+      case ABORT_LOCALIZATION:
+        // 0) find running localizer, interrupt and remove
+        synchronized (privLocalizers) {
+          LocalizerRunner localizer = privLocalizers.get(locId);
+          if (null == localizer) {
+            return; // ignore; already gone
+          }
+          privLocalizers.remove(locId);
+          localizer.interrupt();
+        }
+        break;
       }
     }
+
+  }
+
+  class PublicLocalizer extends Thread {
+
+    static final String PUBCACHE_CTXT = "public.cache.dirs";
+
+    final FileContext lfs;
+    final Configuration conf;
+    final ExecutorService threadPool;
+    final LocalDirAllocator publicDirs;
+    final CompletionService<Path> queue;
+    final ConcurrentMap<Future<Path>,LocalizerResourceRequestEvent> pending;
+
+    PublicLocalizer(Configuration conf) {
+      this(conf, getLocalFileContext(conf),
+           Executors.newFixedThreadPool(conf.getInt(
+               NM_MAX_PUBLIC_FETCH_THREADS, DEFAULT_MAX_PUBLIC_FETCH_THREADS)),
+           new ConcurrentHashMap<Future<Path>,LocalizerResourceRequestEvent>());
+    }
+
+    PublicLocalizer(Configuration conf, FileContext lfs,
+        ExecutorService threadPool,
+        ConcurrentMap<Future<Path>,LocalizerResourceRequestEvent> pending) {
+      this.lfs = lfs;
+      this.conf = conf;
+      this.pending = pending;
+      String[] publicFilecache = new String[localDirs.size()];
+      for (int i = 0, n = localDirs.size(); i < n; ++i) {
+        publicFilecache[i] =
+          new Path(localDirs.get(i), ContainerLocalizer.FILECACHE).toString();
+      }
+      conf.setStrings(PUBCACHE_CTXT, publicFilecache);
+      this.publicDirs = new LocalDirAllocator(PUBCACHE_CTXT);
+      this.threadPool = threadPool;
+      this.queue = new ExecutorCompletionService<Path>(threadPool);
+    }
+
+    public void addResource(LocalizerResourceRequestEvent request) {
+      // TODO handle failures, cancellation, requests by other containers
+      LOG.info("Downloading public rsrc:" + request.getResource().getRequest());
+      pending.putIfAbsent(
+          queue.submit(new FSDownload(
+              lfs, null, conf, publicDirs, request.getResource().getRequest(),
+              new Random())),
+          request);
+    }
+
+    @Override
+    public void run() {
+      try {
+        // TODO shutdown, better error handling esp. DU
+        while (!Thread.currentThread().isInterrupted()) {
+          try {
+            Future<Path> completed = queue.take();
+            LocalizerResourceRequestEvent assoc = pending.get(completed);
+            try {
+              Path local = completed.get();
+              assoc.getResource().handle(
+                  new ResourceLocalizedEvent(assoc.getResource().getRequest(),
+                    local, FileUtil.getDU(new File(local.toUri()))));
+            } catch (ExecutionException e) {
+              LOG.info("Failed to download rsrc " + assoc.getResource());
+              dispatcher.getEventHandler().handle(
+                  new ContainerResourceFailedEvent(
+                    assoc.getContext().getContainerId(),
+                    assoc.getResource().getRequest(), e.getCause()));
+            } catch (CancellationException e) {
+              // ignore; shutting down
+            }
+          } catch (InterruptedException e) {
+            return;
+          }
+        }
+      } finally {
+        LOG.info("Public cache exiting");
+        threadPool.shutdownNow();
+      }
+    }
+
   }
 
   /**

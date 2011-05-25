@@ -5,15 +5,15 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.Loca
 
 public class ContainerResourceFailedEvent extends ContainerResourceEvent {
 
-  private final Exception exception;
+  private final Throwable exception;
 
   public ContainerResourceFailedEvent(ContainerId container,
-      LocalResourceRequest rsrc, Exception cause) {
+      LocalResourceRequest rsrc, Throwable cause) {
     super(container, ContainerEventType.RESOURCE_FAILED, rsrc);
     this.exception = cause;
   }
 
-  public Exception getCause() {
+  public Throwable getCause() {
     return exception;
   }
 }

@@ -4,9 +4,11 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Add public cache. (cdouglas)
+
     MAPREDUCE-2534. Fix CI breaking hard coded version in jobclient pom. 
     (Luke Lu via mahadev)
-   
+
     MAPREDUCE-2522. Security for JobHistory service. (Siddharth Seth via 
     mahadev)
 

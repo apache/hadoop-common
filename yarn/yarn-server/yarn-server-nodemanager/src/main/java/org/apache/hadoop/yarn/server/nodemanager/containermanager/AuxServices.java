@@ -54,6 +54,8 @@ public class AuxServices extends AbstractService
 
   protected final synchronized void addService(String name,
       AuxiliaryService service) {
+    LOG.info("Adding auxiliary service " +
+        service.getName() + ", \"" + name + "\"");
     serviceMap.put(name, service);
   }
 
