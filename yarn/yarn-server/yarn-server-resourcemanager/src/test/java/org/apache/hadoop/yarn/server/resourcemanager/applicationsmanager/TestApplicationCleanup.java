@@ -33,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
@@ -279,7 +280,7 @@ public class TestApplicationCleanup extends TestCase {
     assertTrue(firstNode.getAvailableResource().getMemory() == 
       (firstNodeMemory - (2*memoryNeeded)));
     ApplicationMasterInfo masterInfo = asm.getApplicationMasterInfo(appID);
-    asm.finishApplication(appID);
+    asm.finishApplication(appID, UserGroupInformation.getCurrentUser());
     while (asm.launcherCleanupCalled != true) {
       Thread.sleep(500);
     }

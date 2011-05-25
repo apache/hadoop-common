@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
@@ -30,16 +31,58 @@ import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Recoverable;
 
 /**
- * This interface defines the interface for ApplicationsManager.
+ * This interface defines the interface for ApplicationsManager. This interface
+ * is used by the application submission clients to call into the applications manager.
  */
 @Private
 @Evolving
 public interface ApplicationsManager extends Recoverable {
+  /**
+   * Create and return a new application Id.
+   * @return a new application id
+   */
    ApplicationId getNewApplicationID();
+   
+   /**
+    * Return the {@link ApplicationMaster} information for this application.
+    * @param applicationId the application id of the application
+    * @return the {@link ApplicationMaster} for this application
+    */
    ApplicationMaster getApplicationMaster(ApplicationId applicationId);
+   
+   /**
+    * Get the information for this application.
+    * @param applicationID the applicaiton id for the application
+    * @return {@link Application} information about the application.
+    */
    Application getApplication(ApplicationId applicationID);
+   
+   /**
+    * Submit the application to run on the cluster.
+    * @param context the {@link ApplicationSubmissionContext} for this application.
+    * @throws IOException
+    */
    void submitApplication(ApplicationSubmissionContext context) throws IOException;
-   void finishApplication(ApplicationId applicationId) throws IOException;
+   
+   /**
+    * Api to kill the application. 
+    * @param applicationId the {@link ApplicationId} to be killed.
+    * @param callerUGI the {@link UserGroupInformation} of the user calling it.
+    * @throws IOException
+    */
+   void finishApplication(ApplicationId applicationId, 
+       UserGroupInformation callerUGI) throws IOException;
+   
+   /**
+    * Get all the applications in the cluster.
+    * This is used by the webUI.
+    * @return the applications in the cluster.
+    */
    List<AppContext> getAllApplications();
+   
+   /**
+    * Get all the applications in the cluster. 
+    * @return the list of applications in the cluster.
+    */
    List<Application> getApplications();
 }

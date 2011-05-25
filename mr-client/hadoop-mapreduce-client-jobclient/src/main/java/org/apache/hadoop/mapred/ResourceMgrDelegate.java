@@ -27,7 +27,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
-import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
@@ -45,6 +44,7 @@ import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.ClientRMProtocol;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetAllApplicationsRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetAllApplicationsResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationMasterRequest;
@@ -290,6 +290,13 @@ public class ResourceMgrDelegate {
     LOG.info("Submitted application " + applicationId + " to ResourceManager");
     return applicationId;
   }
+  
+  public void killApplication(ApplicationId applicationId) throws IOException {
+    FinishApplicationRequest request = recordFactory.newRecordInstance(FinishApplicationRequest.class);
+    request.setApplicationId(applicationId);
+    applicationsManager.finishApplication(request);
+    LOG.info("Killing application " + applicationId);
+  }
 
   public ApplicationMaster getApplicationMaster(ApplicationId appId) 
     throws YarnRemoteException {
@@ -297,18 +304,6 @@ public class ResourceMgrDelegate {
     request.setApplicationId(appId);
     GetApplicationMasterResponse response = applicationsManager.getApplicationMaster(request);
     ApplicationMaster appMaster = response.getApplicationMaster(); 
-    while (appMaster.getState() != ApplicationState.RUNNING &&
-        appMaster.getState() != ApplicationState.KILLED && 
-        appMaster.getState() != ApplicationState.FAILED && 
-        appMaster.getState() != ApplicationState.COMPLETED) {
-      appMaster = applicationsManager.getApplicationMaster(request).getApplicationMaster();
-      try {
-        //LOG.info("Waiting for appMaster to start..");
-        Thread.sleep(2000);
-      } catch(InterruptedException ie) {
-        //DO NOTHING
-      }
-    }
     return appMaster;
   }
 

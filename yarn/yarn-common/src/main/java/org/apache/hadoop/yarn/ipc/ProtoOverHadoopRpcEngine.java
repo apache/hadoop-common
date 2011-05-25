@@ -25,7 +25,6 @@ import org.apache.hadoop.ipc.WritableRpcEngine;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.SecretManager;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.exceptions.impl.pb.YarnRemoteExceptionPBImpl;
 import org.apache.hadoop.yarn.ipc.RpcProtos.ProtoSpecificRpcRequest;
 import org.apache.hadoop.yarn.ipc.RpcProtos.ProtoSpecificRpcResponse;

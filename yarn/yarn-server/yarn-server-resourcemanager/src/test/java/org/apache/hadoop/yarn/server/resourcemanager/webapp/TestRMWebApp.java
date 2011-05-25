@@ -29,6 +29,7 @@ import static org.apache.hadoop.test.MockitoMaker.*;
 import static org.apache.hadoop.yarn.server.resourcemanager.MockNodes.*;
 import static org.apache.hadoop.yarn.webapp.Params.*;
 
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.MockApps;
 import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -90,7 +91,8 @@ public class TestRMWebApp {
     }
 
     @Override
-    public void finishApplication(ApplicationId applicationId) throws IOException {
+    public void finishApplication(ApplicationId applicationId, UserGroupInformation 
+        callingUser) throws IOException {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 

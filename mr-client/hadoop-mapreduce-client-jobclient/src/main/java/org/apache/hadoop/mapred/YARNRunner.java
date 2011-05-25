@@ -51,6 +51,7 @@ import org.apache.hadoop.mapreduce.TaskCompletionEvent;
 import org.apache.hadoop.mapreduce.TaskReport;
 import org.apache.hadoop.mapreduce.TaskTrackerInfo;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.filecache.DistributedCache;
 import org.apache.hadoop.mapreduce.protocol.ClientProtocol;
 import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
@@ -524,7 +525,7 @@ public class YARNRunner implements ClientProtocol {
 
   @Override
   public void killJob(JobID arg0) throws IOException, InterruptedException {
-    clientServiceDelegate.killJob(arg0);
+    resMgrDelegate.killApplication(TypeConverter.toYarn(arg0).getAppId());
   }
 
   @Override

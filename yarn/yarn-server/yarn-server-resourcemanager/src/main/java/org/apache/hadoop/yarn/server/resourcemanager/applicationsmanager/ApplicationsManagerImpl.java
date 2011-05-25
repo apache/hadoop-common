@@ -19,14 +19,17 @@
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
 import java.io.IOException;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -36,15 +39,17 @@ import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.security.ApplicationTokenIdentifier;
 import org.apache.hadoop.yarn.security.ApplicationTokenSecretManager;
 import org.apache.hadoop.yarn.security.client.ClientToAMSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.application.ApplicationACL;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.application.ApplicationACLsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
-import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.service.CompositeService;
@@ -71,7 +76,8 @@ public class ApplicationsManagerImpl extends CompositeService
   private final EventHandler eventHandler;
   private final ApplicationTokenSecretManager applicationTokenSecretManager;
   private final RMContext rmContext; 
-  
+  private  ApplicationACLsManager aclsManager;
+  private Map<ApplicationACL, AccessControlList> applicationACLs;
   private final RecordFactory recordFactory = 
     RecordFactoryProvider.getRecordFactory(null);
   
@@ -130,6 +136,8 @@ public class ApplicationsManagerImpl extends CompositeService
     addIfService(createNewSchedulerNegotiator(scheduler));
     this.amTracker = createNewAMTracker();
     addIfService(amTracker);
+    this.aclsManager = new ApplicationACLsManager(conf);
+    this.applicationACLs = aclsManager.constructApplicationACLs(conf);
     super.init(conf);
   }
 
@@ -205,11 +213,32 @@ public class ApplicationsManagerImpl extends CompositeService
     amTracker.finish(applicationMaster.getApplicationId());
   }
 
+  /**
+   * check if the calling user has the access to application information.
+   * @param applicationId
+   * @param callerUGI
+   * @param owner
+   * @param appACL
+   * @return
+   */
+  private boolean checkAccess(UserGroupInformation callerUGI, String owner, ApplicationACL appACL) {
+      if (!UserGroupInformation.isSecurityEnabled()) {
+        return true;
+      }
+      AccessControlList applicationACL = applicationACLs.get(appACL);
+      return aclsManager.checkAccess(callerUGI, appACL, owner, applicationACL);
+  }
+  
   @Override
-  public synchronized void finishApplication(ApplicationId applicationId) 
+  public synchronized void finishApplication(ApplicationId applicationId,
+      UserGroupInformation callerUGI) 
   throws IOException {
-    /* remove the applicaiton from the scheduler  for now. Later scheduler should
-     * be a event handler of adding and cleaning up appications*/
+    ApplicationMasterInfo masterInfo = amTracker.get(applicationId);
+    if (!checkAccess(callerUGI, masterInfo.getUser(),  ApplicationACL.MODIFY_JOB)) {
+      RPCUtil.getRemoteException(new AccessControlException("User "
+          + callerUGI.getShortUserName() + " cannot perform operation "
+          + ApplicationACL.MODIFY_JOB.name() + " on " + applicationId));
+    }
     amTracker.kill(applicationId);
   }
 

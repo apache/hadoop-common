@@ -30,6 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.ClientRMProtocol;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationResponse;
@@ -151,7 +152,8 @@ public class ClientRMService extends AbstractService implements ClientRMProtocol
   public FinishApplicationResponse finishApplication(FinishApplicationRequest request) throws YarnRemoteException {
     ApplicationId applicationId = request.getApplicationId();
     try {
-      applicationsManager.finishApplication(applicationId);
+      UserGroupInformation callerUGI = UserGroupInformation.getCurrentUser();
+      applicationsManager.finishApplication(applicationId, callerUGI);
     } catch(IOException ie) {
       LOG.info("Error finishing application ", ie);
     }

@@ -98,9 +98,15 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.PENDING, ApplicationState.FAILED,
   ApplicationEventType.FAILED)
   
+  .addTransition(ApplicationState.PENDING, ApplicationState.KILLED, 
+  ApplicationEventType.KILL)
+
   .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
       ApplicationEventType.RECOVER, allocateTransition)
-  
+    
+  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
+  ApplicationEventType.RELEASED, new ScheduleTransition())
+
   .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.ALLOCATING, 
   ApplicationEventType.ALLOCATE, allocateTransition)
   
@@ -110,19 +116,19 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.FAILED,
   ApplicationEventType.FAILED_MAX_RETRIES, failedTransition)
   
-  .addTransition(ApplicationState.PENDING, ApplicationState.CLEANUP, 
-  ApplicationEventType.KILL, killTransition)
-
+  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.KILLED,
+   ApplicationEventType.KILL, killTransition)
+ 
   .addTransition(ApplicationState.ALLOCATING, ApplicationState.ALLOCATED,
   ApplicationEventType.ALLOCATED, new AllocatedTransition())
 
   .addTransition(ApplicationState.ALLOCATING, ApplicationState.ALLOCATING,
   ApplicationEventType.RECOVER, allocateTransition)
       
-  .addTransition(ApplicationState.ALLOCATING, ApplicationState.CLEANUP, 
-  ApplicationEventType.KILL, killTransition)
+  .addTransition(ApplicationState.ALLOCATING, ApplicationState.KILLED, 
+  ApplicationEventType.KILL, new AllocatingKillTransition())
 
-  .addTransition(ApplicationState.ALLOCATED, ApplicationState.CLEANUP, 
+  .addTransition(ApplicationState.ALLOCATED, ApplicationState.KILLED, 
   ApplicationEventType.KILL, killTransition)
 
   .addTransition(ApplicationState.ALLOCATED, ApplicationState.LAUNCHING,
@@ -136,9 +142,6 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.PENDING,
   ApplicationEventType.LAUNCH_FAILED, failedLaunchTransition)
-  
-  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
-  ApplicationEventType.RELEASED, new ScheduleTransition())
   
   /** we cant say if the application was launched or not on a recovery, so for now 
    * we assume it was launched and wait for its restart.
@@ -176,6 +179,9 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.RUNNING, ApplicationState.RUNNING,
   ApplicationEventType.STATUSUPDATE, statusUpdatetransition)
 
+  .addTransition(ApplicationState.RUNNING, ApplicationState.KILLED,
+   ApplicationEventType.KILL, killTransition)
+
   .addTransition(ApplicationState.RUNNING, ApplicationState.RUNNING, 
   ApplicationEventType.RECOVER, new RecoverRunningTransition())
   
@@ -186,6 +192,9 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   ApplicationEventType.FINISH)
   
   .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
+   ApplicationEventType.KILL)
+   
+  .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
   ApplicationEventType.RECOVER)
   
   .addTransition(ApplicationState.FAILED, ApplicationState.FAILED,
@@ -193,9 +202,13 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   .addTransition(ApplicationState.FAILED, ApplicationState.FAILED, 
      ApplicationEventType.FINISH)
   
+  .addTransition(ApplicationState.FAILED, ApplicationState.FAILED, ApplicationEventType.KILL)
+  
   .addTransition(ApplicationState.KILLED, ApplicationState.KILLED, 
       ApplicationEventType.RECOVER)
-      
+  
+  .addTransition(ApplicationState.KILLED, ApplicationState.KILLED, ApplicationEventType.KILL)
+  
   .addTransition(ApplicationState.KILLED, ApplicationState.KILLED,
       ApplicationEventType.FINISH)
   .installTopology();
@@ -304,6 +317,16 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
         AMLauncherEventType.CLEANUP, masterInfo));
       masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(
       ApplicationTrackerEventType.REMOVE, masterInfo));
+    }
+  }
+  
+  private static class AllocatingKillTransition implements 
+  SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
+    @Override
+    public void transition(ApplicationMasterInfo masterInfo,
+    ASMEvent<ApplicationEventType> event) {
+      masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(ApplicationTrackerEventType.REMOVE,
+          masterInfo));
     }
   }
   

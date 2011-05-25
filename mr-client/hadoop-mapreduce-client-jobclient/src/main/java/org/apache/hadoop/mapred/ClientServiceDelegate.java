@@ -1,20 +1,20 @@
 /**
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.hadoop.mapred;
 
@@ -43,6 +43,7 @@ import org.apache.hadoop.mapreduce.v2.api.protocolrecords.GetTaskReportsRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillJobRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.KillTaskAttemptRequest;
 import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
@@ -87,7 +88,7 @@ public class ClientServiceDelegate {
 
   private MRClientProtocol getProxy(ApplicationId appId, 
       boolean forceRefresh) throws YarnRemoteException {
-    if (!appId.equals(currentAppId) || forceRefresh) {
+    if (!appId.equals(currentAppId) || forceRefresh || realProxy == null) {
       currentAppId = appId;
       refreshProxy();
     }
@@ -97,12 +98,15 @@ public class ClientServiceDelegate {
   private void refreshProxy() throws YarnRemoteException {
     ApplicationMaster appMaster = rm.getApplicationMaster(currentAppId);
     while (!ApplicationState.COMPLETED.equals(appMaster.getState()) &&
-           !ApplicationState.FAILED.equals(appMaster.getState()) && 
-           !ApplicationState.KILLED.equals(appMaster.getState())) {
+        !ApplicationState.FAILED.equals(appMaster.getState()) && 
+        !ApplicationState.KILLED.equals(appMaster.getState()) &&
+        !ApplicationState.ALLOCATING.equals(appMaster.getState())) {
       try {
         if (appMaster.getHost() == null || "".equals(appMaster.getHost())) {
-          LOG.info("AM not assigned to Job. Waiting to get the AM ...");
+          LOG.debug("AM not assigned to Job. Waiting to get the AM ...");
           Thread.sleep(2000);
+   
+          LOG.debug("Application state is " + appMaster.getState());
           appMaster = rm.getApplicationMaster(currentAppId);
           continue;
         }
@@ -113,9 +117,9 @@ public class ClientServiceDelegate {
           Token<ApplicationTokenIdentifier> clientToken =
             new Token<ApplicationTokenIdentifier>();
           clientToken.decodeFromUrlString(clientTokenEncoded);
-            clientToken.setService(new Text(appMaster.getHost() + ":"
-                + appMaster.getRpcPort()));
-            UserGroupInformation.getCurrentUser().addToken(clientToken);
+          clientToken.setService(new Text(appMaster.getHost() + ":"
+              + appMaster.getRpcPort()));
+          UserGroupInformation.getCurrentUser().addToken(clientToken);
         }
         LOG.info("Connecting to " + serviceAddr);
         instantiateAMProxy(serviceAddr);
@@ -126,7 +130,7 @@ public class ClientServiceDelegate {
         //there may be some time before AM is restarted
         //keep retrying by getting the address from RM
         LOG.info("Could not connect to " + serviceAddr + 
-            ". Waiting for getting the latest AM address...");
+        ". Waiting for getting the latest AM address...");
         try {
           Thread.sleep(2000);
         } catch (InterruptedException e1) {
@@ -134,12 +138,20 @@ public class ClientServiceDelegate {
         appMaster = rm.getApplicationMaster(currentAppId);
       }
     }
-    //TODO Should this be additional states ?
+
+    /** we just want to return if its allocating, so that we dont 
+     * block on it. This is to be able to return job status 
+     * on a allocating Application.
+     */
+    if (appMaster.getState() == ApplicationState.ALLOCATING) {
+      return;
+    }
+
     if (ApplicationState.COMPLETED.equals(appMaster.getState())) {
       serviceAddr = conf.get(JHConfig.HS_BIND_ADDRESS,
           JHConfig.DEFAULT_HS_BIND_ADDRESS);
       LOG.info("Application state is completed. " +
-            "Redirecting to job history server " + serviceAddr);
+          "Redirecting to job history server " + serviceAddr);
       //TODO:
       serviceHttpAddr = "";
       try {
@@ -150,7 +162,7 @@ public class ClientServiceDelegate {
       }
     }
     LOG.warn("Cannot connect to Application with state " + appMaster.getState());
-      throw new YarnException(
+    throw new YarnException(
         "Cannot connect to Application with state " + appMaster.getState());
   }
 
@@ -162,18 +174,18 @@ public class ClientServiceDelegate {
       public MRClientProtocol run() {
         Configuration myConf = new Configuration(conf);
         myConf.setClass(
-        CommonConfigurationKeysPublic.HADOOP_SECURITY_INFO_CLASS_NAME,
-        SchedulerSecurityInfo.class, SecurityInfo.class); 
+            CommonConfigurationKeysPublic.HADOOP_SECURITY_INFO_CLASS_NAME,
+            SchedulerSecurityInfo.class, SecurityInfo.class); 
         YarnRPC rpc = YarnRPC.create(myConf);
         return (MRClientProtocol) rpc.getProxy(MRClientProtocol.class,
-        NetUtils.createSocketAddr(serviceAddr), myConf);
+            NetUtils.createSocketAddr(serviceAddr), myConf);
       }
     });
     LOG.trace("Connected to ApplicationMaster at: " + serviceAddr);
   }
 
   private void instantiateHistoryProxy(final String serviceAddr)
-      throws IOException {
+  throws IOException {
     LOG.trace("Connecting to HistoryServer at: " + serviceAddr);
     Configuration myConf = new Configuration(conf);
     //TODO This should ideally be using it's own class (instead of ClientRMSecurityInfo)
@@ -186,7 +198,7 @@ public class ClientServiceDelegate {
   }
 
   public org.apache.hadoop.mapreduce.Counters getJobCounters(JobID arg0) throws IOException,
-      InterruptedException {
+  InterruptedException {
     org.apache.hadoop.mapreduce.v2.api.records.JobId jobID = TypeConverter.toYarn(arg0);
     try {
       GetCountersRequest request = recordFactory.newRecordInstance(GetCountersRequest.class);
@@ -222,6 +234,13 @@ public class ClientServiceDelegate {
       request.setJobId(jobID);
       request.setFromEventId(arg1);
       request.setMaxEvents(arg2);
+      MRClientProtocol protocol = getProxy(arg0);
+      /** This is hack to get around the issue of faking jobstatus while the AM
+       * is coming up.
+       */
+      if (protocol == null) {
+        return new TaskCompletionEvent[0];
+      }
       list = getProxy(arg0).getTaskAttemptCompletionEvents(request).getCompletionEventList();
     } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
       LOG.warn(RPCUtil.toString(yre));
@@ -245,8 +264,8 @@ public class ClientServiceDelegate {
   public String[] getTaskDiagnostics(org.apache.hadoop.mapreduce.TaskAttemptID
       arg0)
   throws IOException,
-      InterruptedException {
-    
+  InterruptedException {
+
     List<String> list = null;
     org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID = TypeConverter.toYarn(arg0);
     GetDiagnosticsRequest request = recordFactory.newRecordInstance(GetDiagnosticsRequest.class);
@@ -275,7 +294,7 @@ public class ClientServiceDelegate {
   }
 
   public JobStatus getJobStatus(JobID oldJobID) throws YarnRemoteException,
-      YarnRemoteException {
+  YarnRemoteException {
     org.apache.hadoop.mapreduce.v2.api.records.JobId jobId = 
       TypeConverter.toYarn(oldJobID);
     LOG.debug("Getting Job status");
@@ -285,6 +304,22 @@ public class ClientServiceDelegate {
     GetJobReportRequest request = recordFactory.newRecordInstance(GetJobReportRequest.class);
     try {
       request.setJobId(jobId);
+      MRClientProtocol protocol = getProxy(oldJobID);
+      if (protocol == null) {
+        /* the protocol wasnt instantiated because the applicaton wasnt launched
+         * return a fake report.
+         */
+        JobReport jobreport = recordFactory.newRecordInstance(JobReport.class);
+        jobreport.setCleanupProgress(0);
+        jobreport.setFinishTime(0);
+        jobreport.setJobId(jobId);
+        jobreport.setJobState(JobState.INITED);
+        jobreport.setMapProgress(0);
+        jobreport.setStartTime(0);
+        jobreport.setReduceProgress(0);
+        jobreport.setSetupProgress(0);
+        return  TypeConverter.fromYarn(jobreport, jobFile, serviceHttpAddr);
+      }
       report = getProxy(oldJobID).getJobReport(request).getJobReport();
     } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
       LOG.warn(RPCUtil.toString(yre));
@@ -302,34 +337,34 @@ public class ClientServiceDelegate {
   }
 
   public org.apache.hadoop.mapreduce.TaskReport[] getTaskReports(JobID jobID, TaskType taskType)
-      throws YarnRemoteException, YarnRemoteException {
-      List<org.apache.hadoop.mapreduce.v2.api.records.TaskReport> taskReports = null;
-      org.apache.hadoop.mapreduce.v2.api.records.JobId nJobID = TypeConverter.toYarn(jobID);
-      GetTaskReportsRequest request = recordFactory.newRecordInstance(GetTaskReportsRequest.class);
+  throws YarnRemoteException, YarnRemoteException {
+    List<org.apache.hadoop.mapreduce.v2.api.records.TaskReport> taskReports = null;
+    org.apache.hadoop.mapreduce.v2.api.records.JobId nJobID = TypeConverter.toYarn(jobID);
+    GetTaskReportsRequest request = recordFactory.newRecordInstance(GetTaskReportsRequest.class);
+    try {
+      request.setJobId(nJobID);
+      request.setTaskType(TypeConverter.toYarn(taskType));
+      taskReports = getProxy(jobID).getTaskReports(request).getTaskReportList();
+    } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+      LOG.warn(RPCUtil.toString(yre));
+      throw yre;
+    } catch(Exception e) {
+      LOG.debug("Failed to contact application master ", e);
       try {
         request.setJobId(nJobID);
         request.setTaskType(TypeConverter.toYarn(taskType));
-        taskReports = getProxy(jobID).getTaskReports(request).getTaskReportList();
-      } catch(YarnRemoteException yre) {//thrown by remote server, no need to redirect
+        taskReports = getRefreshedProxy(jobID).getTaskReports(request).getTaskReportList();
+      } catch(YarnRemoteException yre) {
         LOG.warn(RPCUtil.toString(yre));
         throw yre;
-      } catch(Exception e) {
-        LOG.debug("Failed to contact application master ", e);
-        try {
-          request.setJobId(nJobID);
-          request.setTaskType(TypeConverter.toYarn(taskType));
-          taskReports = getRefreshedProxy(jobID).getTaskReports(request).getTaskReportList();
-        } catch(YarnRemoteException yre) {
-          LOG.warn(RPCUtil.toString(yre));
-          throw yre;
-        }
       }
-      return TypeConverter.fromYarn
-        (taskReports).toArray(new org.apache.hadoop.mapreduce.TaskReport[0]);
+    }
+    return TypeConverter.fromYarn
+    (taskReports).toArray(new org.apache.hadoop.mapreduce.TaskReport[0]);
   }
 
   public Void killJob(JobID jobID) throws YarnRemoteException,
-      YarnRemoteException {
+  YarnRemoteException {
     org.apache.hadoop.mapreduce.v2.api.records.JobId  nJobID = TypeConverter.toYarn(jobID);
     KillJobRequest request = recordFactory.newRecordInstance(KillJobRequest.class);
     try {
@@ -352,9 +387,9 @@ public class ClientServiceDelegate {
   }
 
   public boolean killTask(TaskAttemptID taskAttemptID, boolean fail)
-      throws YarnRemoteException {
+  throws YarnRemoteException {
     org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId attemptID 
-      = TypeConverter.toYarn(taskAttemptID);
+    = TypeConverter.toYarn(taskAttemptID);
     KillTaskAttemptRequest killRequest = recordFactory.newRecordInstance(KillTaskAttemptRequest.class);
     FailTaskAttemptRequest failRequest = recordFactory.newRecordInstance(FailTaskAttemptRequest.class);
     try {
