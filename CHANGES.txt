@@ -4,8 +4,6 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
-    Fix for public dist cache from non mapred hdfs. (mahadev & ddas)
-
     Fixed an NPE during handling of unnecessary reservations in CS. (acmurthy)
 
     MAPREDUCE-2532. Metrics for NodeManager (Luke Lu via mahadev)

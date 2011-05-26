@@ -49,7 +49,7 @@ import org.apache.hadoop.yarn.util.ConverterUtils;
 public class FSDownload implements Callable<Path> {
 
   private static final Log LOG = LogFactory.getLog(FSDownload.class);
-  
+
   private Random rand;
   private FileContext files;
   private final UserGroupInformation userUgi;
@@ -73,16 +73,15 @@ public class FSDownload implements Callable<Path> {
   }
 
   private Path copy(Path sCopy, Path dstdir) throws IOException {
-    FileSystem sourceFs = sCopy.getFileSystem(conf);
     Path dCopy = new Path(dstdir, sCopy.getName() + ".tmp");
-    FileStatus sStat = sourceFs.getFileStatus(sCopy);
+    FileSystem fs = FileSystem.get(new Configuration());
+    FileStatus sStat = fs.getFileStatus(sCopy);
     if (sStat.getModificationTime() != resource.getTimestamp()) {
       throw new IOException("Resource " + sCopy +
           " changed on src filesystem (expected " + resource.getTimestamp() +
           ", was " + sStat.getModificationTime());
     }
-
-    sourceFs.copyToLocalFile(sCopy, dCopy);
+    fs.copyToLocalFile(sCopy, dCopy);
     return dCopy;
   }
 
