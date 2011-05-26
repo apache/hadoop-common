@@ -503,7 +503,8 @@ public class ResourceLocalizationService extends AbstractService
                   new ResourceLocalizedEvent(assoc.getResource().getRequest(),
                     local, FileUtil.getDU(new File(local.toUri()))));
             } catch (ExecutionException e) {
-              LOG.info("Failed to download rsrc " + assoc.getResource());
+              LOG.info("Failed to download rsrc " + assoc.getResource(),
+                  e.getCause());
               dispatcher.getEventHandler().handle(
                   new ContainerResourceFailedEvent(
                     assoc.getContext().getContainerId(),
