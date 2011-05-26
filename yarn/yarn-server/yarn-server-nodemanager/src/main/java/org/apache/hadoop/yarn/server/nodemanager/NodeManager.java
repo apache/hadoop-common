@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.apache.hadoop.NodeHealthCheckerService;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.yarn.YarnException;
@@ -43,11 +44,13 @@ import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.ContainerManagerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.apache.hadoop.yarn.server.nodemanager.webapp.WebServer;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
 
 public class NodeManager extends CompositeService {
+  protected final NodeManagerMetrics metrics = NodeManagerMetrics.create();
 
   public NodeManager() {
     super(NodeManager.class.getName());
@@ -55,7 +58,8 @@ public class NodeManager extends CompositeService {
 
   protected NodeStatusUpdater createNodeStatusUpdater(Context context,
       Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
-    return new NodeStatusUpdaterImpl(context, dispatcher, healthChecker);
+    return new NodeStatusUpdaterImpl(context, dispatcher, healthChecker,
+                                     metrics);
   }
 
   protected NodeResourceMonitor createNodeResourceMonitor() {
@@ -65,7 +69,8 @@ public class NodeManager extends CompositeService {
   protected ContainerManagerImpl createContainerManager(Context context,
       ContainerExecutor exec, DeletionService del,
       NodeStatusUpdater nodeStatusUpdater) {
-    return new ContainerManagerImpl(context, exec, del, nodeStatusUpdater);
+    return new ContainerManagerImpl(context, exec, del, nodeStatusUpdater,
+                                    metrics);
   }
 
   protected WebServer createWebServer(Context nmContext,
@@ -125,6 +130,9 @@ public class NodeManager extends CompositeService {
             NodeManager.this.stop();
           }
         });
+
+    DefaultMetricsSystem.initialize("NodeManager");
+
     super.init(conf);
     // TODO add local dirs to del
   }
@@ -137,6 +145,12 @@ public class NodeManager extends CompositeService {
       throw new YarnException("Failed NodeManager login", e);
     }
     super.start();
+  }
+
+  @Override
+  public void stop() {
+    super.stop();
+    DefaultMetricsSystem.shutdown();
   }
 
   public static class NMContext implements Context {

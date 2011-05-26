@@ -46,6 +46,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.even
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.LogAggregationService;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event.LogAggregatorEvent;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 
 public class DummyContainerManager extends ContainerManagerImpl {
 
@@ -55,8 +56,9 @@ public class DummyContainerManager extends ContainerManagerImpl {
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
   public DummyContainerManager(Context context, ContainerExecutor exec,
-      DeletionService deletionContext, NodeStatusUpdater nodeStatusUpdater) {
-    super(context, exec, deletionContext, nodeStatusUpdater);
+      DeletionService deletionContext, NodeStatusUpdater nodeStatusUpdater,
+      NodeManagerMetrics metrics) {
+    super(context, exec, deletionContext, nodeStatusUpdater, metrics);
   }
 
   @Override

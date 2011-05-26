@@ -87,6 +87,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitor;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainersMonitorImpl;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.apache.hadoop.yarn.service.Service;
@@ -105,22 +106,25 @@ public class ContainerManagerImpl extends CompositeService implements
   private final ResourceLocalizationService rsrcLocalizationSrvc;
   private final ContainersLauncher containersLauncher;
   private final AuxServices auxiluaryServices;
+  private final NodeManagerMetrics metrics;
 
   private final NodeStatusUpdater nodeStatusUpdater;
   private ContainerTokenSecretManager containerTokenSecretManager;
 
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
-  protected AsyncDispatcher dispatcher;
+  protected final AsyncDispatcher dispatcher;
 
   private final DeletionService deletionService;
 
   public ContainerManagerImpl(Context context, ContainerExecutor exec,
-      DeletionService deletionContext, NodeStatusUpdater nodeStatusUpdater) {
+      DeletionService deletionContext, NodeStatusUpdater nodeStatusUpdater,
+      NodeManagerMetrics metrics) {
     super(ContainerManagerImpl.class.getName());
     this.context = context;
     dispatcher = new AsyncDispatcher();
     this.deletionService = deletionContext;
+    this.metrics = metrics;
 
     rsrcLocalizationSrvc =
         createResourceLocalizationService(exec, deletionContext);
@@ -261,7 +265,7 @@ public class ContainerManagerImpl extends CompositeService implements
     }
 
     Container container =
-        new ContainerImpl(this.dispatcher, launchContext, credentials);
+        new ContainerImpl(this.dispatcher, launchContext, credentials, metrics);
     ContainerId containerID = launchContext.getContainerId();
     ApplicationId applicationID = containerID.getAppId();
     if (context.getContainers().putIfAbsent(containerID, container) != null) {
@@ -281,6 +285,8 @@ public class ContainerManagerImpl extends CompositeService implements
     // TODO: Validate the request
     dispatcher.getEventHandler().handle(new ApplicationInitEvent(container));
     StartContainerResponse response = recordFactory.newRecordInstance(StartContainerResponse.class);
+    metrics.launchedContainer();
+    metrics.allocateContainer(launchContext.getResource());
     return response;
   }
 

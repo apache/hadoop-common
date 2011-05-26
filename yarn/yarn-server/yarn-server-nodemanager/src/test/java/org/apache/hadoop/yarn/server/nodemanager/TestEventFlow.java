@@ -42,6 +42,7 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager.NMContext;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.BaseContainerManagerTest;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.junit.Test;
 
 public class TestEventFlow {
@@ -81,8 +82,9 @@ public class TestEventFlow {
     DeletionService del = new DeletionService(exec);
     Dispatcher dispatcher = new AsyncDispatcher();
     NodeHealthCheckerService healthChecker = null;
+    NodeManagerMetrics metrics = NodeManagerMetrics.create();
     NodeStatusUpdater nodeStatusUpdater =
-        new NodeStatusUpdaterImpl(context, dispatcher, healthChecker) {
+        new NodeStatusUpdaterImpl(context, dispatcher, healthChecker, metrics) {
       @Override
       protected ResourceTracker getRMClient() {
         return new LocalRMInterface();
@@ -96,7 +98,7 @@ public class TestEventFlow {
     };
 
     DummyContainerManager containerManager =
-        new DummyContainerManager(context, exec, del, nodeStatusUpdater);
+        new DummyContainerManager(context, exec, del, nodeStatusUpdater, metrics);
     containerManager.init(conf);
     containerManager.start();
 

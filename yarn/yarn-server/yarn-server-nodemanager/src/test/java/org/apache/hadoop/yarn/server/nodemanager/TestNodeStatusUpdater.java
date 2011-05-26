@@ -48,6 +48,7 @@ import org.apache.hadoop.yarn.server.api.records.NodeStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.apache.hadoop.yarn.service.Service.STATE;
 import org.junit.After;
 import org.junit.Assert;
@@ -114,7 +115,7 @@ public class TestNodeStatusUpdater {
         launchContext.setContainerId(firstContainerID);
         launchContext.setResource(recordFactory.newRecordInstance(Resource.class));
         launchContext.getResource().setMemory(2);
-        Container container = new ContainerImpl(null, launchContext, null);
+        Container container = new ContainerImpl(null, launchContext, null, null);
         this.context.getContainers().put(firstContainerID, container);
       } else if (heartBeatID == 2) {
         // Checks on the RM end
@@ -140,7 +141,7 @@ public class TestNodeStatusUpdater {
         launchContext.setContainerId(secondContainerID);
         launchContext.setResource(recordFactory.newRecordInstance(Resource.class));
         launchContext.getResource().setMemory(3);
-        Container container = new ContainerImpl(null, launchContext, null);
+        Container container = new ContainerImpl(null, launchContext, null, null);
         this.context.getContainers().put(secondContainerID, container);
       } else if (heartBeatID == 3) {
         // Checks on the RM end
@@ -174,8 +175,8 @@ public class TestNodeStatusUpdater {
     private Context context;
 
     public MyNodeStatusUpdater(Context context, Dispatcher dispatcher,
-        NodeHealthCheckerService healthChecker) {
-      super(context, dispatcher, healthChecker);
+        NodeHealthCheckerService healthChecker, NodeManagerMetrics metrics) {
+      super(context, dispatcher, healthChecker, metrics);
       this.context = context;
     }
 
@@ -202,7 +203,8 @@ public class TestNodeStatusUpdater {
       @Override
       protected NodeStatusUpdater createNodeStatusUpdater(Context context,
           Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
-        return new MyNodeStatusUpdater(context, dispatcher, healthChecker);
+        return new MyNodeStatusUpdater(context, dispatcher, healthChecker,
+                                       metrics);
       }
     };
 

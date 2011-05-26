@@ -168,7 +168,7 @@ public class MiniYARNCluster extends CompositeService {
           protected NodeStatusUpdater createNodeStatusUpdater(Context context,
               Dispatcher dispatcher, NodeHealthCheckerService healthChecker) {
             return new NodeStatusUpdaterImpl(context, dispatcher,
-                healthChecker) {
+                healthChecker, metrics) {
               @Override
               protected ResourceTracker getRMClient() {
                 // For in-process communication without RPC

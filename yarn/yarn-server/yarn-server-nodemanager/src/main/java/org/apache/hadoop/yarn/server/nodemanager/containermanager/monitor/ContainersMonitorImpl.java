@@ -39,8 +39,8 @@ public class ContainersMonitorImpl extends AbstractService implements
   private long monitoringInterval;
   private MonitoringThread monitoringThread;
 
-  List<ContainerId> containersToBeRemoved;
-  Map<ContainerId, ProcessTreeInfo> containersToBeAdded;
+  final List<ContainerId> containersToBeRemoved;
+  final Map<ContainerId, ProcessTreeInfo> containersToBeAdded;
   Map<ContainerId, ProcessTreeInfo> trackingContainers =
       new HashMap<ContainerId, ProcessTreeInfo>();
 
@@ -308,7 +308,7 @@ public class ContainersMonitorImpl extends AbstractService implements
 
         // Print the processTrees for debugging.
         if (LOG.isDebugEnabled()) {
-          StringBuffer tmp = new StringBuffer("[ ");
+          StringBuilder tmp = new StringBuilder("[ ");
           for (ProcessTreeInfo p : trackingContainers.values()) {
             tmp.append(p.getPID());
             tmp.append(" ");

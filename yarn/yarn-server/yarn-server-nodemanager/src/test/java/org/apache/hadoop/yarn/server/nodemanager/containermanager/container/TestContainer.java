@@ -17,6 +17,8 @@
 */
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.container;
 
+import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import java.net.URISyntaxException;
 
 import java.nio.ByteBuffer;
@@ -40,6 +42,7 @@ import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.event.DrainDispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.AuxServicesEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainersLauncherEvent;
@@ -56,6 +59,8 @@ import org.mockito.ArgumentMatcher;
 import static org.mockito.Mockito.*;
 
 public class TestContainer {
+
+  final NodeManagerMetrics metrics = NodeManagerMetrics.create();
 
   /**
    * Verify correct container request events sent to localizer.
@@ -83,7 +88,7 @@ public class TestContainer {
       final Map<String,LocalResource> localResources = createLocalResources(r);
       when(ctxt.getAllLocalResources()).thenReturn(localResources);
 
-      final Container c = new ContainerImpl(dispatcher, ctxt, null);
+      final Container c = newContainer(dispatcher, ctxt);
       assertEquals(ContainerState.NEW, c.getContainerState());
 
       // Verify request for public/private resources to localizer
@@ -135,8 +140,7 @@ public class TestContainer {
       System.out.println("testLocalizationLaunch seed: " + seed);
       final Map<String,LocalResource> localResources = createLocalResources(r);
       when(ctxt.getAllLocalResources()).thenReturn(localResources);
-
-      final Container c = new ContainerImpl(dispatcher, ctxt, null);
+      final Container c = newContainer(dispatcher, ctxt);
       assertEquals(ContainerState.NEW, c.getContainerState());
 
       c.handle(new ContainerEvent(cId, ContainerEventType.INIT_CONTAINER));
@@ -208,7 +212,7 @@ public class TestContainer {
       final Map<String,ByteBuffer> serviceData = createServiceData(r);
       when(ctxt.getAllServiceData()).thenReturn(serviceData);
 
-      final Container c = new ContainerImpl(dispatcher, ctxt, null);
+      final Container c = newContainer(dispatcher, ctxt);
       assertEquals(ContainerState.NEW, c.getContainerState());
 
       // Verify propagation of service data to AuxServices
@@ -331,4 +335,7 @@ public class TestContainer {
     return serviceData;
   }
 
+  Container newContainer(Dispatcher disp, ContainerLaunchContext ctx) {
+    return new ContainerImpl(disp, ctx, null, metrics);
+  }
 }

@@ -53,6 +53,7 @@ import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdater;
 import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Application;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.ApplicationState;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.apache.hadoop.yarn.service.Service.STATE;
 import org.junit.After;
 import org.junit.Before;
@@ -61,15 +62,14 @@ public abstract class BaseContainerManagerTest {
 
   protected static RecordFactory recordFactory = RecordFactoryProvider
       .getRecordFactory(null);
-  static {
-    DefaultMetricsSystem.setMiniClusterMode(true);
-  }
 
   protected static FileContext localFS;
   protected static File localDir;
   protected static File localLogDir;
   protected static File remoteLogDir;
   protected static File tmpDir;
+
+  protected final NodeManagerMetrics metrics = NodeManagerMetrics.create();
 
   public BaseContainerManagerTest() throws UnsupportedFileSystemException {
     localFS = FileContext.getLocalFSFileContext();
@@ -95,7 +95,7 @@ public abstract class BaseContainerManagerTest {
   protected String user = "nobody";
 
   protected NodeStatusUpdater nodeStatusUpdater = new NodeStatusUpdaterImpl(
-      context, new AsyncDispatcher(), null) {
+      context, new AsyncDispatcher(), null, metrics) {
     @Override
     protected ResourceTracker getRMClient() {
       return new LocalRMInterface();
@@ -147,7 +147,8 @@ public abstract class BaseContainerManagerTest {
 
     exec = createContainerExecutor();
     containerManager =
-        new ContainerManagerImpl(context, exec, delSrvc, nodeStatusUpdater);
+        new ContainerManagerImpl(context, exec, delSrvc, nodeStatusUpdater,
+                                 metrics);
     containerManager.init(conf);
   }
 

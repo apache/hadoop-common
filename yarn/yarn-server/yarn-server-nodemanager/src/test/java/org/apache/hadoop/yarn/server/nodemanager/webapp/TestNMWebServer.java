@@ -22,15 +22,11 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
-import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
-import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -43,6 +39,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.application.Ap
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerImpl;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.ContainerState;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.junit.Before;
@@ -51,8 +48,8 @@ import static org.mockito.Mockito.*;
 
 public class TestNMWebServer {
 
-  private static final File testRootDir = new File("target-"
-      + TestNMWebServer.class.getName());
+  private static final File testRootDir = new File("target",
+      TestNMWebServer.class.getSimpleName());
 
   @Before
   public void setup() {
@@ -94,6 +91,7 @@ public class TestNMWebServer {
         BuilderUtils.newContainerId(recordFactory, appId, 0);
     ContainerId container2 =
         BuilderUtils.newContainerId(recordFactory, appId, 1);
+    NodeManagerMetrics metrics = mock(NodeManagerMetrics.class);
     for (ContainerId containerId : new ContainerId[] { container1,
         container2}) {
       // TODO: Use builder utils
@@ -101,7 +99,9 @@ public class TestNMWebServer {
           recordFactory.newRecordInstance(ContainerLaunchContext.class);
       launchContext.setContainerId(containerId);
       launchContext.setUser(user);
-      Container container = new ContainerImpl(dispatcher, launchContext, null) {
+      Container container =
+          new ContainerImpl(dispatcher, launchContext, null, metrics) {
+        @Override
         public ContainerState getContainerState() {
           return ContainerState.RUNNING;
         };

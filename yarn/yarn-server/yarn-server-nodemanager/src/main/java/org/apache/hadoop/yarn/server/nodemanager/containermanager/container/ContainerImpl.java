@@ -53,6 +53,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.even
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation.event.LogAggregatorContainerFinishedEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStartMonitoringEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.monitor.ContainerStopMonitoringEvent;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
 import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
@@ -66,6 +67,7 @@ public class ContainerImpl implements Container {
   private final Lock writeLock;
   private final Dispatcher dispatcher;
   private final Credentials credentials;
+  private final NodeManagerMetrics metrics;
   private final ContainerLaunchContext launchContext;
   private String exitCode = "NA";
   private final StringBuilder diagnostics;
@@ -78,11 +80,13 @@ public class ContainerImpl implements Container {
     new HashMap<Path,String>();
 
   public ContainerImpl(Dispatcher dispatcher,
-      ContainerLaunchContext launchContext, Credentials creds) {
+      ContainerLaunchContext launchContext, Credentials creds,
+      NodeManagerMetrics metrics) {
     this.dispatcher = dispatcher;
     this.launchContext = launchContext;
     this.diagnostics = new StringBuilder();
     this.credentials = creds;
+    this.metrics = metrics;
 
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     this.readLock = readWriteLock.readLock();
@@ -342,6 +346,39 @@ public class ContainerImpl implements Container {
     }
   }
 
+  @SuppressWarnings("fallthrough")
+  private void finished() {
+    switch (getContainerState()) {
+      case EXITED_WITH_SUCCESS:
+        metrics.endRunningContainer();
+        metrics.completedContainer();
+        break;
+      case EXITED_WITH_FAILURE:
+        metrics.endRunningContainer();
+        // fall through
+      case LOCALIZATION_FAILED:
+        metrics.failedContainer();
+        break;
+      case CONTAINER_CLEANEDUP_AFTER_KILL:
+        metrics.endRunningContainer();
+        // fall through
+      case NEW:
+        metrics.killedContainer();
+    }
+
+    metrics.releaseContainer(getLaunchContext().getResource());
+
+    // Inform the application
+    ContainerId containerID = getContainerID();
+    EventHandler eventHandler = dispatcher.getEventHandler();
+    eventHandler.handle(new ApplicationContainerFinishedEvent(containerID));
+    // Remove the container from the resource-monitor
+    eventHandler.handle(new ContainerStopMonitoringEvent(containerID));
+    // Tell the logService too
+    eventHandler.handle(new LogAggregatorContainerFinishedEvent(
+        containerID, exitCode));
+  }
+
   static class ContainerTransition implements
       SingleArcTransition<ContainerImpl, ContainerEvent> {
 
@@ -359,6 +396,7 @@ public class ContainerImpl implements Container {
     public ContainerState transition(ContainerImpl container,
         ContainerEvent event) {
       final ContainerLaunchContext ctxt = container.getLaunchContext();
+      container.metrics.initingContainer();
 
       // Inform the AuxServices about the opaque serviceData
       Map<String,ByteBuffer> csd = ctxt.getAllServiceData();
@@ -411,6 +449,7 @@ public class ContainerImpl implements Container {
           container.dispatcher.getEventHandler().handle(
               new ContainerLocalizationEvent(
                LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
+          container.metrics.endInitingContainer();
           return ContainerState.LOCALIZATION_FAILED;
         }
         if (!publicRsrc.isEmpty()) {
@@ -433,6 +472,7 @@ public class ContainerImpl implements Container {
         container.dispatcher.getEventHandler().handle(
             new ContainersLauncherEvent(container,
                 ContainersLauncherEventType.LAUNCH_CONTAINER));
+        container.metrics.endInitingContainer();
         return ContainerState.LOCALIZED;
       }
     }
@@ -460,6 +500,7 @@ public class ContainerImpl implements Container {
       container.dispatcher.getEventHandler().handle(
           new ContainersLauncherEvent(container,
               ContainersLauncherEventType.LAUNCH_CONTAINER));
+      container.metrics.endInitingContainer();
       return ContainerState.LOCALIZED;
     }
   }
@@ -476,6 +517,7 @@ public class ContainerImpl implements Container {
       container.dispatcher.getEventHandler().handle(
           new ContainerStartMonitoringEvent(container.getContainerID(),
               vmemBytes, -1));
+      container.metrics.runningContainer();
     }
   }
 
@@ -521,7 +563,7 @@ public class ContainerImpl implements Container {
       container.dispatcher.getEventHandler().handle(
           new ContainerLocalizationEvent(
             LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
-
+      container.metrics.endInitingContainer();
     }
   }
 
@@ -558,15 +600,7 @@ public class ContainerImpl implements Container {
       SingleArcTransition<ContainerImpl, ContainerEvent> {
     @Override
     public void transition(ContainerImpl container, ContainerEvent event) {
-      // Inform the application
-      ContainerId containerID = container.getContainerID();
-      EventHandler eventHandler = container.dispatcher.getEventHandler();
-      eventHandler.handle(new ApplicationContainerFinishedEvent(containerID));
-      // Remove the container from the resource-monitor
-      eventHandler.handle(new ContainerStopMonitoringEvent(containerID));
-      // Tell the logService too
-      eventHandler.handle(new LogAggregatorContainerFinishedEvent(
-          containerID, container.exitCode));
+      container.finished();
     }
   }
 

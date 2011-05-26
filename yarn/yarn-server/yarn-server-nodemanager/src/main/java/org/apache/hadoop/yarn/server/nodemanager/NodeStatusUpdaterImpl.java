@@ -55,6 +55,7 @@ import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.NodeStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Container;
+import org.apache.hadoop.yarn.server.nodemanager.metrics.NodeManagerMetrics;
 import org.apache.hadoop.yarn.service.AbstractService;
 
 public class NodeStatusUpdaterImpl extends AbstractService implements
@@ -82,13 +83,15 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
   private RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
   private final NodeHealthCheckerService healthChecker;
+  private final NodeManagerMetrics metrics;
 
   public NodeStatusUpdaterImpl(Context context, Dispatcher dispatcher,
-      NodeHealthCheckerService healthChecker) {
+      NodeHealthCheckerService healthChecker, NodeManagerMetrics metrics) {
     super(NodeStatusUpdaterImpl.class.getName());
     this.healthChecker = healthChecker;
     this.context = context;
     this.dispatcher = dispatcher;
+    this.metrics = metrics;
   }
 
   @Override
@@ -99,9 +102,10 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
     this.heartBeatInterval =
         conf.getLong(NMConfig.HEARTBEAT_INTERVAL,
             NMConfig.DEFAULT_HEARTBEAT_INTERVAL);
-    int memory = conf.getInt(NMConfig.NM_VMEM_GB, 8);
+    int memory = conf.getInt(NMConfig.NM_VMEM_GB, NMConfig.DEFAULT_NM_VMEM_GB);
     this.totalResource = recordFactory.newRecordInstance(Resource.class);
     this.totalResource.setMemory(memory * 1024);
+    metrics.addResource(totalResource);
     super.init(conf);
   }
 
