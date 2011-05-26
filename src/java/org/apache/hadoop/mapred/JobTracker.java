@@ -70,6 +70,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.ipc.RPC.VersionMismatch;
@@ -322,6 +323,13 @@ public class JobTracker implements MRConstants, InterTrackerProtocol,
     }
   }
   
+  @Override
+  public ProtocolSignature getProtocolSignature(String protocol,
+      long clientVersion, int clientMethodsHash) throws IOException {
+    return ProtocolSignature.getProtocolSigature(
+        this, protocol, clientVersion, clientMethodsHash);
+  }
+
   /**
    * A thread to timeout tasks that have been assigned to task trackers,
    * but that haven't reported back yet.

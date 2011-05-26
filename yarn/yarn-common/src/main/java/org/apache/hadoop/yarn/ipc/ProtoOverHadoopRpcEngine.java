@@ -20,6 +20,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RpcEngine;
+import org.apache.hadoop.ipc.ProtocolProxy;
+import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.ipc.WritableRpcEngine;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -38,27 +40,28 @@ import com.google.protobuf.ServiceException;
 @InterfaceStability.Evolving
 public class ProtoOverHadoopRpcEngine implements RpcEngine {
   private static final Log LOG = LogFactory.getLog(RPC.class);
-
-  private static int VERSION = 0;
   
   private static final RpcEngine ENGINE = new WritableRpcEngine();
 
   /** Tunnel a Proto RPC request and response through Hadoop's RPC. */
   private static interface TunnelProtocol extends VersionedProtocol {
+    /** WritableRpcEngine requires a versionID */
+    public static final long versionID = 1L;
+
     /** All Proto methods and responses go through this. */
     ProtoSpecificResponseWritable call(ProtoSpecificRequestWritable request) throws IOException;
   }
 
 
   @Override
-  public Object getProxy(Class<?> protocol, long clientVersion,
+  @SuppressWarnings("unchecked")
+  public <T> ProtocolProxy<T> getProxy(Class<T> protocol, long clientVersion,
       InetSocketAddress addr, UserGroupInformation ticket, Configuration conf,
       SocketFactory factory, int rpcTimeout) throws IOException {
 
-
-    return Proxy.newProxyInstance(protocol.getClassLoader(),
-        new Class[] { protocol }, new Invoker(protocol, addr, ticket, conf,
-            factory, rpcTimeout));
+    return new ProtocolProxy<T>(protocol, (T) Proxy.newProxyInstance(protocol
+        .getClassLoader(), new Class[] { protocol }, new Invoker(protocol,
+        addr, ticket, conf, factory, rpcTimeout)), false);
   }
 
   @Override
@@ -77,8 +80,9 @@ public class ProtoOverHadoopRpcEngine implements RpcEngine {
     public Invoker(Class<?> protocol, InetSocketAddress addr,
         UserGroupInformation ticket, Configuration conf, SocketFactory factory,
         int rpcTimeout) throws IOException {
-      this.tunnel = (TunnelProtocol) ENGINE.getProxy(TunnelProtocol.class,
-          VERSION, addr, ticket, conf, factory, rpcTimeout);
+      this.tunnel = ENGINE.getProxy(TunnelProtocol.class,
+          TunnelProtocol.versionID, addr, ticket, conf, factory, rpcTimeout)
+          .getProxy();
     }
 
     @Override
@@ -140,7 +144,14 @@ public class ProtoOverHadoopRpcEngine implements RpcEngine {
 
     public long getProtocolVersion(String protocol, long version)
         throws IOException {
-      return VERSION;
+      return TunnelProtocol.versionID;
+    }
+    
+    @Override
+    public ProtocolSignature getProtocolSignature(
+        String protocol, long version, int clientMethodsHashCode)
+      throws IOException {
+      return new ProtocolSignature(TunnelProtocol.versionID, null);
     }
 
     public ProtoSpecificResponseWritable call(final ProtoSpecificRequestWritable request)

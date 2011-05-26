@@ -30,6 +30,7 @@ import java.util.Vector;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
@@ -537,5 +538,12 @@ public class YARNRunner implements ClientProtocol {
   @Override
   public AccessControlList getQueueAdmins(String arg0) throws IOException {
     return new AccessControlList("*");
+  }
+  
+  @Override
+  public ProtocolSignature getProtocolSignature(String protocol,
+      long clientVersion, int clientMethodsHash) throws IOException {
+    return ProtocolSignature.getProtocolSigature(this, protocol, clientVersion,
+        clientMethodsHash);
   }
 }
