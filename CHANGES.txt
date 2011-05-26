@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixing race condition leader to hung jobs in scheduler negotiator (mahadev)
+
     Add debug statements for AM not launching (mahadev)
 
     Adding job kill for any state that the job is in with access control. (mahadev)

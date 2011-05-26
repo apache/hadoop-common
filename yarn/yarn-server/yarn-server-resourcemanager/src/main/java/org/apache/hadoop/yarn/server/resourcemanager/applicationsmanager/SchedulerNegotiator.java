@@ -23,8 +23,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -44,6 +46,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.service.AbstractService;
 
@@ -115,6 +118,7 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
         new ArrayList<AppContext>();
       List<AppContext> submittedApplications =
         new ArrayList<AppContext>();
+      Map<ApplicationId, List<Container>> firstAllocate = new HashMap<ApplicationId, List<Container>>();
       while (!shutdown && !isInterrupted()) {
         try {
           toSubmit.addAll(getPendingApplications());
@@ -128,13 +132,18 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
               ResourceRequest request = 
                 org.apache.hadoop.yarn.server.resourcemanager.resource.ResourceRequest.create(
                     AM_CONTAINER_PRIORITY, "*", masterInfo.getResource(), 1);
-              // it ok to ignore the containers since we wont get any containers 
-              // in the first call to allocate
+              /*
+               * it is not ok to ignore the first allocate since we might 
+               * get containers on the first allocate.
+               */
               LOG.debug("About to request resources for AM of " + 
                   masterInfo.getMaster() + " required " + request);
-              scheduler.allocate(masterInfo.getMaster().getApplicationId(), 
+              Allocation allocation = scheduler.allocate(masterInfo.getMaster().getApplicationId(), 
                   Collections.singletonList(request), 
                   EMPTY_RELEASE);
+              if (!allocation.getContainers().isEmpty()) {
+                firstAllocate.put(masterInfo.getApplicationID(), allocation.getContainers());
+              }
             }
             toSubmit.clear();
           }
@@ -147,6 +156,10 @@ class SchedulerNegotiator extends AbstractService implements EventHandler<ASMEve
             ApplicationId appId = masterInfo.getMaster().getApplicationId();
             containers = scheduler.allocate(appId, 
                 EMPTY_ASK, EMPTY_RELEASE).getContainers();
+            if (firstAllocate.containsKey(appId)) {
+              containers = firstAllocate.get(appId);
+              firstAllocate.remove(appId);
+            }
             if (!containers.isEmpty()) {
               // there should be only one container for an application
               assert(containers.size() == 1);
