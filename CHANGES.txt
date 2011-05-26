@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Add debug config for delaying delete of local files. (cdouglas)
+
     Fixing race condition leader to hung jobs in scheduler negotiator (mahadev)
 
     Add debug statements for AM not launching (mahadev)

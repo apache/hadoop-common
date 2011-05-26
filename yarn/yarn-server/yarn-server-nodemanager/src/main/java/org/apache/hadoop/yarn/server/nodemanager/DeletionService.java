@@ -20,7 +20,8 @@ package org.apache.hadoop.yarn.server.nodemanager;
 
 import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import static java.util.concurrent.TimeUnit.*;
 
 import org.apache.hadoop.fs.Path;
@@ -38,11 +39,13 @@ import org.apache.commons.logging.LogFactory;
 public class DeletionService extends AbstractService {
 
   static final Log LOG = LogFactory.getLog(DeletionService.class);
+  /** Delay before deleting resource to ease debugging of NM issues */
+  static final String DEBUG_DELAY_SEC =
+    NMConfig.NM_PREFIX + "debug.delete.delay";
 
-  private final ThreadPoolExecutor sched =
-    new ThreadPoolExecutor(1, DEFAULT_MAX_DELETE_THREADS, 60L, SECONDS,
-        new LinkedBlockingQueue<Runnable>());
+  private int debugDelay;
   private final ContainerExecutor exec;
+  private final ScheduledThreadPoolExecutor sched;
   private final FileContext lfs = getLfs();
   static final FileContext getLfs() {
     try {
@@ -53,8 +56,17 @@ public class DeletionService extends AbstractService {
   }
 
   public DeletionService(ContainerExecutor exec) {
+    this(exec, new ScheduledThreadPoolExecutor(1));
+    sched.setMaximumPoolSize(DEFAULT_MAX_DELETE_THREADS);
+    sched.setKeepAliveTime(60L, SECONDS);
+  }
+
+  public DeletionService(ContainerExecutor exec,
+      ScheduledThreadPoolExecutor sched) {
     super(DeletionService.class.getName());
     this.exec = exec;
+    this.sched = sched;
+    this.debugDelay = 0;
   }
 
   /**
@@ -64,7 +76,8 @@ public class DeletionService extends AbstractService {
    */
   public void delete(String user, Path subDir, Path... baseDirs) {
     // TODO if parent owned by NM, rename within parent inline
-    sched.submit(new FileDeletion(user, subDir, baseDirs));
+    sched.schedule(new FileDeletion(user, subDir, baseDirs),
+        debugDelay, TimeUnit.SECONDS);
   }
 
   @Override
@@ -72,6 +85,7 @@ public class DeletionService extends AbstractService {
     if (conf != null) {
       sched.setMaximumPoolSize(
           conf.getInt(NM_MAX_DELETE_THREADS, DEFAULT_MAX_DELETE_THREADS));
+      debugDelay = conf.getInt(DEBUG_DELAY_SEC, 0);
     }
     super.init(conf);
   }
