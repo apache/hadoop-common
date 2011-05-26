@@ -29,7 +29,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.ClusterMetrics;
 import org.apache.hadoop.mapreduce.JobID;
@@ -59,7 +58,6 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetQueueUserAclsInfoRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.SubmitApplicationRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
-import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
@@ -127,7 +125,9 @@ public class ResourceMgrDelegate {
 
   public TaskTrackerInfo[] getBlacklistedTrackers() throws IOException,
       InterruptedException {
-    throw new IOException("Not implemented");
+    // TODO: Implement getBlacklistedTrackers
+    LOG.warn("getBlacklistedTrackers - Not implemented yet");
+    return new TaskTrackerInfo[0];
   }
 
 
@@ -145,7 +145,9 @@ public class ResourceMgrDelegate {
 
   public Token<DelegationTokenIdentifier> getDelegationToken(Text arg0)
       throws IOException, InterruptedException {
-    throw new IOException("Not Implemented");
+    // TODO: Implement getDelegationToken
+    LOG.warn("getDelegationToken - Not Implemented");
+    return null;
   }
 
 
@@ -277,7 +279,9 @@ public class ResourceMgrDelegate {
 
   public long renewDelegationToken(Token<DelegationTokenIdentifier> arg0)
       throws IOException, InterruptedException {
-    throw new IOException("Not implemented");
+    // TODO: Implement renewDelegationToken
+    LOG.warn("renewDelegationToken - Not implemented");
+    return 0;
   }
   
   
