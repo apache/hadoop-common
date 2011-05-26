@@ -368,8 +368,10 @@ public class TypeConverter {
     throw new YarnException("Unrecognized application state: " + state);
   }
 
+  private static final String TT_NAME_PREFIX = "tracker_";
   public static TaskTrackerInfo fromYarn(NodeManagerInfo node) {
-    TaskTrackerInfo taskTracker = new TaskTrackerInfo(node.getNodeAddress());
+    TaskTrackerInfo taskTracker = 
+      new TaskTrackerInfo(TT_NAME_PREFIX + node.getNodeAddress());
     return taskTracker;
   }
 
