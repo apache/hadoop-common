@@ -39,6 +39,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerRequestEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.YarnException;
@@ -74,11 +75,18 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestRMContainerAllocator {
   private static final Log LOG = LogFactory.getLog(TestRMContainerAllocator.class);
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
+
+  @BeforeClass
+  public static void preTests() {
+    DefaultMetricsSystem.shutdown();
+  }
 
   @Test
   public void testSimple() throws Exception {

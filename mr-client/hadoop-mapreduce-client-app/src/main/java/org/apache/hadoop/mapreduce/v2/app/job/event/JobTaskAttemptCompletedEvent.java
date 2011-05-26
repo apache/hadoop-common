@@ -27,7 +27,7 @@ public class JobTaskAttemptCompletedEvent extends JobEvent {
 
   public JobTaskAttemptCompletedEvent(TaskAttemptCompletionEvent completionEvent) {
     super(completionEvent.getAttemptId().getTaskId().getJobId(), 
-        JobEventType.JOB_TASK_ATTEMPT_COMPLETED_EVENT);
+        JobEventType.JOB_TASK_ATTEMPT_COMPLETED);
     this.completionEvent = completionEvent;
   }
 

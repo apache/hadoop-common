@@ -30,6 +30,7 @@ import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+import org.apache.hadoop.mapreduce.v2.app.metrics.MRAppMetrics;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
@@ -45,10 +46,11 @@ public class ReduceTaskImpl extends TaskImpl {
       int numMapTasks, TaskAttemptListener taskAttemptListener,
       OutputCommitter committer, Token<JobTokenIdentifier> jobToken,
       Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock, 
-      Set<TaskId> completedTasksFromPreviousRun, int startCount) {
+      Set<TaskId> completedTasksFromPreviousRun, int startCount,
+      MRAppMetrics metrics) {
     super(jobId, TaskType.REDUCE, partition, eventHandler, jobFile, conf,
         taskAttemptListener, committer, jobToken, fsTokens, clock,
-        completedTasksFromPreviousRun, startCount);
+        completedTasksFromPreviousRun, startCount, metrics);
     this.numMapTasks = numMapTasks;
   }
 

@@ -58,6 +58,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.impl.JobImpl;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncher;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncherImpl;
 import org.apache.hadoop.mapreduce.v2.app.local.LocalContainerAllocator;
+import org.apache.hadoop.mapreduce.v2.app.metrics.MRAppMetrics;
 import org.apache.hadoop.mapreduce.v2.app.recover.Recovery;
 import org.apache.hadoop.mapreduce.v2.app.recover.RecoveryService;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
@@ -67,6 +68,7 @@ import org.apache.hadoop.mapreduce.v2.app.speculate.Speculator;
 import org.apache.hadoop.mapreduce.v2.app.speculate.SpeculatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleaner;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanerImpl;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
@@ -109,6 +111,7 @@ public class MRAppMaster extends CompositeService {
   private Clock clock;
   private final int startCount;
   private final ApplicationId appID;
+  protected final MRAppMetrics metrics;
   private Set<TaskId> completedTasksFromPreviousRun;
   private AppContext context;
   private Dispatcher dispatcher;
@@ -132,6 +135,7 @@ public class MRAppMaster extends CompositeService {
     this.clock = clock;
     this.appID = applicationId;
     this.startCount = startCount;
+    this.metrics = MRAppMetrics.create();
     LOG.info("Created MRAppMaster for application " + applicationId);
   }
 
@@ -269,8 +273,8 @@ public class MRAppMaster extends CompositeService {
 
     // create single job
     Job newJob = new JobImpl(appID, conf, dispatcher.getEventHandler(),
-                      taskAttemptListener, jobTokenSecretManager, fsTokens, 
-                      clock, startCount, completedTasksFromPreviousRun);
+        taskAttemptListener, jobTokenSecretManager, fsTokens, clock, startCount,
+        completedTasksFromPreviousRun, metrics);
     ((RunningAppContext) context).jobs.put(newJob.getID(), newJob);
 
     dispatcher.register(JobFinishEvent.Type.class,
@@ -467,6 +471,10 @@ public class MRAppMaster extends CompositeService {
 
   @Override
   public void start() {
+    // metrics system init is really init & start.
+    // It's more test friendly to put it here.
+    DefaultMetricsSystem.initialize("MRAppMaster");
+
     startJobs();
     //start all the components
     super.start();

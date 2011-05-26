@@ -75,6 +75,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+import org.apache.hadoop.mapreduce.v2.app.metrics.MRAppMetrics;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobDiagnosticsUpdateEvent;
@@ -143,6 +144,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private final Set<TaskId> mapTasks = new LinkedHashSet<TaskId>();
   private final Set<TaskId> reduceTasks = new LinkedHashSet<TaskId>();
   private final EventHandler eventHandler;
+  private final MRAppMetrics metrics;
 
   private boolean lazyTasksCopyNeeded = false;
   private volatile Map<TaskId, Task> tasks = new LinkedHashMap<TaskId, Task>();
@@ -222,7 +224,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
           // Transitions from RUNNING state
           .addTransition(JobState.RUNNING, JobState.RUNNING,
-              JobEventType.JOB_TASK_ATTEMPT_COMPLETED_EVENT,
+              JobEventType.JOB_TASK_ATTEMPT_COMPLETED,
               TASK_ATTEMPT_COMPLETED_EVENT_TRANSITION)
           .addTransition
               (JobState.RUNNING,
@@ -252,7 +254,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
               JobEventType.JOB_TASK_COMPLETED,
               new KillWaitTaskCompletedTransition())
           .addTransition(JobState.KILL_WAIT, JobState.KILL_WAIT,
-              JobEventType.JOB_TASK_ATTEMPT_COMPLETED_EVENT,
+              JobEventType.JOB_TASK_ATTEMPT_COMPLETED,
               TASK_ATTEMPT_COMPLETED_EVENT_TRANSITION)
           .addTransition(JobState.KILL_WAIT, JobState.KILL_WAIT,
               JobEventType.JOB_DIAGNOSTIC_UPDATE,
@@ -313,7 +315,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
               EnumSet.of(JobEventType.JOB_INIT,
                   JobEventType.JOB_KILL,
                   JobEventType.JOB_TASK_COMPLETED,
-                  JobEventType.JOB_TASK_ATTEMPT_COMPLETED_EVENT,
+                  JobEventType.JOB_TASK_ATTEMPT_COMPLETED,
                   JobEventType.JOB_MAP_TASK_RESCHEDULED,
                   JobEventType.JOB_DIAGNOSTIC_UPDATE,
                   JobEventType.JOB_TASK_ATTEMPT_FETCH_FAILURE,
@@ -349,10 +351,11 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       EventHandler eventHandler, TaskAttemptListener taskAttemptListener,
       JobTokenSecretManager jobTokenSecretManager,
       Credentials fsTokenCredentials, Clock clock, int startCount, 
-      Set<TaskId> completedTasksFromPreviousRun) {
+      Set<TaskId> completedTasksFromPreviousRun, MRAppMetrics metrics) {
 
     this.jobId = recordFactory.newRecordInstance(JobId.class);
     this.conf = conf;
+    this.metrics = metrics;
     this.clock = clock;
     this.completedTasksFromPreviousRun = completedTasksFromPreviousRun;
     this.startCount = startCount;
@@ -654,15 +657,31 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     } else if (task.getType() == TaskType.REDUCE) {
       reduceTasks.add(task.getID());
     }
+    metrics.waitingTask(task);
   }
 
   private void setFinishTime() {
     finishTime = clock.getTime();
   }
   
-  private void finished() {
+  private JobState finished(JobState finalState) {
+    if (getState() == JobState.RUNNING) {
+      metrics.endRunningJob(this);
+    }
     if (finishTime == 0) setFinishTime();
     eventHandler.handle(new JobFinishEvent(jobId));
+
+    switch (finalState) {
+      case KILLED:
+        metrics.killedJob(this);
+        break;
+      case FAILED:
+        metrics.failedJob(this);
+        break;
+      case SUCCEEDED:
+        metrics.completedJob(this);
+    }
+    return finalState;
   }
 
   @Override
@@ -694,6 +713,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     @Override
     public JobState transition(JobImpl job, JobEvent event) {
       job.startTime = job.clock.getTime();
+      job.metrics.submittedJob(job);
+      job.metrics.preparingJob(job);
       try {
         setup(job);
         job.fs = FileSystem.get(job.conf);
@@ -852,12 +873,14 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         createMapTasks(job, inputLength, taskSplitMetaInfo);
         createReduceTasks(job);
 
+        job.metrics.endPreparingJob(job);
         return JobState.INITED;
 
       } catch (Exception e) {
         LOG.warn("Job init failed", e);
         job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.FAILED);
-        return JobState.FAILED;
+        job.metrics.endPreparingJob(job);
+        return job.finished(JobState.FAILED);
       }
     }
 
@@ -949,7 +972,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
                 job.conf, splits[i], 
                 job.taskAttemptListener, 
                 job.committer, job.jobToken, job.fsTokens.getAllTokens(), 
-                job.clock, job.completedTasksFromPreviousRun, job.startCount);
+                job.clock, job.completedTasksFromPreviousRun, job.startCount,
+                job.metrics);
         job.addTask(task);
       }
       LOG.info("Input size for job " + job.jobId + " = " + inputLength
@@ -965,7 +989,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
                 job.conf, job.numMapTasks, 
                 job.taskAttemptListener, job.committer, job.jobToken,
                 job.fsTokens.getAllTokens(), job.clock, 
-                job.completedTasksFromPreviousRun, job.startCount);
+                job.completedTasksFromPreviousRun, job.startCount, job.metrics);
         job.addTask(task);
       }
       LOG.info("Number of reduces for job " + job.jobId + " = "
@@ -1011,6 +1035,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
              job.isUber, 0, 0,  // FIXME: lose latter two args again (old-style uber junk:  needs to go along with 98% of other old-style uber junk)
              JobState.NEW.toString());
       job.eventHandler.handle(new JobHistoryEvent(job.jobId, jie));
+      job.metrics.runningJob(job);
     }
   }
 
@@ -1054,7 +1079,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
               job.finishTime, 0, 0,
               org.apache.hadoop.mapreduce.JobStatus.State.FAILED.toString()); //TODO correct state
       job.eventHandler.handle(new JobHistoryEvent(job.jobId, failedEvent));
-      job.finished();
+      job.finished(JobState.KILLED);
     }
   }
 
@@ -1063,7 +1088,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     @Override
     public void transition(JobImpl job, JobEvent event) {
       job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.KILLED);
-      job.finished();
+      job.finished(JobState.KILLED);
     }
   }
 
@@ -1075,6 +1100,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         job.eventHandler.handle(
             new TaskEvent(task.getID(), TaskEventType.T_KILL));
       }
+      job.metrics.endRunningJob(job);
     }
   }
 
@@ -1177,8 +1203,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         //TODO This event not likely required - sent via abort(). 
 
         job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.FAILED);
-        job.finished();
-        return JobState.FAILED;
+        return job.finished(JobState.FAILED);
       }
       
       //check for Job success
@@ -1201,8 +1226,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         LOG.info("Calling handler for JobFinishedEvent ");
         job.eventHandler.handle(new JobHistoryEvent(job.jobId, jfe));
 
-        job.finished();
-        return JobState.SUCCEEDED;
+        return job.finished(JobState.SUCCEEDED);
       }
       
       //return the current state, Job not finished yet
@@ -1225,6 +1249,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       } else {
         job.succeededReduceTaskCount++;
       }
+      job.metrics.completedTask(task);
     }
   
     private void taskFailed(JobImpl job, Task task) {
@@ -1233,6 +1258,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       } else if (task.getType() == TaskType.REDUCE) {
         job.failedReduceTaskCount++;
       }
+      job.metrics.failedTask(task);
     }
 
     private void taskKilled(JobImpl job, Task task) {
@@ -1241,6 +1267,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       } else if (task.getType() == TaskType.REDUCE) {
         job.killedReduceTaskCount++;
       }
+      job.metrics.killedTask(task);
     }
   }
 
@@ -1261,8 +1288,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       if (job.completedTaskCount == job.tasks.size()) {
         job.setFinishTime();
         job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.KILLED);
-        job.finished();
-        return JobState.KILLED;
+        return job.finished(JobState.KILLED);
       }
       //return the current state, Job not finished yet
       return job.getState();
@@ -1287,7 +1313,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     @Override
     public void transition(JobImpl job, JobEvent event) {
       //TODO JH Event?
-      job.finished();
+      job.finished(JobState.ERROR);
     }
   }
 

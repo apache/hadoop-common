@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.mapreduce.v2.app.job.impl;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -49,6 +48,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskReport;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+import org.apache.hadoop.mapreduce.v2.app.metrics.MRAppMetrics;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
@@ -94,6 +94,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   protected final Clock clock;
   private final Lock readLock;
   private final Lock writeLock;
+  private final MRAppMetrics metrics;
   
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
@@ -126,7 +127,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     // Transitions from SCHEDULED state
       //when the first attempt is launched, the task state is set to RUNNING
      .addTransition(TaskState.SCHEDULED, TaskState.RUNNING, 
-         TaskEventType.T_ATTEMPT_LAUNCHED)
+         TaskEventType.T_ATTEMPT_LAUNCHED, new LaunchTransition())
      .addTransition(TaskState.SCHEDULED, TaskState.KILL_WAIT, 
          TaskEventType.T_KILL, KILL_TRANSITION)
      .addTransition(TaskState.SCHEDULED, TaskState.SCHEDULED, 
@@ -221,7 +222,8 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       TaskAttemptListener taskAttemptListener, OutputCommitter committer,
       Token<JobTokenIdentifier> jobToken,
       Collection<Token<? extends TokenIdentifier>> fsTokens, Clock clock,
-      Set<TaskId> completedTasksFromPreviousRun, int startCount) {
+      Set<TaskId> completedTasksFromPreviousRun, int startCount,
+      MRAppMetrics metrics) {
     this.conf = conf;
     this.clock = clock;
     this.jobFile = remoteJobConfFile;
@@ -243,6 +245,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     this.committer = committer;
     this.fsTokens = fsTokens;
     this.jobToken = jobToken;
+    this.metrics = metrics;
 
     if (completedTasksFromPreviousRun != null 
         && completedTasksFromPreviousRun.contains(taskId)) {
@@ -400,6 +403,24 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     return finishTime;
   }
 
+  private TaskState finished(TaskState finalState) {
+    if (getState() == TaskState.RUNNING) {
+      metrics.endRunningTask(this);
+    }
+    switch (finalState) {
+      case FAILED:
+        metrics.failedTask(this);
+        break;
+      case KILLED:
+        metrics.killedTask(this);
+        break;
+      case SUCCEEDED:
+        metrics.completedTask(this);
+        break;
+    }
+    return finalState;
+  }
+
   //select the nextAttemptNumber with best progress
   // always called inside the Read Lock
   private TaskAttempt selectBestAttempt() {
@@ -547,6 +568,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tse));
 
       task.addAndScheduleAttempt();
+      task.metrics.launchedTask(task);
     }
   }
 
@@ -620,6 +642,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
                   TaskAttemptEventType.TA_KILL));
         }
       }
+      task.finished(TaskState.SUCCEEDED);
     }
   }
 
@@ -688,7 +711,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
         task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfi));
         task.eventHandler.handle(
             new JobTaskEvent(task.taskId, TaskState.FAILED));
-        return TaskState.FAILED;
+        return task.finished(TaskState.FAILED);
       }
       return getDefaultState(task);
     }
@@ -744,6 +767,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfe));
       task.eventHandler.handle(
           new JobTaskEvent(task.taskId, TaskState.KILLED));
+      task.metrics.endWaitingTask(task);
     }
   }
 
@@ -766,6 +790,14 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
       }
 
       task.numberUncompletedAttempts = 0;
+    }
+  }
+
+  static class LaunchTransition
+      implements SingleArcTransition<TaskImpl, TaskEvent> {
+    @Override
+    public void transition(TaskImpl task, TaskEvent event) {
+      task.metrics.runningTask(task);
     }
   }
 }

@@ -60,6 +60,7 @@ import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleaner;
 import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.YarnException;
@@ -79,9 +80,8 @@ import org.apache.hadoop.yarn.state.StateMachineFactory;
  * No threads are started except of the event Dispatcher thread.
  */
 public class MRApp extends MRAppMaster {
-
   private static final Log LOG = LogFactory.getLog(MRApp.class);
-  
+
   int maps;
   int reduces;
 
@@ -90,7 +90,7 @@ public class MRApp extends MRAppMaster {
 
   private final RecordFactory recordFactory =
       RecordFactoryProvider.getRecordFactory(null);
-  
+
   //if true, tasks complete automatically as soon as they are launched
   protected boolean autoComplete = false;
 
@@ -134,6 +134,7 @@ public class MRApp extends MRAppMaster {
 
     init(conf);
     start();
+    DefaultMetricsSystem.shutdown();
     Job job = getContext().getAllJobs().values().iterator().next();
     return job;
   }
@@ -359,7 +360,7 @@ public class MRApp extends MRAppMaster {
         TaskAttemptListener taskAttemptListener, Clock clock) {
       super(appID, new Configuration(), eventHandler, taskAttemptListener,
           new JobTokenSecretManager(), new Credentials(), clock, getStartCount(), 
-          getCompletedTaskFromPreviousRun());
+          getCompletedTaskFromPreviousRun(), metrics);
 
       // This "this leak" is okay because the retained pointer is in an
       //  instance variable.
