@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixed an NPE during handling of unnecessary reservations in CS. (acmurthy)
+
     MAPREDUCE-2532. Metrics for NodeManager (Luke Lu via mahadev)
 
     MAPREDUCE-2527. Metrics for MRAppMaster (Luke lu via mahadev)

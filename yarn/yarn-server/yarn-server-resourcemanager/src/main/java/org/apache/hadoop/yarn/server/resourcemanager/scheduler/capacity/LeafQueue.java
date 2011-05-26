@@ -947,7 +947,7 @@ public class LeafQueue implements Queue {
         
         // Book-keeping
         releaseResource(clusterResource, 
-            application.getUser(), container.getResource());
+            application.getUser(), containerResource);
 
         LOG.info("completedContainer" +
             " container=" + container +
