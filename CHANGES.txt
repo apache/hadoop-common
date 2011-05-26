@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+   
+    Fix for public dist cache to work with non default hdfs (mahadev &ddas)
 
     Fixed an NPE during handling of unnecessary reservations in CS. (acmurthy)
 
