@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
    
+    Making streaming -file option work. Also minor fixes for successful
+    compilation of contrib tests. (vinodkv)
+
     Fix for public dist cache to work with non default hdfs (mahadev &ddas)
 
     Fixed an NPE during handling of unnecessary reservations in CS. (acmurthy)

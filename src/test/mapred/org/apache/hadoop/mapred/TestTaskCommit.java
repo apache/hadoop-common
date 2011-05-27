@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.mapred.SortedRanges.Range;
 import org.apache.hadoop.mapreduce.TaskType;
 
@@ -167,6 +168,13 @@ public class TestTaskCommit extends HadoopTestCase {
     updatePrivateDistributedCacheSizes(org.apache.hadoop.mapreduce.JobID jobId,
                                        long[] sizes) throws IOException {
       // NOTHING
+    }
+
+    @Override
+    public ProtocolSignature getProtocolSignature(String protocol,
+        long clientVersion, int clientMethodsHash) throws IOException {
+      return ProtocolSignature.getProtocolSigature(
+                  this, protocol, clientVersion, clientMethodsHash);
     }
   }
   

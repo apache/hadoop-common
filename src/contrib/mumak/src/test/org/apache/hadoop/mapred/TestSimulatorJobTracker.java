@@ -145,7 +145,8 @@ public class TestSimulatorJobTracker {
       // HashSet<> numLaunchTaskActions
       for (TaskTrackerAction action : actions) {
         if (action instanceof SimulatorLaunchTaskAction) {
-          Task task = ((SimulatorLaunchTaskAction) action).getTask();
+          TTTask ttTask = ((SimulatorLaunchTaskAction) action).getTask();
+          Task task = ttTask.getTask();
 
           numLaunchTaskActions++;
           TaskAttemptID taskId = task.getTaskID();

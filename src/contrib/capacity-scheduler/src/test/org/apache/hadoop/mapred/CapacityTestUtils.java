@@ -668,8 +668,7 @@ public class CapacityTestUtils {
         numTrackers, 0,
         ttExpiryInterval, maps, reduces,
         numTrackers * maxMapTasksPerTracker,
-        numTrackers * maxReduceTasksPerTracker,
-        JobTracker.State.RUNNING);
+        numTrackers * maxReduceTasksPerTracker);
     }
 
     public int getNumberOfUniqueHosts() {

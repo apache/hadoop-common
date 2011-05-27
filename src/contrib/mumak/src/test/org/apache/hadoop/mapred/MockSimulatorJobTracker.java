@@ -27,6 +27,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.mapred.TaskStatus.State;
 import org.apache.hadoop.mapred.TaskStatus.Phase;
 import org.apache.hadoop.mapreduce.ClusterMetrics;
@@ -379,12 +380,6 @@ public class MockSimulatorJobTracker implements InterTrackerProtocol,
   }
 
   @Override
-  public org.apache.hadoop.mapreduce.server.jobtracker.State getJobTrackerState()
-      throws IOException, InterruptedException {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public QueueInfo getQueue(String queueName) throws IOException,
       InterruptedException {
     throw new UnsupportedOperationException();
@@ -466,5 +461,12 @@ public class MockSimulatorJobTracker implements InterTrackerProtocol,
   public long renewDelegationToken(Token<DelegationTokenIdentifier> token
                                       ) throws IOException,InterruptedException{
     return 0;
+  }
+
+  @Override
+  public ProtocolSignature getProtocolSignature(String protocol,
+      long clientVersion, int clientMethodsHash) throws IOException {
+    return ProtocolSignature.getProtocolSigature(
+        this, protocol, clientVersion, clientMethodsHash);
   }
 }

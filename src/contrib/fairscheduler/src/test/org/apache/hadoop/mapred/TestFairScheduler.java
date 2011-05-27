@@ -362,8 +362,7 @@ public class TestFairScheduler extends TestCase {
       return new ClusterStatus(numTrackers, 0,
           ttExpiryInterval, maps, reduces,
           numTrackers * maxMapTasksPerTracker,
-          numTrackers * maxReduceTasksPerTracker,
-          JobTracker.State.RUNNING);
+          numTrackers * maxReduceTasksPerTracker);
     }
 
     @Override
