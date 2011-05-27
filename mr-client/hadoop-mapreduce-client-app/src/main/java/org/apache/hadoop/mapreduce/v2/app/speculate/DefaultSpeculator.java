@@ -272,8 +272,17 @@ public class DefaultSpeculator extends AbstractService implements
 
       case ATTEMPT_START:
       {
+        LOG.info("ATTEMPT_START " + event.getTaskID());
         estimator.enrollAttempt
             (event.getReportedStatus(), event.getTimestamp());
+        break;
+      }
+      
+      case JOB_CREATE:
+      {
+        LOG.info("JOB_CREATE " + event.getJobID());
+        estimator.contextualize(getConfig(), context);
+        break;
       }
     }
   }
@@ -366,7 +375,6 @@ public class DefaultSpeculator extends AbstractService implements
 
         long taskAttemptStartTime
             = estimator.attemptEnrolledTime(runningTaskAttemptID);
-
         if (taskAttemptStartTime > now) {
           // This background process ran before we could process the task
           //  attempt status change that chronicles the attempt start
@@ -409,7 +417,7 @@ public class DefaultSpeculator extends AbstractService implements
 
   //Add attempt to a given Task.
   protected void addSpeculativeAttempt(TaskId taskID) {
-    System.out.println
+    LOG.info
         ("DefaultSpeculator.addSpeculativeAttempt -- we are speculating " + taskID);
     eventHandler.handle(new TaskEvent(taskID, TaskEventType.T_ADD_SPEC_ATTEMPT));
     mayHaveSpeculated.add(taskID);
@@ -481,7 +489,6 @@ public class DefaultSpeculator extends AbstractService implements
           bestSpeculationValue = mySpeculationValue;
         }
       }
-
       numberAllowedSpeculativeTasks
           = (int) Math.max(numberAllowedSpeculativeTasks,
                            PROPORTION_RUNNING_TASKS_SPECULATABLE * numberRunningTasks);

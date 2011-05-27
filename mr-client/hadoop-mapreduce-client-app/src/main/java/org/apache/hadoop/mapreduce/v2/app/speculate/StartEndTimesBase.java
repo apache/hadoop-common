@@ -23,11 +23,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
+import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
@@ -39,7 +41,7 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
   static final float MINIMUM_COMPLETE_PROPORTION_TO_SPECULATE
       = 0.05F;
   static final int MINIMUM_COMPLETE_NUMBER_TO_SPECULATE
-      = 10;
+      = 1;
 
   protected Configuration conf = null;
   protected AppContext context = null;
@@ -142,7 +144,6 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
     long result =  statistics == null
         ? Long.MAX_VALUE
         : (long)statistics.outlier(slowTaskRelativeTresholds.get(job));
-
     return result;
   }
 
@@ -159,7 +160,6 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
 
   @Override
   public void updateAttempt(TaskAttemptStatus status, long timestamp) {
-    String stateString = status.stateString.toString();
 
     TaskAttemptId attemptID = status.id;
     TaskId taskID = attemptID.getTaskId();
@@ -178,8 +178,10 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
 
     Long boxedStart = startTimes.get(attemptID);
     long start = boxedStart == null ? Long.MIN_VALUE : boxedStart;
+    
+    TaskAttempt taskAttempt = task.getAttempt(attemptID);
 
-    if (stateString.equals(TaskAttemptState.SUCCEEDED.name())) {
+    if (taskAttempt.getState() == TaskAttemptState.SUCCEEDED) {
       boolean isNew = false;
       // is this  a new success?
       synchronized (doneTasks) {
@@ -199,7 +201,7 @@ abstract class StartEndTimesBase implements TaskRuntimeEstimator {
           long duration = finish - start;
 
           DataStatistics statistics
-              = dataStatisticsForTask(taskID);
+          = dataStatisticsForTask(taskID);
 
           if (statistics != null) {
             statistics.add(duration);

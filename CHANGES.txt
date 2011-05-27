@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    First fix for making basic speculative execution work (ddas)
+
     Bugfix for using user staging directory for history files (siddharth seth via mahadev)
 
     MAPREDUCE-2536. Backporting changes to MR-279.

@@ -20,6 +20,7 @@ package org.apache.hadoop.mapreduce.v2.app.speculate;
 
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptStatusUpdateEvent.TaskAttemptStatus;
 import org.apache.hadoop.yarn.event.AbstractEvent;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 
@@ -31,8 +32,14 @@ public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
   // valid for TASK_CONTAINER_NEED_UPDATE
   private TaskId taskID;
   private int containersNeededChange;
+  
+  // valid for CREATE_JOB
+  private JobId jobID;
 
-
+  public SpeculatorEvent(JobId jobID, long timestamp) {
+    super(Speculator.EventType.JOB_CREATE, timestamp);
+    this.jobID = jobID;
+  }
 
   public SpeculatorEvent(TaskAttemptStatus reportedStatus, long timestamp) {
     super(Speculator.EventType.ATTEMPT_STATUS_UPDATE, timestamp);
@@ -43,6 +50,7 @@ public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
     super(Speculator.EventType.ATTEMPT_START, timestamp);
     this.reportedStatus = new TaskAttemptStatus();
     this.reportedStatus.id = attemptID;
+    this.taskID = attemptID.getTaskId();
   }
 
   /*
@@ -70,5 +78,9 @@ public class SpeculatorEvent extends AbstractEvent<Speculator.EventType> {
 
   public TaskId getTaskID() {
     return taskID;
+  }
+  
+  public JobId getJobID() {
+    return jobID;
   }
 }

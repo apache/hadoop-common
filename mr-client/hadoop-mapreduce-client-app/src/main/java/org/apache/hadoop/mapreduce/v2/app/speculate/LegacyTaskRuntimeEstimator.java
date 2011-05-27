@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
@@ -41,12 +43,10 @@ public class LegacyTaskRuntimeEstimator extends StartEndTimesBase {
   private final Map<TaskAttempt, AtomicLong> attemptRuntimeEstimateVariances
       = new ConcurrentHashMap<TaskAttempt, AtomicLong>();
 
-
   @Override
   public void updateAttempt(TaskAttemptStatus status, long timestamp) {
     super.updateAttempt(status, timestamp);
-
-    String stateString = status.stateString.toString();
+    
 
     TaskAttemptId attemptID = status.id;
     TaskId taskID = attemptID.getTaskId();
@@ -78,7 +78,7 @@ public class LegacyTaskRuntimeEstimator extends StartEndTimesBase {
 
     // This is not a completion, but we're cooking.
     //
-    if (stateString.equals(TaskAttemptState.RUNNING.name())) {
+    if (taskAttempt.getState() == TaskAttemptState.RUNNING) {
       // See if this task is already in the registry
       AtomicLong estimateContainer = attemptRuntimeEstimates.get(taskAttempt);
       AtomicLong estimateVarianceContainer

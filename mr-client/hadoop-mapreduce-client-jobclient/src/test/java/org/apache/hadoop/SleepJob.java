@@ -224,7 +224,7 @@ public class SleepJob extends Configured implements Tool {
     job.setOutputFormatClass(NullOutputFormat.class);
     job.setInputFormatClass(SleepInputFormat.class);
     job.setPartitionerClass(SleepJobPartitioner.class);
-    job.setSpeculativeExecution(false);
+    job.setSpeculativeExecution(true);
     job.setJobName("Sleep job");
     FileInputFormat.addInputPath(job, new Path("ignored"));
     return job;
@@ -239,6 +239,8 @@ public class SleepJob extends Configured implements Tool {
       ToolRunner.printGenericCommandUsage(System.err);
       return 2;
     }
+    
+    System.out.println("HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
 
     int numMapper = 1, numReducer = 1;
     long mapSleepTime = 100, reduceSleepTime = 100, recSleepTime = 100;

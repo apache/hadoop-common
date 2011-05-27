@@ -35,7 +35,8 @@ public interface Speculator
   enum EventType {
     ATTEMPT_STATUS_UPDATE,
     ATTEMPT_START,
-    TASK_CONTAINER_NEED_UPDATE
+    TASK_CONTAINER_NEED_UPDATE,
+    JOB_CREATE
   }
 
   // This will be implemented if we go to a model where the events are

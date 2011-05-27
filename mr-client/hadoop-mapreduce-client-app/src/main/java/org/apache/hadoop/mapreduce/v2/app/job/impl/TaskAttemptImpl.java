@@ -1040,6 +1040,9 @@ public abstract class TaskAttemptImpl implements
       taskAttempt.eventHandler.handle(new TaskTAttemptEvent(
           taskAttempt.attemptId,
           TaskEventType.T_ATTEMPT_SUCCEEDED));
+      taskAttempt.eventHandler.handle
+      (new SpeculatorEvent
+          (taskAttempt.reportedStatus, taskAttempt.clock.getTime()));
 
    }
   }

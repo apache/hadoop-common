@@ -277,6 +277,7 @@ public class MRAppMaster extends CompositeService {
         completedTasksFromPreviousRun, metrics);
     ((RunningAppContext) context).jobs.put(newJob.getID(), newJob);
 
+    speculator.handle(new SpeculatorEvent(newJob.getID(), clock.getTime()));
     dispatcher.register(JobFinishEvent.Type.class,
         new EventHandler<JobFinishEvent>() {
           @Override
