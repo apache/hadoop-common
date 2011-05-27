@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+
+    MAPREDUCE-2536. Backporting changes to MR-279.
    
     Making streaming -file option work. Also minor fixes for successful
     compilation of contrib tests. (vinodkv)
