@@ -129,7 +129,7 @@ public class MRApp extends MRAppMaster {
   public Job submit(Configuration conf) throws Exception {
     String user = conf.get(MRJobConfig.USER_NAME, "mapred");
     conf.set(MRJobConfig.USER_NAME, user);
-    conf.set(YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, testAbsPath.toString());
+    conf.set(YARNApplicationConstants.APPS_STAGING_DIR_KEY, testAbsPath.toString());
     conf.setBoolean(JHConfig.CREATE_HISTORY_INTERMEDIATE_BASE_DIR_KEY, true);
 
     init(conf);

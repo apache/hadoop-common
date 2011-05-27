@@ -179,9 +179,12 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     serialNumberFormat = ("%0"
         + (JobHistoryUtils.SERIAL_NUMBER_DIRECTORY_DIGITS + serialNumberLowDigits) + "d");
 
-    
-    String doneDirPrefix = JobHistoryUtils
-        .getConfiguredHistoryServerDoneDirPrefix(conf);
+    String doneDirPrefix = null;
+    try {
+      doneDirPrefix = JobHistoryUtils.getConfiguredHistoryServerDoneDirPrefix(conf);
+    } catch (IOException e) {
+      throw new YarnException(e);
+    }
     try {
       doneDirPrefixPath = FileContext.getFileContext(conf).makeQualified(
           new Path(doneDirPrefix));
@@ -191,8 +194,13 @@ public class JobHistory extends AbstractService implements HistoryContext   {
       throw new YarnException("Error creating done directory: [" + doneDirPrefixPath + "]", e);
     }
 
-    String intermediateDoneDirPrefix = JobHistoryUtils
-    .getConfiguredHistoryIntermediateDoneDirPrefix(conf);
+    String intermediateDoneDirPrefix = null;
+    try {
+      intermediateDoneDirPrefix = JobHistoryUtils
+      .getConfiguredHistoryIntermediateDoneDirPrefix(conf);
+    } catch (IOException e) {
+      throw new YarnException(e);
+    }
     try {
       intermediateDoneDirPath = FileContext.getFileContext(conf)
           .makeQualified(new Path(intermediateDoneDirPrefix));

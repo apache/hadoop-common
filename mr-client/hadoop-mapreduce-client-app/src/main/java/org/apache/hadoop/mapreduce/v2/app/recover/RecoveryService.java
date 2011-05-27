@@ -151,7 +151,7 @@ public class RecoveryService extends CompositeService implements Recovery {
   private void parse() throws IOException {
     // TODO: parse history file based on startCount
     String jobName = TypeConverter.fromYarn(appID).toString();
-    String jobhistoryDir = JobHistoryUtils.getHistoryLogDirForUser(getConfig());
+    String jobhistoryDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(getConfig());
     FSDataInputStream in = null;
     Path historyFile = null;
     Path histDirPath = FileContext.getFileContext(getConfig()).makeQualified(

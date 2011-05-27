@@ -30,6 +30,7 @@ import org.apache.hadoop.mapreduce.ClientFactory;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.server.MiniYARNCluster;
@@ -71,9 +72,6 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
     conf.set(YARNApplicationConstants.APPS_STAGING_DIR_KEY, new File(
         getTestWorkDir(),
         "apps_staging_dir/${user.name}/").getAbsolutePath());
-    conf.set(YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, new File(
-        getTestWorkDir(), "history_staging_dir/${user.name}/")
-        .getAbsolutePath());
     conf.set(MRConfig.MASTER_ADDRESS, "test"); // The default is local because of
                                              // which shuffle doesn't happen
     //configure the shuffle service in NM

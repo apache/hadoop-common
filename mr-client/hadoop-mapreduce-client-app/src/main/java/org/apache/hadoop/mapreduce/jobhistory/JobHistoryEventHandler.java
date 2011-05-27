@@ -44,7 +44,6 @@ import org.apache.hadoop.mapreduce.v2.jobhistory.FileNameIndexUtils;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JobIndexInfo;
-import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -102,20 +101,27 @@ public class JobHistoryEventHandler extends AbstractService
 
     this.conf = conf;
 
-    String logDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(conf);
-    String userLogDir = JobHistoryUtils.getHistoryLogDirForUser(conf);
-    String  doneDirPrefix = JobHistoryUtils.getConfiguredHistoryIntermediateDoneDirPrefix(conf);
-    String userDoneDirPrefix = JobHistoryUtils.getHistoryIntermediateDoneDirForUser(conf);
+    String logDir = null;
+    String doneDirPrefix = null;
+    String userDoneDirPrefix = null;
+    try {
+      logDir = JobHistoryUtils.getConfiguredHistoryLogDirPrefix(conf);
+      doneDirPrefix = JobHistoryUtils
+          .getConfiguredHistoryIntermediateDoneDirPrefix(conf);
+      userDoneDirPrefix = JobHistoryUtils
+          .getHistoryIntermediateDoneDirForUser(conf);
+    } catch (IOException e) {
+      LOG.error("Failed while getting the configured log directories", e);
+      throw new YarnException(e);
+    }
 
     //Check for the existance of the log dir. Maybe create it. 
-    Path path = null;
     try {
-      path = FileSystem.get(conf).makeQualified(new Path(logDir));
-      logDirFS = FileSystem.get(path.toUri(), conf);
-      LOG.info("Maybe creating staging history logDir: [" + path + "]");
-      mkdir(logDirFS, path, new FsPermission(JobHistoryUtils.HISTORY_STAGING_DIR_PERMISSIONS));
+      logDirPath = FileSystem.get(conf).makeQualified(new Path(logDir));
+      logDirFS = FileSystem.get(logDirPath.toUri(), conf);
+      mkdir(logDirFS, logDirPath, new FsPermission(JobHistoryUtils.HISTORY_STAGING_DIR_PERMISSIONS));
     } catch (IOException e) {
-      LOG.error("Failed while checking for/ceating  history staging path: [" + path + "]", e);
+      LOG.error("Failed while checking for/ceating  history staging path: [" + logDirPath + "]", e);
       throw new YarnException(e);
     }
 
@@ -140,15 +146,6 @@ public class JobHistoryEventHandler extends AbstractService
     } catch (IOException e) {
       LOG.error("Failed checking for the existance of history intermediate done directory: [" + doneDirPath + "]");
           throw new YarnException(e);
-    }
-        
-    //Check/create staging directory.
-    try {
-      logDirPath = FileSystem.get(conf).makeQualified(new Path(userLogDir));
-      mkdir(logDirFS, logDirPath, new FsPermission(JobHistoryUtils.HISTORY_STAGING_USER_DIR_PERMISSIONS));
-    } catch (IOException e) {
-      LOG.error("Error creating user staging history directory: [" + logDirPath + "]", e);
-      throw new YarnException(e);
     }
 
     //Check/create user directory under intermediate done dir.
@@ -267,9 +264,8 @@ public class JobHistoryEventHandler extends AbstractService
     Configuration conf = getConfig();
 
     long submitTime = (oldFi == null ? context.getClock().getTime() : oldFi.getJobIndexInfo().getSubmitTime());
-
-    // String user = conf.get(MRJobConfig.USER_NAME, System.getProperty("user.name"));
     
+    //TODO Ideally this should be written out to the job dir (.staging/jobid/files - RecoveryService will need to be patched)
     Path logFile = JobHistoryUtils.getStagingJobHistoryFile(logDirPath, jobId, startCount);
     String user = conf.get(MRJobConfig.USER_NAME);
     if (user == null) {

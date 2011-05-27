@@ -27,8 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
@@ -36,10 +34,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
+import org.apache.hadoop.yarn.util.SecurityUtil;
 
 public class JobHistoryUtils {
   
@@ -151,12 +150,10 @@ public class JobHistoryUtils {
    * @param conf
    * @return A string representation of the prefix.
    */
-  public static String getConfiguredHistoryLogDirPrefix(Configuration conf) {
-    String defaultLogDir = conf.get(
-        //TODO Change this to staging directory
-        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, "/tmp") + "/history/staging";
-    String logDir = conf.get(JHConfig.HISTORY_STAGING_DIR_KEY,
-      defaultLogDir);
+  public static String getConfiguredHistoryLogDirPrefix(Configuration conf) throws IOException {
+    String user = UserGroupInformation.getCurrentUser().getShortUserName();
+    Path path = SecurityUtil.getStagingAreaDir(conf, user);
+    String logDir = path.toString();
     return logDir;
   }
   
@@ -165,12 +162,12 @@ public class JobHistoryUtils {
    * @param conf
    * @return A string representation of the prefix.
    */
-  public static String getConfiguredHistoryIntermediateDoneDirPrefix(Configuration conf) {
-    String defaultDoneDir = conf.get(
-        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, "/tmp") + "/history/done_intermediate";
+  public static String getConfiguredHistoryIntermediateDoneDirPrefix(Configuration conf) throws IOException {
     String  doneDirPrefix =
-      conf.get(JHConfig.HISTORY_INTERMEDIATE_DONE_DIR_KEY,
-          defaultDoneDir);
+      conf.get(JHConfig.HISTORY_INTERMEDIATE_DONE_DIR_KEY);
+    if (doneDirPrefix == null) {
+      doneDirPrefix = conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done_intermediate";
+    }
     return doneDirPrefix;
   }
   
@@ -179,33 +176,23 @@ public class JobHistoryUtils {
    * @param conf
    * @return
    */
-  public static String getConfiguredHistoryServerDoneDirPrefix(Configuration conf) {
-    String defaultDoneDir = conf.get(
-        YARNApplicationConstants.APPS_HISTORY_STAGING_DIR_KEY, "/tmp") + "/history/done";
+  public static String getConfiguredHistoryServerDoneDirPrefix(Configuration conf) throws IOException {
     String  doneDirPrefix =
-      conf.get(JHConfig.HISTORY_DONE_DIR_KEY,
-          defaultDoneDir);
-    return getCurrentDoneDir(doneDirPrefix);
+      conf.get(JHConfig.HISTORY_DONE_DIR_KEY);
+    if (doneDirPrefix == null) {
+      doneDirPrefix = conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
+    }
+    return doneDirPrefix;
   }
 
-  /**
-   * Gets the user directory for In progress history files.
-   * @param conf
-   * @return
-   */
-  public static String getHistoryLogDirForUser(Configuration conf) {
-    return getConfiguredHistoryLogDirPrefix(conf) + File.separator
-        + conf.get(MRJobConfig.USER_NAME);
-  }
-  
   /**
    * Gets the user directory for intermediate done history files.
    * @param conf
    * @return
    */
-  public static String getHistoryIntermediateDoneDirForUser(Configuration conf) {
+  public static String getHistoryIntermediateDoneDirForUser(Configuration conf) throws IOException {
     return getConfiguredHistoryIntermediateDoneDirPrefix(conf) + File.separator
-        + conf.get(MRJobConfig.USER_NAME);
+        + UserGroupInformation.getCurrentUser().getShortUserName();
   }
 
   public static boolean shouldCreateNonUserDirectory(Configuration conf) {

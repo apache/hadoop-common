@@ -11,10 +11,6 @@ public class JHConfig {
   
   public static final String DEFAULT_HS_BIND_ADDRESS = "0.0.0.0:10020";
 
-  /** Staging Dir for AppMaster **/
-  public static final String HISTORY_STAGING_DIR_KEY =
-       "yarn.historyfile.stagingDir";
-
   /** Done Dir for for AppMaster **/
   public static final String HISTORY_INTERMEDIATE_DONE_DIR_KEY =
        "yarn.historyfile.intermediateDoneDir";

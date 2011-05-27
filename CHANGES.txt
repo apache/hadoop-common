@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    
+    Bugfix for using user staging directory for history files (siddharth seth via mahadev)
 
     MAPREDUCE-2536. Backporting changes to MR-279.
    
