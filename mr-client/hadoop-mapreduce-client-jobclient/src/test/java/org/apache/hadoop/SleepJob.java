@@ -224,7 +224,7 @@ public class SleepJob extends Configured implements Tool {
     job.setOutputFormatClass(NullOutputFormat.class);
     job.setInputFormatClass(SleepInputFormat.class);
     job.setPartitionerClass(SleepJobPartitioner.class);
-    job.setSpeculativeExecution(true);
+    job.setSpeculativeExecution(false);
     job.setJobName("Sleep job");
     FileInputFormat.addInputPath(job, new Path("ignored"));
     return job;

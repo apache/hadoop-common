@@ -131,6 +131,11 @@ public class MRApp extends MRAppMaster {
     conf.set(MRJobConfig.USER_NAME, user);
     conf.set(YARNApplicationConstants.APPS_STAGING_DIR_KEY, testAbsPath.toString());
     conf.setBoolean(JHConfig.CREATE_HISTORY_INTERMEDIATE_BASE_DIR_KEY, true);
+    //TODO: fix the bug where the speculator gets events with 
+    //not-fully-constructed objects. For now, disable speculative exec
+    LOG.info("****DISABLING SPECULATIVE EXECUTION*****");
+    conf.setBoolean(MRJobConfig.MAP_SPECULATIVE, false);
+    conf.setBoolean(MRJobConfig.REDUCE_SPECULATIVE, false);
 
     init(conf);
     start();
