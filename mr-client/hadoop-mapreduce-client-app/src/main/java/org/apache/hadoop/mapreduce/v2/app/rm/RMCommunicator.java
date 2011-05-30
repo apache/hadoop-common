@@ -26,6 +26,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.mapreduce.v2.app.AMConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.net.NetUtils;
@@ -85,9 +86,9 @@ public class RMCommunicator extends AbstractService  {
   @Override
   public void init(Configuration conf) {
     super.init(conf);
-    rmPollInterval = 
-      conf.getInt(YARNApplicationConstants.AM_RM_SCHEDULE_INTERVAL, 
-          YARNApplicationConstants.DEFAULT_AM_RM_SCHEDULE_INTERVAL);
+    rmPollInterval =
+        conf.getInt(AMConstants.AM_RM_SCHEDULE_INTERVAL,
+            AMConstants.DEFAULT_AM_RM_SCHEDULE_INTERVAL);
   }
 
   @Override

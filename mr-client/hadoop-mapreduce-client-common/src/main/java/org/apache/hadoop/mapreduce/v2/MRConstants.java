@@ -24,26 +24,29 @@ import org.apache.hadoop.classification.InterfaceStability;
 
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class YarnMRJobConfig {
-  public static final String YARN_MR_PREFIX = "yarn.mapreduce.job.";
-  public static final String SPECULATOR_CLASS
-      = YARN_MR_PREFIX + "speculator.class";
-  public static final String TASK_RUNTIME_ESTIMATOR_CLASS
-      = YARN_MR_PREFIX + "task.runtime.estimator.class";
-  public static final String TASK_ATTEMPT_PROGRESS_RUNTIME_LINEARIZER_CLASS
-      = YARN_MR_PREFIX + "task.runtime.linearizer.class";
-  public static final String EXPONENTIAL_SMOOTHING_LAMBDA_MILLISECONDS
-      = YARN_MR_PREFIX + "task.runtime.estimator.exponential.smooth.lambda";
-  public static final String EXPONENTIAL_SMOOTHING_SMOOTH_RATE
-      = YARN_MR_PREFIX + "task.runtime.estimator.exponential.smooth.smoothsrate";
-  public static final String RECOVERY_ENABLE
-      = YARN_MR_PREFIX + "recovery.enable";
-  
-  public static final String AM_TASK_LISTENER_THREADS =
-    YARN_MR_PREFIX + "task.listener.threads";
-  public static final int DEFAULT_AM_TASK_LISTENER_THREADS = 10;
+public interface MRConstants {
 
-  public static final String AM_JOB_CLIENT_THREADS =
-    YARN_MR_PREFIX + "job.client.threads";
-  public static final int DEFAULT_AM_JOB_CLIENT_THREADS = 1;
+  public static final String YARN_MR_PREFIX = "yarn.mapreduce.job.";
+
+  // This should be the directory where splits file gets localized on the node
+  // running ApplicationMaster.
+  public static final String JOB_SUBMIT_DIR = "jobSubmitDir";
+  
+  // This should be the name of the localized job-configuration file on the node
+  // running ApplicationMaster and Task
+  public static final String JOB_CONF_FILE = "job.xml";
+  // This should be the name of the localized job-jar file on the node running
+  // individual containers/tasks.
+  public static final String JOB_JAR = "job.jar";
+
+  public static final String HADOOP_MAPREDUCE_CLIENT_APP_JAR_NAME =
+      "hadoop-mapreduce-client-app-1.0-SNAPSHOT.jar";
+
+  public static final String YARN_MAPREDUCE_APP_JAR_PATH =
+    "$YARN_HOME/modules/" + HADOOP_MAPREDUCE_CLIENT_APP_JAR_NAME;
+
+  public static final String APPS_STAGING_DIR_KEY = "yarn.apps.stagingDir";
+
+  public static final String NM_HOSTS_CONF_KEY = "NM_HOSTS";
+
 }

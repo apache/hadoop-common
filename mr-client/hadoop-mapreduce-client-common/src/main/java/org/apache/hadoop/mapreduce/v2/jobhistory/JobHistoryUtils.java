@@ -35,7 +35,9 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.util.SecurityUtil;
@@ -152,7 +154,7 @@ public class JobHistoryUtils {
    */
   public static String getConfiguredHistoryLogDirPrefix(Configuration conf) throws IOException {
     String user = UserGroupInformation.getCurrentUser().getShortUserName();
-    Path path = SecurityUtil.getStagingAreaDir(conf, user);
+    Path path = MRApps.getStagingAreaDir(conf, user);
     String logDir = path.toString();
     return logDir;
   }
@@ -166,7 +168,9 @@ public class JobHistoryUtils {
     String  doneDirPrefix =
       conf.get(JHConfig.HISTORY_INTERMEDIATE_DONE_DIR_KEY);
     if (doneDirPrefix == null) {
-      doneDirPrefix = conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done_intermediate";
+      doneDirPrefix =
+          conf.get(MRConstants.APPS_STAGING_DIR_KEY)
+              + "/history/done_intermediate";
     }
     return doneDirPrefix;
   }
@@ -180,7 +184,8 @@ public class JobHistoryUtils {
     String  doneDirPrefix =
       conf.get(JHConfig.HISTORY_DONE_DIR_KEY);
     if (doneDirPrefix == null) {
-      doneDirPrefix = conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY) + "/history/done";
+      doneDirPrefix =
+          conf.get(MRConstants.APPS_STAGING_DIR_KEY) + "/history/done";
     }
     return doneDirPrefix;
   }

@@ -28,6 +28,9 @@ import java.io.InputStreamReader;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
@@ -164,4 +167,11 @@ public class MRApps extends Apps {
   }
 
   public static final String CLASSPATH = "CLASSPATH";
+
+  private static final String STAGING_CONSTANT = ".staging";
+  public static Path getStagingAreaDir(Configuration conf, String user) {
+    return new Path(
+        conf.get(MRConstants.APPS_STAGING_DIR_KEY) + 
+        Path.SEPARATOR + user + Path.SEPARATOR + STAGING_CONSTANT);
+  }
 }

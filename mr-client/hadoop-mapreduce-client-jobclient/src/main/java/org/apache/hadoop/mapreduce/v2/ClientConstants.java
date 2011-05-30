@@ -16,11 +16,16 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.mapreduce.v2.app;
+package org.apache.hadoop.mapreduce.v2;
 
-public interface MRAppMasterConstants {
+public interface ClientConstants {
 
-  public static final String CONTAINERLAUNCHER_THREADPOOL_SIZE =
-      "yarn.mapreduce.containerlauncher.threadpool-size";
+  public static final String MR_APPMASTER_COMMAND_OPTS =
+      "yarn.appMaster.commandOpts";
 
+  public static final String DEFAULT_MR_APPMASTER_COMMAND_OPTS = "-Xmx1536m";
+
+  public static final String MR_APPMASTER_LOG_OPTS = "yarn.appMaster.logOpts";
+
+  public static final String DEFAULT_MR_APPMASTER_LOG_OPTS = "INFO";
 }

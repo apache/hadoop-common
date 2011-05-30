@@ -18,48 +18,9 @@
 
 package org.apache.hadoop.yarn.conf;
 
+// TODO: This is public API. Document.
 public class YARNApplicationConstants {
-
-  public static final String HADOOP_MAPREDUCE_CLIENT_APP_JAR_NAME =
-      "hadoop-mapreduce-client-app-1.0-SNAPSHOT.jar";
-
-  // This should be the directory where splits file gets localized on the node
-  // running ApplicationMaster.
-  public static final String JOB_SUBMIT_DIR = "jobSubmitDir";
-  
-  // This should be the name of the localized job-configuration file on the node
-  // running ApplicationMaster and Task
-  public static final String JOB_CONF_FILE = "job.xml";
-  // This should be the name of the localized job-jar file on the node running
-  // individual containers/tasks.
-  public static final String JOB_JAR = "job.jar";
-
-  public static final String NM_HOSTS_CONF_KEY = "NM_HOSTS";
-
-  public static final String APPS_STAGING_DIR_KEY = "yarn.apps.stagingDir";
-
-//  public static final String APPS_HISTORY_STAGING_DIR_KEY = "yarn.apps.history.stagingDir";
-  
-  public static final String YARN_MAPREDUCE_APP_JAR_PATH =
-      "$YARN_HOME/modules/" + HADOOP_MAPREDUCE_CLIENT_APP_JAR_NAME;
 
   public static final String LOCAL_DIR_ENV = "YARN_LOCAL_DIRS";
 
-  // TODO: Move into MR.
-  public static final String MR_APPMASTER_COMMAND_OPTS =
-      "yarn.appMaster.commandOpts";
-  
-  public static final String DEFAULT_MR_APPMASTER_COMMAND_OPTS =
-    "-Xmx1536m";
-  
-  public static final String MR_APPMASTER_LOG_OPTS =
-    "yarn.appMaster.logOpts";
-
-  public static final String DEFAULT_MR_APPMASTER_LOG_OPTS =
-    "INFO";
-  
-  public static final String AM_RM_SCHEDULE_INTERVAL = 
-    "yarn.appMaster.scheduler.interval";
-  
-  public static final int DEFAULT_AM_RM_SCHEDULE_INTERVAL = 2000;
 }

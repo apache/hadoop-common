@@ -58,6 +58,7 @@ import org.apache.hadoop.mapreduce.jobhistory.TaskAttemptUnsuccessfulCompletionE
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.app.TaskAttemptListener;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobDiagnosticsUpdateEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobEvent;
@@ -487,7 +488,7 @@ public abstract class TaskAttemptImpl implements
           remoteFS.makeQualified(new Path(remoteTask.getConf().get(
               MRJobConfig.JAR)));
       container.setLocalResource(
-          YARNApplicationConstants.JOB_JAR,
+          MRConstants.JOB_JAR,
           createLocalResource(remoteFS, recordFactory, remoteJobJar,
               LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
       LOG.info("The job-jar file on the remote FS is "
@@ -495,14 +496,15 @@ public abstract class TaskAttemptImpl implements
       // //////////// End of JobJar setup
 
       // //////////// Set up JobConf to be localized properly on the remote NM.
-      Path path = SecurityUtil.getStagingAreaDir(conf, 
-          UserGroupInformation.getCurrentUser().getShortUserName());
+      Path path =
+          MRApps.getStagingAreaDir(conf, UserGroupInformation
+              .getCurrentUser().getShortUserName());
       Path remoteJobSubmitDir =
           new Path(path, oldJobId.toString());
       Path remoteJobConfPath =
-          new Path(remoteJobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
+          new Path(remoteJobSubmitDir, MRConstants.JOB_CONF_FILE);
       container.setLocalResource(
-          YARNApplicationConstants.JOB_CONF_FILE,
+          MRConstants.JOB_CONF_FILE,
           createLocalResource(remoteFS, recordFactory, remoteJobConfPath,
               LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
       LOG.info("The job-conf file on the remote FS is "
@@ -566,8 +568,8 @@ public abstract class TaskAttemptImpl implements
     String localizedApplicationTokensFile =
         new File(workDir, YarnConfiguration.APPLICATION_TOKENS_FILE)
             .toString();
-    classPaths.add(YARNApplicationConstants.JOB_JAR);
-    classPaths.add(YARNApplicationConstants.YARN_MAPREDUCE_APP_JAR_PATH);
+    classPaths.add(MRConstants.JOB_JAR);
+    classPaths.add(MRConstants.YARN_MAPREDUCE_APP_JAR_PATH);
     classPaths.add(workDir.toString()); // TODO
 
     // Construct the actual Container

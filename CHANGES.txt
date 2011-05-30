@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Cleaning up configuration constants in mapreduce modules. (vinodkv)
+
     Fixing and reneabling TestContainerTokenSecretManager. (vinodkv)
 
     Set correct version of avro-maven-plugin that is available in

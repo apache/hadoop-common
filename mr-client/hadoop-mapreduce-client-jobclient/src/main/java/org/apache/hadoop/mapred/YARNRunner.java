@@ -56,6 +56,8 @@ import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.filecache.DistributedCache;
 import org.apache.hadoop.mapreduce.protocol.ClientProtocol;
 import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
+import org.apache.hadoop.mapreduce.v2.ClientConstants;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -271,8 +273,7 @@ public class YARNRunner implements ClientProtocol {
     LOG.info("AppMaster capability = " + capability);
     appContext.setMasterCapability(capability);
 
-    Path jobConfPath =
-        new Path(jobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
+    Path jobConfPath = new Path(jobSubmitDir, MRConstants.JOB_CONF_FILE);
     
     URL yarnUrlForJobSubmitDir =
         ConverterUtils.getYarnUrlFromPath(defaultFileContext.makeQualified(new Path(
@@ -280,21 +281,21 @@ public class YARNRunner implements ClientProtocol {
     LOG.debug("Creating setup context, jobSubmitDir url is "
         + yarnUrlForJobSubmitDir);
 
-    appContext.setResource(YARNApplicationConstants.JOB_SUBMIT_DIR,
+    appContext.setResource(MRConstants.JOB_SUBMIT_DIR,
         yarnUrlForJobSubmitDir);
 
-    appContext.setResourceTodo(YARNApplicationConstants.JOB_CONF_FILE,
+    appContext.setResourceTodo(MRConstants.JOB_CONF_FILE,
         createApplicationResource(defaultFileContext,
             jobConfPath));
-    appContext.setResourceTodo(YARNApplicationConstants.JOB_JAR,
+    appContext.setResourceTodo(MRConstants.JOB_JAR,
           createApplicationResource(defaultFileContext,
-            new Path(jobSubmitDir, YARNApplicationConstants.JOB_JAR)));
+            new Path(jobSubmitDir, MRConstants.JOB_JAR)));
     
     // TODO gross hack
     for (String s : new String[] { "job.split", "job.splitmetainfo",
         YarnConfiguration.APPLICATION_TOKENS_FILE }) {
       appContext.setResourceTodo(
-          YARNApplicationConstants.JOB_SUBMIT_DIR + "/" + s,
+          MRConstants.JOB_SUBMIT_DIR + "/" + s,
           createApplicationResource(defaultFileContext, new Path(jobSubmitDir, s)));
     }
 
@@ -320,20 +321,20 @@ public class YARNRunner implements ClientProtocol {
     String javaHome = "$JAVA_HOME";
     Vector<CharSequence> vargs = new Vector<CharSequence>(8);
     vargs.add(javaHome + "/bin/java");
-    vargs.add("-Dhadoop.root.logger=" + conf.get(YARNApplicationConstants.MR_APPMASTER_LOG_OPTS,
-        YARNApplicationConstants.DEFAULT_MR_APPMASTER_LOG_OPTS) + ",console");
+    vargs.add("-Dhadoop.root.logger="
+        + conf.get(ClientConstants.MR_APPMASTER_LOG_OPTS,
+            ClientConstants.DEFAULT_MR_APPMASTER_LOG_OPTS) + ",console");
     
-    vargs.add(conf.get(YARNApplicationConstants.MR_APPMASTER_COMMAND_OPTS,
-        YARNApplicationConstants.DEFAULT_MR_APPMASTER_COMMAND_OPTS));
+    vargs.add(conf.get(ClientConstants.MR_APPMASTER_COMMAND_OPTS,
+        ClientConstants.DEFAULT_MR_APPMASTER_COMMAND_OPTS));
 
     // Add { job jar, MR app jar } to classpath.
     Map<String, String> environment = new HashMap<String, String>();
 //    appContext.environment = new HashMap<CharSequence, CharSequence>();
     MRApps.setInitialClasspath(environment);
+    MRApps.addToClassPath(environment, MRConstants.JOB_JAR);
     MRApps.addToClassPath(environment,
-        YARNApplicationConstants.JOB_JAR);
-    MRApps.addToClassPath(environment,
-        YARNApplicationConstants.YARN_MAPREDUCE_APP_JAR_PATH);
+        MRConstants.YARN_MAPREDUCE_APP_JAR_PATH);
     appContext.addAllEnvironment(environment);
     vargs.add("org.apache.hadoop.mapreduce.v2.app.MRAppMaster");
     vargs.add(String.valueOf(applicationId.getClusterTimestamp()));

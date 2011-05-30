@@ -117,11 +117,4 @@ public class SecurityUtil {
           + " with identifer " + t.getIdentifier());
     }
   }
-  
-  private static final String STAGING_CONSTANT = ".staging";
-  public static Path getStagingAreaDir(Configuration conf, String user) {
-    return new Path(
-        conf.get(YARNApplicationConstants.APPS_STAGING_DIR_KEY) + 
-        Path.SEPARATOR + user + Path.SEPARATOR + STAGING_CONSTANT);
-  }
 }

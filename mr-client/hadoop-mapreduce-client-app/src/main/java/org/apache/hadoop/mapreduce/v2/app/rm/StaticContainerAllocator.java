@@ -30,6 +30,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
 import org.apache.hadoop.yarn.YarnException;
@@ -67,11 +68,11 @@ public class StaticContainerAllocator extends AbstractService
   protected List<String> getContainerMgrList(Configuration conf)
       throws IOException {
     Path jobSubmitDir = FileContext.getLocalFSFileContext().makeQualified(
-        new Path(new File(YARNApplicationConstants.JOB_SUBMIT_DIR).getAbsolutePath()));
-    Path jobConfFile = new Path(jobSubmitDir, YARNApplicationConstants.JOB_CONF_FILE);
+        new Path(new File(MRConstants.JOB_SUBMIT_DIR).getAbsolutePath()));
+    Path jobConfFile = new Path(jobSubmitDir, MRConstants.JOB_CONF_FILE);
     conf.addResource(jobConfFile);
     String[] containerMgrHosts = 
-      conf.getStrings(YARNApplicationConstants.NM_HOSTS_CONF_KEY);
+      conf.getStrings(MRConstants.NM_HOSTS_CONF_KEY);
     return Arrays.asList(containerMgrHosts);
   }
 

@@ -34,12 +34,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+import org.apache.hadoop.mapreduce.v2.app.AMConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
@@ -116,7 +117,7 @@ public class DefaultSpeculator extends AbstractService implements
     try {
       // "yarn.mapreduce.job.task.runtime.estimator.class"
       Class<? extends TaskRuntimeEstimator> estimatorClass
-          = conf.getClass(YarnMRJobConfig.TASK_RUNTIME_ESTIMATOR_CLASS,
+          = conf.getClass(AMConstants.TASK_RUNTIME_ESTIMATOR_CLASS,
                           LegacyTaskRuntimeEstimator.class,
                           TaskRuntimeEstimator.class);
 

@@ -39,7 +39,7 @@ import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
-import org.apache.hadoop.mapreduce.v2.YarnMRJobConfig;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
@@ -77,7 +77,6 @@ import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.SystemClock;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
@@ -143,7 +142,7 @@ public class MRAppMaster extends CompositeService {
   public void init(final Configuration conf) {
     context = new RunningAppContext(); 
 
-     if (conf.getBoolean(YarnMRJobConfig.RECOVERY_ENABLE, false) 
+     if (conf.getBoolean(AMConstants.RECOVERY_ENABLE, false) 
          && startCount > 1) {
       LOG.info("Recovery is enabled. Will try to recover from previous life.");
       Recovery recoveryServ = new RecoveryService(appID, clock, startCount);
@@ -201,7 +200,7 @@ public class MRAppMaster extends CompositeService {
       try {
         Path jobSubmitDir =
             FileContext.getLocalFSFileContext().makeQualified(
-                new Path(new File(YARNApplicationConstants.JOB_SUBMIT_DIR)
+                new Path(new File(MRConstants.JOB_SUBMIT_DIR)
                     .getAbsolutePath()));
         Path jobTokenFile =
             new Path(jobSubmitDir, YarnConfiguration.APPLICATION_TOKENS_FILE);
@@ -339,7 +338,7 @@ public class MRAppMaster extends CompositeService {
     try {
       speculatorClass
           // "yarn.mapreduce.job.speculator.class"
-          = conf.getClass(YarnMRJobConfig.SPECULATOR_CLASS,
+          = conf.getClass(AMConstants.SPECULATOR_CLASS,
                           DefaultSpeculator.class,
                           Speculator.class);
       Constructor<? extends Speculator> speculatorConstructor
@@ -350,19 +349,19 @@ public class MRAppMaster extends CompositeService {
       return result;
     } catch (InstantiationException ex) {
       LOG.error("Can't make a speculator -- check "
-          + YarnMRJobConfig.SPECULATOR_CLASS + " " + ex);
+          + AMConstants.SPECULATOR_CLASS + " " + ex);
       throw new YarnException(ex);
     } catch (IllegalAccessException ex) {
       LOG.error("Can't make a speculator -- check "
-          + YarnMRJobConfig.SPECULATOR_CLASS + " " + ex);
+          + AMConstants.SPECULATOR_CLASS + " " + ex);
       throw new YarnException(ex);
     } catch (InvocationTargetException ex) {
       LOG.error("Can't make a speculator -- check "
-          + YarnMRJobConfig.SPECULATOR_CLASS + " " + ex);
+          + AMConstants.SPECULATOR_CLASS + " " + ex);
       throw new YarnException(ex);
     } catch (NoSuchMethodException ex) {
       LOG.error("Can't make a speculator -- check "
-          + YarnMRJobConfig.SPECULATOR_CLASS + " " + ex);
+          + AMConstants.SPECULATOR_CLASS + " " + ex);
       throw new YarnException(ex);
     }
   }
@@ -534,7 +533,7 @@ public class MRAppMaster extends CompositeService {
       int failCount = Integer.valueOf(args[2]);
       MRAppMaster appMaster = new MRAppMaster(applicationId, ++failCount);
       YarnConfiguration conf = new YarnConfiguration(new JobConf());
-      conf.addResource(new Path(YARNApplicationConstants.JOB_CONF_FILE));
+      conf.addResource(new Path(MRConstants.JOB_CONF_FILE));
       conf.set(MRJobConfig.USER_NAME, 
           System.getProperty("user.name")); 
       UserGroupInformation.setConfiguration(conf);

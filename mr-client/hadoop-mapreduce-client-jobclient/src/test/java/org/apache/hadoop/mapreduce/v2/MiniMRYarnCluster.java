@@ -49,7 +49,7 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
 
   public static final String APPJAR =
     "../hadoop-mapreduce-client-app/target/"
-        + YARNApplicationConstants.HADOOP_MAPREDUCE_CLIENT_APP_JAR_NAME;
+        + MRConstants.HADOOP_MAPREDUCE_CLIENT_APP_JAR_NAME;
 
   private static final Log LOG = LogFactory.getLog(MiniMRYarnCluster.class);
   private JobHistoryServer historyServer;
@@ -66,11 +66,10 @@ public class MiniMRYarnCluster extends MiniYARNCluster {
   public void init(Configuration conf) {
     conf.setClass("mapreduce.clientfactory.class.name",
         YarnClientFactory.class, ClientFactory.class);
-    conf.setStrings(YARNApplicationConstants.NM_HOSTS_CONF_KEY,
+    conf.setStrings(MRConstants.NM_HOSTS_CONF_KEY,
         new String[] { NMConfig.DEFAULT_NM_BIND_ADDRESS });
     conf.set(MRJobConfig.USER_NAME, System.getProperty("user.name"));
-    conf.set(YARNApplicationConstants.APPS_STAGING_DIR_KEY, new File(
-        getTestWorkDir(),
+    conf.set(MRConstants.APPS_STAGING_DIR_KEY, new File(getTestWorkDir(),
         "apps_staging_dir/${user.name}/").getAbsolutePath());
     conf.set(MRConfig.MASTER_ADDRESS, "test"); // The default is local because of
                                              // which shuffle doesn't happen

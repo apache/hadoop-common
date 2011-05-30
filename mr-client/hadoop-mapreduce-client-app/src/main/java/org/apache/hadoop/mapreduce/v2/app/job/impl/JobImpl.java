@@ -63,6 +63,7 @@ import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
 import org.apache.hadoop.mapreduce.split.SplitMetaInfoReader;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.Counter;
 import org.apache.hadoop.mapreduce.v2.api.records.CounterGroup;
 import org.apache.hadoop.mapreduce.v2.api.records.Counters;
@@ -89,6 +90,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskEventType;
+import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
@@ -889,7 +891,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       String oldJobIDString = job.oldJobId.toString();
       String user = 
         UserGroupInformation.getCurrentUser().getShortUserName();
-      Path path = SecurityUtil.getStagingAreaDir(job.conf, user);
+      Path path = MRApps.getStagingAreaDir(job.conf, user);
       LOG.info("DEBUG --- startJobs:"
           + " parent="
           + path + " child="
@@ -897,11 +899,9 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
       job.remoteJobSubmitDir =
           FileSystem.get(job.conf).makeQualified(
-              new Path(
-                  path, oldJobIDString));
+              new Path(path, oldJobIDString));
       job.remoteJobConfFile =
-          new Path(job.remoteJobSubmitDir,
-              YARNApplicationConstants.JOB_CONF_FILE);
+          new Path(job.remoteJobSubmitDir, MRConstants.JOB_CONF_FILE);
 
       // Prepare the TaskAttemptListener server for authentication of Containers
       // TaskAttemptListener gets the information via jobTokenSecretManager.

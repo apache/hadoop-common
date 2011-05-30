@@ -38,6 +38,8 @@ import org.apache.hadoop.mapreduce.QueueInfo;
 import org.apache.hadoop.mapreduce.TaskTrackerInfo;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
+import org.apache.hadoop.mapreduce.v2.MRConstants;
+import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -248,15 +250,14 @@ public class ResourceMgrDelegate {
 //    Path path = new Path(MRJobConstants.JOB_SUBMIT_DIR);
     String user = 
       UserGroupInformation.getCurrentUser().getShortUserName();
-    Path path = SecurityUtil.getStagingAreaDir(conf, user);
+    Path path = MRApps.getStagingAreaDir(conf, user);
     LOG.info("DEBUG --- getStagingAreaDir: dir=" + path);
     return path.toString();
   }
 
 
   public String getSystemDir() throws IOException, InterruptedException {
-    Path sysDir = new Path(
-        YARNApplicationConstants.JOB_SUBMIT_DIR);
+    Path sysDir = new Path(MRConstants.JOB_SUBMIT_DIR);
     //FileContext.getFileContext(conf).delete(sysDir, true);
     return sysDir.toString();
   }
