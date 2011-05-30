@@ -26,7 +26,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.MRJobConfig;
-import org.apache.hadoop.mapreduce.v2.MRConstants;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
@@ -35,6 +36,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
+import org.apache.hadoop.yarn.event.EventHandler;
 import org.junit.Test;
 
 public class TestRecovery {
@@ -44,7 +46,7 @@ public class TestRecovery {
   @Test
   public void testCrashed() throws Exception {
     int runCount = 0;
-    MRApp app = new MRApp(2, 1, false, this.getClass().getName(), true, ++runCount);
+    MRApp app = new MRAppWithHistory(2, 1, false, this.getClass().getName(), true, ++runCount);
     Configuration conf = new Configuration();
     conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
     Job job = app.submit(conf);
@@ -127,7 +129,7 @@ public class TestRecovery {
     
     //rerun
     //in rerun the 1st map will be recovered from previous run
-    app = new MRApp(2, 1, false, this.getClass().getName(), false, ++runCount);
+    app = new MRAppWithHistory(2, 1, false, this.getClass().getName(), false, ++runCount);
     conf = new Configuration();
     conf.setBoolean(AMConstants.RECOVERY_ENABLE, true);
     conf.setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
@@ -178,6 +180,21 @@ public class TestRecovery {
         task1FinishTime, mapTask1.getReport().getFinishTime());
   }
 
+  class MRAppWithHistory extends MRApp {
+    public MRAppWithHistory(int maps, int reduces, boolean autoComplete,
+        String testName, boolean cleanOnStart, int startCount) {
+      super(maps, reduces, autoComplete, testName, cleanOnStart, startCount);
+    }
+
+    @Override
+    protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
+        AppContext context) {
+      JobHistoryEventHandler eventHandler = new JobHistoryEventHandler(context, 
+          getStartCount());
+      return eventHandler;
+    }
+  }
+  
   public static void main(String[] arg) throws Exception {
     TestRecovery test = new TestRecovery();
     test.testCrashed();

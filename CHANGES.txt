@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixing NPE on speculator in MRAppMaster and making job-history optional in
+    tests to make test goal succeed. (vinodk and sharadag).
+
     Cleaning up configuration constants in mapreduce modules. (vinodkv)
 
     Fixing and reneabling TestContainerTokenSecretManager. (vinodkv)

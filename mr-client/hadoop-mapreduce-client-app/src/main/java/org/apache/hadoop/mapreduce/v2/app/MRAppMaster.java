@@ -188,11 +188,10 @@ public class MRAppMaster extends CompositeService {
       //optional service to speculate on task attempts' progress
       speculator = createSpeculator(conf, context);
       addIfService(speculator);
-      dispatcher.register(Speculator.EventType.class, speculator);
-    } else {
-      dispatcher.register
-          (Speculator.EventType.class, new NullSpeculatorEventHandler());
     }
+
+    dispatcher.register(Speculator.EventType.class,
+        new SpeculatorEventDispatcher());
 
     Credentials fsTokens = new Credentials();
     if (UserGroupInformation.isSecurityEnabled()) {
@@ -233,6 +232,11 @@ public class MRAppMaster extends CompositeService {
     JobEvent initJobEvent = new JobEvent(job.getID(), JobEventType.JOB_INIT);
     /** send init to the job (this does NOT trigger job execution) */
     synchronousJobEventDispatcher.handle(initJobEvent);
+
+    // send init to speculator. This won't yest start as dispatcher isn't
+    // started yet.
+    dispatcher.getEventHandler().handle(
+        new SpeculatorEvent(job.getID(), clock.getTime()));
 
     // JobImpl's InitTransition is done (call above is synchronous), so the
     // "uber-decision" (MR-1220) has been made.  Query job and switch to
@@ -276,7 +280,6 @@ public class MRAppMaster extends CompositeService {
         completedTasksFromPreviousRun, metrics);
     ((RunningAppContext) context).jobs.put(newJob.getID(), newJob);
 
-    speculator.handle(new SpeculatorEvent(newJob.getID(), clock.getTime()));
     dispatcher.register(JobFinishEvent.Type.class,
         new EventHandler<JobFinishEvent>() {
           @Override
@@ -310,14 +313,6 @@ public class MRAppMaster extends CompositeService {
 
     return newJob;
   } // end createJob()
-
-  static class NullSpeculatorEventHandler
-      implements EventHandler<SpeculatorEvent> {
-    @Override
-    public void handle(SpeculatorEvent event) {
-      // no code
-    }
-  }
 
   protected void addIfService(Object object) {
     if (object instanceof Service) {
@@ -415,11 +410,6 @@ public class MRAppMaster extends CompositeService {
 
   public Set<TaskId> getCompletedTaskFromPreviousRun() {
     return completedTasksFromPreviousRun;
-  }
-
-  //Returns null if speculation is not enabled
-  public Speculator getSpeculator() {
-    return speculator;
   }
 
   public ContainerAllocator getContainerAllocator() {
@@ -520,6 +510,18 @@ public class MRAppMaster extends CompositeService {
       Task task = job.getTask(event.getTaskAttemptID().getTaskId());
       TaskAttempt attempt = task.getAttempt(event.getTaskAttemptID());
       ((EventHandler<TaskAttemptEvent>) attempt).handle(event);
+    }
+  }
+
+  private class SpeculatorEventDispatcher implements
+      EventHandler<SpeculatorEvent> {
+    @Override
+    public void handle(SpeculatorEvent event) {
+      if (getConfig().getBoolean(MRJobConfig.MAP_SPECULATIVE, false)
+          || getConfig().getBoolean(MRJobConfig.REDUCE_SPECULATIVE, false)) {
+        // Speculator IS enabled, direct the event to there.
+        speculator.handle(event);
+      }
     }
   }
 

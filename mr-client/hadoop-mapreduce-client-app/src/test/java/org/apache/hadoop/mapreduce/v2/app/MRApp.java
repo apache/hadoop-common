@@ -32,6 +32,7 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.WrappedJvmID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
 import org.apache.hadoop.mapreduce.security.token.JobTokenSecretManager;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
 import org.apache.hadoop.mapreduce.v2.MRConstants;
@@ -265,6 +266,16 @@ public class MRApp extends MRAppMaster {
     };
   }
 
+  @Override
+  protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
+      AppContext context) {//disable history
+    return new EventHandler<JobHistoryEvent>() {
+      @Override
+      public void handle(JobHistoryEvent event) {
+      }
+    };
+  }
+  
   @Override
   protected ContainerLauncher createContainerLauncher(AppContext context,
                                                       boolean isLocal) {

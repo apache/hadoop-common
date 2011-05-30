@@ -27,6 +27,8 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
+import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEventHandler;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
@@ -34,10 +36,12 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.MRApp;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
 import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
+import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.Service;
 import org.junit.Test;
 
@@ -48,7 +52,7 @@ public class TestJobHistoryEvents {
   public void testHistoryEvents() throws Exception {
     Configuration conf = new Configuration();
     conf.set(MRJobConfig.USER_NAME, "test");
-    MRApp app = new MRApp(2, 1, true, this.getClass().getName(), true);
+    MRApp app = new MRAppWithHistory(2, 1, true, this.getClass().getName(), true);
     app.submit(conf);
     Job job = app.getContext().getAllJobs().values().iterator().next();
     JobId jobId = job.getID();
@@ -103,6 +107,21 @@ public class TestJobHistoryEvents {
         TaskAttemptState.SUCCEEDED, attempt.getState());
   }
 
+  static class MRAppWithHistory extends MRApp {
+    public MRAppWithHistory(int maps, int reduces, boolean autoComplete,
+        String testName, boolean cleanOnStart) {
+      super(maps, reduces, autoComplete, testName, cleanOnStart);
+    }
+
+    @Override
+    protected EventHandler<JobHistoryEvent> createJobHistoryHandler(
+        AppContext context) {
+      JobHistoryEventHandler eventHandler = new JobHistoryEventHandler(context, 
+          getStartCount());
+      return eventHandler;
+    }
+  }
+  
   public static void main(String[] args) throws Exception {
     TestJobHistoryEvents t = new TestJobHistoryEvents();
     t.testHistoryEvents();
