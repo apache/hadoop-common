@@ -448,7 +448,8 @@ public class FifoScheduler implements ResourceScheduler {
                 node.getHttpAddress(), capability);
         // If security is enabled, send the container-tokens too.
         if (UserGroupInformation.isSecurityEnabled()) {
-          ContainerToken containerToken = recordFactory.newRecordInstance(ContainerToken.class);
+          ContainerToken containerToken =
+              recordFactory.newRecordInstance(ContainerToken.class);
           ContainerTokenIdentifier tokenidentifier =
             new ContainerTokenIdentifier(container.getId(),
                 container.getContainerManagerAddress(), container.getResource());
