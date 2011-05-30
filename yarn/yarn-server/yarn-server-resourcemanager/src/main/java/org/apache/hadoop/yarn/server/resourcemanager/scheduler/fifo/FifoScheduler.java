@@ -177,31 +177,41 @@ public class FifoScheduler implements ResourceScheduler {
           "or non existant application " + applicationId);
       return new Allocation(EMPTY_CONTAINER_LIST, Resources.none()); 
     }
+
+    // Sanity check
     normalizeRequests(ask);
+    
+    List<Container> allocatedContainers = null;
+    Resource limit = null;
+    synchronized (application) {
 
-    LOG.debug("allocate: pre-update" +
-        " applicationId=" + applicationId + 
-        " application=" + application);
-    application.showRequests();
+      LOG.debug("allocate: pre-update" +
+          " applicationId=" + applicationId + 
+          " application=" + application);
+      application.showRequests();
 
-    // Update application requests
-    application.updateResourceRequests(ask);
+      // Update application requests
+      application.updateResourceRequests(ask);
 
-    // Release containers
-    releaseContainers(application, release);
+      // Release containers
+      releaseContainers(application, release);
 
-    LOG.debug("allocate: post-update" +
-        " applicationId=" + applicationId + 
-        " application=" + application);
-    application.showRequests();
+      LOG.debug("allocate: post-update" +
+          " applicationId=" + applicationId + 
+          " application=" + application);
+      application.showRequests();
 
-    List<Container> allContainers = application.acquire();
-    LOG.debug("allocate:" +
-        " applicationId=" + applicationId + 
-        " #ask=" + ask.size() + 
-        " #release=" + release.size() +
-        " #allContainers=" + allContainers.size());
-    return new Allocation(allContainers, application.getResourceLimit());
+      allocatedContainers = application.acquire();
+      limit = application.getResourceLimit();
+      LOG.debug("allocate:" +
+          " applicationId=" + applicationId + 
+          " #ask=" + ask.size() + 
+          " #release=" + release.size() +
+          " #allocatedContainers=" + allocatedContainers.size() + 
+          " limit=" + limit);
+    }
+    
+    return new Allocation(allocatedContainers, limit);
   }
 
   private void releaseContainers(Application application, List<Container> release) {
@@ -251,11 +261,11 @@ public class FifoScheduler implements ResourceScheduler {
 
     // Release current containers
     releaseContainers(application, application.getCurrentContainers());
-    application.clearRequests();
-    // Update metrics
+    
+    // Clean up pending requests, metrics etc.
+    application.stop();
+    
     if (finishApplication) {
-      metrics.finishApp(application);
-      application.finish();
       // Let the cluster know that the applications are done
       finishedApplication(applicationId, 
           application.getAllNodesForApplication());

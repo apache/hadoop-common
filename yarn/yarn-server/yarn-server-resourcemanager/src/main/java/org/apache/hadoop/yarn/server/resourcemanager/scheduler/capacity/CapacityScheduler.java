@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -107,9 +108,10 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   private Resource minimumAllocation;
 
-  private Map<ApplicationId, Application> applications = 
+  private Map<ApplicationId, Application> applications =
+    Collections.synchronizedMap(
     new TreeMap<ApplicationId, Application>(
-        new BuilderUtils.ApplicationIdComparator());
+        new BuilderUtils.ApplicationIdComparator()));
 
   private boolean initialized = false;
 
@@ -268,22 +270,26 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public void addApplication(ApplicationId applicationId, ApplicationMaster master,
+  public synchronized void addApplication(
+      ApplicationId applicationId, ApplicationMaster master,
       String user, String queueName, Priority priority, ApplicationStore appStore)
   throws IOException {
+    // Sanity checks
     Queue queue = queues.get(queueName);
-
     if (queue == null) {
       throw new IOException("Application " + applicationId + 
           " submitted by user " + user + " to unknown queue: " + queueName);
     }
-
     if (!(queue instanceof LeafQueue)) {
       throw new IOException("Application " + applicationId + 
           " submitted by user " + user + " to non-leaf queue: " + queueName);
     }
 
-    Application application = new Application(applicationId, master, queue, user, appStore); 
+    // Create the application
+    Application application = 
+      new Application(applicationId, master, queue, user, appStore);
+    
+    // Submit to the queue
     try {
       queue.submitApplication(application, user, queueName, priority);
     } catch (AccessControlException ace) {
@@ -299,8 +305,12 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public void doneApplication(ApplicationId applicationId, boolean finishApplication)
+  public synchronized void doneApplication(
+      ApplicationId applicationId, boolean finishApplication)
   throws IOException {
+    LOG.info("Application " + applicationId + " is done." +
+    		" finish=" + finishApplication);
+    
     Application application = getApplication(applicationId);
 
     if (application == null) {
@@ -310,20 +320,17 @@ implements ResourceScheduler, CapacitySchedulerContext {
       return;
     }
     
-    /*
-     * release all the containes and make sure we clean up the pending 
-     * requests for this application
-     */
+    // Release all the running containers 
     processReleasedContainers(application, application.getCurrentContainers());
-    application.clearRequests();
     
-    /*
-     * release all reserved containers
-     */
+     // Release all reserved containers
     releaseReservedContainers(application);
     
+    // Clean up pending requests, metrics etc.
+    application.stop();
+    
     /** The application can be retried. So only remove it from scheduler data
-     * structures if the finishapplication flag is set.
+     * structures if the finishApplication flag is set.
      */
     if (finishApplication) {
       Queue queue = queues.get(application.getQueue().getQueueName());
@@ -347,29 +354,42 @@ implements ResourceScheduler, CapacitySchedulerContext {
       return new Allocation(EMPTY_CONTAINER_LIST, Resources.none()); 
     }
     
+    // Sanity check
     normalizeRequests(ask);
 
-    LOG.info("DEBUG --- allocate: pre-update" +
-        " applicationId=" + applicationId + 
-        " application=" + application);
-    application.showRequests();
+    List<Container> allocatedContainers = null;
+    Resource limit = null;
+    synchronized (application) {
 
-    // Update application requests
-    application.updateResourceRequests(ask);
+      LOG.info("DEBUG --- allocate: pre-update" +
+          " applicationId=" + applicationId + 
+          " application=" + application);
+      application.showRequests();
 
-    // Release ununsed containers and update queue capacities
-    processReleasedContainers(application, release);
+      // Update application requests
+      application.updateResourceRequests(ask);
 
-    LOG.info("DEBUG --- allocate: post-update");
-    application.showRequests();
+      // Release ununsed containers and update queue capacities
+      processReleasedContainers(application, release);
 
-    List<Container> allContainers = application.acquire();
-    LOG.info("DEBUG --- allocate:" +
-        " applicationId=" + applicationId + 
-        " #ask=" + ask.size() + 
-        " #release=" + release.size() +
-        " #allContainers=" + allContainers.size());
-    return new Allocation(allContainers, application.getResourceLimit());
+      LOG.info("DEBUG --- allocate: post-update");
+      application.showRequests();
+
+      // Acquire containers
+      allocatedContainers = application.acquire();
+      
+      // Resource limit
+      limit = application.getResourceLimit();
+      LOG.info("DEBUG --- allocate:" +
+          " applicationId=" + applicationId + 
+          " #ask=" + ask.size() + 
+          " #release=" + release.size() +
+          " #allocatedContainers=" + allocatedContainers.size() +
+          " limit=" + limit);
+      
+    }
+      
+      return new Allocation(allocatedContainers, limit);
   }
 
   @Override
@@ -408,8 +428,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   private void normalizeRequest(ResourceRequest ask) {
-    int memory = ask.getCapability().getMemory();
     int minMemory = minimumAllocation.getMemory();
+    int memory = Math.max(ask.getCapability().getMemory(), minMemory);
     ask.getCapability().setMemory (
         minMemory * ((memory/minMemory) + (memory%minMemory > 0 ? 1 : 0)));
   }
@@ -526,7 +546,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     }
   }
   
-  private synchronized Application getApplication(ApplicationId applicationId) {
+  private Application getApplication(ApplicationId applicationId) {
     return applications.get(applicationId);
   }
 
@@ -542,7 +562,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
       try {
         doneApplication(event.getAppContext().getApplicationID(), true);
       } catch(IOException ie) {
-        LOG.error("Error in removing application", ie);
+        LOG.error("Error in removing 'done' application", ie);
         //TODO have to be shutdown the RM in case of this.
         // do a graceful shutdown.
       }
@@ -554,7 +574,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
          */
         doneApplication(event.getAppContext().getApplicationID(), false);
       } catch(IOException ie) {
-        LOG.error("Error in removing application", ie);
+        LOG.error("Error in removing 'expired' application", ie);
         //TODO have to be shutdown the RM in case of this.
         // do a graceful shutdown.
       }

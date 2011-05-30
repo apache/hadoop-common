@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Fixed NPE in CS by checking Application state before scheduling and fixing
+    synchronization in CS. (acmurthy)
+
     Fixing NPE on speculator in MRAppMaster and making job-history optional in
     tests to make test goal succeed. (vinodk and sharadag).
 

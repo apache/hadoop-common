@@ -451,7 +451,6 @@ public class LeafQueue implements Queue {
         " user: " + user + "," + " leaf-queue: " + getQueueName() +
         " #user-applications: " + user.getApplications() + 
         " #queue-applications: " + getNumApplications());
-
   }
 
   @Override
@@ -462,9 +461,6 @@ public class LeafQueue implements Queue {
       removeApplication(application, getUser(application.getUser()));
     }
 
-    // Clean up metrics etc.
-    application.finish();
-    
     // Inform the parent queue
     parent.finishApplication(application, queue);
   }
@@ -505,10 +501,17 @@ public class LeafQueue implements Queue {
     // Try to assign containers to applications in fifo order
     for (Application application : applications) {
 
+      if (!application.isSchedulable()) {
+        LOG.info("Application " + application.getApplicationId() + 
+            " not schedulable. State = " + application.getState());
+        continue;
+      }
+      
       LOG.info("DEBUG --- pre-assignContainers");
       application.showRequests();
 
       synchronized (application) {
+        //if (application.)
         for (Priority priority : application.getPriorities()) {
 
           // Do we need containers at this 'priority'?

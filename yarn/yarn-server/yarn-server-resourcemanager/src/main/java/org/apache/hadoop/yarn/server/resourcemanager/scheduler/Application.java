@@ -55,10 +55,12 @@ import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 @LimitedPrivate("yarn")
 @Evolving
 public class Application {
+  
   private static final Log LOG = LogFactory.getLog(Application.class);
   final ApplicationId applicationId;
   final Queue queue;
   final String user;
+  
   private final RecordFactory recordFactory = RecordFactoryProvider
       .getRecordFactory(null);
 
@@ -114,14 +116,22 @@ public class Application {
     return user;
   }
 
-  public ApplicationState getState() {
+  public synchronized ApplicationState getState() {
     return master.getState();
   }
 
-  public boolean isPending() {
+  public synchronized boolean isPending() {
     return pending;
   }
 
+  public synchronized boolean isSchedulable() {
+    ApplicationState state = getState();
+    return 
+      (state == ApplicationState.ALLOCATED || state == ApplicationState.ALLOCATING ||
+       state == ApplicationState.LAUNCHED || state == ApplicationState.LAUNCHING || 
+       state == ApplicationState.PENDING || state == ApplicationState.RUNNING);
+  }
+  
   public synchronized Map<Priority, Map<String, ResourceRequest>> getRequests() {
     return requests;
   }
@@ -131,12 +141,13 @@ public class Application {
     master.setContainerCount(++i);
     return master.getContainerCount();
   }
-
+  
   /**
    * Clear any pending requests from this application.
    */
   public synchronized void clearRequests() {
     requests.clear();
+    LOG.info("Application " + applicationId + " requests cleared");
   }
 
   /**
@@ -436,7 +447,8 @@ public class Application {
       Map<String, ResourceRequest> requests = getResourceRequests(priority);
       if (requests != null) {
         LOG.debug("showRequests:" + " application=" + applicationId + 
-            " available=" + getResourceLimit() + " current=" + currentConsumption);
+            " available=" + getResourceLimit() + 
+            " current=" + currentConsumption + " state=" + getState());
         for (ResourceRequest request : requests.values()) {
           LOG.debug("showRequests:" + " application=" + applicationId
               + " request=" + request);
@@ -456,7 +468,7 @@ public class Application {
     application.setMasterHost("");
     application.setName("");
     application.setQueue(queue.getQueueName());
-    application.setState(ApplicationState.RUNNING);
+    application.setState(org.apache.hadoop.yarn.api.records.ApplicationState.RUNNING);
     application.setUser(user);
 
     ApplicationStatus status = recordFactory
@@ -513,7 +525,7 @@ public class Application {
     return ((float) requiredResources / clusterNodes);
   }
 
-  synchronized public void finish() {
+  synchronized public void stop() {
     // clear pending resources metrics for the application
     QueueMetrics metrics = queue.getMetrics();
     for (Map<String, ResourceRequest> asks : requests.values()) {
@@ -525,6 +537,9 @@ public class Application {
       }
     }
     metrics.finishApp(this);
+    
+    // Clear requests themselves
+    clearRequests();
   }
 
   public Map<Priority, Set<NodeInfo>> getAllReservations() {
