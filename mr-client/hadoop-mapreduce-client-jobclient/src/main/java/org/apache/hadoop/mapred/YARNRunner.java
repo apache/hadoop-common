@@ -44,6 +44,7 @@ import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.JobStatus;
 import org.apache.hadoop.mapreduce.JobSubmissionFiles;
+import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.QueueAclsInfo;
 import org.apache.hadoop.mapreduce.QueueInfo;
@@ -287,9 +288,16 @@ public class YARNRunner implements ClientProtocol {
     appContext.setResourceTodo(MRConstants.JOB_CONF_FILE,
         createApplicationResource(defaultFileContext,
             jobConfPath));
-    appContext.setResourceTodo(MRConstants.JOB_JAR,
+    if (jobConf.get(MRJobConfig.JAR) != null) {
+      appContext.setResourceTodo(MRConstants.JOB_JAR,
           createApplicationResource(defaultFileContext,
-            new Path(jobSubmitDir, MRConstants.JOB_JAR)));
+              new Path(jobSubmitDir, MRConstants.JOB_JAR)));
+    } else {
+      // Job jar may be null. For e.g, for pipes, the job jar is the hadoop
+      // mapreduce jar itself which is already on the classpath.
+      LOG.info("Job jar is not present. "
+          + "Not adding any jar to the list of resources.");
+    }
     
     // TODO gross hack
     for (String s : new String[] { "job.split", "job.splitmetainfo",

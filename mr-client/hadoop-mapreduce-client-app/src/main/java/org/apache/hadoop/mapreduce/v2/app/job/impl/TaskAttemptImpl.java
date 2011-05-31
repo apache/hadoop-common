@@ -484,15 +484,22 @@ public abstract class TaskAttemptImpl implements
       FileContext remoteFS = FileContext.getFileContext(conf);
 
       // //////////// Set up JobJar to be localized properly on the remote NM.
-      Path remoteJobJar =
+      if (conf.get(MRJobConfig.JAR) != null) {
+        Path remoteJobJar =
           remoteFS.makeQualified(new Path(remoteTask.getConf().get(
               MRJobConfig.JAR)));
-      container.setLocalResource(
-          MRConstants.JOB_JAR,
-          createLocalResource(remoteFS, recordFactory, remoteJobJar,
-              LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
-      LOG.info("The job-jar file on the remote FS is "
-          + remoteJobJar.toUri().toASCIIString());
+        container.setLocalResource(
+            MRConstants.JOB_JAR,
+            createLocalResource(remoteFS, recordFactory, remoteJobJar,
+                LocalResourceType.FILE, LocalResourceVisibility.APPLICATION));
+        LOG.info("The job-jar file on the remote FS is "
+            + remoteJobJar.toUri().toASCIIString());
+      } else {
+        // Job jar may be null. For e.g, for pipes, the job jar is the hadoop
+        // mapreduce jar itself which is already on the classpath.
+        LOG.info("Job jar is not present. "
+            + "Not adding any jar to the list of resources.");
+      }
       // //////////// End of JobJar setup
 
       // //////////// Set up JobConf to be localized properly on the remote NM.
