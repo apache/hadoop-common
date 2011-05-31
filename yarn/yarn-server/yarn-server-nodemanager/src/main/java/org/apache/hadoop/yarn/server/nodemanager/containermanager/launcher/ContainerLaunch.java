@@ -27,8 +27,10 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 
 import org.apache.commons.logging.Log;
@@ -93,20 +95,31 @@ public class ContainerLaunch implements Callable<Integer> {
     try {
       // /////////////////////////// Variable expansion
       // Before the container script gets written out.
-      List<String> cmds = container.getLaunchContext().getCommandList();
-      List<String> newCmds = new ArrayList<String>(cmds.size());
-      String containerIdStr = ConverterUtils.toString(container.getContainerID());
+      List<String> newCmds = new ArrayList<String>(command.size());
+      String containerIdStr =
+          ConverterUtils.toString(container.getContainerID());
       String appIdStr = app.toString();
       Path containerLogDir =
           this.logDirsSelector.getLocalPathForWrite(appIdStr + Path.SEPARATOR
               + containerIdStr, LocalDirAllocator.SIZE_UNKNOWN, this.conf,
               false);
-      for (String str : cmds) {
+      for (String str : command) {
         newCmds.add(str.replace("<LOG_DIR>", containerLogDir.toUri()
             .getPath()));
       }
-      container.getLaunchContext().clearCommands();
-      container.getLaunchContext().addAllCommands(newCmds);
+      launchContext.clearCommands();
+      launchContext.addAllCommands(newCmds);
+
+      Map<String, String> envs = launchContext.getAllEnv();
+      Map<String, String> newEnvs = new HashMap<String, String>(envs.size());
+      for (Entry<String, String> entry : envs.entrySet()) {
+        newEnvs.put(
+            entry.getKey(),
+            entry.getValue().replace("<LOG_DIR>",
+                containerLogDir.toUri().getPath()));
+      }
+      launchContext.clearEnv();
+      launchContext.addAllEnv(newEnvs);
       // /////////////////////////// End of variable expansion
 
       FileContext lfs = FileContext.getLocalFSFileContext();
@@ -193,9 +206,11 @@ public class ContainerLaunch implements Callable<Integer> {
             ContainerEventType.CONTAINER_EXITED_WITH_FAILURE, ret));
       return ret;
     }
-    LOG.info("Container " + container + " succeeded " + launchContext.getContainerId());
-    dispatcher.getEventHandler().handle(new ContainerEvent(
-          launchContext.getContainerId(), ContainerEventType.CONTAINER_EXITED_WITH_SUCCESS));
+    LOG.info("Container " + container + " succeeded "
+        + launchContext.getContainerId());
+    dispatcher.getEventHandler().handle(
+        new ContainerEvent(launchContext.getContainerId(),
+            ContainerEventType.CONTAINER_EXITED_WITH_SUCCESS));
     return 0;
   }
 

@@ -20,6 +20,8 @@ package org.apache.hadoop.mapred.pipes;
 
 import java.io.IOException;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Writable;
@@ -62,6 +64,7 @@ class PipesMapRunner<K1 extends WritableComparable, V1 extends Writable,
                   Reporter reporter) throws IOException {
     Application<K1, V1, K2, V2> application = null;
     try {
+
       RecordReader<FloatWritable, NullWritable> fakeInput = 
         (!Submitter.getIsJavaRecordReader(job) && 
          !Submitter.getIsJavaMapper(job)) ? 
@@ -85,7 +88,6 @@ class PipesMapRunner<K1 extends WritableComparable, V1 extends Writable,
         V1 value = input.createValue();
         downlink.setInputTypes(key.getClass().getName(),
                                value.getClass().getName());
-        
         while (input.next(key, value)) {
           // map pair to output
           downlink.mapItem(key, value);

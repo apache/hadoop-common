@@ -193,7 +193,7 @@ abstract class TaskRunner extends Thread {
 
       Map<String, String> env = new HashMap<String, String>();
       errorInfo = getVMEnvironment(errorInfo, workDir, conf, env,
-                                   taskid, logSize);
+                                   taskid, stdout, stderr, logSize);
 
       // flatten the env as a set of export commands
       List <String> setupCmds = new ArrayList<String>();
@@ -504,12 +504,14 @@ abstract class TaskRunner extends Thread {
    * @param errorInfo
    * @param workDir
    * @param env
+   * @param stderr 
+   * @param stdout 
    * @return
    * @throws Throwable
    */
   private String getVMEnvironment(String errorInfo, File workDir, JobConf conf,
-      Map<String, String> env, TaskAttemptID taskid, long logSize)
-      throws Throwable {
+      Map<String, String> env, TaskAttemptID taskid, File stdout, File stderr, 
+      long logSize) throws Throwable {
     StringBuffer ldLibraryPath = new StringBuffer();
     ldLibraryPath.append(workDir.toString());
     String oldLdLibraryPath = null;
@@ -520,6 +522,9 @@ abstract class TaskRunner extends Thread {
     }
     env.put("LD_LIBRARY_PATH", ldLibraryPath.toString());
     env.put(Constants.HADOOP_WORK_DIR, workDir.toString());
+    // Set the stdout and stderr file names. Useful in pipes.
+    env.put(Constants.STDOUT_LOGFILE_ENV, stdout.getAbsolutePath());
+    env.put(Constants.STDERR_LOGFILE_ENV, stderr.getAbsolutePath());
     
     // put jobTokenFile name into env
     String jobTokenFile = conf.get(TokenCache.JOB_TOKENS_FILENAME);

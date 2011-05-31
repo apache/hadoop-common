@@ -85,10 +85,6 @@ class YarnChild {
     DefaultMetricsSystem.initialize(
         StringUtils.camelize(firstTaskid.getTaskType().name()) +"Task");
 
-    if (null == System.getenv().get(Constants.HADOOP_WORK_DIR)) {
-      throw new IOException("Environment variable " +
-          Constants.HADOOP_WORK_DIR + " is not set");
-    }
     Token<JobTokenIdentifier> jt = loadCredentials(defaultConf, address);
 
     // Create TaskUmbilicalProtocol as actual task owner.

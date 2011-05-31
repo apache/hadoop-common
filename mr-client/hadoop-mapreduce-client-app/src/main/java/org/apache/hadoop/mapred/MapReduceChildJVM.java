@@ -130,9 +130,10 @@ public class MapReduceChildJVM {
     // Long term we will need to get it from the Child
     env.put("JVM_PID", "12344");
 
-    env.put(Constants.HADOOP_WORK_DIR, "."); // This should work. TODO: Find
-                                              // why the var is introduced. Not
-                                              // used in tests, for e.g.
+    env.put(Constants.STDOUT_LOGFILE_ENV,
+        getTaskLogFile(containerLogDir, TaskLog.LogName.STDOUT).toString());
+    env.put(Constants.STDERR_LOGFILE_ENV,
+        getTaskLogFile(containerLogDir, TaskLog.LogName.STDERR).toString());
   }
 
   private static String getChildJavaOpts(JobConf jobConf, boolean isMapTask) {

@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Making pipes work with YARN. Changed pipes to get log-locations from an
+    environmental variable. (vinodkv)
+
     Fixed NPE in CS by checking Application state before scheduling and fixing
     synchronization in CS. (acmurthy)
 

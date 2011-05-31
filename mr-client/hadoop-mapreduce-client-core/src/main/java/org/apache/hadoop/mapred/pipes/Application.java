@@ -42,6 +42,7 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.mapred.Constants;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.RecordReader;
@@ -121,16 +122,15 @@ class Application<K1 extends WritableComparable, V1 extends Writable,
     cmd.add(executable);
     // wrap the command in a stdout/stderr capture
     // we are starting map/reduce task of the pipes job. this is not a cleanup
-    // attempt. 
-    TaskAttemptID taskid = 
-      TaskAttemptID.forName(conf.get(MRJobConfig.TASK_ATTEMPT_ID));
-    File stdout = TaskLog.getTaskLogFile(taskid, false, TaskLog.LogName.STDOUT);
-    File stderr = TaskLog.getTaskLogFile(taskid, false, TaskLog.LogName.STDERR);
+    // attempt.
+    File stdout = new File(System.getenv(Constants.STDOUT_LOGFILE_ENV));
+    File stderr = new File(System.getenv(Constants.STDERR_LOGFILE_ENV));
     long logLength = TaskLog.getTaskLogLength(conf);
     cmd = TaskLog.captureOutAndError(null, cmd, stdout, stderr, logLength,
                                      false);
 
     process = runClient(cmd, env);
+    // TODO: BUG, BUG!! If the process crashes. You are screwed.
     clientSocket = serverSocket.accept();
     
     String challenge = getSecurityChallenge();
@@ -145,7 +145,6 @@ class Application<K1 extends WritableComparable, V1 extends Writable,
       ReflectionUtils.newInstance(outputValueClass, conf);
     downlink = new BinaryProtocol<K1, V1, K2, V2>(clientSocket, handler, 
                                   outputKey, outputValue, conf);
-    
     downlink.authenticate(digestToSend, challenge);
     waitForAuthentication();
     LOG.debug("Authentication succeeded");
