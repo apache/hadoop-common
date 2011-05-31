@@ -195,6 +195,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
       synchronized (applications) {
         am = applications.get(app);
       }
+      LOG.info("Expiring the Application " + app);
       handler.handle(new ASMEvent<ApplicationEventType>
       (ApplicationEventType.EXPIRE, am));
     }
@@ -410,12 +411,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
           ApplicationEventType.LAUNCH, masterInfo));
     }
     if (masterInfo.getState() == ApplicationState.LAUNCHED) {
-      /* the application move to a launched state start tracking */
-      synchronized (amExpiryQueue) {
-        LOG.info("DEBUG -- adding to  expiry " + masterInfo.getStatus() + 
-            " currenttime " + System.currentTimeMillis());
-        amExpiryQueue.add(masterInfo.getStatus());
-      }
+      addForTracking(masterInfo);
     }
 
     /* check to see if the AM is an EXPIRED_PENDING state and start off the cycle again */
