@@ -503,11 +503,16 @@ NodeTracker, ClusterTracker {
   public void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
     for (NodeInfo info: nodesToNotify) {
-      NodeManager node;
+      NodeManager node = null;
       synchronized(nodeManagers) {
-        node = nodeManagers.get(info.getNodeID()).getNodeManager();
+        NodeInfoTracker nodeInfo = nodeManagers.get(info.getNodeID());
+        if (nodeInfo != null) {
+          node = nodeInfo.getNodeManager();
+        }
       }
-      node.finishedApplication(applicationId);
+      if (node != null) {
+        node.finishedApplication(applicationId);
+      }
     } 
   }
 
