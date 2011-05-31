@@ -48,6 +48,7 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
@@ -86,13 +87,9 @@ public class NodeManager implements ContainerManager {
     this.capability = Resources.createResource(memory);
     Resources.addTo(available, capability);
 
-    RegisterNodeManagerRequest request = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request.setHost(hostName);
-    request.setContainerManagerPort(containerManagerPort);
-    request.setHttpPort(httpPort);
-    request.setResource(capability);
     RegistrationResponse response =
-        resourceTracker.registerNodeManager(request).getRegistrationResponse();
+        resourceTracker.registerNodeManager(hostName, containerManagerPort, 
+            httpPort, capability);
     this.nodeId = response.getNodeId();
     this.nodeInfo = resourceTracker.getNodeManager(nodeId);
    
@@ -127,14 +124,12 @@ public class NodeManager implements ContainerManager {
   
   int responseID = 0;
   
-  public void heartbeat() throws YarnRemoteException {
+  public void heartbeat() throws IOException {
     NodeStatus nodeStatus = 
       org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeStatus.createNodeStatus(
           nodeId, containers);
     nodeStatus.setResponseId(responseID);
-    NodeHeartbeatRequest request = recordFactory.newRecordInstance(NodeHeartbeatRequest.class);
-    request.setNodeStatus(nodeStatus);
-    HeartbeatResponse response = resourceTracker.nodeHeartbeat(request).getHeartbeatResponse();
+    HeartbeatResponse response = resourceTracker.nodeHeartbeat(nodeStatus);
     responseID = response.getResponseId();
   }
 
@@ -196,7 +191,8 @@ public class NodeManager implements ContainerManager {
   }
   
   @Override
-  synchronized public StopContainerResponse stopContainer(StopContainerRequest request) throws YarnRemoteException {
+  synchronized public StopContainerResponse stopContainer(StopContainerRequest request) 
+  throws YarnRemoteException {
     ContainerId containerID = request.getContainerId();
     String applicationId = String.valueOf(containerID.getAppId().getId());
     
@@ -209,7 +205,11 @@ public class NodeManager implements ContainerManager {
     }
     
     // Send a heartbeat
-    heartbeat();
+    try {
+      heartbeat();
+    } catch (IOException ioe) {
+      throw RPCUtil.getRemoteException(ioe);
+    }
     
     // Remove container and update status
     int ctr = 0;

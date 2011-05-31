@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,26 +27,18 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.net.Node;
-import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
-import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
-import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
-import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.junit.Before;
@@ -128,11 +119,8 @@ public class TestNMExpiry extends TestCase {
                   .newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
           nodeStatus.setNodeId(thirdNodeRegResponse.getNodeId());
           nodeStatus.setResponseId(lastResponseID);
-          NodeHeartbeatRequest request =
-              recordFactory.newRecordInstance(NodeHeartbeatRequest.class);
-          request.setNodeStatus(nodeStatus);
           lastResponseID =
-              resourceTracker.nodeHeartbeat(request).getHeartbeatResponse()
+              resourceTracker.nodeHeartbeat(nodeStatus)
                   .getResponseId();
         } catch(Exception e) {
           LOG.info("failed to heartbeat ", e);
@@ -150,26 +138,10 @@ public class TestNMExpiry extends TestCase {
     String hostname2 = "localhost2";
     String hostname3 = "localhost3";
     Resource capability = recordFactory.newRecordInstance(Resource.class);
-    RegisterNodeManagerRequest request1 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request1.setHost(hostname1);
-    request1.setContainerManagerPort(0);
-    request1.setHttpPort(0);
-    request1.setResource(capability);
-    RegisterNodeManagerRequest request2 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request2.setHost(hostname2);
-    request2.setContainerManagerPort(0);
-    request2.setHttpPort(0);
-    request2.setResource(capability);
-    RegisterNodeManagerRequest request3 = recordFactory.newRecordInstance(RegisterNodeManagerRequest.class);
-    request3.setHost(hostname3);
-    request3.setContainerManagerPort(0);
-    request3.setHttpPort(0);
-    request3.setResource(capability);
-    resourceTracker.registerNodeManager(request1);
-    resourceTracker.registerNodeManager(request2);
+    resourceTracker.registerNodeManager(hostname1, 0, 0, capability);
+    resourceTracker.registerNodeManager(hostname2, 0, 0, capability);
     thirdNodeRegResponse =
-        resourceTracker.registerNodeManager(request3)
-            .getRegistrationResponse();
+        resourceTracker.registerNodeManager(hostname3, 0, 0, capability);
     /* test to see if hostanme 3 does not expire */
     stopT = false;
     new ThirdNodeHeartBeatThread().start();

@@ -482,6 +482,13 @@ public class FifoScheduler implements ResourceScheduler {
     return assignedContainers;
   }
 
+  private synchronized void killContainers(List<Container> containers) {
+    for (Container container : containers) {
+      container.setState(ContainerState.COMPLETE);
+    }
+    applicationCompletedContainers(containers);
+  }
+  
   private synchronized void applicationCompletedContainers(
       List<Container> completedContainers) {
     for (Container c: completedContainers) {
@@ -566,7 +573,7 @@ public class FifoScheduler implements ResourceScheduler {
   @Override
   public synchronized void removeNode(NodeInfo nodeInfo) {
     Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
-    //TODO inform the the applications that the containers are completed/failed
+    killContainers(nodeInfo.getRunningContainers());
   }
 
 

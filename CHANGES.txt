@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
 
+    Ensure 'lost' NodeManagers are dealt appropriately, the containers are
+    released correctly. (acmurthy) 
+
     Making pipes work with YARN. Changed pipes to get log-locations from an
     environmental variable. (vinodkv)
 

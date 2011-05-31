@@ -94,7 +94,7 @@ public class TestApplicationCleanup extends TestCase {
     
     @Override
     protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId,
-        String hostString, String httpAddress, Node node, Resource capability) throws IOException {
+        String hostString, String httpAddress, Node node, Resource capability) {
       return super.getAndAddNodeInfoTracker(nodeId, hostString, httpAddress, node, capability);
     }
     

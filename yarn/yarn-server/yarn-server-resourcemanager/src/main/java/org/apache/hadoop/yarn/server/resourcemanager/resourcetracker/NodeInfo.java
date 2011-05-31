@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.hadoop.net.Node;
@@ -95,15 +96,37 @@ public interface NodeInfo {
       List<Container> containers);
   
   /**
-   * 
-   * @return
+   * Get running containers on this node.
+   * @return running containers
+   */
+  public List<Container> getRunningContainers();
+  
+  /**
+   * Get application which has a reserved container on this node.
+   * @return application which has a reserved container on this node
    */
   public Application getReservedApplication();
 
+  /**
+   * Get reserved resource on this node.
+   * @return reserved resource on this node
+   */
   Resource getReservedResource();
 
+  /**
+   * Reserve resources on this node for a given application
+   * @param application application for which to reserve
+   * @param priority application priority
+   * @param resource reserved resource
+   */
   public void reserveResource(Application application, Priority priority, 
       Resource resource);
 
+  /**
+   * Unreserve resource on this node for a given application
+   * @param application application for which to unreserve
+   * @param priority application priority
+   */
   public void unreserveResource(Application application, Priority priority);
+  
 }

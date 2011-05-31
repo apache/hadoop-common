@@ -357,37 +357,33 @@ implements ResourceScheduler, CapacitySchedulerContext {
     // Sanity check
     normalizeRequests(ask);
 
-    List<Container> allocatedContainers = null;
-    Resource limit = null;
-    synchronized (application) {
+    LOG.info("DEBUG --- allocate: pre-update" +
+        " applicationId=" + applicationId + 
+        " application=" + application);
+    application.showRequests();
 
-      LOG.info("DEBUG --- allocate: pre-update" +
-          " applicationId=" + applicationId + 
-          " application=" + application);
-      application.showRequests();
+    // Update application requests
+    application.updateResourceRequests(ask);
 
-      // Update application requests
-      application.updateResourceRequests(ask);
+    // Release ununsed containers and update queue capacities
+    processReleasedContainers(application, release);
 
-      // Release ununsed containers and update queue capacities
-      processReleasedContainers(application, release);
+    LOG.info("DEBUG --- allocate: post-update");
+    application.showRequests();
 
-      LOG.info("DEBUG --- allocate: post-update");
-      application.showRequests();
+    // Acquire containers
+    List<Container> allocatedContainers = application.acquire();
 
-      // Acquire containers
-      allocatedContainers = application.acquire();
-      
-      // Resource limit
-      limit = application.getResourceLimit();
-      LOG.info("DEBUG --- allocate:" +
-          " applicationId=" + applicationId + 
-          " #ask=" + ask.size() + 
-          " #release=" + release.size() +
-          " #allocatedContainers=" + allocatedContainers.size() +
-          " limit=" + limit);
-      
-    }
+    // Resource limit
+    Resource limit = application.getResourceLimit();
+    
+    LOG.info("DEBUG --- allocate:" +
+        " applicationId=" + applicationId + 
+        " #ask=" + ask.size() + 
+        " #release=" + release.size() +
+        " #allocatedContainers=" + allocatedContainers.size() +
+        " limit=" + limit);
+
       
       return new Allocation(allocatedContainers, limit);
   }
@@ -490,6 +486,15 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   }
 
+  private synchronized void killRunningContainers(List<Container> containers) {
+    for (Container container : containers) {
+      container.setState(ContainerState.COMPLETE);
+      LOG.info("Killing running container " + container.getId());
+      Application application = applications.get(container.getId().getAppId());
+      processReleasedContainers(application, Collections.singletonList(container));
+    }
+  }
+  
   private synchronized void processCompletedContainers(
       List<Container> completedContainers) {
     for (Container container: completedContainers) {
@@ -596,8 +601,20 @@ implements ResourceScheduler, CapacitySchedulerContext {
   public synchronized void removeNode(NodeInfo nodeInfo) {
     Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
     --numNodeManagers;
-  }
 
+    // Remove running containers
+    List<Container> runningContainers = nodeInfo.getRunningContainers();
+    killRunningContainers(runningContainers);
+    
+    // Remove reservations, if any
+    Application reservedApplication = nodeInfo.getReservedApplication();
+    if (reservedApplication != null) {
+      LeafQueue queue = ((LeafQueue)reservedApplication.getQueue());
+      Resource released = nodeInfo.getReservedResource();
+      queue.completedContainer(clusterResource, null, released, reservedApplication);
+    }
+  }
+  
   public synchronized boolean releaseContainer(ApplicationId applicationId, 
       Container container) {
     // Reap containers

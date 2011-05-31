@@ -19,18 +19,14 @@
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.net.Node;
-import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
@@ -38,9 +34,6 @@ import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.junit.After;
@@ -94,24 +87,20 @@ public class TestRMNMRPCResponseId extends TestCase {
     request.setContainerManagerPort(0);
     request.setHttpPort(0);
     request.setResource(capability);
-    rmResourceTrackerImpl.registerNodeManager(request);
+    rmResourceTrackerImpl.registerNodeManager(node, 0, 0, capability);
     org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
     nodeStatus.setNodeId(nodeid);
     nodeStatus.setResponseId(0);
-    NodeHeartbeatRequest hbRequest = recordFactory.newRecordInstance(NodeHeartbeatRequest.class);
-    hbRequest.setNodeStatus(nodeStatus);
-    HeartbeatResponse response = rmResourceTrackerImpl.nodeHeartbeat(hbRequest).getHeartbeatResponse();
+    HeartbeatResponse response = rmResourceTrackerImpl.nodeHeartbeat(nodeStatus);
     assertTrue(response.getResponseId() == 1);
     nodeStatus.setResponseId(response.getResponseId());
-    hbRequest.setNodeStatus(nodeStatus);
-    response = rmResourceTrackerImpl.nodeHeartbeat(hbRequest).getHeartbeatResponse();
+    response = rmResourceTrackerImpl.nodeHeartbeat(nodeStatus);
     assertTrue(response.getResponseId() == 2);   
     /* try calling with less response id */
-    response = rmResourceTrackerImpl.nodeHeartbeat(hbRequest).getHeartbeatResponse();
+    response = rmResourceTrackerImpl.nodeHeartbeat(nodeStatus);
     assertTrue(response.getResponseId() == 2);   
     nodeStatus.setResponseId(0);
-    hbRequest.setNodeStatus(nodeStatus);
-    response = rmResourceTrackerImpl.nodeHeartbeat(hbRequest).getHeartbeatResponse();
+    response = rmResourceTrackerImpl.nodeHeartbeat(nodeStatus);
     assertTrue(response.getReboot() == true);
   }
 }

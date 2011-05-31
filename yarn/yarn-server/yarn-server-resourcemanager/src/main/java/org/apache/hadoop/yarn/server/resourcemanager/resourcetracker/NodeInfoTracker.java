@@ -65,11 +65,11 @@ public class NodeInfoTracker {
     return this.lastHeartBeatResponse;
   }
 
-  public synchronized void refreshHeartBeatResponse(HeartbeatResponse heartBeatResponse) {
+  public synchronized void setLastHeartBeatResponse(HeartbeatResponse heartBeatResponse) {
     this.lastHeartBeatResponse = heartBeatResponse;
   }
   
-  public synchronized void refreshLastHeartBeat() {
+  public synchronized void setLastHeartBeatTime() {
    this.heartBeatStatus = new NodeHeartbeatStatus(System.currentTimeMillis()); 
   }
 }

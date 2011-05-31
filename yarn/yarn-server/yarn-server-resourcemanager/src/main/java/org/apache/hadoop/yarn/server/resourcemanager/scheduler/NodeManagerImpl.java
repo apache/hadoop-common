@@ -278,6 +278,14 @@ public class NodeManagerImpl implements NodeManager {
     return this.usedResource;
   }
 
+  
+  @Override
+  public List<Container> getRunningContainers() {
+    List<Container> containers = new ArrayList<Container>();
+    containers.addAll(runningContainers.values());
+    return containers;
+  }
+
   public synchronized void addAvailableResource(Resource resource) {
     if (resource == null) {
       LOG.error("Invalid resource addition of null resource for "

@@ -19,7 +19,6 @@
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,34 +30,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.crypto.SecretKey;
 
-import org.apache.avro.ipc.Server;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.CommonConfigurationKeys;
-import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
-import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
-import org.apache.hadoop.yarn.ipc.RPCUtil;
-import org.apache.hadoop.yarn.ipc.YarnRPC;
-import org.apache.hadoop.yarn.server.RMNMSecurityInfoClass;
-import org.apache.hadoop.yarn.server.YarnServerConfig;
-import org.apache.hadoop.yarn.server.api.ResourceTracker;
-import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
-import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatResponse;
-import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
-import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResponse;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
@@ -81,7 +66,7 @@ import org.apache.hadoop.yarn.service.AbstractService;
  *`
  */
 public class RMResourceTrackerImpl extends AbstractService implements 
-ResourceTracker, ClusterTracker {
+NodeTracker, ClusterTracker {
   private static final Log LOG = LogFactory.getLog(RMResourceTrackerImpl.class);
   /* we dont garbage collect on nodes. A node can come back up again and re register,
    * so no use garbage collecting. Though admin can break the RM by bouncing 
@@ -113,13 +98,10 @@ ResourceTracker, ClusterTracker {
     );
 
   private ResourceListener resourceListener;
-  private InetSocketAddress resourceTrackerAddress;
-  private Server server;
   private final ContainerTokenSecretManager containerTokenSecretManager;
   private final AtomicInteger nodeCounter = new AtomicInteger(0);
   private static final HeartbeatResponse reboot = recordFactory.newRecordInstance(HeartbeatResponse.class);
   private long nmExpiryInterval;
-  private final RMContext rmContext;
   private final NodeStore nodeStore;
   
   public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager, RMContext context) {
@@ -127,16 +109,11 @@ ResourceTracker, ClusterTracker {
     reboot.setReboot(true);
     this.containerTokenSecretManager = containerTokenSecretManager;
     this.nmLivelinessMonitor = new NMLivelinessMonitor();
-    this.rmContext = context;
     this.nodeStore = context.getNodeStore();
   }
 
   @Override
   public void init(Configuration conf) {
-    String resourceTrackerBindAddress =
-      conf.get(YarnServerConfig.RESOURCETRACKER_ADDRESS,
-          YarnServerConfig.DEFAULT_RESOURCETRACKER_BIND_ADDRESS);
-    resourceTrackerAddress = NetUtils.createSocketAddr(resourceTrackerBindAddress);
     this.nmExpiryInterval =  conf.getLong(RMConfig.NM_EXPIRY_INTERVAL, 
         RMConfig.DEFAULT_NM_EXPIRY_INTERVAL);
     this.nmLivelinessMonitor.setMonitoringInterval(conf.getLong(
@@ -152,19 +129,6 @@ ResourceTracker, ClusterTracker {
 
   @Override
   public void start() {
-    // ResourceTrackerServer authenticates NodeManager via Kerberos if
-    // security is enabled, so no secretManager.
-    YarnRPC rpc = YarnRPC.create(getConfig());
-    Configuration rtServerConf = new Configuration(getConfig());
-    rtServerConf.setClass(
-        CommonConfigurationKeys.HADOOP_SECURITY_INFO_CLASS_NAME,
-        RMNMSecurityInfoClass.class, SecurityInfo.class);
-    this.server =
-      rpc.getServer(ResourceTracker.class, this, resourceTrackerAddress,
-          rtServerConf, null,
-          rtServerConf.getInt(RMConfig.RM_RESOURCE_TRACKER_THREADS, 
-              RMConfig.DEFAULT_RM_RESOURCE_TRACKER_THREADS));
-    this.server.start();
     this.nmLivelinessMonitor.start();
     LOG.info("Expiry interval of NodeManagers set to " + nmExpiryInterval);
     super.start();
@@ -180,7 +144,7 @@ ResourceTracker, ClusterTracker {
   }
   
   protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId,
-      String hostString, String httpAddress, Node node, Resource capability) throws IOException {
+      String hostString, String httpAddress, Node node, Resource capability) {
     NodeInfoTracker nTracker = null;
     
     synchronized(nodeManagers) {
@@ -191,9 +155,7 @@ ResourceTracker, ClusterTracker {
               node,
               capability);
         nodes.put(nodeManager.getNodeAddress(), nodeId);
-        nodeStore.storeNode(nodeManager);
-        /* Inform the listeners */
-        resourceListener.addNode(nodeManager);
+        addNode(nodeManager);
         HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
         response.setResponseId(0);
         nTracker = new NodeInfoTracker(nodeManager, response);
@@ -205,27 +167,30 @@ ResourceTracker, ClusterTracker {
     return nTracker;
   }
 
+  private void addNode(NodeManager node) {
+    /* Inform the listeners */
+    resourceListener.addNode(node);
+
+    try {
+      nodeStore.storeNode(node);
+    } catch (IOException ioe) {
+      LOG.warn("Failed to store node " + node.getNodeAddress() + " in nodestore");
+    }
+
+  }
   @Override
-  public RegisterNodeManagerResponse registerNodeManager(RegisterNodeManagerRequest
-      request) throws YarnRemoteException {
-    String host = request.getHost();
-    int cmPort = request.getContainerManagerPort();
+  public RegistrationResponse registerNodeManager(
+      String host, int cmPort, int httpPort, Resource capability) 
+  throws IOException {
     String node = host + ":" + cmPort;
-    String httpAddress = host + ":" + request.getHttpPort();
-    Resource capability = request.getResource();
+    String httpAddress = host + ":" + httpPort;
 
     NodeId nodeId = getNodeId(node);
     
     NodeInfoTracker nTracker = null;
-    try {
-    nTracker = getAndAddNodeInfoTracker(
-      nodeId, node.toString(), httpAddress,
-                resolve(node.toString()),
-                capability);
-          // Inform the scheduler
-    } catch(IOException io) {
-      throw  RPCUtil.getRemoteException(io);
-    }
+    nTracker = 
+      getAndAddNodeInfoTracker(nodeId, node, httpAddress, 
+          resolve(node), capability);
     addForTracking(nTracker.getlastHeartBeat());
     LOG.info("NodeManager from node " + node + "(web-url: " + httpAddress
         + ") registered with capability: " + capability.getMemory()
@@ -237,10 +202,7 @@ ResourceTracker, ClusterTracker {
     SecretKey secretKey =
       this.containerTokenSecretManager.createAndGetSecretKey(node);
     regResponse.setSecretKey(ByteBuffer.wrap(secretKey.getEncoded()));
-    RegisterNodeManagerResponse response = recordFactory.newRecordInstance(
-        RegisterNodeManagerResponse.class);
-    response.setRegistrationResponse(regResponse);
-    return response;
+    return regResponse;
   }
 
   /**
@@ -268,88 +230,141 @@ ResourceTracker, ClusterTracker {
     return nodeManager.statusUpdate(containers);
   }
   
+  private boolean isValidNode(NodeId nodeId) {
+    return true;
+  }
+  
   @Override
-  public NodeHeartbeatResponse nodeHeartbeat(NodeHeartbeatRequest request) throws YarnRemoteException {
-    org.apache.hadoop.yarn.server.api.records.NodeStatus remoteNodeStatus = request.getNodeStatus();
+  public HeartbeatResponse nodeHeartbeat(org.apache.hadoop.yarn.server.api.records.NodeStatus remoteNodeStatus) 
+  throws IOException {
+    /**
+     * Here is the node heartbeat sequence...
+     * 1. Check if it's a registered node
+     * 2. Check if it's a valid (i.e. not excluded) node
+     * 3. Check if it's a 'fresh' heartbeat i.e. not duplicate heartbeat
+     * 4. Check if it's healthy
+     *   a. If it just turned unhealthy, inform scheduler and ZK
+     *   b. It it just turned healthy, inform scheduler and ZK
+     * 5. If it's healthy, update node status and allow scheduler to schedule
+     */
+    
+    NodeId nodeId = remoteNodeStatus.getNodeId();
+    
+    // 1. Check if it's a registered node
     NodeInfoTracker nTracker = null;
-    NodeHeartbeatResponse nodeHbResponse = recordFactory.newRecordInstance(NodeHeartbeatResponse.class);
     synchronized(nodeManagers) {
-      nTracker = nodeManagers.get(remoteNodeStatus.getNodeId());
+      nTracker = nodeManagers.get(nodeId);
     }
     if (nTracker == null) {
       /* node does not exist */
       LOG.info("Node not found rebooting " + remoteNodeStatus.getNodeId());
-      nodeHbResponse.setHeartbeatResponse(reboot);
-      return nodeHbResponse;
+      return reboot;
     }
     /* update the heart beat status */
-    nTracker.refreshLastHeartBeat();
+    nTracker.setLastHeartBeatTime();
+    
+    // 2. Check if it's a valid (i.e. not excluded) node
+    // TODO - Check for valid/invalid node from hosts list
+    if (!isValidNode(nodeId)) {
+      unregisterNodeManager(remoteNodeStatus.getNodeId());
+      throw new IOException("Disallowed NodeManager nodeId: " + 
+          remoteNodeStatus.getNodeId());
+    }
+    
+    // 3. Check if it's a 'fresh' heartbeat i.e. not duplicate heartbeat
     NodeManager nodeManager = nTracker.getNodeManager();
-    /* check to see if its an old heartbeat */    
     if (remoteNodeStatus.getResponseId() + 1 == nTracker
         .getLastHeartBeatResponse().getResponseId()) {
-      nodeHbResponse.setHeartbeatResponse(nTracker.getLastHeartBeatResponse());
-      return nodeHbResponse;
+      LOG.info("Received duplicate heartbeat from node " + 
+          nodeManager.getNodeAddress());
+      return nTracker.getLastHeartBeatResponse();
     } else if (remoteNodeStatus.getResponseId() + 1 < nTracker
         .getLastHeartBeatResponse().getResponseId()) {
       LOG.info("Too far behind rm response id:" +
           nTracker.lastHeartBeatResponse.getResponseId() + " nm response id:"
           + remoteNodeStatus.getResponseId());
-      nodeHbResponse.setHeartbeatResponse(reboot);
-      return nodeHbResponse;
+      unregisterNodeManager(remoteNodeStatus.getNodeId());
+      return reboot;
     }
     
+    // 4. Check if it's healthy
+    //   a. If it just turned unhealthy, inform scheduler and ZK
+    //   b. It it just turned healthy, inform scheduler and ZK
+    boolean prevHealthStatus =
+      nTracker.getNodeManager().getNodeHealthStatus().getIsNodeHealthy();
+    NodeHealthStatus currentNodeHealthStatus =
+      remoteNodeStatus.getNodeHealthStatus();
+    if (prevHealthStatus != currentNodeHealthStatus
+        .getIsNodeHealthy()) {
+      if (!currentNodeHealthStatus.getIsNodeHealthy()) {
+        // Node turned unhealthy
+        LOG.info("Node " + nodeManager.getNodeID()
+            + " has become unhealthy. Health-check report: "
+            + currentNodeHealthStatus.getHealthReport() + "."
+            + " Removing it from the scheduler.");
+        removeNode(nodeManager);
+      } else {
+        // Node turned healthy
+        LOG.info("Node " + nodeManager.getNodeID() +
+            " has become healthy back again. Health-check report: " +
+            remoteNodeStatus.getNodeHealthStatus().getHealthReport()  + 
+            ". Adding it to the scheduler.");
+        addNode(nodeManager);
+      }
+    }
+
     /** TODO This should be 3 step process.
      * nodemanager.statusupdate
      * listener.update()
      * nodemanager.getNodeResponse()
      * This will allow flexibility in updates/scheduling/premption
      */
-    NodeResponse nodeResponse = nodeManager.statusUpdate(remoteNodeStatus.getAllContainers());
-    /* inform any listeners of node heartbeats */
-    updateListener(
-        nodeManager, remoteNodeStatus.getAllContainers());
-  
-    
+
+    // Heartbeat response
     HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
-    response.addAllContainersToCleanup(nodeResponse.getContainersToCleanUp());
-
-    response.addAllApplicationsToCleanup(nodeResponse.getFinishedApplications());
     response.setResponseId(nTracker.getLastHeartBeatResponse().getResponseId() + 1);
-    
-    nTracker.refreshHeartBeatResponse(response);
-    boolean prevHealthStatus =
-      nTracker.getNodeManager().getNodeHealthStatus().getIsNodeHealthy();
-    NodeHealthStatus remoteNodeHealthStatus =
-      remoteNodeStatus.getNodeHealthStatus();
-    nTracker.getNodeManager().updateHealthStatus(
-        remoteNodeHealthStatus);
-    //    boolean prevHealthStatus = nodeHbResponse.
-    nodeHbResponse.setHeartbeatResponse(response);
 
-    // Take care of node-health
-    if (prevHealthStatus != remoteNodeHealthStatus
-        .getIsNodeHealthy()) {
-      // Node's health-status changed.
-      if (!remoteNodeHealthStatus.getIsNodeHealthy()) {
-        // TODO: Node has become unhealthy, remove?
-        //        LOG.info("Node " + nodeManager.getNodeID()
-        //            + " has become unhealthy. Health-check report: "
-        //            + remoteNodeStatus.nodeHealthStatus.healthReport
-        //            + "Removing it from the scheduler.");
-        //        resourceListener.removeNode(nodeManager);
-      } else {
-        // TODO: Node has become healthy back again, add?
-        //        LOG.info("Node " + nodeManager.getNodeID()
-        //            + " has become healthy back again. Health-check report: "
-        //            + remoteNodeStatus.nodeHealthStatus.healthReport
-        //            + " Adding it to the scheduler.");
-        //        this.resourceListener.addNode(nodeManager);
-      }
+    // 5. If it's healthy, update node status and allow scheduler to schedule
+    NodeResponse nodeResponse = null;
+    if (currentNodeHealthStatus.getIsNodeHealthy()) {
+      nodeResponse = 
+        nodeManager.statusUpdate(remoteNodeStatus.getAllContainers());
+      response.addAllContainersToCleanup(nodeResponse.getContainersToCleanUp());
+      response.addAllApplicationsToCleanup(nodeResponse.getFinishedApplications());
+      
+      /* inform any listeners of node heartbeats */
+      updateListener(nodeManager, remoteNodeStatus.getAllContainers());
     }
-    return nodeHbResponse;
+  
+    // Save the response    
+    nTracker.setLastHeartBeatResponse(response);
+    nTracker.getNodeManager().updateHealthStatus(currentNodeHealthStatus);
+
+    return response;
   }
 
+  @Override
+  public void unregisterNodeManager(NodeId nodeId) {
+    synchronized (nodeManagers) {
+      NodeManager node = nodeManagers.get(nodeId).getNodeManager();
+      removeNode(node);
+      nodeManagers.remove(nodeId);
+      nodes.remove(node.getNodeAddress());
+    }
+  }
+
+  private void removeNode(NodeManager node) {
+    synchronized (nodeManagers) {
+      resourceListener.removeNode(node);
+      try {
+        nodeStore.removeNode(node);
+      } catch (IOException ioe) {
+        LOG.warn("Failed to remove node " + node.getNodeAddress() + 
+            " from nodeStore", ioe);
+      }
+    }
+  }
+  
   @Private
   public synchronized NodeInfo getNodeManager(NodeId nodeId) {
     NodeInfoTracker ntracker = nodeManagers.get(nodeId);
@@ -383,9 +398,6 @@ ResourceTracker, ClusterTracker {
       LOG.info(this.nmLivelinessMonitor.getName() + " interrupted during join ",
           ie);
     }
-    if (this.server != null) {
-      this.server.close();
-    }
     super.stop();
   }
 
@@ -408,11 +420,7 @@ ResourceTracker, ClusterTracker {
 
   protected void expireNMs(List<NodeId> nodes) {
     for (NodeId id: nodes) {
-      synchronized (nodeManagers) {
-        NodeInfo nInfo = nodeManagers.get(id).getNodeManager();
-        nodeManagers.remove(id);
-        resourceListener.removeNode(nInfo);
-      }
+      unregisterNodeManager(id);
     }
   }
 
@@ -522,12 +530,8 @@ ResourceTracker, ClusterTracker {
   public void recover(RMState state) {
     List<NodeManager> nodeManagers = state.getStoredNodeManagers();
     for (NodeManager nm: nodeManagers) {
-      try {
-        getAndAddNodeInfoTracker(nm.getNodeID(), nm.getNodeAddress(), nm.getHttpAddress(), 
-          nm.getNode(), nm.getTotalCapability());
-      } catch(IOException ie) {
-        //ignore
-      }
+      getAndAddNodeInfoTracker(nm.getNodeID(), nm.getNodeAddress(), 
+          nm.getHttpAddress(), nm.getNode(), nm.getTotalCapability());
     }
     for (Map.Entry<ApplicationId, ApplicationInfo> entry: state.getStoredApplications().entrySet()) {
       List<Container> containers = entry.getValue().getContainers();

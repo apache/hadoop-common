@@ -29,7 +29,15 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.factories.RecordFactory;
+import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.server.api.ResourceTracker;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
+import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResponse;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
@@ -38,6 +46,7 @@ import org.apache.hadoop.yarn.server.nodemanager.NodeStatusUpdaterImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.service.CompositeService;
 
@@ -171,8 +180,47 @@ public class MiniYARNCluster extends CompositeService {
                 healthChecker, metrics) {
               @Override
               protected ResourceTracker getRMClient() {
+                final RMResourceTrackerImpl rt = resourceManager.getResourceTracker();
+                final RecordFactory recordFactory =
+                  RecordFactoryProvider.getRecordFactory(null);
+
                 // For in-process communication without RPC
-                return resourceManager.getResourceTracker();
+                return new ResourceTracker() {
+
+                  @Override
+                  public NodeHeartbeatResponse nodeHeartbeat(
+                      NodeHeartbeatRequest request) throws YarnRemoteException {
+                    NodeHeartbeatResponse response = recordFactory.newRecordInstance(
+                        NodeHeartbeatResponse.class);
+                    try {
+                    response.setHeartbeatResponse(
+                        rt.nodeHeartbeat(request.getNodeStatus()));
+                    } catch (IOException ioe) {
+                      LOG.info("Exception in heartbeat from node " + 
+                          request.getNodeStatus().getNodeId(), ioe);
+                      throw RPCUtil.getRemoteException(ioe);
+                    }
+                    return response;
+                  }
+
+                  @Override
+                  public RegisterNodeManagerResponse registerNodeManager(
+                      RegisterNodeManagerRequest request)
+                      throws YarnRemoteException {
+                    RegisterNodeManagerResponse response = recordFactory.newRecordInstance(
+                        RegisterNodeManagerResponse.class);
+                    try {
+                      response.setRegistrationResponse(
+                          rt.registerNodeManager(
+                              request.getHost(), request.getContainerManagerPort(), 
+                              request.getHttpPort(), request.getResource()));
+                    } catch (IOException ioe) {
+                      LOG.info("Exception in node registration from " + request.getHost(), ioe);
+                      throw RPCUtil.getRemoteException(ioe);
+                    }
+                    return response;
+                  }
+                };
               };
             };
           };

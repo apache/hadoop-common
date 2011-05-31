@@ -161,6 +161,12 @@ public class MockNodes {
       @Override
       public void unreserveResource(Application application, Priority priority) {
       }
+
+      @Override
+      public List<Container> getRunningContainers() {
+        // TODO Auto-generated method stub
+        return null;
+      }
     };
   }
 }

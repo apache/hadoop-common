@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.SecurityUtil;
@@ -69,7 +70,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
 
   
   private ResourceScheduler scheduler;
-  private RMResourceTrackerImpl rmResourceTracker;
+  private ResourceTrackerService resourceTracker;
   private ClientRMService clientRM;
   private ApplicationMasterService masterService;
   private AdminService adminService;
@@ -141,11 +142,13 @@ public class ResourceManager extends CompositeService implements Recoverable {
     applicationsManager = createApplicationsManagerImpl();
     addService(applicationsManager);
     
-    rmResourceTracker = createRMResourceTracker();
-    addService(rmResourceTracker);
+    resourceTracker = createResourceTrackerService();
+    addService(resourceTracker);
   
     try {
-      this.scheduler.reinitialize(this.conf, this.containerTokenSecretManager, rmResourceTracker);
+      this.scheduler.reinitialize(this.conf, 
+          this.containerTokenSecretManager, 
+          resourceTracker.getResourceTracker());
     } catch (IOException ioe) {
       throw new RuntimeException("Failed to initialize scheduler", ioe);
     }
@@ -211,8 +214,10 @@ public class ResourceManager extends CompositeService implements Recoverable {
     super.stop();
   }
   
-  protected RMResourceTrackerImpl createRMResourceTracker() {
-    return new RMResourceTrackerImpl(this.containerTokenSecretManager, this.rmContext);
+  protected ResourceTrackerService createResourceTrackerService() {
+    return new ResourceTrackerService(
+        new RMResourceTrackerImpl(this.containerTokenSecretManager, 
+            this.rmContext));
   }
   
   protected ApplicationsManagerImpl createApplicationsManagerImpl() {
@@ -221,7 +226,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
   }
 
   protected ClientRMService createClientRMService() {
-    return new ClientRMService(applicationsManager, rmResourceTracker, scheduler);
+    return new ClientRMService(applicationsManager, 
+        resourceTracker.getResourceTracker(), scheduler);
   }
 
   protected ApplicationMasterService createApplicationMasterService() {
@@ -239,6 +245,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
    * return applications manager.
    * @return
    */
+  @Private
   public ApplicationsManager getApplicationsManager() {
     return applicationsManager;
   }
@@ -247,6 +254,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
    * return the scheduler.
    * @return
    */
+  @Private
   public ResourceScheduler getResourceScheduler() {
     return this.scheduler;
   }
@@ -255,15 +263,16 @@ public class ResourceManager extends CompositeService implements Recoverable {
    * return the resource tracking component.
    * @return
    */
+  @Private
   public RMResourceTrackerImpl getResourceTracker() {
-    return this.rmResourceTracker;
+    return this.resourceTracker.getResourceTracker();
   }
   
 
   @Override
   public void recover(RMState state) throws Exception {
     applicationsManager.recover(state);
-    rmResourceTracker.recover(state);
+    resourceTracker.recover(state);
     scheduler.recover(state);
   }
   
