@@ -92,7 +92,7 @@ public class TestRMContainerAllocator {
   public void testSimple() throws Exception {
     FifoScheduler scheduler = createScheduler();
     LocalRMContainerAllocator allocator = new LocalRMContainerAllocator(
-        scheduler);
+        scheduler, new Configuration());
 
     //add resources to scheduler
     NodeInfo nodeManager1 = addNode(scheduler, "h1", 10240);
@@ -101,11 +101,11 @@ public class TestRMContainerAllocator {
 
     //create the container request
     ContainerRequestEvent event1 = 
-      createReq(1, 1024, 1, new String[]{"h1"});
+      createReq(1, 1024, new String[]{"h1"});
     allocator.sendRequest(event1);
 
     //send 1 more request with different resource req
-    ContainerRequestEvent event2 = createReq(2, 1024, 1, new String[]{"h2"});
+    ContainerRequestEvent event2 = createReq(2, 1024, new String[]{"h2"});
     allocator.sendRequest(event2);
 
     //this tells the scheduler about the requests
@@ -114,7 +114,7 @@ public class TestRMContainerAllocator {
     Assert.assertEquals("No of assignments must be 0", 0, assigned.size());
 
     //send another request with different resource and priority
-    ContainerRequestEvent event3 = createReq(3, 1024, 1, new String[]{"h3"});
+    ContainerRequestEvent event3 = createReq(3, 1024, new String[]{"h3"});
     allocator.sendRequest(event3);
 
     //this tells the scheduler about the requests
@@ -139,7 +139,7 @@ public class TestRMContainerAllocator {
   public void testResource() throws Exception {
     FifoScheduler scheduler = createScheduler();
     LocalRMContainerAllocator allocator = new LocalRMContainerAllocator(
-        scheduler);
+        scheduler, new Configuration());
 
     //add resources to scheduler
     NodeInfo nodeManager1 = addNode(scheduler, "h1", 10240);
@@ -148,11 +148,11 @@ public class TestRMContainerAllocator {
 
     //create the container request
     ContainerRequestEvent event1 = 
-      createReq(1, 1024, 1, new String[]{"h1"});
+      createReq(1, 1024, new String[]{"h1"});
     allocator.sendRequest(event1);
 
     //send 1 more request with different resource req
-    ContainerRequestEvent event2 = createReq(2, 2048, 1, new String[]{"h2"});
+    ContainerRequestEvent event2 = createReq(2, 2048, new String[]{"h2"});
     allocator.sendRequest(event2);
 
     //this tells the scheduler about the requests
@@ -171,10 +171,11 @@ public class TestRMContainerAllocator {
   }
 
   @Test
-  public void testPriority() throws Exception {
+  public void testMapReduceScheduling() throws Exception {
     FifoScheduler scheduler = createScheduler();
+    Configuration conf = new Configuration();
     LocalRMContainerAllocator allocator = new LocalRMContainerAllocator(
-        scheduler);
+        scheduler, conf);
 
     //add resources to scheduler
     NodeInfo nodeManager1 = addNode(scheduler, "h1", 1024);
@@ -182,16 +183,17 @@ public class TestRMContainerAllocator {
     NodeInfo nodeManager3 = addNode(scheduler, "h3", 10240);
 
     //create the container request
+    //send MAP request
     ContainerRequestEvent event1 = 
-      createReq(1, 2048, 1, new String[]{"h1", "h2"});
+      createReq(1, 2048, new String[]{"h1", "h2"}, true, false);
     allocator.sendRequest(event1);
 
-    //send 1 more request with different priority
-    ContainerRequestEvent event2 = createReq(2, 3000, 2, new String[]{"h1"});
+    //send REDUCE request
+    ContainerRequestEvent event2 = createReq(2, 3000, new String[]{"h1"}, false, true);
     allocator.sendRequest(event2);
 
-    //send 1 more request with different priority
-    ContainerRequestEvent event3 = createReq(3, 2048, 3, new String[]{"h3"});
+    //send MAP request
+    ContainerRequestEvent event3 = createReq(3, 2048, new String[]{"h3"}, false, false);
     allocator.sendRequest(event3);
 
     //this tells the scheduler about the requests
@@ -206,7 +208,7 @@ public class TestRMContainerAllocator {
 
     assigned = allocator.schedule();
     checkAssignments(
-        new ContainerRequestEvent[]{event1, event2, event3}, assigned, false);
+        new ContainerRequestEvent[]{event1, event3}, assigned, false);
 
     //validate that no container is assigned to h1 as it doesn't have 2048
     for (TaskAttemptContainerAssignedEvent assig : assigned) {
@@ -267,7 +269,12 @@ public class TestRMContainerAllocator {
   }
 
   private ContainerRequestEvent createReq(
-      int attemptid, int memory, int priority, String[] hosts) {
+      int attemptid, int memory, String[] hosts) {
+    return createReq(attemptid, memory, hosts, false, false);
+  }
+  
+  private ContainerRequestEvent createReq(
+      int attemptid, int memory, String[] hosts, boolean earlierFailedAttempt, boolean reduce) {
     ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
     appId.setClusterTimestamp(0);
     appId.setId(0);
@@ -277,14 +284,22 @@ public class TestRMContainerAllocator {
     TaskId taskId = recordFactory.newRecordInstance(TaskId.class);
     taskId.setId(0);
     taskId.setJobId(jobId);
-    taskId.setTaskType(TaskType.MAP);
+    if (reduce) {
+      taskId.setTaskType(TaskType.REDUCE);
+    } else {
+      taskId.setTaskType(TaskType.MAP);
+    }
     TaskAttemptId attemptId = recordFactory.newRecordInstance(TaskAttemptId.class);
     attemptId.setId(attemptid);
     attemptId.setTaskId(taskId);
     Resource containerNeed = recordFactory.newRecordInstance(Resource.class);
     containerNeed.setMemory(memory);
+    if (earlierFailedAttempt) {
+      return ContainerRequestEvent.
+           createContainerRequestEventForFailedContainer(attemptId, containerNeed);
+    }
     return new ContainerRequestEvent(attemptId, 
-        containerNeed, priority,
+        containerNeed, 
         hosts, new String[] {NetworkTopology.DEFAULT_RACK});
   }
 
@@ -377,10 +392,10 @@ public class TestRMContainerAllocator {
     }
 
     private ResourceScheduler scheduler;
-    LocalRMContainerAllocator(ResourceScheduler scheduler) {
+    LocalRMContainerAllocator(ResourceScheduler scheduler, Configuration conf) {
       super(null, new TestContext(events));
       this.scheduler = scheduler;
-      super.init(new Configuration());
+      super.init(conf);
       super.start();
     }
 
@@ -465,6 +480,6 @@ public class TestRMContainerAllocator {
     TestRMContainerAllocator t = new TestRMContainerAllocator();
     t.testSimple();
     //t.testResource();
-    t.testPriority();
+    t.testMapReduceScheduling();
   }
 }

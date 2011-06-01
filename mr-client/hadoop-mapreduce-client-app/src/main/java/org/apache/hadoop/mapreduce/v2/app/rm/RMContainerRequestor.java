@@ -28,6 +28,7 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
@@ -51,6 +52,7 @@ public abstract class RMContainerRequestor extends RMCommunicator {
   static final String ANY = "*";
 
   private int lastResponseID;
+  private Resource availableResources;
 
   private final RecordFactory recordFactory =
       RecordFactoryProvider.getRecordFactory(null);
@@ -71,6 +73,23 @@ public abstract class RMContainerRequestor extends RMCommunicator {
     super(clientService, context);
   }
 
+  static class ContainerRequest {
+    final TaskAttemptId attemptID;
+    final Resource capability;
+    final String[] hosts;
+    final String[] racks;
+    //final boolean earlierAttemptFailed;
+    final Priority priority;
+    public ContainerRequest(ContainerRequestEvent event, Priority priority) {
+      this.attemptID = event.getAttemptID();
+      this.capability = event.getCapability();
+      this.hosts = event.getHosts();
+      this.racks = event.getRacks();
+      //this.earlierAttemptFailed = event.getEarlierAttemptFailed();
+      this.priority = priority;
+    }
+  }
+  
   protected abstract void heartbeat() throws Exception;
 
   protected List<Container> makeRemoteRequest() throws YarnRemoteException {
@@ -88,42 +107,48 @@ public abstract class RMContainerRequestor extends RMCommunicator {
     AMResponse response = allocateResponse.getAMResponse();
     lastResponseID = response.getResponseId();
     List<Container> allContainers = response.getContainerList();
+    availableResources = response.getAvailableResources();
     ask.clear();
     release.clear();
 
     LOG.info("getResources() for " + applicationId + ":" + " ask="
         + ask.size() + " release= " + release.size() + " recieved="
-        + allContainers.size());
+        + allContainers.size()
+        + " resourcelimit=" + availableResources);
     return allContainers;
   }
 
-  protected void addContainerReq(ContainerRequestEvent req) {
+  protected Resource getAvailableResources() {
+    return availableResources;
+  }
+  
+  protected void addContainerReq(ContainerRequest req) {
     // Create resource requests
-    for (String host : req.getHosts()) {
+    for (String host : req.hosts) {
       // Data-local
-      addResourceRequest(req.getPriority(), host, req.getCapability());
+      addResourceRequest(req.priority, host, req.capability);
     }
 
     // Nothing Rack-local for now
-    for (String rack : req.getRacks()) {
-      addResourceRequest(req.getPriority(), rack, req.getCapability());
+    for (String rack : req.racks) {
+      addResourceRequest(req.priority, rack, req.capability);
     }
 
     // Off-switch
-    addResourceRequest(req.getPriority(), ANY, req.getCapability()); 
+    addResourceRequest(req.priority, ANY, req.capability); 
   }
 
-  protected void decContainerReq(ContainerRequestEvent req) {
+  protected void decContainerReq(ContainerRequest req) {
     // Update resource requests
-    for (String hostName : req.getHosts()) {
-      decResourceRequest(req.getPriority(), hostName, req.getCapability());
+    for (String hostName : req.hosts) {
+      decResourceRequest(req.priority, hostName, req.capability);
     }
     
-    for (String rack : req.getRacks()) {
-      decResourceRequest(req.getPriority(), rack, req.getCapability());
+    for (String rack : req.racks) {
+      decResourceRequest(req.priority, rack, req.capability);
     }
    
-    decResourceRequest(req.getPriority(), ANY, req.getCapability());
+    decResourceRequest(req.priority, ANY, req.capability);
   }
 
   private void addResourceRequest(Priority priority, String resourceName,

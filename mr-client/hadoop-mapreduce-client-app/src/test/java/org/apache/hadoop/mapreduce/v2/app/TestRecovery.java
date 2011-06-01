@@ -74,7 +74,7 @@ public class TestRecovery {
     
     // reduces must be in NEW state
     Assert.assertEquals("Reduce Task state not correct",
-        TaskState.NEW, reduceTask.getReport().getTaskState());
+        TaskState.RUNNING, reduceTask.getReport().getTaskState());
     
   //send the fail signal to the 1st map task attempt
     app.getContext().getEventHandler().handle(

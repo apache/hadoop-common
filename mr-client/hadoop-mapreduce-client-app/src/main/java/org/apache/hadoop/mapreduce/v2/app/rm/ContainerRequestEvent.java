@@ -19,48 +19,38 @@
 package org.apache.hadoop.mapreduce.v2.app.rm;
 
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
-import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
-import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 
 public class ContainerRequestEvent extends ContainerAllocatorEvent {
   
-  private Priority priority;
   private Resource capability;
   private String[] hosts;
   private String[] racks;
   private boolean earlierAttemptFailed = false;
 
   public ContainerRequestEvent(TaskAttemptId attemptID, 
-      Resource capability, int priority,
+      Resource capability,
       String[] hosts, String[] racks) {
     super(attemptID, ContainerAllocator.EventType.CONTAINER_REQ);
     this.capability = capability;
-    this.priority = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(Priority.class);
-    this.priority.setPriority(priority);
     this.hosts = hosts;
     this.racks = racks;
   }
   
-  ContainerRequestEvent(TaskAttemptId attemptID, Resource capability, 
-      int priority) {
-    this(attemptID, capability, priority, new String[0], new String[0]);
+  ContainerRequestEvent(TaskAttemptId attemptID, Resource capability) {
+    this(attemptID, capability, new String[0], new String[0]);
     this.earlierAttemptFailed = true;
   }
   
   public static ContainerRequestEvent createContainerRequestEventForFailedContainer(
       TaskAttemptId attemptID, 
-      Resource capability, int priority) {
-    return new ContainerRequestEvent(attemptID,capability,priority);
+      Resource capability) {
+    return new ContainerRequestEvent(attemptID, capability);
   }
 
   public Resource getCapability() {
     return capability;
-  }
-
-  public Priority getPriority() {
-    return priority;
   }
 
   public String[] getHosts() {

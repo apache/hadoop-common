@@ -61,9 +61,4 @@ public class ReduceTaskAttemptImpl extends TaskAttemptImpl {
     return reduceTask;
   }
 
-  @Override
-  protected int getPriority() {
-    return 2;
-  }
-
 }

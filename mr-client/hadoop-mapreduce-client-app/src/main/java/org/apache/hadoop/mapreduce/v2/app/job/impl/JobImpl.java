@@ -118,8 +118,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   EventHandler<JobEvent> {
 
   private static final Log LOG = LogFactory.getLog(JobImpl.class);
-  public static final 
-      float DEFAULT_COMPLETED_MAPS_PERCENT_FOR_REDUCE_SLOWSTART = 0.05f;
 
   //The maximum fraction of fetch failures allowed for a map
   private static final double MAX_ALLOWED_FETCH_FAILURES_FRACTION = 0.5;
@@ -168,7 +166,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   public Path remoteJobConfFile;
   private JobContext jobContext;
   private OutputCommitter committer;
-  private int completedMapsForReduceSlowstart;
   private int allowedMapFailuresPercent = 0;
   private int allowedReduceFailuresPercent = 0;
   private List<TaskAttemptCompletionEvent> taskAttemptCompletionEvents;
@@ -342,7 +339,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private long finishTime;
   private float setupProgress;
   private float cleanupProgress;
-  private boolean reducesScheduled;
   private boolean isUber = false;
 
   private Credentials fsTokens;
@@ -734,6 +730,11 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         TaskSplitMetaInfo[] taskSplitMetaInfo = createSplits(job, job.jobId);
         job.numMapTasks = taskSplitMetaInfo.length;
         job.numReduceTasks = job.conf.getInt(MRJobConfig.NUM_REDUCES, 0);
+        
+        if (job.numMapTasks == 0 && job.numReduceTasks == 0) {
+          job.addDiagnostic("No of maps and reduces are 0 " + job.jobId);
+          return job.finished(JobState.FAILED);
+        }
 
         checkTaskLimits();
 
@@ -857,15 +858,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
             job.conf.getInt(MRJobConfig.MAP_FAILURES_MAX_PERCENT, 0);
         job.allowedReduceFailuresPercent =
             job.conf.getInt(MRJobConfig.REDUCE_FAILURES_MAXPERCENT, 0);
-
-        // Calculate the minimum number of maps to be complete before 
-        // we should start scheduling reduces
-        job.completedMapsForReduceSlowstart = 
-          (int)Math.ceil(
-              (job.conf.getFloat(
-                  MRJobConfig.COMPLETED_MAPS_FOR_REDUCE_SLOWSTART, 
-                        DEFAULT_COMPLETED_MAPS_PERCENT_FOR_REDUCE_SLOWSTART) * 
-                        job.numMapTasks));
 
         // do the setup
         job.committer.setupJob(job.jobContext);
@@ -1028,6 +1020,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     public void transition(JobImpl job, JobEvent event) {
       job.startTime = job.clock.getTime();
       job.scheduleTasks(job.mapTasks);  // schedule (i.e., start) the maps
+      job.scheduleTasks(job.reduceTasks);
       JobInitedEvent jie =
         new JobInitedEvent(job.oldJobId,
              job.startTime,
@@ -1236,16 +1229,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     private void taskSucceeded(JobImpl job, Task task) {
       if (task.getType() == TaskType.MAP) {
         job.succeededMapTaskCount++;
-        if (!job.reducesScheduled) {
-          LOG.info("completedMapsForReduceSlowstart is "
-              + job.completedMapsForReduceSlowstart);
-          if (job.succeededMapTaskCount == 
-            job.completedMapsForReduceSlowstart) {
-            // check to see if reduces can be scheduled now
-            job.scheduleTasks(job.reduceTasks);
-            job.reducesScheduled = true;
-          }
-        }
       } else {
         job.succeededReduceTaskCount++;
       }

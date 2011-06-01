@@ -62,8 +62,4 @@ public class MapTaskAttemptImpl extends TaskAttemptImpl {
     return mapTask;
   }
 
-  @Override
-  protected int getPriority() {
-    return 1;
-  }
 }

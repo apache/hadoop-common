@@ -51,6 +51,21 @@ public class TestMRApp {
   }
 
   @Test
+  public void testZeroMaps() throws Exception {
+    MRApp app = new MRApp(0, 1, true, this.getClass().getName(), true);
+    Job job = app.submit(new Configuration());
+    app.waitForState(job, JobState.SUCCEEDED);
+    app.verifyCompleted();
+  }
+  
+  @Test
+  public void testZeroMapReduces() throws Exception {
+    MRApp app = new MRApp(0, 0, true, this.getClass().getName(), true);
+    Job job = app.submit(new Configuration());
+    app.waitForState(job, JobState.FAILED);
+  }
+  
+  @Test
   public void testCommitPending() throws Exception {
     MRApp app = new MRApp(1, 0, false, this.getClass().getName(), true);
     Job job = app.submit(new Configuration());
@@ -80,7 +95,7 @@ public class TestMRApp {
     app.waitForState(job, JobState.SUCCEEDED);
   }
 
-  @Test
+  //@Test
   public void testCompletedMapsForReduceSlowstart() throws Exception {
     MRApp app = new MRApp(2, 1, false, this.getClass().getName(), true);
     Configuration conf = new Configuration();

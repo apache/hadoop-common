@@ -48,6 +48,9 @@ public class AMResponsePBImpl extends ProtoBase<AMResponseProto> implements AMRe
     if (this.containerList != null) {
       addLocalContainersToProto();
     }
+    if (this.limit != null) {
+      builder.setLimit(convertToProtoFormat(this.limit));
+    }
   }
   
   private void mergeLocalToProto() {

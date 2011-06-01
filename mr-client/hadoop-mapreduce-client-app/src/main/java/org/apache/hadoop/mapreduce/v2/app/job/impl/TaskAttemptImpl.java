@@ -730,8 +730,6 @@ public abstract class TaskAttemptImpl implements
 
   protected abstract org.apache.hadoop.mapred.Task createRemoteTask();
 
-  protected abstract int getPriority();
-
   @Override
   public TaskAttemptId getID() {
     return attemptId;
@@ -873,13 +871,12 @@ public abstract class TaskAttemptImpl implements
         taskAttempt.eventHandler.handle(
             ContainerRequestEvent.createContainerRequestEventForFailedContainer(
                 taskAttempt.attemptId, 
-                taskAttempt.resourceCapability, 
-                taskAttempt.getPriority()));
+                taskAttempt.resourceCapability));
       } else {
         taskAttempt.eventHandler.handle(
             new ContainerRequestEvent(taskAttempt.attemptId, 
                 taskAttempt.resourceCapability, 
-                taskAttempt.getPriority(), taskAttempt.dataLocalHosts, racks));
+                taskAttempt.dataLocalHosts, racks));
       }
     }
   }
