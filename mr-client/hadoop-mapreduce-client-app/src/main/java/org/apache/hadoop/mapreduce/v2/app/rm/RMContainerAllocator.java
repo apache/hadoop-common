@@ -247,6 +247,8 @@ public class RMContainerAllocator extends RMContainerRequestor
       return;
     }
     
+    LOG.info("Recalculating schedule...");
+    
     int totalMaps = assignedRequests.maps.size() + completedMaps + scheduledRequests.maps.size();
     
     if (completedMapsForReduceSlowstart == 0) {//not set yet
@@ -258,15 +260,17 @@ public class RMContainerAllocator extends RMContainerRequestor
                       totalMaps));
     }
     
+    if(completedMaps < completedMapsForReduceSlowstart) {
+      LOG.info("Reduce slow start threshold not met. " +
+      		"completedMapsForReduceSlowstart " + completedMapsForReduceSlowstart);
+      return;
+    }
+    
     int completedMapPercent = 0;
     if (totalMaps != 0) {//support for 0 maps
       completedMapPercent = completedMaps/totalMaps;
     } else {
       completedMapPercent = 1;
-    }
-    
-    if(completedMapPercent < completedMapsForReduceSlowstart) {
-      return;
     }
     
     int scheduledMapMem = scheduledRequests.maps.size() * mapResourceReqt;
