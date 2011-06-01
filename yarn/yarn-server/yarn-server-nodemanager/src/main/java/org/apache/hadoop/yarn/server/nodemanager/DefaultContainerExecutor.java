@@ -74,7 +74,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
     // TODO: Why pick first app dir. The same in LCE why not random?
     Path appStorageDir = getFirstApplicationDir(localDirs, user, appId);
 
-    String tokenFn = String.format(ContainerLocalizer.TOKEN_FILE_FMT, locId);
+    String tokenFn = String.format(ContainerLocalizer.TOKEN_FILE_NAME_FMT, locId);
     Path tokenDst = new Path(appStorageDir, tokenFn);
     lfs.util().copy(nmPrivateContainerTokensPath, tokenDst);
     lfs.setWorkingDirectory(appStorageDir);
@@ -114,7 +114,7 @@ public class DefaultContainerExecutor extends ContainerExecutor {
 
     // copy container tokens to work dir
     Path tokenDst =
-      new Path(containerWorkDir, ContainerLaunch.CONTAINER_TOKENS);
+      new Path(containerWorkDir, ContainerLaunch.FINAL_CONTAINER_TOKENS_FILE);
     lfs.util().copy(nmPrivateTokensPath, tokenDst);
 
     // create log dir under app

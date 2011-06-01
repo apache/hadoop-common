@@ -673,7 +673,7 @@ public class ResourceLocalizationService extends AbstractService
             localDirsSelector.getLocalPathForWrite(
                 NM_PRIVATE_DIR
                     + Path.SEPARATOR
-                    + String.format(ContainerLocalizer.TOKEN_FILE_FMT,
+                    + String.format(ContainerLocalizer.TOKEN_FILE_NAME_FMT,
                         localizerId), getConfig());
         // 0) init queue, etc.
         // 1) write credentials to private dir

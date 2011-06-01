@@ -198,8 +198,11 @@ class YarnChild {
   private static Token<JobTokenIdentifier> loadCredentials(JobConf conf,
       InetSocketAddress address) throws IOException {
     //load token cache storage
+    String tokenFileLocation =
+        System.getenv(UserGroupInformation.HADOOP_TOKEN_FILE_LOCATION);
     String jobTokenFile =
-      new Path("container_tokens").makeQualified(FileSystem.getLocal(conf)).toUri().getPath();
+        new Path(tokenFileLocation).makeQualified(FileSystem.getLocal(conf))
+            .toUri().getPath();
     Credentials credentials =
       TokenCache.loadTokens(jobTokenFile, conf);
     LOG.debug("loading token. # keys =" +credentials.numberOfSecretKeys() +

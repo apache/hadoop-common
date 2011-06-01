@@ -107,7 +107,7 @@ public class TestContainerLocalizer {
     DataInputBuffer appTokens = createFakeCredentials(r, 10);
     Path tokenPath =
       lfs.makeQualified(new Path(
-            String.format(ContainerLocalizer.TOKEN_FILE_FMT, cId)));
+            String.format(ContainerLocalizer.TOKEN_FILE_NAME_FMT, cId)));
     doReturn(new FSDataInputStream(new FakeFSDataInputStream(appTokens))
         ).when(spylfs).open(tokenPath);
 

@@ -41,6 +41,7 @@ import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
@@ -63,7 +64,7 @@ public class ContainerLaunch implements Callable<Integer> {
   private static final Log LOG = LogFactory.getLog(ContainerLaunch.class);
 
   public static final String CONTAINER_SCRIPT = "task.sh";
-  public static final String CONTAINER_TOKENS = "container_tokens";
+  public static final String FINAL_CONTAINER_TOKENS_FILE = "container_tokens";
 
   private final Dispatcher dispatcher;
   private final ContainerExecutor exec;
@@ -136,10 +137,18 @@ public class ContainerLaunch implements Callable<Integer> {
                   + Path.SEPARATOR
                   + containerIdStr
                   + Path.SEPARATOR
-                  + String.format(ContainerLocalizer.TOKEN_FILE_FMT,
+                  + String.format(ContainerLocalizer.TOKEN_FILE_NAME_FMT,
                       containerIdStr), this.conf);
       DataOutputStream containerScriptOutStream = null;
       DataOutputStream tokensOutStream = null;
+
+      // Select the working directory for the container
+      Path containerWorkDir =
+          lDirAllocator.getLocalPathForWrite(ContainerLocalizer.USERCACHE
+              + Path.SEPARATOR + user + Path.SEPARATOR
+              + ContainerLocalizer.APPCACHE + Path.SEPARATOR + appIdStr
+              + Path.SEPARATOR + containerIdStr,
+              LocalDirAllocator.SIZE_UNKNOWN, this.conf, false);
 
       try {
         // /////////// Write out the container-script in the nmPrivate space.
@@ -156,6 +165,11 @@ public class ContainerLaunch implements Callable<Integer> {
         containerScriptOutStream =
           lfs.create(nmPrivateContainerScriptPath,
               EnumSet.of(CREATE, OVERWRITE));
+
+        // Set the token location too.
+        env.put(UserGroupInformation.HADOOP_TOKEN_FILE_LOCATION, new Path(
+            containerWorkDir, FINAL_CONTAINER_TOKENS_FILE).toUri().getPath());
+
         writeLaunchEnv(containerScriptOutStream, env, localResources,
             command, appDirs);
         // /////////// End of writing out container-script
@@ -169,14 +183,6 @@ public class ContainerLaunch implements Callable<Integer> {
       } finally {
         IOUtils.cleanup(LOG, containerScriptOutStream, tokensOutStream);
       }
-
-      // Select the working directory for the container
-      Path containerWorkDir =
-          lDirAllocator.getLocalPathForWrite(ContainerLocalizer.USERCACHE
-              + Path.SEPARATOR + user + Path.SEPARATOR
-              + ContainerLocalizer.APPCACHE + Path.SEPARATOR + appIdStr
-              + Path.SEPARATOR + containerIdStr,
-              LocalDirAllocator.SIZE_UNKNOWN, this.conf, false);
 
       // LaunchContainer is a blocking call. We are here almost means the
       // container is launched, so send out the event.
