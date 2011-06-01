@@ -60,14 +60,19 @@ public class CompletedTask implements Task {
     this.counters = TypeConverter.toYarn(
         new org.apache.hadoop.mapred.Counters(taskinfo.getCounters()));
     this.state = TaskState.valueOf(taskinfo.getTaskStatus());
+    report = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskReport.class);
     for (TaskAttemptInfo attemptHistory : 
                 taskinfo.getAllTaskAttempts().values()) {
       CompletedTaskAttempt attempt = new CompletedTaskAttempt(taskId, 
           attemptHistory);
       attempts.put(attempt.getID(), attempt);
+      if (attemptHistory.getState().equals(TaskState.SUCCEEDED.toString())
+          && report.getSuccessfulAttempt() == null) {
+        report.setSuccessfulAttempt(TypeConverter.toYarn(attemptHistory
+            .getAttemptId()));
+      }
     }
     
-    report = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(TaskReport.class);
     report.setTaskId(taskId);
     report.setStartTime(startTime);
     report.setFinishTime(finishTime);
@@ -75,7 +80,6 @@ public class CompletedTask implements Task {
     report.setProgress(getProgress());
     report.setCounters(getCounters());
     report.addAllRunningAttempts(new ArrayList<TaskAttemptId>(attempts.keySet()));
-    //report.successfulAttempt = taskHistory.; //TODO
   }
 
   @Override
