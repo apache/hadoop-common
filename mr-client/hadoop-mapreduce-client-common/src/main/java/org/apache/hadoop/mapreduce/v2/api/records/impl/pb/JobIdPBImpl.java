@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.mapreduce.v2.api.records.impl.pb;
 
+import java.text.NumberFormat;
+
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.proto.MRProtos.JobIdProto;
 import org.apache.hadoop.mapreduce.v2.proto.MRProtos.JobIdProtoOrBuilder;
@@ -27,6 +29,16 @@ import org.apache.hadoop.yarn.api.records.impl.pb.ApplicationIdPBImpl;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationIdProto;
     
 public class JobIdPBImpl extends ProtoBase<JobIdProto> implements JobId {
+
+  protected static final String JOB = "job";
+  protected static final char SEPARATOR = '_';
+  protected static final NumberFormat idFormat = NumberFormat.getInstance();
+  static {
+    idFormat.setGroupingUsed(false);
+    idFormat.setMinimumIntegerDigits(4);
+  }
+  
+  
   JobIdProto proto = JobIdProto.getDefaultInstance();
   JobIdProto.Builder builder = null;
   boolean viaProto = false;
@@ -115,5 +127,15 @@ public class JobIdPBImpl extends ProtoBase<JobIdProto> implements JobId {
 
   private synchronized ApplicationIdProto convertToProtoFormat(ApplicationId t) {
     return ((ApplicationIdPBImpl)t).getProto();
+  }
+  
+  @Override
+  public String toString() {
+    StringBuilder builder = new StringBuilder(JOB);
+    builder.append(SEPARATOR);
+    builder.append(getAppId().getClusterTimestamp());
+    builder.append(SEPARATOR);
+    builder.append(idFormat.format(getId()));
+    return builder.toString();
   }
 }  

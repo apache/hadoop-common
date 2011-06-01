@@ -19,6 +19,9 @@
 package org.apache.hadoop.mapreduce.v2.hs;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.StringTokenizer;
 
 import junit.framework.Assert;
 
@@ -45,9 +48,6 @@ import org.junit.Test;
 
 public class TestJobHistoryParsing {
   private static final Log LOG = LogFactory.getLog(TestJobHistoryParsing.class);
-  //TODO FIX once final CompletedStatusStore is available
-//  private static final String STATUS_STORE_DIR_KEY =
-//    "yarn.server.nodemanager.jobstatus";
   @Test
   public void testHistoryParsing() throws Exception {
     Configuration conf = new Configuration();
@@ -71,8 +71,9 @@ public class TestJobHistoryParsing {
     Path historyFilePath = new Path(jobhistoryDir, jobhistoryFileName);
     FSDataInputStream in = null;
     LOG.info("JobHistoryFile is: " + historyFilePath);
+    FileContext fc = null;
     try {
-      FileContext fc = FileContext.getFileContext(conf);
+      fc = FileContext.getFileContext(conf);
       in = fc.open(fc.makeQualified(historyFilePath));
     } catch (IOException ioe) {
       LOG.info("Can not open history file: " + historyFilePath, ioe);
@@ -103,22 +104,45 @@ public class TestJobHistoryParsing {
       Assert.assertTrue("total number of task attempts ", 
           taskAttemptCount == 1);
     }
-//
-//   // Test for checking jobstats for job status store
-//    Path statusFilePath = new Path(jobstatusDir, "jobstats");
-//    try {
-//      FileContext fc = FileContext.getFileContext(statusFilePath.toUri());
-//      in = fc.open(statusFilePath);
-//    } catch (IOException ioe) {
-//      LOG.info("Can not open status file "+ ioe);
-//      throw (new Exception("Can not open status File"));
-//    }
-//    parser = new JobHistoryParser(in);
-//    jobInfo = parser.parse();
-//    Assert.assertTrue("incorrect finishedMap in job stats file ",
-//        jobInfo.getFinishedMaps() == 2);
-//    Assert.assertTrue("incorrect finishedReduces in job stats file ",
-//        jobInfo.getFinishedReduces() == 1);
+    
+    String summaryFileName = JobHistoryUtils
+        .getIntermediateSummaryFileName(jobId);
+    Path summaryFile = new Path(jobhistoryDir, summaryFileName);
+    String jobSummaryString = jobHistory.getJobSummary(fc, summaryFile);
+    Assert.assertNotNull(jobSummaryString);
+
+    Map<String, String> jobSummaryElements = new HashMap<String, String>();
+    StringTokenizer strToken = new StringTokenizer(jobSummaryString, ",");
+    while (strToken.hasMoreTokens()) {
+      String keypair = strToken.nextToken();
+      jobSummaryElements.put(keypair.split("=")[0], keypair.split("=")[1]);
+
+    }
+
+    Assert.assertEquals("JobId does not match", jobId.toString(),
+        jobSummaryElements.get("jobId"));
+    Assert.assertTrue("submitTime should not be 0",
+        Long.parseLong(jobSummaryElements.get("submitTime")) != 0);
+    Assert.assertTrue("launchTime should not be 0",
+        Long.parseLong(jobSummaryElements.get("launchTime")) != 0);
+    Assert.assertTrue("firstMapTaskLaunchTime should not be 0",
+        Long.parseLong(jobSummaryElements.get("firstMapTaskLaunchTime")) != 0);
+    Assert
+        .assertTrue(
+            "firstReduceTaskLaunchTime should not be 0",
+            Long.parseLong(jobSummaryElements.get("firstReduceTaskLaunchTime")) != 0);
+    Assert.assertTrue("finishTime should not be 0",
+        Long.parseLong(jobSummaryElements.get("finishTime")) != 0);
+    Assert.assertEquals("Mismatch in num map slots", 2,
+        Integer.parseInt(jobSummaryElements.get("numMaps")));
+    Assert.assertEquals("Mismatch in num reduce slots", 1,
+        Integer.parseInt(jobSummaryElements.get("numReduces")));
+    Assert.assertEquals("User does not match", "mapred",
+        jobSummaryElements.get("user"));
+    Assert.assertEquals("Queue does not match", "default",
+        jobSummaryElements.get("queue"));
+    Assert.assertEquals("Status does not match", "SUCCEEDED",
+        jobSummaryElements.get("status"));
   }
 
   public static void main(String[] args) throws Exception {

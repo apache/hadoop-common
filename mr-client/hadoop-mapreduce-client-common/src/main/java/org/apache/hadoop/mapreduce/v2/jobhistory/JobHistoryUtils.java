@@ -89,6 +89,11 @@ public class JobHistoryUtils {
   public static final String CONF_FILE_NAME_SUFFIX = "_conf.xml";
   
   /**
+   * Suffix for summary files.
+   */
+  public static final String SUMMARY_FILE_NAME_SUFFIX = ".summary";
+  
+  /**
    * Job History File extension.
    */
   public static final String JOB_HISTORY_FILE_EXTENSION = ".jhist";
@@ -228,6 +233,15 @@ public class JobHistoryUtils {
    */
   public static String getIntermediateConfFileName(JobId jobId) {
     return TypeConverter.fromYarn(jobId).toString() + CONF_FILE_NAME_SUFFIX;
+  }
+  
+  /**
+   * Get the done summary file name for a job.
+   * @param jobId the jobId.
+   * @return the conf file name.
+   */
+  public static String getIntermediateSummaryFileName(JobId jobId) {
+    return TypeConverter.fromYarn(jobId).toString() + SUMMARY_FILE_NAME_SUFFIX;
   }
   
   /**

@@ -42,6 +42,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
@@ -52,6 +53,7 @@ import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.jobhistory.JobSummary;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.jobhistory.FileNameIndexUtils;
@@ -81,6 +83,8 @@ public class JobHistory extends AbstractService implements HistoryContext   {
   static final long DEFAULT_RUN_INTERVAL = 1 * 24 * 60 * 60 * 1000l; //1 day
   
   private static final Log LOG = LogFactory.getLog(JobHistory.class);
+
+  private static final Log SUMMARY_LOG = LogFactory.getLog(JobSummary.class);
 
   private static final Pattern DATE_PATTERN = Pattern
       .compile("([0-1]?[0-9])/([0-3]?[0-9])/((?:2[0-9])[0-9][0-9])");
@@ -382,8 +386,11 @@ public class JobHistory extends AbstractService implements HistoryContext   {
           .getName());
       String confFileName = JobHistoryUtils
           .getIntermediateConfFileName(jobIndexInfo.getJobId());
+      String summaryFileName = JobHistoryUtils
+          .getIntermediateSummaryFileName(jobIndexInfo.getJobId());
       MetaInfo metaInfo = new MetaInfo(fs.getPath(), new Path(fs.getPath()
-          .getParent(), confFileName), jobIndexInfo);
+          .getParent(), confFileName), new Path(fs.getPath().getParent(),
+          summaryFileName), jobIndexInfo);
       addToJobListCache(jobIndexInfo.getJobId(), metaInfo);
     }
   }
@@ -478,8 +485,11 @@ public class JobHistory extends AbstractService implements HistoryContext   {
           .getName());
       String confFileName = JobHistoryUtils
           .getIntermediateConfFileName(jobIndexInfo.getJobId());
+      String summaryFileName = JobHistoryUtils
+          .getIntermediateSummaryFileName(jobIndexInfo.getJobId());
       MetaInfo metaInfo = new MetaInfo(fs.getPath(), new Path(fs.getPath()
-          .getParent(), confFileName), jobIndexInfo);
+          .getParent(), confFileName), new Path(fs.getPath().getParent(),
+          summaryFileName), jobIndexInfo);
       if (!intermediateListCache.containsKey(jobIndexInfo.getJobId())) {
         intermediateListCache.put(jobIndexInfo.getJobId(), metaInfo);
       }
@@ -501,8 +511,11 @@ public class JobHistory extends AbstractService implements HistoryContext   {
       if (jobIndexInfo.getJobId().equals(jobId)) {
         String confFileName = JobHistoryUtils
             .getIntermediateConfFileName(jobIndexInfo.getJobId());
+        String summaryFileName = JobHistoryUtils
+            .getIntermediateSummaryFileName(jobIndexInfo.getJobId());
         MetaInfo metaInfo = new MetaInfo(fs.getPath(), new Path(fs.getPath()
-            .getParent(), confFileName), jobIndexInfo);
+            .getParent(), confFileName), new Path(fs.getPath().getParent(),
+            summaryFileName), jobIndexInfo);
         return metaInfo;
       }
     }
@@ -576,7 +589,11 @@ public class JobHistory extends AbstractService implements HistoryContext   {
             moveToDoneExecutor.execute(new Runnable() {
               @Override
               public void run() {
+                try {
                 moveToDone(metaInfo);
+                } catch (IOException e) {
+                  LOG.info("Failed to process metaInfo for job: " + metaInfo.jobIndexInfo.getJobId(), e);
+                }
               }
             });
 
@@ -819,7 +836,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
   
 
   
-  private void moveToDone(MetaInfo metaInfo) {
+  private void moveToDone(MetaInfo metaInfo) throws IOException {
     long completeTime = metaInfo.getJobIndexInfo().getFinishTime();
     if (completeTime == 0) completeTime = System.currentTimeMillis();
     JobId jobId = metaInfo.getJobIndexInfo().getJobId();
@@ -839,13 +856,30 @@ public class JobHistory extends AbstractService implements HistoryContext   {
       paths.add(confFile);
     }
     
+    //TODO Check all mi getters and setters for the conf path
+    Path summaryFile = metaInfo.getSummaryFile();
+    if (summaryFile == null) {
+      LOG.info("No summary file for job: " + jobId);
+    } else {
+      try {
+        String jobSummaryString = getJobSummary(intermediateDoneDirFc, summaryFile);
+        SUMMARY_LOG.info(jobSummaryString);
+        LOG.info("Deleting JobSummary file: [" + summaryFile + "]");
+        intermediateDoneDirFc.delete(summaryFile, false);
+        metaInfo.setSummaryFile(null);
+      } catch (IOException e) {
+        LOG.warn("Failed to process summary file: [" + summaryFile + "]");
+        throw e;
+      }
+    }
+
     Path targetDir = canonicalHistoryLogPath(jobId, completeTime);
     addDirectoryToSerialNumberIndex(targetDir);
     try {
       maybeMakeSubdirectory(targetDir);
     } catch (IOException e) {
-      LOG.info("Failed creating subdirectory: " + targetDir + " while attempting to move files for jobId: " + jobId);
-      return;
+      LOG.warn("Failed creating subdirectory: " + targetDir + " while attempting to move files for jobId: " + jobId);
+      throw e;
     }
     synchronized (metaInfo) {
       if (historyFile != null) {
@@ -853,8 +887,8 @@ public class JobHistory extends AbstractService implements HistoryContext   {
         try {
           moveToDoneNow(historyFile, toPath);
         } catch (IOException e) {
-          LOG.info("Failed to move file: " + historyFile + " for jobId: " + jobId, e);
-          return;
+          LOG.warn("Failed to move file: " + historyFile + " for jobId: " + jobId);
+          throw e;
         }
         metaInfo.setHistoryFile(toPath);
       }
@@ -863,8 +897,8 @@ public class JobHistory extends AbstractService implements HistoryContext   {
         try {
           moveToDoneNow(confFile, toPath);
         } catch (IOException e) {
-          LOG.info("Failed to move file: " + historyFile + " for jobId: " + jobId, e);
-          return;
+          LOG.warn("Failed to move file: " + historyFile + " for jobId: " + jobId);
+          throw e;
         }
         metaInfo.setConfFile(toPath);
       }
@@ -881,6 +915,14 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     //fc.delete(src, false);
     //intermediateDoneDirFc.setPermission(target, new FsPermission(
     //JobHistoryUtils.HISTORY_DONE_FILE_PERMISSION));
+  }
+  
+  String getJobSummary(FileContext fc, Path path) throws IOException {
+    Path qPath = fc.makeQualified(path);
+    FSDataInputStream in = fc.open(qPath);
+    String jobSummaryString = in.readUTF();
+    in.close();
+    return jobSummaryString;
   }
   
   private void maybeMakeSubdirectory(Path path) throws IOException {
@@ -973,20 +1015,24 @@ public class JobHistory extends AbstractService implements HistoryContext   {
   static class MetaInfo {
     private Path historyFile;
     private Path confFile; 
+    private Path summaryFile;
     JobIndexInfo jobIndexInfo;
 
-    MetaInfo(Path historyFile, Path confFile, JobIndexInfo jobIndexInfo) {
+    MetaInfo(Path historyFile, Path confFile, Path summaryFile, JobIndexInfo jobIndexInfo) {
       this.historyFile = historyFile;
       this.confFile = confFile;
+      this.summaryFile = summaryFile;
       this.jobIndexInfo = jobIndexInfo;
       }
 
     Path getHistoryFile() { return historyFile; }
     Path getConfFile() { return confFile; }
+    Path getSummaryFile() { return summaryFile; }
     JobIndexInfo getJobIndexInfo() { return jobIndexInfo; }
     
     void setHistoryFile(Path historyFile) { this.historyFile = historyFile; }
     void setConfFile(Path confFile) {this.confFile = confFile; }
+    void setSummaryFile(Path summaryFile) { this.summaryFile = summaryFile; }
   }
   
 
@@ -1018,7 +1064,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
             long effectiveTimestamp = getEffectiveTimestamp(jobIndexInfo.getFinishTime(), historyFile);
             if (shouldDelete(effectiveTimestamp)) {
               String confFileName = JobHistoryUtils.getIntermediateConfFileName(jobIndexInfo.getJobId());
-              MetaInfo metaInfo = new MetaInfo(historyFile.getPath(), new Path(historyFile.getPath().getParent(), confFileName), jobIndexInfo);
+              MetaInfo metaInfo = new MetaInfo(historyFile.getPath(), new Path(historyFile.getPath().getParent(), confFileName), null, jobIndexInfo);
               delete(metaInfo);
             } else {
               halted = true;

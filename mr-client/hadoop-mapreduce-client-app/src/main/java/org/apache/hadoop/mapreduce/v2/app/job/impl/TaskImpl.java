@@ -566,6 +566,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
           .fromYarn(task.taskId), task.getLaunchTime(), TypeConverter
           .fromYarn(task.taskId.getTaskType()), TaskState.RUNNING.toString());
       task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tse));
+      //TODO This is a transition from NEW to SCHEDULED, not RUNNING
 
       task.addAndScheduleAttempt();
       task.metrics.launchedTask(task);

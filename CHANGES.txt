@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
   MAPREDUCE-279
     
+    MAPREDUCE-2551. Added JobSummaryLog. (Siddharth Seth via acmurthy)
+     
     Added ability to decommission nodes and completed RM administration tools
     to achieve parity with JobTracker. (acmurthy) 
 

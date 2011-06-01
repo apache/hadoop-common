@@ -36,7 +36,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
@@ -44,7 +43,7 @@ import org.apache.hadoop.mapreduce.v2.jobhistory.FileNameIndexUtils;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JHConfig;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JobIndexInfo;
-import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.service.AbstractService;
@@ -253,7 +252,7 @@ public class JobHistoryEventHandler extends AbstractService
    * @param jobId the jobId.
    * @throws IOException
    */
-  protected void setupEventWriter(JobId jobId)
+  protected void setupEventWriter(JobId jobId, JobSubmittedEvent jse)
   throws IOException {
     if (logDirPath == null) {
       LOG.error("Log Directory is null, returning");
@@ -263,13 +262,17 @@ public class JobHistoryEventHandler extends AbstractService
     MetaInfo oldFi = fileMap.get(jobId);
     Configuration conf = getConfig();
 
-    long submitTime = (oldFi == null ? context.getClock().getTime() : oldFi.getJobIndexInfo().getSubmitTime());
+    long submitTime = oldFi == null ? jse.getSubmitTime() : oldFi
+        .getJobIndexInfo().getSubmitTime();
     
-    //TODO Ideally this should be written out to the job dir (.staging/jobid/files - RecoveryService will need to be patched)
-    Path logFile = JobHistoryUtils.getStagingJobHistoryFile(logDirPath, jobId, startCount);
-    String user = conf.get(MRJobConfig.USER_NAME);
+    // TODO Ideally this should be written out to the job dir
+    // (.staging/jobid/files - RecoveryService will need to be patched)
+    Path logFile = JobHistoryUtils.getStagingJobHistoryFile(logDirPath, jobId,
+        startCount);
+    String user = UserGroupInformation.getCurrentUser().getShortUserName();
     if (user == null) {
-      throw new IOException("User is null while setting up jobhistory eventwriter" );
+      throw new IOException(
+          "User is null while setting up jobhistory eventwriter");
     }
     String jobName = TypeConverter.fromYarn(jobId).toString();
     EventWriter writer = (oldFi == null) ? null : oldFi.writer;
@@ -277,18 +280,22 @@ public class JobHistoryEventHandler extends AbstractService
     if (writer == null) {
       try {
         FSDataOutputStream out = logDirFS.create(logFile, true);
-        //TODO Permissions for the history file?
         writer = new EventWriter(out);
-        LOG.info("Event Writer setup for JobId: " + jobId + ", File: " + logFile);
+        LOG.info("Event Writer setup for JobId: " + jobId + ", File: "
+            + logFile);
       } catch (IOException ioe) {
-        LOG.info("Could not create log file: [" + logFile + "] + for job " + "[" + jobName + "]");
+        LOG.info("Could not create log file: [" + logFile + "] + for job "
+            + "[" + jobName + "]");
         throw ioe;
       }
     }
     
     Path logDirConfPath = null;
     if (conf != null) {
-      logDirConfPath = JobHistoryUtils.getStagingConfFile(logDirPath, jobId, startCount);
+      // TODO Ideally this should be written out to the job dir
+      // (.staging/jobid/files - RecoveryService will need to be patched)
+      logDirConfPath = JobHistoryUtils.getStagingConfFile(logDirPath, jobId,
+          startCount);
       FSDataOutputStream jobFileOut = null;
       try {
         if (logDirConfPath != null) {
@@ -297,12 +304,15 @@ public class JobHistoryEventHandler extends AbstractService
           jobFileOut.close();
         }
       } catch (IOException e) {
-        LOG.info("Failed to close the job configuration file "
-            + StringUtils.stringifyException(e));
+        LOG.info("Failed to write the job configuration file", e);
+        throw e;
       }
     }
     
-    MetaInfo fi = new MetaInfo(logFile, logDirConfPath, writer, submitTime, user, jobName, jobId);
+    MetaInfo fi = new MetaInfo(logFile, logDirConfPath, writer, submitTime,
+        user, jobName, jobId);
+    fi.getJobSummary().setJobId(jobId);
+    fi.getJobSummary().setJobSubmitTime(submitTime);
     fileMap.put(jobId, fi);
   }
 
@@ -331,14 +341,15 @@ public class JobHistoryEventHandler extends AbstractService
   }
 
   protected void handleEvent(JobHistoryEvent event) {
-    // check for first event from a job
-    //TODO Log a meta line with version information.
     synchronized (lock) {
     if (event.getHistoryEvent().getEventType() == EventType.JOB_SUBMITTED) {
       try {
-        setupEventWriter(event.getJobID());
+          JobSubmittedEvent jobSubmittedEvent = (JobSubmittedEvent) event
+              .getHistoryEvent();
+          setupEventWriter(event.getJobID(), jobSubmittedEvent);
       } catch (IOException ioe) {
-        LOG.error("Error JobHistoryEventHandler in handleEvent: " + event, ioe);
+          LOG.error("Error JobHistoryEventHandler in handleEvent: " + event,
+              ioe);
         throw new YarnException(ioe);
       }
     }
@@ -346,7 +357,9 @@ public class JobHistoryEventHandler extends AbstractService
     try {
       HistoryEvent historyEvent = event.getHistoryEvent();
       mi.writeEvent(historyEvent);
-      LOG.info("In HistoryEventHandler " + event.getHistoryEvent().getEventType());
+        processEventForJobSummary(event.getHistoryEvent(), mi.getJobSummary());
+        LOG.info("In HistoryEventHandler "
+            + event.getHistoryEvent().getEventType());
     } catch (IOException e) {
       LOG.error("Error writing History Event: " + event.getHistoryEvent(), e);
       throw new YarnException(e);
@@ -354,10 +367,12 @@ public class JobHistoryEventHandler extends AbstractService
     // check for done
     if (event.getHistoryEvent().getEventType().equals(EventType.JOB_FINISHED)) {
       try {
-        JobFinishedEvent jFinishedEvent = (JobFinishedEvent)event.getHistoryEvent();
+          JobFinishedEvent jFinishedEvent = (JobFinishedEvent) event
+              .getHistoryEvent();
         mi.getJobIndexInfo().setFinishTime(jFinishedEvent.getFinishTime());
         mi.getJobIndexInfo().setNumMaps(jFinishedEvent.getFinishedMaps());
-        mi.getJobIndexInfo().setNumReduces(jFinishedEvent.getFinishedReduces());
+          mi.getJobIndexInfo().setNumReduces(
+              jFinishedEvent.getFinishedReduces());
         closeEventWriter(event.getJobID());
       } catch (IOException e) {
         throw new YarnException(e);
@@ -366,7 +381,52 @@ public class JobHistoryEventHandler extends AbstractService
   }
   }
 
-  //TODO Path is intermediate_done/user -> Work with this throughout.
+  private void processEventForJobSummary(HistoryEvent event, JobSummary summary) {
+    // context.getJob could be used for some of this info as well.
+    switch (event.getEventType()) {
+    case JOB_SUBMITTED:
+      JobSubmittedEvent jse = (JobSubmittedEvent) event;
+      summary.setUser(jse.getUserName());
+      summary.setQueue(jse.getJobQueueName());
+      break;
+    case JOB_INITED:
+      JobInitedEvent jie = (JobInitedEvent) event;
+      summary.setJobLaunchTime(jie.getLaunchTime());
+      break;
+    case MAP_ATTEMPT_STARTED:
+      TaskAttemptStartedEvent mtase = (TaskAttemptStartedEvent) event;
+      if (summary.getFirstMapTaskLaunchTime() == 0)
+        summary.setFirstMapTaskLaunchTime(mtase.getStartTime());
+      break;
+    case REDUCE_ATTEMPT_STARTED:
+      TaskAttemptStartedEvent rtase = (TaskAttemptStartedEvent) event;
+      if (summary.getFirstReduceTaskLaunchTime() == 0)
+        summary.setFirstReduceTaskLaunchTime(rtase.getStartTime());
+      break;
+    case JOB_FINISHED:
+      JobFinishedEvent jfe = (JobFinishedEvent) event;
+      summary.setJobFinishTime(jfe.getFinishTime());
+      summary.setNumFinishedMaps(jfe.getFinishedMaps());
+      summary.setNumFailedMaps(jfe.getFailedMaps());
+      summary.setNumFinishedReduces(jfe.getFinishedReduces());
+      summary.setNumFailedReduces(jfe.getFailedReduces());
+      if (summary.getJobStatus() == null)
+        summary
+            .setJobStatus(org.apache.hadoop.mapreduce.JobStatus.State.SUCCEEDED
+                .toString());
+      // TODO JOB_FINISHED does not have state. Effectively job history does not
+      // have state about the finished job.
+      break;
+    case JOB_FAILED:
+    case JOB_KILLED:
+      JobUnsuccessfulCompletionEvent juce = (JobUnsuccessfulCompletionEvent) event;
+      summary.setJobStatus(juce.getStatus());
+      break;
+    // TODO Verify: MRV2 + MRV1. A JOB_FINISHED event will always come in after
+    // this. Stats on taskCounts can be set via that.
+    }
+  }
+
   protected void closeEventWriter(JobId jobId) throws IOException {
     final MetaInfo mi = fileMap.get(jobId);
     
@@ -387,15 +447,35 @@ public class JobHistoryEventHandler extends AbstractService
       LOG.warn("No file for jobconf with " + jobId + " found in cache!");
       }
       
+    // Writing out the summary file.
+    // TODO JH enhancement - reuse this file to store additional indexing info
+    // like ACLs, etc. JHServer can use HDFS append to build an index file
+    // with more info than is available via the filename.
+    Path qualifiedSummaryDoneFile = null;
+    FSDataOutputStream summaryFileOut = null;
+    try {
+      String doneSummaryFileName = getTempFileName(JobHistoryUtils
+          .getIntermediateSummaryFileName(jobId));
+      qualifiedSummaryDoneFile = doneDirFS.makeQualified(new Path(
+          doneDirPrefixPath, doneSummaryFileName));
+      summaryFileOut = doneDirFS.create(qualifiedSummaryDoneFile, true);
+      summaryFileOut.writeUTF(mi.getJobSummary().getJobSummaryString());
+      summaryFileOut.close();
+    } catch (IOException e) {
+      LOG.info("Unable to write out JobSummaryInfo to ["
+          + qualifiedSummaryDoneFile + "]", e);
+      throw e;
+    }
+
     Path qualifiedDoneFile = null;
         try {
       if (mi.getHistoryFile() != null) {
       Path logFile = mi.getHistoryFile();
       Path qualifiedLogFile = logDirFS.makeQualified(logFile);
-        String doneJobHistoryFileName = getTempFileName(FileNameIndexUtils.getDoneFileName(mi
-            .getJobIndexInfo()));
-        qualifiedDoneFile = doneDirFS.makeQualified(new Path(
-            doneDirPrefixPath, doneJobHistoryFileName));
+        String doneJobHistoryFileName = getTempFileName(FileNameIndexUtils
+            .getDoneFileName(mi.getJobIndexInfo()));
+        qualifiedDoneFile = doneDirFS.makeQualified(new Path(doneDirPrefixPath,
+            doneJobHistoryFileName));
       moveToDoneNow(qualifiedLogFile, qualifiedDoneFile);
       }
       
@@ -410,7 +490,7 @@ public class JobHistoryEventHandler extends AbstractService
       moveToDoneNow(qualifiedConfFile, qualifiedConfDoneFile);
       }
       
-      
+      moveTmpToDone(qualifiedSummaryDoneFile);
       moveTmpToDone(qualifiedConfDoneFile);
       moveTmpToDone(qualifiedDoneFile);
     } catch (IOException e) {
@@ -424,6 +504,7 @@ public class JobHistoryEventHandler extends AbstractService
     private Path confFile;
     private EventWriter writer;
     JobIndexInfo jobIndexInfo;
+    JobSummary jobSummary;
 
     MetaInfo(Path historyFile, Path conf, EventWriter writer, long submitTime,
              String user, String jobName, JobId jobId) {
@@ -431,6 +512,7 @@ public class JobHistoryEventHandler extends AbstractService
       this.confFile = conf;
       this.writer = writer;
       this.jobIndexInfo = new JobIndexInfo(submitTime, -1, user, jobName, jobId, -1, -1);
+      this.jobSummary = new JobSummary();
     }
 
     Path getHistoryFile() { return historyFile; }
@@ -438,6 +520,8 @@ public class JobHistoryEventHandler extends AbstractService
     Path getConfFile() {return confFile; } 
 
     JobIndexInfo getJobIndexInfo() { return jobIndexInfo; }
+
+    JobSummary getJobSummary() { return jobSummary; }
 
     void closeWriter() throws IOException {
       synchronized (lock) {
@@ -503,22 +587,5 @@ public class JobHistoryEventHandler extends AbstractService
   private String getFileNameFromTmpFN(String tmpFileName) {
     //TODO. Some error checking here.
     return tmpFileName.substring(0, tmpFileName.length()-4);
-  }
-
-  private void writeStatus(String statusstoredir, HistoryEvent event) throws IOException {
-    try {
-      Path statusstorepath = doneDirFS.makeQualified(new Path(statusstoredir));
-      doneDirFS.mkdirs(statusstorepath,
-         new FsPermission(JobHistoryUtils.HISTORY_DONE_DIR_PERMISSION));
-      Path toPath = new Path(statusstoredir, "jobstats");
-      FSDataOutputStream out = doneDirFS.create(toPath, true);
-      EventWriter writer = new EventWriter(out);
-      writer.write(event);
-      writer.close();
-      out.close();
-    } catch (IOException ioe) {
-        LOG.error("Status file write failed" +ioe);
-        throw ioe;
-    }
   }
 }

@@ -1212,7 +1212,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         new JobFinishedEvent(TypeConverter.fromYarn(job.jobId),
           job.finishTime,
           job.succeededMapTaskCount, job.numReduceTasks, job.failedMapTaskCount,
-          job.numReduceTasks, //TODO replace finishedReduceTasks
+          job.failedReduceTaskCount,
           TypeConverter.fromYarn(job.getCounters()), //TODO replace with MapCounter
           TypeConverter.fromYarn(job.getCounters()), // TODO reduceCounters
           TypeConverter.fromYarn(job.getCounters()));
