@@ -55,6 +55,9 @@ public class NodeManagerImpl implements NodeManager {
   private static final Log LOG = LogFactory.getLog(NodeManager.class);
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   private final NodeId nodeId;
+  private final String hostName;
+  private final int commandPort;
+  private final int httpPort;
   private final String nodeAddress; // The containerManager address
   private final String httpAddress;
   private Resource totalCapability;
@@ -83,12 +86,16 @@ public class NodeManagerImpl implements NodeManager {
   
   private volatile int numContainers;
   
-  public NodeManagerImpl(NodeId nodeId, String nodeAddress,
-      String httpAddress, Node node, Resource capability) {
+  public NodeManagerImpl(NodeId nodeId, String hostName, 
+      int cmPort, int httpPort,
+      Node node, Resource capability) {
     this.nodeId = nodeId;   
+    this.hostName = hostName;
+    this.commandPort = cmPort;
+    this.httpPort = httpPort;
     this.totalCapability = capability; 
-    this.nodeAddress = nodeAddress;
-    this.httpAddress = httpAddress;
+    this.nodeAddress = hostName + ":" + cmPort;
+    this.httpAddress = hostName + ":" + httpPort;
     Resources.addTo(availableResource, capability);
     this.node = node;
   }
@@ -101,6 +108,21 @@ public class NodeManagerImpl implements NodeManager {
     return this;
   }
   
+  @Override
+  public String getNodeHostName() {
+    return hostName;
+  }
+
+  @Override
+  public int getCommandPort() {
+    return commandPort;
+  }
+
+  @Override
+  public int getHttpPort() {
+    return httpPort;
+  }
+
   /**
    * The Scheduler has allocated containers on this node to the 
    * given application.

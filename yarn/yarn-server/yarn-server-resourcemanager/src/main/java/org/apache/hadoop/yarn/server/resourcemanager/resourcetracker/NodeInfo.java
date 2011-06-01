@@ -18,7 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
 
-import java.util.Collection;
+
 import java.util.List;
 
 import org.apache.hadoop.net.Node;
@@ -41,46 +41,74 @@ public interface NodeInfo {
    * @return the node id of this node.
    */
   public NodeId getNodeID();
+  
+  /**
+   * the hostname of this node
+   * @return hostname of this node
+   */
+  public String getNodeHostName();
+  
+  /**
+   * the command port for this node
+   * @return command port for this node
+   */
+  public int getCommandPort();
+  
+  /**
+   * the http port for this node
+   * @return http port for this node
+   */
+  public int getHttpPort();
+
+
   /**
    * the ContainerManager address for this node.
    * @return the ContainerManager address for this node.
    */
   public String getNodeAddress();
+  
   /**
    * the http-Address for this node.
    * @return the http-url address for this node
    */
   public String getHttpAddress();
+  
   /**
    * the health-status for this node
    * @return the health-status for this node.
    */
   public NodeHealthStatus getNodeHealthStatus();
+  
   /**
    * the total available resource.
    * @return the total available resource.
    */
   public org.apache.hadoop.yarn.api.records.Resource getTotalCapability();
+  
   /**
    * The rack name for this node manager.
    * @return the rack name.
    */
   public String getRackName();
+  
   /**
    * the {@link Node} information for this node.
    * @return {@link Node} information for this node.
    */
   public Node getNode();
+  
   /**
    * the available resource for this node.
    * @return the available resource this node.
    */
   public org.apache.hadoop.yarn.api.records.Resource getAvailableResource();
+  
   /**
    * used resource on this node.
    * @return the used resource on this node.
    */
   public org.apache.hadoop.yarn.api.records.Resource getUsedResource();
+  
   /**
    * The current number of containers for this node
    * @return the number of containers

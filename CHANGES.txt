@@ -3,6 +3,9 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    
+    Added ability to decommission nodes and completed RM administration tools
+    to achieve parity with JobTracker. (acmurthy) 
 
     Allowing hdfs calls from streaming/pipes tasks. (vinodkv)
 

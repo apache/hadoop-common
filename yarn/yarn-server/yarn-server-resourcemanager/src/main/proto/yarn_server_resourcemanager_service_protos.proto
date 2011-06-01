@@ -8,3 +8,23 @@ message RefreshQueuesRequestProto {
 }
 message RefreshQueuesResponseProto {
 }
+
+message RefreshNodesRequestProto {
+}
+message RefreshNodesResponseProto {
+}
+
+message RefreshSuperUserGroupsConfigurationRequestProto {
+}
+message RefreshSuperUserGroupsConfigurationResponseProto {
+}
+
+message RefreshUserToGroupsMappingsRequestProto {
+}
+message RefreshUserToGroupsMappingsResponseProto {
+}
+
+message RefreshAdminAclsRequestProto {
+}
+message RefreshAdminAclsResponseProto {
+}

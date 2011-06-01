@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,6 +38,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
+import org.apache.hadoop.util.HostsFileReader;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
@@ -76,6 +78,7 @@ NodeTracker, ClusterTracker {
   private final Map<NodeId, NodeInfoTracker> nodeManagers = 
     new ConcurrentHashMap<NodeId, NodeInfoTracker>();
   private final NMLivelinessMonitor nmLivelinessMonitor;
+  private HostsFileReader hostsReader;
 
   private static final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
 
@@ -104,7 +107,9 @@ NodeTracker, ClusterTracker {
   private long nmExpiryInterval;
   private final NodeStore nodeStore;
   
-  public RMResourceTrackerImpl(ContainerTokenSecretManager containerTokenSecretManager, RMContext context) {
+  public RMResourceTrackerImpl(
+      ContainerTokenSecretManager containerTokenSecretManager, 
+      RMContext context) {
     super(RMResourceTrackerImpl.class.getName());
     reboot.setReboot(true);
     this.containerTokenSecretManager = containerTokenSecretManager;
@@ -114,14 +119,54 @@ NodeTracker, ClusterTracker {
 
   @Override
   public void init(Configuration conf) {
+    super.init(conf);
     this.nmExpiryInterval =  conf.getLong(RMConfig.NM_EXPIRY_INTERVAL, 
         RMConfig.DEFAULT_NM_EXPIRY_INTERVAL);
     this.nmLivelinessMonitor.setMonitoringInterval(conf.getLong(
         RMConfig.NMLIVELINESS_MONITORING_INTERVAL,
         RMConfig.DEFAULT_NMLIVELINESS_MONITORING_INTERVAL));
-    super.init(conf);
+    
+    // Read the hosts/exclude files to restrict access to the RM
+    try {
+      this.hostsReader = 
+        new HostsFileReader(
+            conf.get(RMConfig.RM_NODES_INCLUDE_FILE, 
+                RMConfig.DEFAULT_RM_NODES_INCLUDE_FILE),
+            conf.get(RMConfig.RM_NODES_EXCLUDE_FILE, 
+                RMConfig.DEFAULT_RM_NODES_EXCLUDE_FILE)
+                );
+      printConfiguredHosts();
+    } catch (IOException ioe) {
+      LOG.warn("Failed to init hostsReader, disabling", ioe);
+      try {
+        this.hostsReader = 
+          new HostsFileReader(RMConfig.DEFAULT_RM_NODES_INCLUDE_FILE, 
+              RMConfig.DEFAULT_RM_NODES_EXCLUDE_FILE);
+      } catch (IOException ioe2) {
+        // Should *never* happen
+        this.hostsReader = null;
+      }
+    }
   }
 
+  private void printConfiguredHosts() {
+    if (!LOG.isDebugEnabled()) {
+      return;
+    }
+    
+    Configuration conf = getConfig();
+    LOG.debug("hostsReader: in=" + conf.get(RMConfig.RM_NODES_INCLUDE_FILE, 
+        RMConfig.DEFAULT_RM_NODES_INCLUDE_FILE) + " out=" +
+        conf.get(RMConfig.RM_NODES_EXCLUDE_FILE, 
+            RMConfig.DEFAULT_RM_NODES_EXCLUDE_FILE));
+    for (String include : hostsReader.getHosts()) {
+      LOG.debug("include: " + include);
+    }
+    for (String exclude : hostsReader.getExcludedHosts()) {
+      LOG.debug("exclude: " + exclude);
+    }
+  }
+  
   @Override
   public void addListener(ResourceListener listener) {
     this.resourceListener = listener;
@@ -143,17 +188,17 @@ NodeTracker, ClusterTracker {
     return new NodeBase(hostName, NetworkTopology.DEFAULT_RACK);
   }
   
-  protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId,
-      String hostString, String httpAddress, Node node, Resource capability) {
+  protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId, 
+      String hostName, int cmPort, int httpPort,
+      Node node, Resource capability) {
     NodeInfoTracker nTracker = null;
     
     synchronized(nodeManagers) {
       if (!nodeManagers.containsKey(nodeId)) {
-        LOG.info("DEBUG -- Adding  " + hostString);
+        LOG.info("DEBUG -- Adding  " + hostName);
         NodeManager nodeManager =
-          new NodeManagerImpl(nodeId, hostString, httpAddress,
-              node,
-              capability);
+          new NodeManagerImpl(nodeId, hostName, cmPort, httpPort, 
+              node, capability);
         nodes.put(nodeManager.getNodeAddress(), nodeId);
         addNode(nodeManager);
         HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
@@ -182,18 +227,23 @@ NodeTracker, ClusterTracker {
   public RegistrationResponse registerNodeManager(
       String host, int cmPort, int httpPort, Resource capability) 
   throws IOException {
-    String node = host + ":" + cmPort;
-    String httpAddress = host + ":" + httpPort;
+    // Check if this node is a 'valid' node
+    if (!isValidNode(host)) {
+      LOG.info("Disallowed NodeManager from  " + host);
+      throw new IOException("Disallowed NodeManager from  " + host); 
+    }
 
+    String node = host + ":" + cmPort;
     NodeId nodeId = getNodeId(node);
     
     NodeInfoTracker nTracker = null;
     nTracker = 
-      getAndAddNodeInfoTracker(nodeId, node, httpAddress, 
-          resolve(node), capability);
+      getAndAddNodeInfoTracker(nodeId, host, cmPort, httpPort, 
+          resolve(host), capability);
     addForTracking(nTracker.getlastHeartBeat());
-    LOG.info("NodeManager from node " + node + "(web-url: " + httpAddress
-        + ") registered with capability: " + capability.getMemory()
+    LOG.info("NodeManager from node " + host + 
+        "(cmPort: " + cmPort + " httpPort: " + httpPort + ") "
+        + "registered with capability: " + capability.getMemory()
         + ", assigned nodeId " + nodeId.getId());
 
     RegistrationResponse regResponse = recordFactory.newRecordInstance(
@@ -230,8 +280,13 @@ NodeTracker, ClusterTracker {
     return nodeManager.statusUpdate(containers);
   }
   
-  private boolean isValidNode(NodeId nodeId) {
-    return true;
+  private boolean isValidNode(String hostName) {
+    synchronized (hostsReader) {
+      Set<String> hostsList = hostsReader.getHosts();
+      Set<String> excludeList = hostsReader.getExcludedHosts();
+      return ((hostsList.isEmpty() || hostsList.contains(hostName)) && 
+          !excludeList.contains(hostName));
+    }
   }
   
   @Override
@@ -264,8 +319,9 @@ NodeTracker, ClusterTracker {
     nTracker.setLastHeartBeatTime();
     
     // 2. Check if it's a valid (i.e. not excluded) node
-    // TODO - Check for valid/invalid node from hosts list
-    if (!isValidNode(nodeId)) {
+    if (!isValidNode(nTracker.getNodeManager().getNodeHostName())) {
+      LOG.info("Disallowed NodeManager nodeId: " + nodeId +  
+          " hostname: " + nTracker.getNodeManager().getNodeAddress());
       unregisterNodeManager(remoteNodeStatus.getNodeId());
       throw new IOException("Disallowed NodeManager nodeId: " + 
           remoteNodeStatus.getNodeId());
@@ -346,10 +402,14 @@ NodeTracker, ClusterTracker {
   @Override
   public void unregisterNodeManager(NodeId nodeId) {
     synchronized (nodeManagers) {
-      NodeManager node = nodeManagers.get(nodeId).getNodeManager();
-      removeNode(node);
-      nodeManagers.remove(nodeId);
-      nodes.remove(node.getNodeAddress());
+      NodeManager node = getNodeManager(nodeId);
+      if (node != null) {
+        removeNode(node);
+        nodeManagers.remove(nodeId);
+        nodes.remove(node.getNodeAddress());
+      } else {
+        LOG.warn("Unknown node " + nodeId + " unregistered");
+      }
     }
   }
 
@@ -365,12 +425,6 @@ NodeTracker, ClusterTracker {
     }
   }
   
-  @Private
-  public synchronized NodeInfo getNodeManager(NodeId nodeId) {
-    NodeInfoTracker ntracker = nodeManagers.get(nodeId);
-    return (ntracker == null ? null: ntracker.getNodeManager());
-  }
-
   private  NodeId getNodeId(String node) {
     NodeId nodeId;
     nodeId = nodes.get(node);
@@ -503,40 +557,54 @@ NodeTracker, ClusterTracker {
   public void finishedApplication(ApplicationId applicationId,
       List<NodeInfo> nodesToNotify) {
     for (NodeInfo info: nodesToNotify) {
-      NodeManager node = null;
-      synchronized(nodeManagers) {
-        NodeInfoTracker nodeInfo = nodeManagers.get(info.getNodeID());
-        if (nodeInfo != null) {
-          node = nodeInfo.getNodeManager();
-        }
-      }
+      NodeManager node = getNodeManager(info.getNodeID());
       if (node != null) {
         node.finishedApplication(applicationId);
       }
     } 
   }
+  
+  @Private
+  public NodeManager getNodeManager(NodeId nodeId) {
+    if (nodeId == null) {
+      LOG.info("getNodeManager called with nodeId=null");
+      return null;
+    }
+    
+    NodeManager nodeManager = null;
+    synchronized (nodeManagers) {
+      NodeInfoTracker node = nodeManagers.get(nodeId);
+      if (node != null) {
+        nodeManager = node.getNodeManager();
+      }
+    }
+    return nodeManager;
+  }
 
   private NodeManager getNodeManagerForContainer(Container container) {
     NodeManager node;
     synchronized (nodeManagers) {
-      LOG.info("DEBUG -- Container manager address " + container.getContainerManagerAddress());
+      LOG.info("DEBUG -- Container manager address " + 
+          container.getContainerManagerAddress());
       NodeId nodeId = nodes.get(container.getContainerManagerAddress());
-      node = nodeManagers.get(nodeId).getNodeManager();
+      node = getNodeManager(nodeId);
     }
     return node;
   }
+  
   @Override
   public  boolean releaseContainer(Container container) {
     NodeManager node = getNodeManagerForContainer(container);
-    return node.releaseContainer(container);
+    return ((node != null) && node.releaseContainer(container));
   }
   
   @Override
   public void recover(RMState state) {
     List<NodeManager> nodeManagers = state.getStoredNodeManagers();
     for (NodeManager nm: nodeManagers) {
-      getAndAddNodeInfoTracker(nm.getNodeID(), nm.getNodeAddress(), 
-          nm.getHttpAddress(), nm.getNode(), nm.getTotalCapability());
+      getAndAddNodeInfoTracker(nm.getNodeID(), nm.getNodeHostName(),
+          nm.getCommandPort(), nm.getHttpPort(),
+          nm.getNode(), nm.getTotalCapability());
     }
     for (Map.Entry<ApplicationId, ApplicationInfo> entry: state.getStoredApplications().entrySet()) {
       List<Container> containers = entry.getValue().getContainers();
@@ -547,6 +615,14 @@ NodeTracker, ClusterTracker {
         containerNode.allocateContainer(entry.getKey(), containersToAdd);
         containersToAdd.clear();
       }
+    }
+  }
+
+  @Override
+  public void refreshNodes() throws IOException {
+    synchronized (hostsReader) {
+      hostsReader.refresh();
+      printConfiguredHosts();
     }
   }
 

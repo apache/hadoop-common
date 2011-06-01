@@ -7,4 +7,8 @@ import "yarn_server_resourcemanager_service_protos.proto";
 
 service RMAdminProtocolService {
   rpc refreshQueues(RefreshQueuesRequestProto) returns (RefreshQueuesResponseProto);
+  rpc refreshNodes(RefreshNodesRequestProto) returns (RefreshNodesResponseProto);
+  rpc refreshSuperUserGroupsConfiguration(RefreshSuperUserGroupsConfigurationRequestProto) returns (RefreshSuperUserGroupsConfigurationResponseProto);
+  rpc refreshUserToGroupsMappings(RefreshUserToGroupsMappingsRequestProto) returns (RefreshUserToGroupsMappingsResponseProto);
+  rpc refreshAdminAcls(RefreshAdminAclsRequestProto) returns (RefreshAdminAclsResponseProto);
 }

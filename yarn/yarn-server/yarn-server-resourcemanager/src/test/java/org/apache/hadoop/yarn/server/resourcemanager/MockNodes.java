@@ -167,6 +167,22 @@ public class MockNodes {
         // TODO Auto-generated method stub
         return null;
       }
+
+      @Override
+      public int getCommandPort() {
+        return nid;
+      }
+
+      @Override
+      public int getHttpPort() {
+        // TODO Auto-generated method stub
+        return 0;
+      }
+
+      @Override
+      public String getNodeHostName() {
+        return hostName;
+      }
     };
   }
 }

@@ -19,26 +19,27 @@
 package org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.impl.pb;
 
 import org.apache.hadoop.yarn.api.records.ProtoBase;
-import org.apache.hadoop.yarn.proto.YarnServerResourceManagerServiceProtos.RefreshQueuesRequestProto;
-import org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.RefreshQueuesRequest;
+import org.apache.hadoop.yarn.proto.YarnServerResourceManagerServiceProtos.RefreshAdminAclsRequestProto;
+import org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.RefreshAdminAclsRequest;
 
-public class RefreshQueuesRequestPBImpl extends ProtoBase<RefreshQueuesRequestProto>
-implements RefreshQueuesRequest {
+public class RefreshAdminAclsRequestPBImpl 
+extends ProtoBase<RefreshAdminAclsRequestProto>
+implements RefreshAdminAclsRequest {
 
-  RefreshQueuesRequestProto proto = RefreshQueuesRequestProto.getDefaultInstance();
-  RefreshQueuesRequestProto.Builder builder = null;
+  RefreshAdminAclsRequestProto proto = RefreshAdminAclsRequestProto.getDefaultInstance();
+  RefreshAdminAclsRequestProto.Builder builder = null;
   boolean viaProto = false;
   
-  public RefreshQueuesRequestPBImpl() {
-    builder = RefreshQueuesRequestProto.newBuilder();
+  public RefreshAdminAclsRequestPBImpl() {
+    builder = RefreshAdminAclsRequestProto.newBuilder();
   }
 
-  public RefreshQueuesRequestPBImpl(RefreshQueuesRequestProto proto) {
+  public RefreshAdminAclsRequestPBImpl(RefreshAdminAclsRequestProto proto) {
     this.proto = proto;
     viaProto = true;
   }
   
-  public RefreshQueuesRequestProto getProto() {
+  public RefreshAdminAclsRequestProto getProto() {
     proto = viaProto ? proto : builder.build();
     viaProto = true;
     return proto;

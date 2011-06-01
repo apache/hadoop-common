@@ -42,6 +42,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.Recoverable;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.Store.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.StoreFactory;
+import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeTracker;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.RMResourceTrackerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
@@ -159,7 +160,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
     masterService = createApplicationMasterService();
     addService(masterService) ;
     
-    adminService = createAdminService(conf, scheduler);
+    adminService = 
+      createAdminService(conf, scheduler, resourceTracker.getResourceTracker());
     addService(adminService);
 
     super.init(conf);
@@ -237,8 +239,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
   
 
   protected AdminService createAdminService(Configuration conf, 
-      ResourceScheduler scheduler) {
-    return new AdminService(conf, scheduler);
+      ResourceScheduler scheduler, NodeTracker nodesTracker) {
+    return new AdminService(conf, scheduler, nodesTracker);
   }
 
   /**

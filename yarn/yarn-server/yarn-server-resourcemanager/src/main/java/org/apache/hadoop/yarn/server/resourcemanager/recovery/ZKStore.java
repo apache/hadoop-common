@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -452,10 +454,26 @@ public class ZKStore implements Store {
 
     private void load() throws IOException {
       List<NodeManagerInfo> nodeInfos = listStoredNodes();
+      final Pattern trackerPattern = Pattern.compile(".*:.*");
+      final Matcher m = trackerPattern.matcher("");
       for (NodeManagerInfo node: nodeInfos) {
+        m.reset(node.getNodeAddress());
+        if (!m.find()) {
+          LOG.info("Skipping node, bad node-address " + node.getNodeAddress());
+          continue;
+        }
+        String hostName = m.group(0);
+        int cmPort = Integer.valueOf(m.group(1));
+        m.reset(node.getHttpAddress());
+        if (!m.find()) {
+          LOG.info("Skipping node, bad http-address " + node.getHttpAddress());
+          continue;
+        }
+        int httpPort = Integer.valueOf(m.group(1));
         NodeManager nm = new NodeManagerImpl(node.getNodeId(),
-            node.getNodeAddress(), node.getHttpAddress(), RMResourceTrackerImpl
-            .resolve(node.getNodeAddress()), node.getCapability());
+            hostName, cmPort, httpPort,
+            RMResourceTrackerImpl.resolve(node.getNodeAddress()), 
+            node.getCapability());
         nodeManagers.add(nm);
       }
       readLastNodeId();

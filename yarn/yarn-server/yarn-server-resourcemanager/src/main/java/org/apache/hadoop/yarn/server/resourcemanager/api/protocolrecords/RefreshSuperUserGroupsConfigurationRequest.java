@@ -16,26 +16,8 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.yarn.server.resourcemanager.resourcetracker;
+package org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords;
 
-import java.io.IOException;
+public interface RefreshSuperUserGroupsConfigurationRequest {
 
-import org.apache.hadoop.yarn.api.records.NodeId;
-import org.apache.hadoop.yarn.api.records.Resource;
-import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
-import org.apache.hadoop.yarn.server.api.records.NodeStatus;
-import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
-
-public interface NodeTracker {
-  
-  public RegistrationResponse registerNodeManager(
-      String hostName, int cmPort, int httpPort, Resource capability) 
-  throws IOException;
-  
-  public HeartbeatResponse nodeHeartbeat(NodeStatus nodeStatus) 
-  throws IOException;
-  
-  public void unregisterNodeManager(NodeId nodeId) throws IOException;
-  
-  public void refreshNodes() throws IOException;
 }

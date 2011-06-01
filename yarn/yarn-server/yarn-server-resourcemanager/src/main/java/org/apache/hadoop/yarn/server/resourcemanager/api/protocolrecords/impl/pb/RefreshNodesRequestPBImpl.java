@@ -19,26 +19,26 @@
 package org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.impl.pb;
 
 import org.apache.hadoop.yarn.api.records.ProtoBase;
-import org.apache.hadoop.yarn.proto.YarnServerResourceManagerServiceProtos.RefreshQueuesRequestProto;
-import org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.RefreshQueuesRequest;
+import org.apache.hadoop.yarn.proto.YarnServerResourceManagerServiceProtos.RefreshNodesRequestProto;
+import org.apache.hadoop.yarn.server.resourcemanager.api.protocolrecords.RefreshNodesRequest;
 
-public class RefreshQueuesRequestPBImpl extends ProtoBase<RefreshQueuesRequestProto>
-implements RefreshQueuesRequest {
+public class RefreshNodesRequestPBImpl extends ProtoBase<RefreshNodesRequestProto>
+implements RefreshNodesRequest {
 
-  RefreshQueuesRequestProto proto = RefreshQueuesRequestProto.getDefaultInstance();
-  RefreshQueuesRequestProto.Builder builder = null;
+  RefreshNodesRequestProto proto = RefreshNodesRequestProto.getDefaultInstance();
+  RefreshNodesRequestProto.Builder builder = null;
   boolean viaProto = false;
   
-  public RefreshQueuesRequestPBImpl() {
-    builder = RefreshQueuesRequestProto.newBuilder();
+  public RefreshNodesRequestPBImpl() {
+    builder = RefreshNodesRequestProto.newBuilder();
   }
 
-  public RefreshQueuesRequestPBImpl(RefreshQueuesRequestProto proto) {
+  public RefreshNodesRequestPBImpl(RefreshNodesRequestProto proto) {
     this.proto = proto;
     viaProto = true;
   }
   
-  public RefreshQueuesRequestProto getProto() {
+  public RefreshNodesRequestProto getProto() {
     proto = viaProto ? proto : builder.build();
     viaProto = true;
     return proto;

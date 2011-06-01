@@ -94,8 +94,8 @@ public class TestApplicationCleanup extends TestCase {
     
     @Override
     protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId,
-        String hostString, String httpAddress, Node node, Resource capability) {
-      return super.getAndAddNodeInfoTracker(nodeId, hostString, httpAddress, node, capability);
+        String host, int cmPort, int httpPort, Node node, Resource capability) {
+      return super.getAndAddNodeInfoTracker(nodeId, host, cmPort, httpPort, node, capability);
     }
     
     @Override
@@ -243,7 +243,7 @@ public class TestApplicationCleanup extends TestCase {
     Node node = new NodeBase(hostName, NetworkTopology.DEFAULT_RACK);
     Resource capability = recordFactory.newRecordInstance(Resource.class);
     capability.setMemory(1024);
-    NodeInfoTracker nTracker = clusterTracker.getAndAddNodeInfoTracker(nodeId, hostName, "localhost:0", node, capability);
+    NodeInfoTracker nTracker = clusterTracker.getAndAddNodeInfoTracker(nodeId, hostName, i, -1, node, capability);
     return nTracker.getNodeManager();
   }
 
