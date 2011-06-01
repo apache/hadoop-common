@@ -3,6 +3,8 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    Fix build issue for using yarn.version instead of hadoop-mapred.version
+    (mahadev and giri)
     
     Fixed TestFifoScheduler. (acmurthy)
     

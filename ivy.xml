@@ -75,7 +75,7 @@
    <dependency org="org.apache.hadoop" name="yarn-server-common"
                rev="${yarn.version}" conf="common->default"/>
    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-core" 
-               rev="${hadoop-mapreduce.version}" conf="common->default"/>
+               rev="${yarn.version}" conf="common->default"/>
    <dependency org="org.apache.hadoop" name="yarn-common"
                rev="${yarn.version}" conf="common->default"/>
    <dependency org="org.apache.hadoop" name="yarn-common"
