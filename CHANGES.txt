@@ -3,6 +3,9 @@ Hadoop MapReduce Change Log
 Trunk (unreleased changes)
 
   MAPREDUCE-279
+    
+    Fixed TestFifoScheduler. (acmurthy)
+    
     Fix reduce slow start. (sharad)
     
     MAPREDUCE-2552. Fixed NPE in CompletedJob in JobHistoryServer.

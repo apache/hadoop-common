@@ -29,15 +29,17 @@ import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 
 
 public class NodeStatus {
+  
   public static org.apache.hadoop.yarn.server.api.records.NodeStatus createNodeStatus(
       NodeId nodeId, Map<String, List<Container>> containers) {
     RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
     org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
     nodeStatus.setNodeId(nodeId);
     nodeStatus.addAllContainers(containers);
-    nodeStatus.setNodeHealthStatus(recordFactory
-        .newRecordInstance(NodeHealthStatus.class));
-    nodeStatus.getNodeHealthStatus().setIsNodeHealthy(true);
+    NodeHealthStatus nodeHealthStatus = 
+      recordFactory.newRecordInstance(NodeHealthStatus.class);
+    nodeHealthStatus.setIsNodeHealthy(true);
+    nodeStatus.setNodeHealthStatus(nodeHealthStatus);
     return nodeStatus;
   }
 }

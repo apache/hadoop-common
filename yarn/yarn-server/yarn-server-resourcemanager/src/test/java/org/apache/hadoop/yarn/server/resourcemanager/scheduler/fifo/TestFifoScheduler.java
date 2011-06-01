@@ -126,10 +126,14 @@ public class TestFifoScheduler extends TestCase {
     application_1.addTask(task_1_0);
         
     // Send resource requests to the scheduler
+    LOG.info("Send resource requests to the scheduler");
     application_0.schedule();
     application_1.schedule();
     
     // Send a heartbeat to kick the tires on the Scheduler
+    LOG.info("Send a heartbeat to kick the tires on the Scheduler... " +
+    		"nm0 -> task_0_0 and task_1_0 allocated, used=4G " +
+    		"nm1 -> nothing allocated");
     nm_0.heartbeat();             // task_0_0 and task_1_0 allocated, used=4G
     nm_1.heartbeat();             // nothing allocated
     
