@@ -2,10 +2,14 @@ Hadoop MapReduce Change Log
 
 Trunk (unreleased changes)
 
-    Fixes in the handling of KILL events in the SUCCEEDED state for tasks
-    in the application master (ddas)
 
     MAPREDUCE-279
+   
+    Fix for NPE in TestRMNMRPCResponseId. (mahadev)
+
+    Fixes in the handling of KILL events in the SUCCEEDED state for tasks
+    in the application master (ddas)
+    
     Fix build issue for using yarn.version instead of hadoop-mapred.version
     (mahadev and giri)
     

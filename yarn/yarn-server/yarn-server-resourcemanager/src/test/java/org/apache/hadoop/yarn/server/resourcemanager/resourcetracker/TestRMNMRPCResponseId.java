@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
@@ -71,6 +72,7 @@ public class TestRMNMRPCResponseId extends TestCase {
   public void setUp() {
     RMContext context = new ResourceManager.RMContextImpl(new MemStore());
     rmResourceTrackerImpl = new RMResourceTrackerImpl(containerTokenSecretManager, context);
+    rmResourceTrackerImpl.init(new Configuration());
     rmResourceTrackerImpl.addListener(listener);
   }
   
