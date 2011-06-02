@@ -202,7 +202,7 @@ public class FifoScheduler implements ResourceScheduler {
       application.showRequests();
 
       allocatedContainers = application.acquire();
-      limit = application.getResourceLimit();
+      limit = application.getHeadroom();
       LOG.debug("allocate:" +
           " applicationId=" + applicationId + 
           " #ask=" + ask.size() + 

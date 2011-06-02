@@ -5,6 +5,10 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fix a corner case in headroom computation - now reservations are taken
+    into account and headroom is computed much later to account for
+    allocations/reservations. (acmurthy) 
+
     Fix to report job status if the application is KILLED/FAILED. (mahadev)
 
     Disable Job acls until fixed (mahadev)

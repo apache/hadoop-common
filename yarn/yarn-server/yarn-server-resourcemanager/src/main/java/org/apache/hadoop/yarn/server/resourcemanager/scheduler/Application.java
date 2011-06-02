@@ -32,8 +32,8 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
-import org.apache.hadoop.classification.InterfaceStability.Evolving;
+import org.apache.hadoop.classification.InterfaceAudience.Private;
+import org.apache.hadoop.classification.InterfaceStability.Unstable;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
@@ -52,8 +52,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
  * This class keeps track of all the consumption of an application. This also
  * keeps track of current running/completed containers for the application.
  */
-@LimitedPrivate("yarn")
-@Evolving
+@Private
+@Unstable
 public class Application {
   
   private static final Log LOG = LogFactory.getLog(Application.class);
@@ -66,9 +66,12 @@ public class Application {
 
   final Set<Priority> priorities = new TreeSet<Priority>(
       new org.apache.hadoop.yarn.server.resourcemanager.resource.Priority.Comparator());
-  final Map<Priority, Map<String, ResourceRequest>> requests = new HashMap<Priority, Map<String, ResourceRequest>>();
+  final Map<Priority, Map<String, ResourceRequest>> requests = 
+    new HashMap<Priority, Map<String, ResourceRequest>>();
   final Resource currentConsumption = recordFactory
       .newRecordInstance(Resource.class);
+  final Resource currentReservation = recordFactory
+  .newRecordInstance(Resource.class);
   final Resource overallConsumption = recordFactory
       .newRecordInstance(Resource.class);
   Resource resourceLimit = recordFactory.newRecordInstance(Resource.class);
@@ -266,6 +269,11 @@ public class Application {
     return (nodeRequests == null) ? null : nodeRequests.get(nodeAddress);
   }
 
+  public synchronized Resource getResource(Priority priority) {
+    ResourceRequest request = getResourceRequest(priority, NodeManager.ANY);
+    return request.getCapability();
+  }
+
   synchronized public void completedContainer(Container container, 
       Resource containerResource) {
     if (container != null) {
@@ -443,15 +451,17 @@ public class Application {
   }
 
   synchronized public void showRequests() {
-    for (Priority priority : getPriorities()) {
-      Map<String, ResourceRequest> requests = getResourceRequests(priority);
-      if (requests != null) {
-        LOG.debug("showRequests:" + " application=" + applicationId + 
-            " available=" + getResourceLimit() + 
-            " current=" + currentConsumption + " state=" + getState());
-        for (ResourceRequest request : requests.values()) {
-          LOG.debug("showRequests:" + " application=" + applicationId
-              + " request=" + request);
+    if (LOG.isDebugEnabled()) {
+      for (Priority priority : getPriorities()) {
+        Map<String, ResourceRequest> requests = getResourceRequests(priority);
+        if (requests != null) {
+          LOG.debug("showRequests:" + " application=" + applicationId + 
+              " available=" + getHeadroom() + 
+              " current=" + currentConsumption + " state=" + getState());
+          for (ResourceRequest request : requests.values()) {
+            LOG.debug("showRequests:" + " application=" + applicationId
+                + " request=" + request);
+          }
         }
       }
     }
@@ -492,9 +502,11 @@ public class Application {
       reservedContainers.put(priority, reservedNodes);
     }
     reservedNodes.add(node);
+    Resources.add(currentReservation, resource);
     LOG.info("Application " + applicationId + " reserved " + resource
         + " on node " + node + ", currently has " + reservedNodes.size()
-        + " at priority " + priority);
+        + " at priority " + priority 
+        + "; currentReservation " + currentReservation);
     queue.getMetrics().reserveResource(user, resource);
   }
 
@@ -504,10 +516,13 @@ public class Application {
     if (reservedNodes.isEmpty()) {
       this.reservedContainers.remove(priority);
     }
+    
+    Resource resource = getResource(priority);
+    Resources.subtract(currentReservation, resource);
 
     LOG.info("Application " + applicationId + " unreserved " + " on node "
         + node + ", currently has " + reservedNodes.size() + " at priority "
-        + priority);
+        + priority + "; currentReservation " + currentReservation);
     queue.getMetrics().unreserveResource(user, node.getReservedResource());
   }
 
@@ -547,19 +562,23 @@ public class Application {
   }
 
   public synchronized void setAvailableResourceLimit(Resource globalLimit) {
-    resourceLimit = Resources.subtract(globalLimit, currentConsumption);
-    
-    // Corner case to deal with applications being slightly over-limit
-    if (resourceLimit.getMemory() < 0) {
-      resourceLimit.setMemory(0);
-    }
+    this.resourceLimit = globalLimit; 
   }
 
   /**
    * Get available headroom in terms of resources for the application's user.
    * @return available resource headroom
    */
-  public synchronized Resource getResourceLimit() {
-    return resourceLimit;
+  public synchronized Resource getHeadroom() {
+    Resource limit = 
+      Resources.subtract(Resources.subtract(resourceLimit, currentConsumption), 
+          currentReservation);
+
+    // Corner case to deal with applications being slightly over-limit
+    if (limit.getMemory() < 0) {
+      limit.setMemory(0);
+    }
+    
+    return limit;
   }
 }

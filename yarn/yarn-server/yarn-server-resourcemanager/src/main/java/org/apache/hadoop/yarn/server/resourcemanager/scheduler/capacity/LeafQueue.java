@@ -537,7 +537,7 @@ public class LeafQueue implements Queue {
             computeUserLimit(application, clusterResource, 
                 required.getCapability());
           if (!assignToUser(application.getUser(), userLimit)) {
-            continue; 
+            break; 
           }
 
           // Inform the application it is about to get a scheduling opportunity
@@ -644,8 +644,8 @@ public class LeafQueue implements Queue {
           divideAndCeil(
               (int)(absoluteCapacity * clusterResource.getMemory()), 
               minimumAllocation.getMemory()) 
-              * minimumAllocation.getMemory(),           // round up 
-              required.getMemory());
+                * minimumAllocation.getMemory(),           // round up 
+          required.getMemory());
 
     final int consumed = usedResources.getMemory();
     final int currentCapacity = 
@@ -669,10 +669,11 @@ public class LeafQueue implements Queue {
       );
 
     if (LOG.isDebugEnabled()) {
-      LOG.debug("User limit computatation for " + userName + 
+      LOG.debug("User limit computation for " + userName + 
           " in queue " + getQueueName() + 
           " required: " + required + 
-          " consumed: " + user.getConsumedResources() + " limit: " + limit +
+          " consumed: " + user.getConsumedResources() + 
+          " limit: " + limit +
           " queueCapacity: " + queueCapacity + 
           " qconsumed: " + consumed +
           " currentCapacity: " + currentCapacity +

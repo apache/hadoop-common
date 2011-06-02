@@ -365,7 +365,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     List<Container> allocatedContainers = application.acquire();
 
     // Resource limit
-    Resource limit = application.getResourceLimit();
+    Resource limit = application.getHeadroom();
     
     LOG.info("DEBUG --- allocate:" +
         " applicationId=" + applicationId + 
