@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fix another NPE in TestRMNMRPCResponseId. (mahadev)
+
     NodeStatus.getNodeHealthStatus().setBlah broken (siddharth seth)
 
     Fix a deadlock in the resourcemanager. (mahadev)

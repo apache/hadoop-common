@@ -30,6 +30,7 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.MemStore;
@@ -90,9 +91,13 @@ public class TestRMNMRPCResponseId extends TestCase {
     request.setHttpPort(0);
     request.setResource(capability);
     rmResourceTrackerImpl.registerNodeManager(node, 0, 0, capability);
-    org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
+    org.apache.hadoop.yarn.server.api.records.NodeStatus nodeStatus = recordFactory.
+      newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
     nodeStatus.setNodeId(nodeid);
     nodeStatus.setResponseId(0);
+    NodeHealthStatus nodeHealthStatus = recordFactory.newRecordInstance(NodeHealthStatus.class);
+    nodeHealthStatus.setIsNodeHealthy(true);
+    nodeStatus.setNodeHealthStatus(nodeHealthStatus);
     HeartbeatResponse response = rmResourceTrackerImpl.nodeHeartbeat(nodeStatus);
     assertTrue(response.getResponseId() == 1);
     nodeStatus.setResponseId(response.getResponseId());
