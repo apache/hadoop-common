@@ -184,8 +184,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
         EnumSet.of(TaskEventType.T_KILL,
             TaskEventType.T_ADD_SPEC_ATTEMPT,
             TaskEventType.T_ATTEMPT_LAUNCHED,
-            TaskEventType.T_ATTEMPT_KILLED,
-            TaskEventType.T_ATTEMPT_FAILED))
+            TaskEventType.T_ATTEMPT_KILLED))
 
     // Transitions from FAILED state        
     .addTransition(TaskState.FAILED, TaskState.FAILED,
