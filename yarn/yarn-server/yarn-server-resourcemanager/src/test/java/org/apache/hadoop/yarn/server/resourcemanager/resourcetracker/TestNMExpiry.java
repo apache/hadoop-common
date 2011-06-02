@@ -32,6 +32,7 @@ import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
@@ -119,6 +120,8 @@ public class TestNMExpiry extends TestCase {
                   .newRecordInstance(org.apache.hadoop.yarn.server.api.records.NodeStatus.class);
           nodeStatus.setNodeId(thirdNodeRegResponse.getNodeId());
           nodeStatus.setResponseId(lastResponseID);
+          nodeStatus.setNodeHealthStatus(recordFactory.newRecordInstance(NodeHealthStatus.class));
+          nodeStatus.getNodeHealthStatus().setIsNodeHealthy(true);
           lastResponseID =
               resourceTracker.nodeHeartbeat(nodeStatus)
                   .getResponseId();

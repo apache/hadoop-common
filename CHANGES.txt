@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fix for NPE in TestNMExpiry (siddharth seth)
+
     Fix another NPE in TestRMNMRPCResponseId. (mahadev)
 
     NodeStatus.getNodeHealthStatus().setBlah broken (siddharth seth)
