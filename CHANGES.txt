@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Making each node aggregate all its user-logs to a separate hdfs
+    file. (vinodkv)
+
     Fix for NPE in TestNMExpiry (siddharth seth)
 
     Fix another NPE in TestRMNMRPCResponseId. (mahadev)

@@ -21,6 +21,9 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregatio
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_BIND_ADDRESS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_BIND_ADDRESS;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -32,6 +35,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
@@ -93,8 +97,14 @@ public class LogAggregationService extends AbstractService implements
   public synchronized void start() {
     String address =
         getConfig().get(NM_BIND_ADDRESS, DEFAULT_NM_BIND_ADDRESS);
-    String[] splits = address.split(":");
-    this.nodeFile = splits[0] + "_" + splits[1];
+    InetSocketAddress cmBindAddress = NetUtils.createSocketAddr(address);
+    try {
+      this.nodeFile =
+          InetAddress.getLocalHost().getHostAddress() + "_"
+              + cmBindAddress.getPort();
+    } catch (UnknownHostException e) {
+      throw new YarnException(e);
+    }
     super.start();
   }
 
