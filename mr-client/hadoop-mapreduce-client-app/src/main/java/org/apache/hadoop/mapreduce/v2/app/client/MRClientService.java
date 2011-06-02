@@ -33,7 +33,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.mapreduce.JobACL;
-import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.MRClientProtocol;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptRequest;
 import org.apache.hadoop.mapreduce.v2.api.protocolrecords.FailTaskAttemptResponse;
@@ -77,6 +76,7 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -98,7 +98,7 @@ import org.apache.hadoop.yarn.webapp.WebApps;
 public class MRClientService extends AbstractService 
     implements ClientService {
 
-  private static final Log LOG = LogFactory.getLog(MRClientService.class);
+  static final Log LOG = LogFactory.getLog(MRClientService.class);
   
   private MRClientProtocol protocolHandler;
   private Server server;
@@ -118,7 +118,7 @@ public class MRClientService extends AbstractService
     InetSocketAddress address = NetUtils.createSocketAddr("0.0.0.0:0");
     InetAddress hostNameResolved = null;
     try {
-      hostNameResolved = address.getAddress().getLocalHost();
+      hostNameResolved = InetAddress.getLocalHost();
     } catch (UnknownHostException e) {
       throw new YarnException(e);
     }
@@ -127,7 +127,8 @@ public class MRClientService extends AbstractService
     if (UserGroupInformation.isSecurityEnabled()) {
       secretManager = new ClientToAMSecretManager();
       String secretKeyStr =
-          System.getenv(YarnConfiguration.APPLICATION_CLIENT_SECRET_ENV_NAME);
+          System
+              .getenv(ApplicationConstants.APPLICATION_CLIENT_SECRET_ENV_NAME);
       byte[] bytes = Base64.decodeBase64(secretKeyStr);
       ApplicationTokenIdentifier identifier =
           new ApplicationTokenIdentifier(this.appContext.getApplicationID());
@@ -188,8 +189,7 @@ public class MRClientService extends AbstractService
       if (modifyAccess) {
         operation = JobACL.MODIFY_JOB;
       }
-      //TODO disable check access for now.
-      //checkAccess(job, operation);
+      checkAccess(job, operation);
       return job;
     }
  

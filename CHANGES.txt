@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    More cleaning up constants, removing stale code, and making conspicuous
+    the envs that apps depend on to be provided by YARN. (vinodkv)
+
     Fix calculation of max-capacity for a queue, also fixed a bug in 
     registration of NodeManagers. (acmurthy) 
   

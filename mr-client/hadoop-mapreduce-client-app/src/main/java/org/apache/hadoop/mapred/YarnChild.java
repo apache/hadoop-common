@@ -32,6 +32,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSError;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -54,7 +55,7 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.util.StringUtils;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.log4j.LogManager;
 
 /**
@@ -199,7 +200,7 @@ class YarnChild {
       InetSocketAddress address) throws IOException {
     //load token cache storage
     String tokenFileLocation =
-        System.getenv(UserGroupInformation.HADOOP_TOKEN_FILE_LOCATION);
+        System.getenv(ApplicationConstants.CONTAINER_TOKEN_FILE_ENV_NAME);
     String jobTokenFile =
         new Path(tokenFileLocation).makeQualified(FileSystem.getLocal(conf))
             .toUri().getPath();
@@ -226,7 +227,7 @@ class YarnChild {
    */
   private static void configureLocalDirs(Task task, JobConf job) {
     String[] localSysDirs = StringUtils.getTrimmedStrings(
-        System.getenv(YARNApplicationConstants.LOCAL_DIR_ENV));
+        System.getenv(ApplicationConstants.LOCAL_DIR_ENV));
     job.setStrings(MRConfig.LOCAL_DIR, localSysDirs);
     LOG.info(MRConfig.LOCAL_DIR + " for child: " + job.get(MRConfig.LOCAL_DIR));
   }

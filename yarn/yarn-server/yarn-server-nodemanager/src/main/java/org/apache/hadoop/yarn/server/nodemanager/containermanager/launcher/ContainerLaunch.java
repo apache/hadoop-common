@@ -41,11 +41,10 @@ import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Shell.ExitCodeException;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
@@ -105,8 +104,9 @@ public class ContainerLaunch implements Callable<Integer> {
               + containerIdStr, LocalDirAllocator.SIZE_UNKNOWN, this.conf,
               false);
       for (String str : command) {
-        newCmds.add(str.replace("<LOG_DIR>", containerLogDir.toUri()
-            .getPath()));
+        // TODO: Should we instead work via symlinks without this grammar?
+        newCmds.add(str.replace(ApplicationConstants.LOG_DIR_EXPANSION_VAR,
+            containerLogDir.toUri().getPath()));
       }
       launchContext.clearCommands();
       launchContext.addAllCommands(newCmds);
@@ -116,7 +116,8 @@ public class ContainerLaunch implements Callable<Integer> {
       for (Entry<String, String> entry : envs.entrySet()) {
         newEnvs.put(
             entry.getKey(),
-            entry.getValue().replace("<LOG_DIR>",
+            entry.getValue().replace(
+                ApplicationConstants.LOG_DIR_EXPANSION_VAR,
                 containerLogDir.toUri().getPath()));
       }
       launchContext.clearEnv();
@@ -167,7 +168,7 @@ public class ContainerLaunch implements Callable<Integer> {
               EnumSet.of(CREATE, OVERWRITE));
 
         // Set the token location too.
-        env.put(UserGroupInformation.HADOOP_TOKEN_FILE_LOCATION, new Path(
+        env.put(ApplicationConstants.CONTAINER_TOKEN_FILE_ENV_NAME, new Path(
             containerWorkDir, FINAL_CONTAINER_TOKENS_FILE).toUri().getPath());
 
         writeLaunchEnv(containerScriptOutStream, env, localResources,
@@ -279,10 +280,10 @@ public class ContainerLaunch implements Callable<Integer> {
       throws IOException {
     ShellScriptBuilder sb = new ShellScriptBuilder();
     if (System.getenv("YARN_HOME") != null) {
+      // TODO: Get from whitelist.
       sb.env("YARN_HOME", System.getenv("YARN_HOME"));
     }
-    sb.env(YARNApplicationConstants.LOCAL_DIR_ENV,
-        StringUtils.join(",", appDirs));
+    sb.env(ApplicationConstants.LOCAL_DIR_ENV, StringUtils.join(",", appDirs));
     if (environment != null) {
       for (Map.Entry<String,String> env : environment.entrySet()) {
         sb.env(env.getKey().toString(), env.getValue().toString());

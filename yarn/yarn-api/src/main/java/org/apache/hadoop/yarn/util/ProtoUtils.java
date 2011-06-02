@@ -8,14 +8,12 @@ import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueState;
-import org.apache.hadoop.yarn.api.records.YarnContainerTags;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceTypeProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.LocalResourceVisibilityProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueACLProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.QueueStateProto;
-import org.apache.hadoop.yarn.proto.YarnProtos.YarnContainerTagsProto;
 
 import com.google.protobuf.ByteString;
 
@@ -62,16 +60,6 @@ public class ProtoUtils {
   }
   public static LocalResourceVisibility convertFromProtoFormat(LocalResourceVisibilityProto e) {
     return LocalResourceVisibility.valueOf(e.name());
-  }
-  
-  /*
-   * YarnContainerTags
-   */
-  public static YarnContainerTagsProto convertToProtoFormat(YarnContainerTags e) {
-    return YarnContainerTagsProto.valueOf(e.name());
-  }
-  public static YarnContainerTags convertFromProtoFormat(YarnContainerTagsProto e) {
-    return YarnContainerTags.valueOf(e.name());
   }
   
   /*

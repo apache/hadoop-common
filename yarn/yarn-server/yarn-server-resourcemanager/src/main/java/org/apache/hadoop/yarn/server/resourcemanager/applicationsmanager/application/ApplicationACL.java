@@ -18,7 +18,7 @@
 package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.application;
 
 import org.apache.hadoop.classification.*;
-import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
 
 /**
  * Application related ACLs
@@ -30,13 +30,13 @@ public enum ApplicationACL {
    * ACL for 'viewing' application. Dictates who can 'view' some or all of the application
    * related details.
    */
-  VIEW_JOB(RMConfig.APPLICATION_ACL_VIEW_APP),
+  VIEW_APP(YarnConfiguration.APPLICATION_ACL_VIEW_APP),
 
   /**
    * ACL for 'modifying' application. Dictates who can 'modify' the application for e.g., by
    * killing the application
    */
-  MODIFY_JOB(RMConfig.APPLICATION_ACL_MODIFY_APP);
+  MODIFY_APP(YarnConfiguration.APPLICATION_ACL_MODIFY_APP);
 
   String aclName;
 

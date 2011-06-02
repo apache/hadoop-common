@@ -65,10 +65,7 @@ public class RMConfig {
   public static final String RM_ADMIN_THREADS =
     YarnConfiguration.RM_PREFIX + "admin.threads";
   public static final int DEFAULT_RM_ADMIN_THREADS = 1;
-  public static final String APPLICATION_ACL_VIEW_APP = "application.acl-view-job";
 
-  public static final String APPLICATION_ACL_MODIFY_APP = "application.acl-modify-job";
-  
   /* key for looking up the acls configuration for acls checking for application */
   public static final String RM_ACLS_ENABLED = YarnConfiguration.RM_PREFIX +
     "acls.enabled";

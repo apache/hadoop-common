@@ -47,7 +47,8 @@ public class ApplicationACLsManager {
    * 
    * @return ApplicationACL to AccessControlList map.
    */
-  public Map<ApplicationACL, AccessControlList> constructApplicationACLs(Configuration conf) {
+  public Map<ApplicationACL, AccessControlList> constructApplicationACLs(
+      Configuration conf) {
 
     Map<ApplicationACL, AccessControlList> acls =
         new HashMap<ApplicationACL, AccessControlList>();
@@ -86,7 +87,8 @@ public class ApplicationACLsManager {
    * @throws AccessControlException
    */
   public boolean checkAccess(UserGroupInformation callerUGI,
-      ApplicationACL applicationOperation, String applicationOwner, AccessControlList acl) {
+      ApplicationACL applicationOperation, String applicationOwner,
+      AccessControlList acl) {
 
     String user = callerUGI.getShortUserName();
     if (!areACLsEnabled()) {

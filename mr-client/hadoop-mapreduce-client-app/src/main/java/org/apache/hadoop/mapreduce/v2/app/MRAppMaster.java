@@ -202,7 +202,7 @@ public class MRAppMaster extends CompositeService {
                 new Path(new File(MRConstants.JOB_SUBMIT_DIR)
                     .getAbsolutePath()));
         Path jobTokenFile =
-            new Path(jobSubmitDir, YarnConfiguration.APPLICATION_TOKENS_FILE);
+            new Path(jobSubmitDir, MRConstants.APPLICATION_TOKENS_FILE);
         fsTokens.addAll(Credentials.readTokenStorageFile(jobTokenFile, conf));
         LOG.info("jobSubmitDir=" + jobSubmitDir + " jobTokenFile="
             + jobTokenFile);

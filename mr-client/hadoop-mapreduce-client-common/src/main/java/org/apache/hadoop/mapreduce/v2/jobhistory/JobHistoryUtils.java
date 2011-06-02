@@ -39,8 +39,6 @@ import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
-import org.apache.hadoop.yarn.util.SecurityUtil;
 
 public class JobHistoryUtils {
   

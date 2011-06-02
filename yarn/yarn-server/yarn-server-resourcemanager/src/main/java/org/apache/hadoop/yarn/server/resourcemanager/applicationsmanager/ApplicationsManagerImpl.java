@@ -234,10 +234,10 @@ public class ApplicationsManagerImpl extends CompositeService
       UserGroupInformation callerUGI) 
   throws IOException {
     ApplicationMasterInfo masterInfo = amTracker.get(applicationId);
-    if (!checkAccess(callerUGI, masterInfo.getUser(),  ApplicationACL.MODIFY_JOB)) {
+    if (!checkAccess(callerUGI, masterInfo.getUser(),  ApplicationACL.MODIFY_APP)) {
       RPCUtil.getRemoteException(new AccessControlException("User "
           + callerUGI.getShortUserName() + " cannot perform operation "
-          + ApplicationACL.MODIFY_JOB.name() + " on " + applicationId));
+          + ApplicationACL.MODIFY_APP.name() + " on " + applicationId));
     }
     amTracker.kill(applicationId);
   }

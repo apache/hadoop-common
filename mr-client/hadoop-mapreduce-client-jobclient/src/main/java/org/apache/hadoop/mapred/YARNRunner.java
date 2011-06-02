@@ -30,7 +30,6 @@ import java.util.Vector;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
@@ -38,13 +37,13 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.mapreduce.ClusterMetrics;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.JobStatus;
 import org.apache.hadoop.mapreduce.JobSubmissionFiles;
-import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.QueueAclsInfo;
 import org.apache.hadoop.mapreduce.QueueInfo;
@@ -66,17 +65,16 @@ import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
-import org.apache.hadoop.yarn.api.records.ContainerTags;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.URL;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -213,7 +211,7 @@ public class YARNRunner implements ClientProtocol {
 
     // Upload only in security mode: TODO
     Path applicationTokensFile =
-        new Path(jobSubmitDir, YarnConfiguration.APPLICATION_TOKENS_FILE);
+        new Path(jobSubmitDir, MRConstants.APPLICATION_TOKENS_FILE);
     try {
       ts.writeTokenStorageFile(applicationTokensFile, conf);
     } catch (IOException e) {
@@ -301,7 +299,7 @@ public class YARNRunner implements ClientProtocol {
     
     // TODO gross hack
     for (String s : new String[] { "job.split", "job.splitmetainfo",
-        YarnConfiguration.APPLICATION_TOKENS_FILE }) {
+        MRConstants.APPLICATION_TOKENS_FILE }) {
       appContext.setResourceTodo(
           MRConstants.JOB_SUBMIT_DIR + "/" + s,
           createApplicationResource(defaultFileContext, new Path(jobSubmitDir, s)));
@@ -347,9 +345,9 @@ public class YARNRunner implements ClientProtocol {
     vargs.add("org.apache.hadoop.mapreduce.v2.app.MRAppMaster");
     vargs.add(String.valueOf(applicationId.getClusterTimestamp()));
     vargs.add(String.valueOf(applicationId.getId()));
-    vargs.add(YarnConfiguration.AM_FAIL_COUNT_STRING);
-    vargs.add("1><" + ContainerTags.LOG_DIR + ">/stdout");
-    vargs.add("2><" + ContainerTags.LOG_DIR + ">/stderr");
+    vargs.add(ApplicationConstants.AM_FAIL_COUNT_STRING);
+    vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout");
+    vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr");
 
     Vector<String> vargsFinal = new Vector<String>(8);
     // Final commmand

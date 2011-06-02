@@ -36,6 +36,7 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.AMRMProtocol;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterRequest;
@@ -47,7 +48,6 @@ import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
-import org.apache.hadoop.yarn.conf.YARNApplicationConstants;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -189,7 +189,7 @@ public class RMCommunicator extends AbstractService  {
           SchedulerSecurityInfo.class, SecurityInfo.class);
 
       String tokenURLEncodedStr = System.getenv().get(
-          YarnConfiguration.APPLICATION_MASTER_TOKEN_ENV_NAME);
+          ApplicationConstants.APPLICATION_MASTER_TOKEN_ENV_NAME);
       LOG.debug("AppMasterToken is " + tokenURLEncodedStr);
       Token<? extends TokenIdentifier> token = new Token<TokenIdentifier>();
 

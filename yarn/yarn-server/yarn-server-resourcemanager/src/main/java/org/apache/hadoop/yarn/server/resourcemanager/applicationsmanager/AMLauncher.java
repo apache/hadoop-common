@@ -42,6 +42,7 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.ContainerManager;
 import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
@@ -174,7 +175,9 @@ public class AMLauncher implements Runnable {
     String failCount = Integer.toString(master.getFailedCount());
     List<String> commandList = new ArrayList<String>();
     for (String str : container.getCommandList()) {
-      String result = str.replaceFirst(YarnConfiguration.AM_FAIL_COUNT_STRING, failCount);
+      String result =
+          str.replaceFirst(ApplicationConstants.AM_FAIL_COUNT_STRING,
+              failCount);
       mergedCommand.append(result).append(" ");
       commandList.add(result);
     }
@@ -230,7 +233,7 @@ public class AMLauncher implements Runnable {
       token.setService(new Text(resolvedAddr));
       String appMasterTokenEncoded = token.encodeToUrlString();
       LOG.debug("Putting appMaster token in env : " + appMasterTokenEncoded);
-      env.put(YarnConfiguration.APPLICATION_MASTER_TOKEN_ENV_NAME,
+      env.put(ApplicationConstants.APPLICATION_MASTER_TOKEN_ENV_NAME,
           appMasterTokenEncoded);
 
       // Add the RM token
@@ -247,7 +250,7 @@ public class AMLauncher implements Runnable {
       String encoded =
           Base64.encodeBase64URLSafeString(clientSecretKey.getEncoded());
       LOG.debug("The encoded client secret-key to be put in env : " + encoded);
-      env.put(YarnConfiguration.APPLICATION_CLIENT_SECRET_ENV_NAME, encoded);
+      env.put(ApplicationConstants.APPLICATION_CLIENT_SECRET_ENV_NAME, encoded);
     }
     return env;
   }
