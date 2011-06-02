@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+
+    Fix to report job status if the application is KILLED/FAILED. (mahadev)
+
     Disable Job acls until fixed (mahadev)
 
     Fix container size rounding in AM and headroom in RM. (acmurthy and 
