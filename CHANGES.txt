@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    MAPREDUCE-2537. The RM writes its log to yarn-mapred-resourcemanager-<RM_Host>.out (Robert Evans via mahadev)
+
     Fix a corner case in headroom computation - now reservations are taken
     into account and headroom is computed much later to account for
     allocations/reservations. (acmurthy) 
