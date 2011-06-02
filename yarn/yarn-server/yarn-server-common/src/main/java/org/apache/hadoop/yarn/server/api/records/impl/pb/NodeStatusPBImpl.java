@@ -183,13 +183,23 @@ public class NodeStatusPBImpl extends ProtoBase<NodeStatusProto> implements Node
   @Override
   public NodeHealthStatus getNodeHealthStatus() {
     NodeStatusProtoOrBuilder p = viaProto ? proto : builder;
-    return new NodeHealthStatusPBImpl(p.getNodeHealthStatus());
+    if (nodeHealthStatus != null) {
+      return nodeHealthStatus;
+    }
+    if (!p.hasNodeHealthStatus()) {
+      return null;
+    }
+    nodeHealthStatus = convertFromProtoFormat(p.getNodeHealthStatus());
+    return nodeHealthStatus;
   }
 
   @Override
   public void setNodeHealthStatus(NodeHealthStatus healthStatus) {
     maybeInitBuilder();
-    builder.setNodeHealthStatus(convertToProtoFormat(healthStatus));
+    if (healthStatus == null) {
+      builder.clearNodeHealthStatus();
+    }
+    this.nodeHealthStatus = healthStatus;
   }
 
   /*
