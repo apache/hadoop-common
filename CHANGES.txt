@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Disable Job acls until fixed (mahadev)
+
     Fix container size rounding in AM and headroom in RM. (acmurthy and 
     sharad) 
 
