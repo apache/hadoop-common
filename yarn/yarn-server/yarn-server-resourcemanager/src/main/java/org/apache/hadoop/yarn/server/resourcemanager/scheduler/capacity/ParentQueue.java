@@ -554,12 +554,9 @@ public class ParentQueue implements Queue {
   }
   
   private synchronized boolean assignToQueue(Resource clusterResource) {
-    // Check how of the parent's capacity we are currently using...
-    float parentAbsoluteCapacity = 
-          (parent == null) ? 100.0f : parent.getAbsoluteCapacity();
+    // Check how of the cluster's absolute capacity we are currently using...
     float currentCapacity = 
-      (float)(usedResources.getMemory()) / 
-      (clusterResource.getMemory() * parentAbsoluteCapacity);
+      (float)(usedResources.getMemory()) / clusterResource.getMemory();
     if (currentCapacity > absoluteMaxCapacity) {
       LOG.info(getQueueName() + 
           " current-capacity (" + currentCapacity + ") +" +

@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fix calculation of max-capacity for a queue, also fixed a bug in 
+    registration of NodeManagers. (acmurthy) 
+  
     Making each node aggregate all its user-logs to a separate hdfs
     file. (vinodkv)
 

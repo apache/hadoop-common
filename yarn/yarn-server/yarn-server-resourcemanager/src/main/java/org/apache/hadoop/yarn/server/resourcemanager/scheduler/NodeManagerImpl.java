@@ -98,6 +98,8 @@ public class NodeManagerImpl implements NodeManager {
     this.httpAddress = hostName + ":" + httpPort;
     Resources.addTo(availableResource, capability);
     this.node = node;
+    this.nodeHealthStatus.setIsNodeHealthy(true);
+    this.nodeHealthStatus.setLastHealthReportTime(System.currentTimeMillis());
   }
 
   /**

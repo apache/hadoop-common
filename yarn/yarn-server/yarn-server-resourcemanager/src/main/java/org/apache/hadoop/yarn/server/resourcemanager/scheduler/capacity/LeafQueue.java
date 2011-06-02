@@ -603,14 +603,16 @@ public class LeafQueue implements Queue {
 
   private synchronized boolean assignToQueue(Resource clusterResource, 
       Resource required) {
-    // Check how of the parent's capacity we are currently using...
-    float newCapacity = 
+    // Check how of the cluster's absolute capacity we are currently using...
+    float potentialNewCapacity = 
       (float)(usedResources.getMemory() + required.getMemory()) / 
-      (clusterResource.getMemory() * parent.getAbsoluteCapacity());
-    if (newCapacity > absoluteMaxCapacity) {
+        clusterResource.getMemory();
+    if (potentialNewCapacity > absoluteMaxCapacity) {
       LOG.info(getQueueName() + 
-          " current-capacity (" + getUtilization() + ") +" +
-          " required (" + required.getMemory() + ")" +
+          " usedResources: " + usedResources.getMemory() + 
+          " currentCapacity " + ((float)usedResources.getMemory())/clusterResource.getMemory() + 
+          " required " + required.getMemory() +
+          " potentialNewCapacity: " + potentialNewCapacity + " ( " +
           " > max-capacity (" + absoluteMaxCapacity + ")");
       return false;
     }

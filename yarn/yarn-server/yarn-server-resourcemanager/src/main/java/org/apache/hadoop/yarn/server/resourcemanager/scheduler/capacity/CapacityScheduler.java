@@ -42,7 +42,6 @@ import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.Priority;
-import org.apache.hadoop.yarn.api.records.QueueACL;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
@@ -441,7 +440,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   @Override
   public synchronized void nodeUpdate(NodeInfo nm, 
       Map<String,List<Container>> containers ) {
-    LOG.info("nodeUpdate: " + nm);
+    LOG.info("nodeUpdate: " + nm + " clusterResources: " + clusterResource);
 
 
     // Completed containers
