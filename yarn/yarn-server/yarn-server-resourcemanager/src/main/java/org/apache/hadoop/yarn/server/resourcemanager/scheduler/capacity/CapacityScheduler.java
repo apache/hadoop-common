@@ -585,12 +585,12 @@ implements ResourceScheduler, CapacitySchedulerContext {
   public synchronized void addNode(NodeInfo nodeManager) {
     Resources.addTo(clusterResource, nodeManager.getTotalCapability());
     ++numNodeManagers;
+    LOG.info("Added node " + nodeManager.getNodeAddress() + 
+        " clusterResource: " + clusterResource);
   }
 
   @Override
   public synchronized void removeNode(NodeInfo nodeInfo) {
-    LOG.info("Removing node " + nodeInfo.getNodeAddress());
-    
     Resources.subtractFrom(clusterResource, nodeInfo.getTotalCapability());
     --numNodeManagers;
 
@@ -605,6 +605,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
       Resource released = nodeInfo.getReservedResource();
       queue.completedContainer(clusterResource, null, released, reservedApplication);
     }
+    
+    LOG.info("Removed node " + nodeInfo.getNodeAddress() + 
+        " clusterResource: " + clusterResource);
   }
   
   public synchronized boolean releaseContainer(ApplicationId applicationId, 
