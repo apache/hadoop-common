@@ -40,6 +40,7 @@ import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
+import org.apache.hadoop.mapreduce.v2.app.AMConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
@@ -62,12 +63,6 @@ public class RMContainerAllocator extends RMContainerRequestor
   
   public static final 
   float DEFAULT_COMPLETED_MAPS_PERCENT_FOR_REDUCE_SLOWSTART = 0.05f;
-  
-  public static final 
-  float DEFAULT_LIMIT_PERCENT_FOR_REDUCE_PREEMPTION = 0.2f;
-  
-  public static final 
-  float DEFAULT_LIMIT_REDUCE_RAMP_UP = 0.5f;
   
   private static final Priority PRIORITY_FAST_FAIL_MAP;
   private static final Priority PRIORITY_REDUCE;
@@ -110,9 +105,6 @@ public class RMContainerAllocator extends RMContainerRequestor
   //holds scheduled requests to be fulfilled by RM
   private final ScheduledRequests scheduledRequests = new ScheduledRequests();
   
-  private int slotMemSize = 0;
-  private int completedMapsForReduceSlowstart;
-  
   private int containersAllocated = 0;
   private int containersReleased = 0;
   private int hostLocalAssigned = 0;
@@ -125,19 +117,29 @@ public class RMContainerAllocator extends RMContainerRequestor
   private int reduceResourceReqt;//memory
   private int completedMaps = 0;
   private int completedReduces = 0;
+  
+  private boolean reduceStarted = false;
+  private float maxReduceRampupLimit = 0;
+  private float maxReducePreemptionLimit = 0;
+  private float reduceSlowStart = 0;
 
   public RMContainerAllocator(ClientService clientService, AppContext context) {
     super(clientService, context);
     this.context = context;
   }
-  
-  @Override 
+
+  @Override
   public void init(Configuration conf) {
     super.init(conf);
-    //TODO: this should be received as part of the registration from RM
-    //for now read from config
-    slotMemSize = conf.getInt("yarn.capacity-scheduler.minimum-allocation-mb",
-        1024);
+    reduceSlowStart = conf.getFloat(
+        MRJobConfig.COMPLETED_MAPS_FOR_REDUCE_SLOWSTART, 
+        DEFAULT_COMPLETED_MAPS_PERCENT_FOR_REDUCE_SLOWSTART);
+    maxReduceRampupLimit = conf.getFloat(
+        AMConstants.REDUCE_RAMPUP_UP_LIMIT, 
+        AMConstants.DEFAULT_REDUCE_RAMP_UP_LIMIT);
+    maxReducePreemptionLimit = conf.getFloat(
+        AMConstants.REDUCE_PREEMPTION_LIMIT,
+        AMConstants.DEFAULT_REDUCE_PREEMPTION_LIMIT);
   }
 
   @Override 
@@ -181,14 +183,13 @@ public class RMContainerAllocator extends RMContainerRequestor
       if (reqEvent.getAttemptID().getTaskId().getTaskType().equals(TaskType.MAP)) {
         if (mapResourceReqt == 0) {
           mapResourceReqt = reqEvent.getCapability().getMemory();
-          //round off on slotSize
-          mapResourceReqt = (int) Math.ceil(mapResourceReqt/slotMemSize) * slotMemSize;
+          LOG.info("mapResourceReqt:"+mapResourceReqt);
         }
         scheduledRequests.addMap(reqEvent);//maps are immediately scheduled
       } else {
         if (reduceResourceReqt == 0) {
           reduceResourceReqt = reqEvent.getCapability().getMemory();
-          reduceResourceReqt = (int) Math.ceil(reduceResourceReqt/slotMemSize) * slotMemSize;
+          LOG.info("reduceResourceReqt:"+reduceResourceReqt);
         }
         if (reqEvent.getEarlierAttemptFailed()) {
           //add to the front of queue for fail fast
@@ -227,12 +228,18 @@ public class RMContainerAllocator extends RMContainerRequestor
     //unassigned maps
     int memLimit = getMemLimit();
     if (scheduledRequests.maps.size() > 0) {
-      int availableMemForMap = memLimit - (assignedRequests.reduces.size() * reduceResourceReqt -
-          assignedRequests.preemptionWaitingReduces.size() * reduceResourceReqt);
+      int availableMemForMap = memLimit - ((assignedRequests.reduces.size() -
+          assignedRequests.preemptionWaitingReduces.size()) * reduceResourceReqt);
       //availableMemForMap must be sufficient to run atleast 1 map
       if (availableMemForMap < mapResourceReqt) {
-        int premeptionLimit = (int) DEFAULT_LIMIT_PERCENT_FOR_REDUCE_PREEMPTION * memLimit /reduceResourceReqt;
-        int toPreempt = Math.min(scheduledRequests.maps.size(), premeptionLimit);
+        //preempt for making space for atleast one map
+        int premeptionLimit = Math.max(mapResourceReqt - availableMemForMap, 
+            (int) maxReducePreemptionLimit * memLimit);
+        
+        int preemptMem = Math.min(scheduledRequests.maps.size() * mapResourceReqt, 
+            premeptionLimit);
+        
+        int toPreempt = (int) Math.ceil((float) preemptMem/reduceResourceReqt);
         toPreempt = Math.min(toPreempt, assignedRequests.reduces.size());
         
         LOG.info("Going to preempt " + toPreempt);
@@ -251,19 +258,18 @@ public class RMContainerAllocator extends RMContainerRequestor
     
     int totalMaps = assignedRequests.maps.size() + completedMaps + scheduledRequests.maps.size();
     
-    if (completedMapsForReduceSlowstart == 0) {//not set yet
-      completedMapsForReduceSlowstart = 
-        (int)Math.ceil(
-            (getConfig().getFloat(
-                MRJobConfig.COMPLETED_MAPS_FOR_REDUCE_SLOWSTART, 
-                      DEFAULT_COMPLETED_MAPS_PERCENT_FOR_REDUCE_SLOWSTART) * 
-                      totalMaps));
-    }
-    
-    if(completedMaps < completedMapsForReduceSlowstart) {
-      LOG.info("Reduce slow start threshold not met. " +
-      		"completedMapsForReduceSlowstart " + completedMapsForReduceSlowstart);
-      return;
+    //check for slow start
+    if (!reduceStarted) {//not set yet
+      int completedMapsForReduceSlowstart = (int)Math.ceil(reduceSlowStart * 
+                      totalMaps);
+      if(completedMaps < completedMapsForReduceSlowstart) {
+        LOG.info("Reduce slow start threshold not met. " +
+              "completedMapsForReduceSlowstart " + completedMapsForReduceSlowstart);
+        return;
+      } else {
+        LOG.info("Reduce slow start threshold reached. Scheduling reduces.");
+        reduceStarted = true;
+      }
     }
     
     int completedMapPercent = 0;
@@ -281,7 +287,7 @@ public class RMContainerAllocator extends RMContainerRequestor
     // ramp up the reduces based on completed map percentage
     int memLimit = getMemLimit();
     reduceMemLimit = Math.min(completedMapPercent * memLimit,
-        (int) DEFAULT_LIMIT_REDUCE_RAMP_UP * memLimit);
+        (int) maxReduceRampupLimit * memLimit);
     mapMemLimit = memLimit - reduceMemLimit;
 
     // check if there aren't enough maps scheduled, give the free map capacity

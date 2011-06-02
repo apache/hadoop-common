@@ -59,4 +59,12 @@ public interface AMConstants {
 
   public static final String RECOVERY_ENABLE = MRConstants.YARN_MR_PREFIX
       + "recovery.enable";
+  
+  public static final float DEFAULT_REDUCE_RAMP_UP_LIMIT = 0.5f;
+  public static final String REDUCE_RAMPUP_UP_LIMIT = MRConstants.YARN_MR_PREFIX
+  + "reduce.rampup.limit";
+  
+  public static final float DEFAULT_REDUCE_PREEMPTION_LIMIT = 0.5f;
+  public static final String REDUCE_PREEMPTION_LIMIT = MRConstants.YARN_MR_PREFIX
+  + "reduce.preemption.limit";
 }

@@ -511,7 +511,10 @@ public class LeafQueue implements Queue {
       application.showRequests();
 
       synchronized (application) {
-        //if (application.)
+        Resource userLimit = 
+          computeUserLimit(application, clusterResource, Resources.none());
+        setUserResourceLimit(application, userLimit);
+        
         for (Priority priority : application.getPriorities()) {
 
           // Do we need containers at this 'priority'?
@@ -522,19 +525,21 @@ public class LeafQueue implements Queue {
           // Are we going over limits by allocating to this application?
           ResourceRequest required = 
             application.getResourceRequest(priority, NodeManager.ANY);
-          if (required != null && required.getNumContainers() > 0) {
+          
 
-            // Maximum Capacity of the queue
-            if (!assignToQueue(clusterResource, required.getCapability())) {
-              return Resources.none();
-            }
-
-            // User limits
-            if (!assignToUser(application, clusterResource, required.getCapability())) {
-              continue; 
-            }
-
+          // Maximum Capacity of the queue
+          if (!assignToQueue(clusterResource, required.getCapability())) {
+            return Resources.none();
           }
+
+          // User limits
+          userLimit = 
+            computeUserLimit(application, clusterResource, 
+                required.getCapability());
+          if (!assignToUser(application.getUser(), userLimit)) {
+            continue; 
+          }
+
           // Inform the application it is about to get a scheduling opportunity
           application.addSchedulingOpportunity(priority);
           
@@ -619,7 +624,12 @@ public class LeafQueue implements Queue {
     return true;
   }
 
-  private synchronized boolean assignToUser(Application application, 
+  private void setUserResourceLimit(Application application, Resource resourceLimit) {
+    application.setAvailableResourceLimit(resourceLimit);
+    metrics.setAvailableResourcesToUser(application.getUser(), resourceLimit);
+  }
+  
+  private Resource computeUserLimit(Application application, 
       Resource clusterResource, Resource required) {
     // What is our current capacity? 
     // * It is equal to the max(required, queue-capacity) if
@@ -658,14 +668,10 @@ public class LeafQueue implements Queue {
               (int)(queueCapacity * userLimitFactor)
       );
 
-    application.setAvailableResourceLimit(Resources.createResource(limit));
-    metrics.setAvailableResourcesToUser(userName, application.getResourceLimit());
-
-    // Note: We aren't considering the current request since there is a fixed
-    // overhead of the AM, so... 
-    if ((user.getConsumedResources().getMemory()) > limit) {
-      LOG.info("User " + userName + " in queue " + getQueueName() + 
-          " will exceed limit, required: " + required + 
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("User limit computatation for " + userName + 
+          " in queue " + getQueueName() + 
+          " required: " + required + 
           " consumed: " + user.getConsumedResources() + " limit: " + limit +
           " queueCapacity: " + queueCapacity + 
           " qconsumed: " + consumed +
@@ -673,6 +679,25 @@ public class LeafQueue implements Queue {
           " activeUsers: " + activeUsers +
           " clusterCapacity: " + clusterResource.getMemory()
       );
+    }
+    
+    return Resources.createResource(limit);
+  }
+  
+  private synchronized boolean assignToUser(String userName, Resource limit) {
+
+    User user = getUser(userName);
+    
+    // Note: We aren't considering the current request since there is a fixed
+    // overhead of the AM, so... 
+    if ((user.getConsumedResources().getMemory()) > limit.getMemory()) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("User " + userName + " in queue " + getQueueName() + 
+            " will exceed limit - " +  
+            " consumed: " + user.getConsumedResources() + 
+            " limit: " + limit
+        );
+      }
       return false;
     }
 

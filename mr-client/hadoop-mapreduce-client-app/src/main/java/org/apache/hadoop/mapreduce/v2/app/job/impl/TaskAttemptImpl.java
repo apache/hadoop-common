@@ -422,6 +422,10 @@ public abstract class TaskAttemptImpl implements
   }
 
   private int getMemoryRequired(Configuration conf, TaskType taskType) {
+    //TODO: get this from RM instead of reading the config
+    int slotMemSize = conf.getInt("yarn.capacity-scheduler.minimum-allocation-mb",
+        1024);
+    LOG.info("slotMemSize " + slotMemSize);
     int memory = 1024;
     if (taskType == TaskType.MAP)  {
       memory = conf.getInt(MRJobConfig.MAP_MEMORY_MB, 1024);
@@ -429,6 +433,8 @@ public abstract class TaskAttemptImpl implements
       memory = conf.getInt(MRJobConfig.REDUCE_MEMORY_MB, 1024);
     }
     
+    //round off on slotsize
+    memory = (int) Math.ceil((float) memory/slotMemSize) * slotMemSize;
     return memory;
   }
 

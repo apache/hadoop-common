@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Fix container size rounding in AM and headroom in RM. (acmurthy and 
+    sharad) 
 
     More cleaning up constants, removing stale code, and making conspicuous
     the envs that apps depend on to be provided by YARN. (vinodkv)
