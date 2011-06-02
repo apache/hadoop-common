@@ -131,7 +131,7 @@ public class ApplicationsManagerImpl extends CompositeService
   }
 
   @Override
-  public synchronized void init(Configuration conf) {
+  public  void init(Configuration conf) {
     addIfService(createNewApplicationMasterLauncher(applicationTokenSecretManager));
     addIfService(createNewSchedulerNegotiator(scheduler));
     this.amTracker = createNewAMTracker();
@@ -142,12 +142,12 @@ public class ApplicationsManagerImpl extends CompositeService
   }
 
   @Override
-  public synchronized void start() {
+  public void start() {
     super.start();
   }
 
   @Override
-  public synchronized ApplicationMaster getApplicationMaster(ApplicationId applicationId) {
+  public ApplicationMaster getApplicationMaster(ApplicationId applicationId) {
     ApplicationMaster appMaster =
       amTracker.get(applicationId).getMaster();
     //TODO NPE (When the RM is restarted - it doesn't know about previous AMs)
@@ -164,7 +164,7 @@ public class ApplicationsManagerImpl extends CompositeService
   }
 
   @Override
-  public synchronized void submitApplication(ApplicationSubmissionContext context)
+  public  void submitApplication(ApplicationSubmissionContext context)
   throws IOException {
     String user;
     ApplicationId applicationId = context.getApplicationId();
@@ -208,7 +208,7 @@ public class ApplicationsManagerImpl extends CompositeService
   }
 
   @Override
-  public synchronized void finishApplicationMaster(ApplicationMaster applicationMaster)
+  public void finishApplicationMaster(ApplicationMaster applicationMaster)
   throws IOException {
     amTracker.finish(applicationMaster.getApplicationId());
   }
@@ -243,23 +243,23 @@ public class ApplicationsManagerImpl extends CompositeService
   }
 
   @Override
-  public synchronized void applicationHeartbeat(ApplicationStatus status) 
+  public  void applicationHeartbeat(ApplicationStatus status) 
   throws IOException {
     amTracker.heartBeat(status);
   }
 
   @Override
-  public synchronized void registerApplicationMaster(ApplicationMaster applicationMaster)
+  public  void registerApplicationMaster(ApplicationMaster applicationMaster)
   throws IOException {
     amTracker.registerMaster(applicationMaster);
  }
 
   @Override
-  public synchronized List<AppContext> getAllApplications() {
+  public  List<AppContext> getAllApplications() {
     return amTracker.getAllApplications();
   }
 
-  public synchronized ApplicationMasterInfo getApplicationMasterInfo(ApplicationId
+  public  ApplicationMasterInfo getApplicationMasterInfo(ApplicationId
       applicationId) {
     return amTracker.get(applicationId);
   }

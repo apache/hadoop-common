@@ -61,6 +61,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   private final ApplicationSubmissionContext submissionContext;
   private ApplicationMaster master;
   private final EventHandler handler;
+  /** only to be used during recovery **/
   private final EventHandler syncHandler;
   private Container masterContainer;
   final private String user;
@@ -449,7 +450,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     public void transition(ApplicationMasterInfo masterInfo,
     ASMEvent<ApplicationEventType> event) {
       /* notify tracking applications that an applicaiton has been added */
-      masterInfo.syncHandler.handle(new ASMEvent<ApplicationTrackerEventType>(
+      masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(
         ApplicationTrackerEventType.ADD, masterInfo));
       
       /* schedule for a slot */
