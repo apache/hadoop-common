@@ -487,6 +487,16 @@ public class TestRMContainerAllocator {
       public Clock getClock() {
         return null;
       }
+
+      @Override
+      public String getApplicationName() {
+        return null;
+      }
+
+      @Override
+      public long getStartTime() {
+        return 0;
+      }
     }
   }
 

@@ -62,8 +62,8 @@ class CapacitySchedulerPage extends RmView {
         float set = queue.getCapacity();
         float delta = Math.abs(set - used) + 0.001f;
         float max = queue.getMaximumCapacity();
-        if (max < EPSILON) max = 1f;
-        String absMaxPct = percent(queue.getAbsoluteMaximumCapacity());
+        if (max < EPSILON || max > 1f) max = 1f;
+        //String absMaxPct = percent(queue.getAbsoluteMaximumCapacity());
         LI<UL<Hamlet>> li = ul.
           li().
             a(_Q).$style(width(max * WIDTH_F)).

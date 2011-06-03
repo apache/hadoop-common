@@ -168,7 +168,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
   }
   
   @Override
-  public void start() { 
+  public void start() {
     try {
       doSecureLogin();
     } catch(IOException ie) {

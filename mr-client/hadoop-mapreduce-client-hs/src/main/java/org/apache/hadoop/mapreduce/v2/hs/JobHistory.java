@@ -561,9 +561,12 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     scanIntermediateDirectory();
     return intermediateListCache.get(jobId);
   }
-  
-  
-  
+
+  @Override
+  public String getApplicationName() {
+    return "Job History Server";
+  }
+
   private class MoveIntermediateToDoneRunnable implements Runnable {
 
     private long sleepTime;

@@ -26,7 +26,7 @@ public class HeaderBlock extends HtmlBlock {
     html.
       div("#header.ui-widget").
         div("#user").
-          _("Logged in as: "+ $("user"))._().
+          _("Logged in as: "+ request().getRemoteUser())._().
         div("#logo").
           img("/static/hadoop-st.png")._().
         h1($(TITLE))._();

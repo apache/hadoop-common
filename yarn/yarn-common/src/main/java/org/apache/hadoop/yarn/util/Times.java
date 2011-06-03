@@ -16,12 +16,12 @@
 * limitations under the License.
 */
 
-package org.apache.hadoop.mapreduce.v2.app.webapp;
+package org.apache.hadoop.yarn.util;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-class Times {
+public class Times {
   static final ThreadLocal<SimpleDateFormat> dateFormat =
       new ThreadLocal<SimpleDateFormat>() {
         @Override protected SimpleDateFormat initialValue() {
@@ -29,14 +29,14 @@ class Times {
         }
       };
 
-  static long elapsed(long started, long finished) {
+  public static long elapsed(long started, long finished) {
     if (finished > 0) {
       return finished - started;
     }
     return started > 0 ? System.currentTimeMillis() - started : 0;
   }
 
-  static String format(long ts) {
+  public static String format(long ts) {
     return ts > 0 ? String.valueOf(dateFormat.get().format(new Date(ts)))
                   : "N/A";
   }

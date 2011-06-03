@@ -217,7 +217,7 @@ public class TestRMWebApp {
 
   public static void main(String[] args) throws Exception {
     // For manual testing
-    WebApps.$for("yarn", new TestRMWebApp()).at(8888).inDevMode().
-        start(new RMWebApp(mockRm(42, 8, 8, 8*GiB))).joinThread();
+    WebApps.$for("yarn", new TestRMWebApp()).at(8088).inDevMode().
+        start(new RMWebApp(mockRm(101, 8, 8, 8*GiB))).joinThread();
   }
 }

@@ -26,5 +26,6 @@ package org.apache.hadoop.yarn.webapp;
 public interface Params {
   static final String TITLE = "title";
   static final String TITLE_LINK = "title.href";
+  static final String USER = "user";
   static final String ERROR_DETAILS = "error.details";
 }

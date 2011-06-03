@@ -26,6 +26,7 @@ import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.util.ConverterUtils;
+import org.apache.hadoop.yarn.util.Times;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
@@ -57,7 +58,7 @@ public class TaskPage extends AppView {
             th(".id", "Attempt").
             th(".progress", "Progress").
             th(".state", "State").
-            th(".logs", "Logs").
+            th(".node", "node").
             th(".tsh", "Started").
             th(".tsh", "Finished").
             th(".tsh", "Elapsed").
@@ -67,25 +68,25 @@ public class TaskPage extends AppView {
         String taid = MRApps.toString(ta.getID());
         String progress = percent(ta.getProgress());
         ContainerId containerId = ta.getAssignedContainerID();
+
         String nodeHttpAddr = ta.getNodeHttpAddress();
         long startTime = ta.getLaunchTime();
         long finishTime = ta.getFinishTime();
         long elapsed = Times.elapsed(startTime, finishTime);
-        TR<TBODY<TABLE<Hamlet>>> tr = tbody.
+        TD<TR<TBODY<TABLE<Hamlet>>>> nodeTd = tbody.
           tr().
             td(".id", taid).
             td(".progress", progress).
-            td(".state", ta.getState().toString());
+            td(".state", ta.getState().toString()).
+            td().
+              a(".nodelink", url("http://", nodeHttpAddr), nodeHttpAddr);
         if (containerId != null) {
           String containerIdStr = ConverterUtils.toString(containerId);
-          tr.
-            td().
-              a(".logs", url("http://", nodeHttpAddr, "yarn", "containerlogs",
-                containerIdStr), "Logs for " + containerIdStr)._();
-        } else {
-          tr.td("N/A");
+          nodeTd._(" ").
+            a(".logslink", url("http://", nodeHttpAddr, "yarn", "containerlogs",
+              containerIdStr), "logs");
         }
-        tr.
+        nodeTd._().
           td(".ts", Times.format(startTime)).
           td(".ts", Times.format(finishTime)).
           td(".dt", StringUtils.formatTime(elapsed)).

@@ -304,8 +304,8 @@ table.display tr.odd.row_selected td {
 }
 
 /* Striping */
-tr.odd { background: rgba(0, 0, 0, 0.01); }
-tr.even { background: rgba(0, 0, 0, 0.05); }
+tr.odd { background: rgba(255, 255, 255, 0.1); }
+tr.even { background: rgba(0, 0, 255, 0.05); }
 
 
 /*
@@ -318,5 +318,5 @@ tr.even td.sorting_1 { background: rgba(0, 0, 0, 0.08); }
 tr.even td.sorting_2 { background: rgba(0, 0, 0, 0.06); }
 tr.even td.sorting_3 { background: rgba(0, 0, 0, 0.06); }
 
-.css_left { float: left; }
-.css_right { float: right; }
+.css_left { position: relative; float: left; }
+.css_right { position: relative; float: right; }

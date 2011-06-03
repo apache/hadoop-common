@@ -43,6 +43,7 @@ public class TestAMWebApp {
     final ApplicationId appID;
     final String user = MockJobs.newUserName();
     final Map<JobId, Job> jobs;
+    final long startTime = System.currentTimeMillis();
 
     TestAppContext(int appid, int numJobs, int numTasks, int numAttempts) {
       appID = MockJobs.newAppID(appid);
@@ -81,6 +82,16 @@ public class TestAMWebApp {
     @Override
     public Clock getClock() {
       return null;
+    }
+
+    @Override
+    public String getApplicationName() {
+      return "TestApp";
+    }
+
+    @Override
+    public long getStartTime() {
+      return startTime;
     }
   }
 

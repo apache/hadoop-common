@@ -23,6 +23,7 @@ import org.apache.hadoop.conf.Configuration;
 public class FilterService implements Service {
 
   private final Service service;
+  private final long startTime = System.currentTimeMillis();
 
   public FilterService(Service service) {
     this.service = service;
@@ -68,4 +69,8 @@ public class FilterService implements Service {
     return service.getServiceState();
   }
 
+  @Override
+  public long getStartTime() {
+    return startTime;
+  }
 }

@@ -42,7 +42,7 @@ public class QueueMetrics {
 
   static final Logger LOG = LoggerFactory.getLogger(QueueMetrics.class);
   static final int GB = 1024; // resource.memory is in MB
-  static final MetricsInfo RECORD_INFO = info("SchedulerMetrics",
+  static final MetricsInfo RECORD_INFO = info("QueueMetrics",
       "Metrics for the resource scheduler");
   static final MetricsInfo QUEUE_INFO = info("Queue", "Metrics by queue");
   static final MetricsInfo USER_INFO = info("User", "Metrics by user");

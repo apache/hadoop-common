@@ -65,6 +65,7 @@ class AppsList implements ToJSON {
       appendLink(out, appID, rc.prefix(), "app", appID).append(_SEP).
           append(escapeHtml(app.getUser().toString())).append(_SEP).
           append(escapeHtml(app.getName().toString())).append(_SEP).
+          append(escapeHtml(app.getQueue())).append(_SEP).
           append(app.getState().toString()).append(_SEP);
       appendProgressBar(out, app.getStatus().getProgress()).append(_SEP);
       appendLink(out, ui, rc.prefix(), master == null ? "#" : "http://", ui).

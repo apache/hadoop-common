@@ -135,6 +135,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private final Lock readLock;
   private final Lock writeLock;
   private final JobId jobId;
+  private final String jobName;
   private final org.apache.hadoop.mapreduce.JobID oldJobId;
   private final TaskAttemptListener taskAttemptListener;
   private final Object tasksSyncHandle = new Object();
@@ -349,6 +350,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       Set<TaskId> completedTasksFromPreviousRun, MRAppMetrics metrics) {
 
     this.jobId = recordFactory.newRecordInstance(JobId.class);
+    this.jobName = conf.get(JobContext.JOB_NAME, "<missing job name>");
     this.conf = conf;
     this.metrics = metrics;
     this.clock = clock;
@@ -681,7 +683,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
   @Override
   public String getName() {
-    return "FIXME! job name";
+    return jobName;
   }
 
   @Override

@@ -41,5 +41,5 @@ public interface Service {
   String getName();
   Configuration getConfig();
   STATE getServiceState();
-
+  long getStartTime();
 }

@@ -108,6 +108,8 @@ public class MRAppMaster extends CompositeService {
   private static final Log LOG = LogFactory.getLog(MRAppMaster.class);
 
   private Clock clock;
+  private final long startTime = System.currentTimeMillis();
+  private String appName;
   private final int startCount;
   private final ApplicationId appID;
   protected final MRAppMetrics metrics;
@@ -140,9 +142,13 @@ public class MRAppMaster extends CompositeService {
 
   @Override
   public void init(final Configuration conf) {
-    context = new RunningAppContext(); 
+    context = new RunningAppContext();
 
-     if (conf.getBoolean(AMConstants.RECOVERY_ENABLE, false) 
+    // Job name is the same as the app name util we support DAG of jobs
+    // for an app later
+    appName = conf.get(MRJobConfig.JOB_NAME, "<missing app name>");
+
+    if (conf.getBoolean(AMConstants.RECOVERY_ENABLE, false)
          && startCount > 1) {
       LOG.info("Recovery is enabled. Will try to recover from previous life.");
       Recovery recoveryServ = new RecoveryService(appID, clock, startCount);
@@ -431,6 +437,16 @@ public class MRAppMaster extends CompositeService {
     @Override
     public ApplicationId getApplicationID() {
       return appID;
+    }
+
+    @Override
+    public String getApplicationName() {
+      return appName;
+    }
+
+    @Override
+    public long getStartTime() {
+      return startTime;
     }
 
     @Override

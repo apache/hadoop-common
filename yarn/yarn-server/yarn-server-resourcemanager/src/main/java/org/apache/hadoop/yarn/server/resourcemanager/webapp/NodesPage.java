@@ -18,12 +18,14 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.webapp;
 
+import org.apache.hadoop.yarn.server.api.records.NodeHealthStatus;
 import java.util.Date;
 
 import com.google.inject.Inject;
 
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.NodeInfo;
 import org.apache.hadoop.yarn.server.resourcemanager.resourcetracker.ClusterTracker;
+import org.apache.hadoop.yarn.util.Times;
 import org.apache.hadoop.yarn.webapp.SubView;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.*;
@@ -58,15 +60,14 @@ class NodesPage extends RmView {
           th(".mem", "Mem Avail (MB)")._()._().
           tbody();
       for (NodeInfo ni : resource.getAllNodeInfo()) {
+        NodeHealthStatus health = ni.getNodeHealthStatus();
         tbody.tr().
             td(ni.getRackName()).
             td(String.valueOf(ni.getNodeID().getId())).
             td().a("http://" + ni.getHttpAddress(), ni.getHttpAddress())._().
-            td(ni.getNodeHealthStatus().getIsNodeHealthy() ? "Healthy"
-                : "Unhealthy").
-            td(new Date(ni.getNodeHealthStatus()
-                .getLastHealthReportTime()).toString()).
-            td(String.valueOf(ni.getNodeHealthStatus().getHealthReport())).
+            td(health.getIsNodeHealthy() ? "Healthy" : "Unhealthy").
+            td(Times.format(health.getLastHealthReportTime())).
+            td(String.valueOf(health.getHealthReport())).
             td(String.valueOf(ni.getNumContainers())).
             td(String.valueOf(ni.getUsedResource().getMemory())).
             td(String.valueOf(ni.getAvailableResource().getMemory()))._();
@@ -89,8 +90,10 @@ class NodesPage extends RmView {
 
   private String nodesTableInit() {
     return tableInit().
-        // rack, nodeid, host, healthStatus, containers, memused, memavail
-        append(", aoColumns:[null, null, null, null, {bSearchable:false}, ").
-        append("{bSearchable:false}, {bSearchable:false}]}").toString();
+        // rack, nodeid, host, healthStatus, health update ts, health report,
+        // containers, memused, memavail
+        append(", aoColumns:[null, null, null, null, null, null, ").
+        append("{bSearchable:false},{bSearchable:false},{bSearchable:false}]}").
+        toString();
   }
 }

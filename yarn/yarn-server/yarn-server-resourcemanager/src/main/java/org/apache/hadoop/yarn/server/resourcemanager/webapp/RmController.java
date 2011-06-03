@@ -20,8 +20,6 @@ package org.apache.hadoop.yarn.server.resourcemanager.webapp;
 
 import com.google.inject.Inject;
 
-import java.util.Date;
-
 import org.apache.hadoop.util.VersionInfo;
 import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -31,6 +29,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.Applica
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler;
 import org.apache.hadoop.yarn.util.Apps;
+import org.apache.hadoop.yarn.util.Times;
 import org.apache.hadoop.yarn.webapp.Controller;
 import org.apache.hadoop.yarn.webapp.ResponseInfo;
 
@@ -53,8 +52,8 @@ public class RmController extends Controller {
     info("Cluster overview").
       _("Cluster ID:", ts).
       _("ResourceManager state:", rm.getServiceState()).
-      _("ResourceManager started on:", new Date(ts)).
-      _("ResourceManager version:", "FIXAPI: 1.0-SNAPSHOT").
+      _("ResourceManager started on:", Times.format(ts)).
+      _("ResourceManager version:", "1.0-SNAPSHOT").
       _("Hadoop version:", VersionInfo.getBuildVersion());
     render(InfoPage.class);
   }

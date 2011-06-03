@@ -20,6 +20,7 @@ package org.apache.hadoop.mapreduce.v2.app;
 
 import java.util.Map;
 
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.yarn.Clock;
@@ -30,9 +31,14 @@ import org.apache.hadoop.yarn.event.EventHandler;
 /**
  * Context interface for sharing information across components in YARN App.
  */
+@InterfaceAudience.Private
 public interface AppContext {
 
   ApplicationId getApplicationID();
+
+  String getApplicationName();
+
+  long getStartTime();
 
   CharSequence getUser();
 

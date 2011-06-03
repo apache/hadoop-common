@@ -31,6 +31,7 @@ public abstract class AbstractService implements Service {
   
   private STATE state = STATE.NOTINITED;
   private final String name;
+  private long startTime;
   private Configuration config;
   private List<ServiceStateChangeListener> listeners =
     new ArrayList<ServiceStateChangeListener>();
@@ -54,6 +55,7 @@ public abstract class AbstractService implements Service {
 
   @Override
   public synchronized void start() {
+    startTime = System.currentTimeMillis();
     ensureCurrentState(STATE.INITED);
     changeState(STATE.STARTED);
     LOG.info("Service:" + getName() + " is started.");
@@ -87,6 +89,11 @@ public abstract class AbstractService implements Service {
   @Override
   public synchronized Configuration getConfig() {
     return config;
+  }
+
+  @Override
+  public long getStartTime() {
+    return startTime;
   }
 
   private void ensureCurrentState(STATE currentState) {

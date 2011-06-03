@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fix various issues with Web UI's. (Luke Lu)
+
     Fixed inconsistency in QueueACL enums. (acmurthy)
 
     Fixing the wrong config key used in JobHistory that prevented configuring

@@ -777,5 +777,15 @@ public class TestRuntimeEstimators {
     public Clock getClock() {
       return clock;
     }
+
+    @Override
+    public String getApplicationName() {
+      return null;
+    }
+
+    @Override
+    public long getStartTime() {
+      return 0;
+    }
   }
 }

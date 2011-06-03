@@ -29,6 +29,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.util.Apps;
+import org.apache.hadoop.yarn.util.Times;
 import org.apache.hadoop.yarn.webapp.Controller;
 
 import com.google.inject.Inject;
@@ -41,8 +42,7 @@ public class AppController extends Controller implements AMParams {
     super(ctx);
     this.app = app;
     set(APP_ID, Apps.toString(app.context.getApplicationID()));
-    set(RM_WEB, join("http://", conf.get(
-        YarnConfiguration.RM_WEBAPP_BIND_ADDRESS, "localhost:8888")));
+    set(RM_WEB, YarnConfiguration.getRMWebAppURL(conf));
   }
 
   @Inject
@@ -57,10 +57,10 @@ public class AppController extends Controller implements AMParams {
   public void info() {
     info("Application Master Overview").
       _("Application ID:", $(APP_ID)).
-      _("Application Name:", "FIXAPI: app name").
+      _("Application Name:", app.context.getApplicationName()).
       _("User:", app.context.getUser()).
-      _("Started on:", "FIXAPI: started on").
-      _("Elasped: ", "FIXAPI: elapsed time");
+      _("Started on:", Times.format(app.context.getStartTime())).
+      _("Elasped: ", Times.elapsed(app.context.getStartTime(), 0));
     render(InfoPage.class);
   }
 

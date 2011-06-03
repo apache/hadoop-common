@@ -18,9 +18,14 @@
 
 package org.apache.hadoop.yarn.conf;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Splitter;
+import java.util.Iterator;
 import org.apache.hadoop.conf.Configuration;
 
 public class YarnConfiguration extends Configuration {
+  private static final Splitter ADDR_SPLITTER = Splitter.on(':').trimResults();
+  private static final Joiner JOINER = Joiner.on("");
 
   public static final String RM_PREFIX = "yarn.server.resourcemanager.";
 
@@ -69,5 +74,17 @@ public class YarnConfiguration extends Configuration {
   
   public YarnConfiguration(Configuration conf) {
     super(conf);
+  }
+
+  public static String getRMWebAppURL(Configuration conf) {
+    String addr = conf.get(RM_WEBAPP_BIND_ADDRESS,
+                           DEFAULT_RM_WEBAPP_BIND_ADDRESS);
+    Iterator<String> it = ADDR_SPLITTER.split(addr).iterator();
+    it.next(); // ignore the bind host
+    String port = it.next();
+    // Use apps manager address to figure out the host for webapp
+    addr = conf.get(APPSMANAGER_ADDRESS, DEFAULT_APPSMANAGER_BIND_ADDRESS);
+    String host = ADDR_SPLITTER.split(addr).iterator().next();
+    return JOINER.join("http://", host, ":", port, "/");
   }
 }
