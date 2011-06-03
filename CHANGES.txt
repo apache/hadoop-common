@@ -4,7 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
-    
+
+    Re-enabled TestCapacityScheduler. (acmurthy)
+
     Fix logging for showing the state of job (FAILED/KILLED/SUCCEEDED) when it completes (mahadev)
 
     MAPREDUCE-2537. The RM writes its log to yarn-mapred-resourcemanager-<RM_Host>.out (Robert Evans via mahadev)
