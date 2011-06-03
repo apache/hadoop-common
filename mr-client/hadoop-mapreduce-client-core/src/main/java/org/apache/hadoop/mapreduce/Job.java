@@ -1132,7 +1132,7 @@ public class Job extends JobContextImpl implements JobContext {
       eventCounter += events.length;
       printTaskEvents(events, filter, profiling, mapRanges, reduceRanges);
     }
-    LOG.info("Job complete: " + jobId);
+    LOG.info("Job " + jobId + " completed with state: " + status.getState());
     Counters counters = getCounters();
     if (counters != null) {
       LOG.info(counters.toString());
