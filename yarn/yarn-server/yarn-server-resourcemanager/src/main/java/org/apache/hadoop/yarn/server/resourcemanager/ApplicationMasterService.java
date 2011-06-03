@@ -123,7 +123,14 @@ AMRMProtocol, EventHandler<ASMEvent<ApplicationTrackerEventType>> {
       LOG.info("Exception registering application ", ie);
       throw RPCUtil.getRemoteException(ie);
     }
-    RegisterApplicationMasterResponse response = recordFactory.newRecordInstance(RegisterApplicationMasterResponse.class);
+    
+    // Pick up min/max resource from scheduler...
+    RegisterApplicationMasterResponse response = 
+      recordFactory.newRecordInstance(RegisterApplicationMasterResponse.class);
+    response.setMinimumResourceCapability(
+        rScheduler.getMinimumResourceCapability());
+    response.setMaximumResourceCapability(
+        rScheduler.getMaximumResourceCapability());
     return response;
   }
 

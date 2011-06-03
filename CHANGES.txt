@@ -4,6 +4,7 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Support for min and max container capacity. (acmurthy and sharad)
 
     Re-enabled TestCapacityScheduler. (acmurthy)
 

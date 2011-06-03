@@ -106,6 +106,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   private int numNodeManagers = 0;
 
   private Resource minimumAllocation;
+  private Resource maximumAllocation;
 
   private Map<ApplicationId, Application> applications =
     Collections.synchronizedMap(
@@ -129,8 +130,13 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
-  public Resource getMinimumAllocation() {
+  public Resource getMinimumResourceCapability() {
     return minimumAllocation;
+  }
+
+  @Override
+  public Resource getMaximumResourceCapability() {
+    return maximumAllocation;
   }
 
   public synchronized int getNumClusterNodes() {
@@ -144,6 +150,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     if (!initialized) {
       this.conf = new CapacitySchedulerConfiguration(conf);
       this.minimumAllocation = this.conf.getMinimumAllocation();
+      this.maximumAllocation = this.conf.getMaximumAllocation();
       this.containerTokenSecretManager = containerTokenSecretManager;
       this.clusterTracker = clusterTracker;
       if (clusterTracker != null) clusterTracker.addListener(this);

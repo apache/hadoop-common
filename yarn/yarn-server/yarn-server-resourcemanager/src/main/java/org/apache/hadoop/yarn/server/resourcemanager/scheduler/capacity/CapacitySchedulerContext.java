@@ -27,8 +27,10 @@ import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 public interface CapacitySchedulerContext {
   CapacitySchedulerConfiguration getConfiguration();
   
-  Resource getMinimumAllocation();
-  
+  Resource getMinimumResourceCapability();
+
+  Resource getMaximumResourceCapability();
+
   ContainerTokenSecretManager getContainerTokenSecretManager();
   
   int getNumClusterNodes();

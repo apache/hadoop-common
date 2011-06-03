@@ -212,6 +212,18 @@ public class TestAMRestart extends TestCase {
     public void nodeUpdate(NodeInfo nodeInfo,
         Map<String, List<Container>> containers) {      
     }
+
+    @Override
+    public Resource getMaximumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
+    @Override
+    public Resource getMinimumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
+    }
   }
 
   @Before

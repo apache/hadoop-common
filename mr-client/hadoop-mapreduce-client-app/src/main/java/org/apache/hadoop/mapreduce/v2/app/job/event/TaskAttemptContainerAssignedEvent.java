@@ -19,42 +19,21 @@
 package org.apache.hadoop.mapreduce.v2.app.job.event;
 
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
-import org.apache.hadoop.yarn.api.records.ContainerId;
-import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Container;
 
 
 
 public class TaskAttemptContainerAssignedEvent extends TaskAttemptEvent {
 
-  private final ContainerId containerID;
-  private final String containerManagerAddress;
-  private final String nodeHttpAddress;
-  private final ContainerToken containerToken;
+  private final Container container;
 
   public TaskAttemptContainerAssignedEvent(TaskAttemptId id,
-      ContainerId containerID, String containerManagerAddress,
-      String nodeHttpAddress,
-      ContainerToken containerToken) {
+      Container container) {
     super(id, TaskAttemptEventType.TA_ASSIGNED);
-    this.containerID = containerID;
-    this.containerManagerAddress = containerManagerAddress;
-    this.nodeHttpAddress = nodeHttpAddress;
-    this.containerToken = containerToken;
+    this.container = container;
   }
 
-  public ContainerId getContainerID() {
-    return this.containerID;
-  }
-
-  public String getContainerManagerAddress() {
-    return this.containerManagerAddress;
-  }
-
-  public ContainerToken getContainerToken() {
-    return this.containerToken;
-  }
-
-  public String getNodeHttpAddress() {
-    return this.nodeHttpAddress;
+  public Container getContainer() {
+    return this.container;
   }
 }

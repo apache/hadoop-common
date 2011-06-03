@@ -31,6 +31,7 @@ import java.util.TreeMap;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.LimitedPrivate;
+import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -46,9 +47,11 @@ import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
+import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
@@ -79,14 +82,26 @@ public class FifoScheduler implements ResourceScheduler {
   Configuration conf;
   private ContainerTokenSecretManager containerTokenSecretManager;
 
-  // TODO: The memory-block size should be site-configurable?
-  public static final int MINIMUM_MEMORY = 1024;
   private final static Container[] EMPTY_CONTAINER_ARRAY = new Container[] {};
   private final static List<Container> EMPTY_CONTAINER_LIST = Arrays.asList(EMPTY_CONTAINER_ARRAY);
   private ClusterTracker clusterTracker;
 
-  public static final Resource MINIMUM_ALLOCATION =
-    Resources.createResource(MINIMUM_MEMORY);
+  private static final int MINIMUM_MEMORY = 1024;
+
+  private static final String FIFO_PREFIX = 
+    YarnConfiguration.RM_PREFIX + "fifo.";
+  @Private
+  public static final String MINIMUM_ALLOCATION = 
+    FIFO_PREFIX + "minimum-allocation-mb";
+
+  private static final int MAXIMUM_MEMORY = 10240;
+
+  @Private
+  public static final String MAXIMUM_ALLOCATION = 
+    FIFO_PREFIX + "maximum-allocation-mb";
+
+  private Resource minimumAllocation;
+  private Resource maximumAllocation;
 
   Map<ApplicationId, Application> applications =
       new TreeMap<ApplicationId, Application>(
@@ -155,16 +170,31 @@ public class FifoScheduler implements ResourceScheduler {
       this.clusterTracker.addListener(this);
     }
   }
+  
+  @Override
+  public Resource getMinimumResourceCapability() {
+    return minimumAllocation;
+  }
 
   @Override
-  public void reinitialize(Configuration conf,
-      ContainerTokenSecretManager containerTokenSecretManager, ClusterTracker clusterTracker) 
+  public Resource getMaximumResourceCapability() {
+    return maximumAllocation;
+  }
+
+  @Override
+  public synchronized void reinitialize(Configuration conf,
+      ContainerTokenSecretManager containerTokenSecretManager, 
+      ClusterTracker clusterTracker) 
   throws IOException 
   {
     this.conf = conf;
     this.containerTokenSecretManager = containerTokenSecretManager;
     this.clusterTracker = clusterTracker;
     if (clusterTracker != null) this.clusterTracker.addListener(this);
+    this.minimumAllocation = 
+      Resources.createResource(conf.getInt(MINIMUM_ALLOCATION, MINIMUM_MEMORY));
+    this.maximumAllocation = 
+      Resources.createResource(conf.getInt(MAXIMUM_ALLOCATION, MAXIMUM_MEMORY));
   }
 
   @Override
@@ -312,7 +342,7 @@ public class FifoScheduler implements ResourceScheduler {
       application.showRequests();
 
       // Done
-      if (Resources.lessThan(node.getAvailableResource(), MINIMUM_ALLOCATION)) {
+      if (Resources.lessThan(node.getAvailableResource(), minimumAllocation)) {
         return;
       }
     }
@@ -526,7 +556,7 @@ public class FifoScheduler implements ResourceScheduler {
     applicationCompletedContainers(getCompletedContainers(containers));
     LOG.info("Node heartbeat " + node.getNodeID() + " resource = " + node.getAvailableResource());
     if (Resources.greaterThanOrEqual(node.getAvailableResource(),
-        MINIMUM_ALLOCATION)) {
+        minimumAllocation)) {
       assignContainers(node);
     }
     metrics.setAvailableResourcesToQueue(

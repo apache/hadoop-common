@@ -29,6 +29,7 @@ import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.RMCommunicator;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -66,12 +67,15 @@ public class LocalContainerAllocator extends RMCommunicator
       cID.setAppId(appID);
       // use negative ids to denote that these are local. Need a better way ??
       cID.setId((-1) * containerCount.getAndIncrement());
+      
+      Container container = recordFactory.newRecordInstance(Container.class);
+      container.setId(cID);
+      container.setContainerManagerAddress("localhost");
+      container.setContainerToken(null);
+      container.setNodeHttpAddress("localhost:9999");
       // send the container-assigned event to task attempt
       eventHandler.handle(new TaskAttemptContainerAssignedEvent(
-          event.getAttemptID(), cID,
-          "localhost",//put the AppMaster hostname (TODO)
-          "localhost:9999",// put the httpAddress
-          null));
+          event.getAttemptID(), container));
     }
   }
 

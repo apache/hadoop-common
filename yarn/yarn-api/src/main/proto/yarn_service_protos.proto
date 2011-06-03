@@ -13,6 +13,8 @@ message RegisterApplicationMasterRequestProto {
 }
 
 message RegisterApplicationMasterResponseProto {
+  optional ResourceProto minimumCapability = 1;
+  optional ResourceProto maximumCapability = 2;
 }
 
 message FinishApplicationMasterRequestProto {

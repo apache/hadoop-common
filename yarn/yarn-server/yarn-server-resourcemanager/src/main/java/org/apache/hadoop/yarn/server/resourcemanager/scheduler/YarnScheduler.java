@@ -28,6 +28,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 
@@ -91,4 +92,17 @@ public interface YarnScheduler {
    * @throws IOException
    */
   public List<QueueUserACLInfo> getQueueUserAclInfo();
+  
+  /**
+   * Get minimum allocatable {@link Resource}.
+   * @return minimum allocatable resource
+   */
+  public Resource getMinimumResourceCapability();
+  
+  /**
+   * Get maximum allocatable {@link Resource}.
+   * @return maximum allocatable resource
+   */
+  public Resource getMaximumResourceCapability();
+
 }

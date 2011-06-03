@@ -213,7 +213,7 @@ public class TestRMContainerAllocator {
     //validate that no container is assigned to h1 as it doesn't have 2048
     for (TaskAttemptContainerAssignedEvent assig : assigned) {
       Assert.assertFalse("Assigned count not correct", 
-          "h1".equals(assig.getContainerManagerAddress()));
+          "h1".equals(assig.getContainer().getContainerManagerAddress()));
     }
   }
 
@@ -313,7 +313,7 @@ public class TestRMContainerAllocator {
     //check for uniqueness of containerIDs
     Set<ContainerId> containerIds = new HashSet<ContainerId>();
     for (TaskAttemptContainerAssignedEvent assigned : assignments) {
-      containerIds.add(assigned.getContainerID());
+      containerIds.add(assigned.getContainer().getId());
     }
     Assert.assertEquals("Assigned containers must be different", 
         assignments.size(), containerIds.size());
@@ -339,7 +339,7 @@ public class TestRMContainerAllocator {
         assigned.getTaskAttemptID());
     if (checkHostMatch) {
       Assert.assertTrue("Not assigned to requested host", Arrays.asList
-          (request.getHosts()).contains(assigned.getContainerManagerAddress()));
+          (request.getHosts()).contains(assigned.getContainer().getContainerManagerAddress()));
     }
 
   }
@@ -408,6 +408,20 @@ public class TestRMContainerAllocator {
     @Override
     protected void unregister() {}
 
+    @Override
+    protected Resource getMinContainerCapability() {
+      Resource res = recordFactory.newRecordInstance(Resource.class);
+      res.setMemory(1024);
+      return res;
+    }
+    
+    @Override
+    protected Resource getMaxContainerCapability() {
+      Resource res = recordFactory.newRecordInstance(Resource.class);
+      res.setMemory(10240);
+      return res;
+    }
+    
     public void sendRequest(ContainerRequestEvent req) {
       sendRequests(Arrays.asList(new ContainerRequestEvent[]{req}));
     }

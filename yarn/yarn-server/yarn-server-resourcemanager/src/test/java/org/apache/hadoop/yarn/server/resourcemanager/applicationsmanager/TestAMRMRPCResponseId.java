@@ -112,6 +112,18 @@ public class TestAMRMRPCResponseId extends TestCase {
         ApplicationStore store)
         throws IOException { 
     }
+
+    @Override
+    public Resource getMaximumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
+    @Override
+    public Resource getMinimumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
+    }
   }
   
   @Before

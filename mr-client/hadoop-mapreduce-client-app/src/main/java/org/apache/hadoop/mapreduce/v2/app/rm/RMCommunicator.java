@@ -41,12 +41,14 @@ import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
+import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse;
 import org.apache.hadoop.yarn.api.records.AMResponse;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -70,6 +72,8 @@ public class RMCommunicator extends AbstractService  {
   protected AMRMProtocol scheduler;
   private final ClientService clientService;
   private int lastResponseID;
+  private Resource minContainerCapability;
+  private Resource maxContainerCapability;
 
   private final RecordFactory recordFactory =
       RecordFactoryProvider.getRecordFactory(null);
@@ -116,7 +120,12 @@ public class RMCommunicator extends AbstractService  {
       RegisterApplicationMasterRequest request =
         recordFactory.newRecordInstance(RegisterApplicationMasterRequest.class);
       request.setApplicationMaster(applicationMaster);
-      scheduler.registerApplicationMaster(request);
+      RegisterApplicationMasterResponse response = 
+        scheduler.registerApplicationMaster(request);
+      minContainerCapability = response.getMinimumResourceCapability();
+      maxContainerCapability = response.getMaximumResourceCapability();
+      LOG.info("minContainerCapability: " + minContainerCapability.getMemory());
+      LOG.info("maxContainerCapability: " + maxContainerCapability.getMemory());
     } catch (Exception are) {
       LOG.info("Exception while registering", are);
       throw new YarnException(are);
@@ -133,6 +142,14 @@ public class RMCommunicator extends AbstractService  {
     } catch(Exception are) {
       LOG.info("Exception while unregistering ", are);
     }
+  }
+
+  protected Resource getMinContainerCapability() {
+    return minContainerCapability;
+  }
+  
+  protected Resource getMaxContainerCapability() {
+    return maxContainerCapability;
   }
 
   @Override

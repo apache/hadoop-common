@@ -375,6 +375,7 @@ public abstract class TaskAttemptImpl implements
   private String nodeHttpAddress;
   private WrappedJvmID jvmID;
   private ContainerToken containerToken;
+  private Resource assignedCapability;
   
   //this takes good amount of memory ~ 30KB. Instantiate it lazily
   //and make it null once task is launched.
@@ -591,7 +592,7 @@ public abstract class TaskAttemptImpl implements
     // Construct the actual Container
     container.setContainerId(containerID);
     container.setUser(conf.get(MRJobConfig.USER_NAME));
-    container.setResource(resourceCapability);
+    container.setResource(assignedCapability);
     return container;
   }
 
@@ -888,10 +889,11 @@ public abstract class TaskAttemptImpl implements
         TaskAttemptEvent event) {
       TaskAttemptContainerAssignedEvent cEvent = 
         (TaskAttemptContainerAssignedEvent) event;
-      taskAttempt.containerID = cEvent.getContainerID();
-      taskAttempt.containerMgrAddress = cEvent.getContainerManagerAddress();
-      taskAttempt.nodeHttpAddress = cEvent.getNodeHttpAddress();
-      taskAttempt.containerToken = cEvent.getContainerToken();
+      taskAttempt.containerID = cEvent.getContainer().getId();
+      taskAttempt.containerMgrAddress = cEvent.getContainer().getContainerManagerAddress();
+      taskAttempt.nodeHttpAddress = cEvent.getContainer().getNodeHttpAddress();
+      taskAttempt.containerToken = cEvent.getContainer().getContainerToken();
+      taskAttempt.assignedCapability = cEvent.getContainer().getResource();
       // this is a _real_ Task (classic Hadoop mapred flavor):
       taskAttempt.remoteTask = taskAttempt.createRemoteTask();
       taskAttempt.jvmID = new WrappedJvmID(

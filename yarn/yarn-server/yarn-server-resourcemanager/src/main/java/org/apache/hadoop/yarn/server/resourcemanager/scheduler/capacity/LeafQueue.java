@@ -114,7 +114,7 @@ public class LeafQueue implements Queue {
         QueueMetrics.forQueue(getQueuePath(), parent,
         cs.getConfiguration().getEnableUserMetrics());
     
-    this.minimumAllocation = cs.getMinimumAllocation();
+    this.minimumAllocation = cs.getMinimumResourceCapability();
     this.containerTokenSecretManager = cs.getContainerTokenSecretManager();
 
     float capacity = 

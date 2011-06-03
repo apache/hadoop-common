@@ -34,6 +34,7 @@ import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
 import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.AbstractService;
@@ -139,11 +140,16 @@ public class StaticContainerAllocator extends AbstractService
         if (nextIndex < containerMgrList.size()) {
           String containerMgr = containerMgrList.get(nextIndex);
           ContainerId containerID = generateContainerID();
-
-        context.getEventHandler().handle(
+          
+          Container container = RecordFactoryProvider.getRecordFactory(null)
+              .newRecordInstance(Container.class);
+          container.setId(containerID);
+          container.setContainerManagerAddress(containerMgr);
+          container.setContainerToken(null);
+          container.setNodeHttpAddress("localhost:9999");
+          context.getEventHandler().handle(
             new TaskAttemptContainerAssignedEvent(
-                event.getAttemptID(),
-                containerID, containerMgr, "localhost:9999", null));
+                event.getAttemptID(), container));
         }
       }
     }

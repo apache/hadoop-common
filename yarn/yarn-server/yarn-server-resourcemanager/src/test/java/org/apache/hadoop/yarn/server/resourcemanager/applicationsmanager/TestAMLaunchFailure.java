@@ -36,6 +36,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.EventHandler;
@@ -102,6 +103,18 @@ public class TestAMLaunchFailure extends TestCase {
         throws IOException {
       // TODO Auto-generated method stub
       
+    }
+
+    @Override
+    public Resource getMaximumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
+    @Override
+    public Resource getMinimumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
     }
   }
 

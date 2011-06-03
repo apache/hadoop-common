@@ -44,6 +44,8 @@ import org.apache.hadoop.mapreduce.v2.app.AMConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
+import org.apache.hadoop.mapreduce.v2.app.job.event.JobEvent;
+import org.apache.hadoop.mapreduce.v2.app.job.event.JobEventType;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
@@ -183,14 +185,33 @@ public class RMContainerAllocator extends RMContainerRequestor
       if (reqEvent.getAttemptID().getTaskId().getTaskType().equals(TaskType.MAP)) {
         if (mapResourceReqt == 0) {
           mapResourceReqt = reqEvent.getCapability().getMemory();
+          int minSlotMemSize = getMinContainerCapability().getMemory();
+          mapResourceReqt = (int) Math.ceil((float) mapResourceReqt/minSlotMemSize) * minSlotMemSize;
           LOG.info("mapResourceReqt:"+mapResourceReqt);
+          if (mapResourceReqt > getMaxContainerCapability().getMemory()) {
+            LOG.info("Map capability required is more than the supported " +
+            		"max container capability in the cluster. Killing the Job.");
+            eventHandler.handle(new JobEvent(job.getID(), JobEventType.JOB_KILL));
+          }
         }
+        //set the rounded off memory
+        reqEvent.getCapability().setMemory(mapResourceReqt);
         scheduledRequests.addMap(reqEvent);//maps are immediately scheduled
       } else {
         if (reduceResourceReqt == 0) {
           reduceResourceReqt = reqEvent.getCapability().getMemory();
+          int minSlotMemSize = getMinContainerCapability().getMemory();
+          //round off on slotsize
+          reduceResourceReqt = (int) Math.ceil((float) reduceResourceReqt/minSlotMemSize) * minSlotMemSize;
           LOG.info("reduceResourceReqt:"+reduceResourceReqt);
+          if (reduceResourceReqt > getMaxContainerCapability().getMemory()) {
+            LOG.info("Reduce capability required is more than the supported " +
+                    "max container capability in the cluster. Killing the Job.");
+            eventHandler.handle(new JobEvent(job.getID(), JobEventType.JOB_KILL));
+          }
         }
+        //set the rounded off memory
+        reqEvent.getCapability().setMemory(reduceResourceReqt);
         if (reqEvent.getEarlierAttemptFailed()) {
           //add to the front of queue for fail fast
           pendingReduces.addFirst(new ContainerRequest(reqEvent, PRIORITY_REDUCE));
@@ -480,10 +501,7 @@ public class RMContainerAllocator extends RMContainerRequestor
 
           // send the container-assigned event to task attempt
           eventHandler.handle(new TaskAttemptContainerAssignedEvent(
-              assigned.attemptID, allocated.getId(),
-              allocated.getContainerManagerAddress(),
-              allocated.getNodeHttpAddress(),
-              allocated.getContainerToken()));
+              assigned.attemptID, allocated));
 
           assignedRequests.add(allocated, assigned.attemptID);
           

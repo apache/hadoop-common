@@ -58,6 +58,7 @@ import org.apache.hadoop.mapreduce.v2.app.taskclean.TaskCleanupEvent;
 import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.event.AsyncDispatcher;
 import org.apache.hadoop.yarn.event.Dispatcher;
@@ -349,9 +350,15 @@ public class RecoveryService extends CompositeService implements Recovery {
       LOG.info("Sending assigned event to " + yarnAttemptID);
       ContainerId cId = RecordFactoryProvider.getRecordFactory(null)
           .newRecordInstance(ContainerId.class);
+      Container container = RecordFactoryProvider.getRecordFactory(null)
+          .newRecordInstance(Container.class);
+      container.setId(cId);
+      container.setContainerManagerAddress("localhost");
+      container.setContainerToken(null);
+      container.setNodeHttpAddress(attemptInfo.getHostname() + ":" + 
+          attemptInfo.getHttpPort());
       actualHandler.handle(new TaskAttemptContainerAssignedEvent(yarnAttemptID,
-          cId, null, attemptInfo.getHostname() + ":" + 
-          attemptInfo.getHttpPort(), null));
+          container));
     }
   }
 

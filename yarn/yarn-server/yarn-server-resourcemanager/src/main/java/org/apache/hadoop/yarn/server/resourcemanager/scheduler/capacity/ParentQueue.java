@@ -97,7 +97,7 @@ public class ParentQueue implements Queue {
 
   public ParentQueue(CapacitySchedulerContext cs, 
       String queueName, Comparator<Queue> comparator, Queue parent, Queue old) {
-    minimumAllocation = cs.getMinimumAllocation();
+    minimumAllocation = cs.getMinimumResourceCapability();
     
     this.parent = parent;
     this.queueName = queueName;

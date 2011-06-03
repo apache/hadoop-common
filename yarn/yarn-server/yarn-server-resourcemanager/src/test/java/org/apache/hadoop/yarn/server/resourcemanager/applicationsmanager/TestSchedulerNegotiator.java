@@ -36,6 +36,7 @@ import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.QueueUserACLInfo;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
@@ -135,6 +136,20 @@ public class TestSchedulerNegotiator extends TestCase {
     public void reinitialize(Configuration conf,
         ContainerTokenSecretManager secretManager, ClusterTracker clusterTracker)
         throws IOException {
+    }
+
+
+    @Override
+    public Resource getMaximumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
+
+    @Override
+    public Resource getMinimumResourceCapability() {
+      // TODO Auto-generated method stub
+      return null;
     }
   }
   

@@ -72,7 +72,13 @@ public class CapacitySchedulerConfiguration extends Configuration {
   @Private
   public static final String MINIMUM_ALLOCATION = 
     PREFIX + "minimum-allocation-mb";
-  
+
+  private static final int MAXIMUM_MEMORY = 10240;
+
+  @Private
+  public static final String MAXIMUM_ALLOCATION = 
+    PREFIX + "maximum-allocation-mb";
+
   @Private
   public static int DEFAULT_MAXIMUM_SYSTEM_APPLICATIIONS = 10000;
   
@@ -197,6 +203,11 @@ public class CapacitySchedulerConfiguration extends Configuration {
   public Resource getMinimumAllocation() {
     int minimumMemory = getInt(MINIMUM_ALLOCATION, MINIMUM_MEMORY);
     return Resources.createResource(minimumMemory);
+  }
+
+  public Resource getMaximumAllocation() {
+    int maximumMemory = getInt(MAXIMUM_ALLOCATION, MAXIMUM_MEMORY);
+    return Resources.createResource(maximumMemory);
   }
 
   public boolean getEnableUserMetrics() {
