@@ -189,8 +189,8 @@ message QueueInfoProto {
 
 enum QueueACLProto {
   Q_SUBMIT_JOB = 1;
-  Q_ADMINISTER_QUEUE_JOBS = 2;
-  Q_ADMINISTER_QUEUE = 3;
+  Q_ADMINISTER_QUEUE = 2;
+  Q_ADMINISTER_JOBS = 3;
 }
 
 message QueueUserACLInfoProto {

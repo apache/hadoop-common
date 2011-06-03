@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fixed inconsistency in QueueACL enums. (acmurthy)
+
     Fixing the wrong config key used in JobHistory that prevented configuring
     move-thread interval. (vinodkv)
 
