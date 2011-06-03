@@ -4,13 +4,19 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+
+    MAPREDUCE-2531. Fixed jobcontrol to downgrade JobID. (Robert Evans via
+    acmurthy) 
+
     Support for min and max container capacity. (acmurthy and sharad)
 
     Re-enabled TestCapacityScheduler. (acmurthy)
 
-    Fix logging for showing the state of job (FAILED/KILLED/SUCCEEDED) when it completes (mahadev)
+    Fix logging for showing the state of job (FAILED/KILLED/SUCCEEDED) when it 
+    completes (mahadev)
 
-    MAPREDUCE-2537. The RM writes its log to yarn-mapred-resourcemanager-<RM_Host>.out (Robert Evans via mahadev)
+    MAPREDUCE-2537. The RM writes its log to 
+    yarn-mapred-resourcemanager-<RM_Host>.out (Robert Evans via mahadev)
 
     Fix a corner case in headroom computation - now reservations are taken
     into account and headroom is computed much later to account for
