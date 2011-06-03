@@ -62,20 +62,20 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
     viaProto = true;
   }
   
-  public TaskIdProto getProto() {
+  public synchronized TaskIdProto getProto() {
       mergeLocalToProto();
     proto = viaProto ? proto : builder.build();
     viaProto = true;
     return proto;
   }
 
-  private void mergeLocalToBuilder() {
+  private synchronized void mergeLocalToBuilder() {
     if (this.jobId != null && !((JobIdPBImpl)this.jobId).getProto().equals(builder.getJobId()) ) {
       builder.setJobId(convertToProtoFormat(this.jobId));
     }
   }
 
-  private void mergeLocalToProto() {
+  private synchronized void mergeLocalToProto() {
     if (viaProto) 
       maybeInitBuilder();
     mergeLocalToBuilder();
@@ -83,7 +83,7 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
     viaProto = true;
   }
 
-  private void maybeInitBuilder() {
+  private synchronized void maybeInitBuilder() {
     if (viaProto || builder == null) {
       builder = TaskIdProto.newBuilder(proto);
     }
@@ -92,18 +92,18 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
     
   
   @Override
-  public int getId() {
+  public synchronized int getId() {
     TaskIdProtoOrBuilder p = viaProto ? proto : builder;
     return (p.getId());
   }
 
   @Override
-  public void setId(int id) {
+  public synchronized void setId(int id) {
     maybeInitBuilder();
     builder.setId((id));
   }
   @Override
-  public JobId getJobId() {
+  public synchronized JobId getJobId() {
     TaskIdProtoOrBuilder p = viaProto ? proto : builder;
     if (this.jobId != null) {
       return this.jobId;
@@ -116,14 +116,14 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
   }
 
   @Override
-  public void setJobId(JobId jobId) {
+  public synchronized void setJobId(JobId jobId) {
     maybeInitBuilder();
     if (jobId == null)
       builder.clearJobId();
     this.jobId = jobId;
   }
   @Override
-  public TaskType getTaskType() {
+  public synchronized TaskType getTaskType() {
     TaskIdProtoOrBuilder p = viaProto ? proto : builder;
     if (!p.hasTaskType()) {
       return null;
@@ -132,7 +132,7 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
   }
 
   @Override
-  public void setTaskType(TaskType taskType) {
+  public synchronized void setTaskType(TaskType taskType) {
     maybeInitBuilder();
     if (taskType == null) {
       builder.clearTaskType();
@@ -141,25 +141,25 @@ public class TaskIdPBImpl extends ProtoBase<TaskIdProto> implements TaskId {
     builder.setTaskType(convertToProtoFormat(taskType));
   }
 
-  private JobIdPBImpl convertFromProtoFormat(JobIdProto p) {
+  private synchronized JobIdPBImpl convertFromProtoFormat(JobIdProto p) {
     return new JobIdPBImpl(p);
   }
 
-  private JobIdProto convertToProtoFormat(JobId t) {
+  private synchronized JobIdProto convertToProtoFormat(JobId t) {
     return ((JobIdPBImpl)t).getProto();
   }
 
-  private TaskTypeProto convertToProtoFormat(TaskType e) {
+  private synchronized TaskTypeProto convertToProtoFormat(TaskType e) {
     return MRProtoUtils.convertToProtoFormat(e);
   }
 
-  private TaskType convertFromProtoFormat(TaskTypeProto e) {
+  private synchronized TaskType convertFromProtoFormat(TaskTypeProto e) {
     return MRProtoUtils.convertFromProtoFormat(e);
   }
 
   
   @Override
-  public String toString() {
+  public synchronized String toString() {
     String jobIdentifier =  (jobId == null) ? "none":
       jobId.getAppId().getClusterTimestamp() + "_" + 
       jobidFormat.format(jobId.getAppId().getId()) + "_" + 

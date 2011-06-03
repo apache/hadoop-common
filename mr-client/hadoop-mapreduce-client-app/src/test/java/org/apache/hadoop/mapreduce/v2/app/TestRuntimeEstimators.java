@@ -70,6 +70,7 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.CompositeService;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestRuntimeEstimators {
@@ -228,6 +229,7 @@ public class TestRuntimeEstimators {
     coreTestEstimator(specificEstimator, 3);
   }
 
+  @Ignore
   @Test
   public void testExponentialEstimator() throws Exception {
     clock = new MockClock();
