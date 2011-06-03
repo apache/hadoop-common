@@ -221,7 +221,9 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     jobListCacheSize = conf.getInt(JHConfig.HISTORY_SERVER_JOBLIST_CACHE_SIZE_KEY, DEFAULT_JOBLIST_CACHE_SIZE);
     loadedJobCacheSize = conf.getInt(JHConfig.HISTORY_SERVER_LOADED_JOB_CACHE_SIZE_KEY, DEFAULT_LOADEDJOB_CACHE_SIZE);
     dateStringCacheSize = conf.getInt(JHConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_DATESTRING_CACHE_SIZE);
-    moveThreadInterval = conf.getLong(JHConfig.HISTORY_SERVER_DATESTRING_CACHE_SIZE_KEY, DEFAULT_MOVE_THREAD_INTERVAL);
+    moveThreadInterval =
+        conf.getLong(JHConfig.HISTORY_SERVER_MOVE_THREAD_INTERVAL,
+            DEFAULT_MOVE_THREAD_INTERVAL);
     numMoveThreads = conf.getInt(JHConfig.HISTORY_SERVER_NUM_MOVE_THREADS, DEFAULT_MOVE_THREAD_COUNT);
     try {
     initExisting();
