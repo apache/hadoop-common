@@ -571,6 +571,8 @@ public class JobClient extends CLI {
     return getJob(JobID.forName(jobid));
   }
   
+  private static final TaskReport[] EMPTY_TASK_REPORTS = new TaskReport[0];
+  
   /**
    * Get the information of the current state of the map tasks of a job.
    * 
@@ -579,9 +581,16 @@ public class JobClient extends CLI {
    * @throws IOException
    */
   public TaskReport[] getMapTaskReports(JobID jobId) throws IOException {
+    return getTaskReports(jobId, TaskType.MAP);
+  }
+  
+  private TaskReport[] getTaskReports(JobID jobId, TaskType type) throws IOException {
     try {
-      return TaskReport.downgradeArray(
-        cluster.getJob(jobId).getTaskReports(TaskType.MAP));
+      Job j = cluster.getJob(jobId);
+      if(j == null) {
+        return EMPTY_TASK_REPORTS;
+      }
+      return TaskReport.downgradeArray(j.getTaskReports(type));
     } catch (InterruptedException ie) {
       throw new IOException(ie);
     }
@@ -601,12 +610,7 @@ public class JobClient extends CLI {
    * @throws IOException
    */    
   public TaskReport[] getReduceTaskReports(JobID jobId) throws IOException {
-    try {
-      return TaskReport.downgradeArray(
-        cluster.getJob(jobId).getTaskReports(TaskType.REDUCE));
-    } catch (InterruptedException ie) {
-      throw new IOException(ie);
-    }
+    return getTaskReports(jobId, TaskType.REDUCE);
   }
 
   /**
@@ -617,12 +621,7 @@ public class JobClient extends CLI {
    * @throws IOException
    */    
   public TaskReport[] getCleanupTaskReports(JobID jobId) throws IOException {
-    try {
-      return TaskReport.downgradeArray(
-        cluster.getJob(jobId).getTaskReports(TaskType.JOB_CLEANUP));
-    } catch (InterruptedException ie) {
-      throw new IOException(ie);
-    }
+    return getTaskReports(jobId, TaskType.JOB_CLEANUP);
   }
 
   /**
@@ -633,12 +632,7 @@ public class JobClient extends CLI {
    * @throws IOException
    */    
   public TaskReport[] getSetupTaskReports(JobID jobId) throws IOException {
-    try {
-      return TaskReport.downgradeArray(
-        cluster.getJob(jobId).getTaskReports(TaskType.JOB_SETUP));
-    } catch (InterruptedException ie) {
-      throw new IOException(ie);
-    }
+    return getTaskReports(jobId, TaskType.JOB_SETUP);
   }
 
   
