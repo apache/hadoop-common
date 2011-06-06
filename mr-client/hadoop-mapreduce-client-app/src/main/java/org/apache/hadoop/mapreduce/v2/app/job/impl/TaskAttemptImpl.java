@@ -44,6 +44,7 @@ import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.mapred.MapReduceChildJVM;
 import org.apache.hadoop.mapred.ShuffleHandler;
 import org.apache.hadoop.mapred.Task;
+import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.WrappedJvmID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.OutputCommitter;
@@ -57,7 +58,7 @@ import org.apache.hadoop.mapreduce.jobhistory.TaskAttemptStartedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskAttemptUnsuccessfulCompletionEvent;
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
-import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
+import org.apache.hadoop.mapred.TaskAttemptContextImpl;
 import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.Counters;
 import org.apache.hadoop.mapreduce.v2.api.records.Phase;
@@ -1015,7 +1016,7 @@ public abstract class TaskAttemptImpl implements
     public void transition(TaskAttemptImpl taskAttempt, 
         TaskAttemptEvent event) {
       TaskAttemptContext taskContext =
-        new TaskAttemptContextImpl(taskAttempt.conf,
+        new TaskAttemptContextImpl(new JobConf(taskAttempt.conf),
             TypeConverter.fromYarn(taskAttempt.attemptId));
       taskAttempt.eventHandler.handle(new TaskCleanupEvent(
           taskAttempt.attemptId,

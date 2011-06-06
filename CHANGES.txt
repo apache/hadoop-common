@@ -4,6 +4,7 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Fix class cast exception in Task abort for old mapreduce apis. (sharad)
 
     Fix various issues with Web UI's. (Luke Lu)
 

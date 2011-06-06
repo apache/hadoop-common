@@ -29,6 +29,7 @@ import org.apache.hadoop.FailMapper;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileInputFormat;
@@ -40,6 +41,7 @@ import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.lib.IdentityMapper;
 import org.apache.hadoop.mapred.lib.IdentityReducer;
 import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.filecache.DistributedCache;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -50,9 +52,18 @@ public class TestMROldApiJobs {
   private static final Log LOG = LogFactory.getLog(TestMROldApiJobs.class);
 
   protected static MiniMRYarnCluster mrCluster;
+  private static Configuration conf = new Configuration();
+  private static FileSystem localFs;
+  static {
+    try {
+      localFs = FileSystem.getLocal(conf);
+    } catch (IOException io) {
+      throw new RuntimeException("problem getting local fs", io);
+    }
+  }
 
   @BeforeClass
-  public static void setup() {
+  public static void setup()  throws IOException {
 
     if (!(new File(MiniMRYarnCluster.APPJAR)).exists()) {
       LOG.info("MRAppJar " + MiniMRYarnCluster.APPJAR
@@ -69,6 +80,11 @@ public class TestMROldApiJobs {
     // TestMRJobs is for testing non-uberized operation only; see TestUberAM
     // for corresponding uberized tests.
     mrCluster.getConfig().setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
+    
+    // Copy MRAppJar and make it private. TODO: FIXME. This is a hack to
+    // workaround the absent public discache.
+    localFs.copyFromLocalFile(new Path(MiniMRYarnCluster.APPJAR), TestMRJobs.APP_JAR);
+    localFs.setPermission(TestMRJobs.APP_JAR, new FsPermission("700"));
   }
 
   @AfterClass
@@ -142,6 +158,7 @@ public class TestMROldApiJobs {
          throws IOException, InterruptedException {
     conf.setJobName("test-job-fail");
     conf.setMapperClass(FailMapper.class);
+    conf.setJarByClass(FailMapper.class);
     conf.setReducerClass(IdentityReducer.class);
     conf.setMaxMapAttempts(1);
     
@@ -154,6 +171,7 @@ public class TestMROldApiJobs {
          throws IOException, InterruptedException {
     conf.setJobName("test-job-succeed");
     conf.setMapperClass(IdentityMapper.class);
+    //conf.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
     conf.setReducerClass(IdentityReducer.class);
     
     boolean success = runJob(conf, inDir, outDir, 1 , 1);
@@ -176,9 +194,9 @@ public class TestMROldApiJobs {
       DataOutputStream file = fs.create(new Path(inDir, "part-" + i));
       file.writeBytes(input);
       file.close();
-    }    
+    }
 
-    conf.setJar(new File(MiniMRYarnCluster.APPJAR).getAbsolutePath());
+    DistributedCache.addFileToClassPath(TestMRJobs.APP_JAR, conf);
     conf.setOutputCommitter(CustomOutputCommitter.class);
     conf.setInputFormat(TextInputFormat.class);
     conf.setOutputKeyClass(LongWritable.class);
@@ -190,6 +208,7 @@ public class TestMROldApiJobs {
     conf.setNumReduceTasks(numReds);
 
     JobClient jobClient = new JobClient(conf);
+    
     RunningJob job = jobClient.submitJob(conf);
     return jobClient.monitorAndPrintJob(conf, job);
   }

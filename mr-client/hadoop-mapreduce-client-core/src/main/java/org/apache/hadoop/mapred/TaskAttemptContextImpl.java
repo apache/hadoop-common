@@ -33,7 +33,7 @@ public class TaskAttemptContextImpl
        implements TaskAttemptContext {
   private Progressable progress;
 
-  TaskAttemptContextImpl(JobConf conf, TaskAttemptID taskid) {
+  public TaskAttemptContextImpl(JobConf conf, TaskAttemptID taskid) {
     this(conf, taskid, Reporter.NULL);
   }
   

@@ -157,7 +157,7 @@ public class TestMRJobs {
     // JobStatus?)--compare against MRJobConfig.JOB_UBERTASK_ENABLE value
   }
 
-  //@Test
+  @Test
   public void testRandomWriter() throws IOException, InterruptedException,
       ClassNotFoundException {
 
@@ -199,7 +199,7 @@ public class TestMRJobs {
     // TODO later:  add explicit "isUber()" checks of some sort
   }
 
- // @Test
+  @Test
   public void testFailingMapper() throws IOException, InterruptedException,
       ClassNotFoundException {
 
