@@ -94,7 +94,7 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
     .addTransition(ResourceState.LOCALIZED, ResourceState.LOCALIZED,
         ResourceEventType.REQUEST, new LocalizedResourceTransition())
     .addTransition(ResourceState.LOCALIZED, ResourceState.LOCALIZED,
-        ResourceEventType.LOCALIZED, new LocalizedResourceTransition())
+        ResourceEventType.LOCALIZED)
     .addTransition(ResourceState.LOCALIZED, ResourceState.LOCALIZED,
         ResourceEventType.RELEASE, new ReleaseTransition())
     .installTopology();
@@ -115,12 +115,12 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
     StringBuilder sb = new StringBuilder();
     sb.append("{ ").append(rsrc.toString()).append(",")
       .append(getState() == ResourceState.LOCALIZED
-          ? localPath 
+          ? getLocalPath() + "," + getSize()
           : "pending").append(",[");
     for (ContainerId c : ref) {
       sb.append("(").append(c.toString()).append(")");
     }
-    sb.append("],").append(timestamp.get()).append("}");
+    sb.append("],").append(getTimestamp()).append("}");
     return sb.toString();
   }
 
@@ -148,6 +148,22 @@ public class LocalizedResource implements EventHandler<ResourceEvent> {
 
   public LocalResourceRequest getRequest() {
     return rsrc;
+  }
+
+  public Path getLocalPath() {
+    return localPath;
+  }
+
+  public long getTimestamp() {
+    return timestamp.get();
+  }
+
+  public long getSize() {
+    return size;
+  }
+
+  public int getRefCount() {
+    return ref.size();
   }
 
   public boolean tryAcquire() {

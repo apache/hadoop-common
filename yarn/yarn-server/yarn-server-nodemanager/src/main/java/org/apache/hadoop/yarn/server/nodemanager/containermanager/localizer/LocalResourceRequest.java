@@ -41,9 +41,15 @@ public class LocalResourceRequest
    */
   public LocalResourceRequest(LocalResource resource)
       throws URISyntaxException {
-    this.loc = ConverterUtils.getPathFromYarnURL(resource.getResource());
-    this.timestamp = resource.getTimestamp();
-    this.type = resource.getType();
+    this(ConverterUtils.getPathFromYarnURL(resource.getResource()),
+        resource.getTimestamp(),
+        resource.getType());
+  }
+
+  LocalResourceRequest(Path loc, long timestamp, LocalResourceType type) {
+    this.loc = loc;
+    this.timestamp = timestamp;
+    this.type = type;
   }
 
   @Override

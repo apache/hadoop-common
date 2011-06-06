@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+
+    Add deletion of distributed cache resources. (cdouglas)
+
     Fix class cast exception in Task abort for old mapreduce apis. (sharad)
 
     Fix various issues with Web UI's. (Luke Lu)

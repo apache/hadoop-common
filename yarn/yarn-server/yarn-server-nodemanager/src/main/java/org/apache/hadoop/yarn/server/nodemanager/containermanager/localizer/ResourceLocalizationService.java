@@ -34,24 +34,32 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 
 import static org.apache.hadoop.fs.CreateFlag.CREATE;
 import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_MAX_PUBLIC_FETCH_THREADS;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_CACHE_CLEANUP_MS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCALIZER_BIND_ADDRESS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOCAL_DIR;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_LOG_DIR;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.DEFAULT_NM_TARGET_CACHE_MB;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_CACHE_CLEANUP_MS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCALIZER_BIND_ADDRESS;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOCAL_DIR;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_LOG_DIR;
 import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_MAX_PUBLIC_FETCH_THREADS;
+import static org.apache.hadoop.yarn.server.nodemanager.NMConfig.NM_TARGET_CACHE_MB;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -99,6 +107,7 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.even
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ContainerLocalizationRequestEvent;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizationEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEvent;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerEventType;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.LocalizerResourceRequestEvent;
@@ -118,6 +127,8 @@ public class ResourceLocalizationService extends AbstractService
 
   private Server server;
   private InetSocketAddress localizationServerAddress;
+  private long cacheTargetSize;
+  private long cacheCleanupPeriod;
   private List<Path> logDirs;
   private List<Path> localDirs;
   private List<Path> sysDirs;
@@ -127,6 +138,7 @@ public class ResourceLocalizationService extends AbstractService
   private LocalizerTracker localizerTracker;
   private RecordFactory recordFactory;
   private final LocalDirAllocator localDirsSelector;
+  private final ScheduledExecutorService cacheCleanup;
 
   private final LocalResourcesTracker publicRsrc;
   private final ConcurrentMap<String,LocalResourcesTracker> privateRsrc =
@@ -141,7 +153,8 @@ public class ResourceLocalizationService extends AbstractService
     this.dispatcher = dispatcher;
     this.delService = delService;
     this.localDirsSelector = new LocalDirAllocator(NMConfig.NM_LOCAL_DIR);
-    this.publicRsrc = new LocalResourcesTrackerImpl(dispatcher);
+    this.publicRsrc = new LocalResourcesTrackerImpl(null, dispatcher);
+    this.cacheCleanup = new ScheduledThreadPoolExecutor(1);
   }
 
   FileContext getLocalFileContext(Configuration conf) {
@@ -190,10 +203,16 @@ public class ResourceLocalizationService extends AbstractService
     localDirs = Collections.unmodifiableList(localDirs);
     logDirs = Collections.unmodifiableList(logDirs);
     sysDirs = Collections.unmodifiableList(sysDirs);
+    cacheTargetSize =
+      conf.getLong(NM_TARGET_CACHE_MB, DEFAULT_NM_TARGET_CACHE_MB) << 20;
+    cacheCleanupPeriod =
+      conf.getLong(NM_CACHE_CLEANUP_MS, DEFAULT_NM_CACHE_CLEANUP_MS);
     localizationServerAddress = NetUtils.createSocketAddr(
       conf.get(NM_LOCALIZER_BIND_ADDRESS, DEFAULT_NM_LOCALIZER_BIND_ADDRESS));
     localizerTracker = new LocalizerTracker(conf);
     dispatcher.register(LocalizerEventType.class, localizerTracker);
+    cacheCleanup.scheduleWithFixedDelay(new CacheCleanup(dispatcher),
+        cacheCleanupPeriod, cacheCleanupPeriod, TimeUnit.MILLISECONDS);
     super.init(conf);
   }
 
@@ -250,12 +269,16 @@ public class ResourceLocalizationService extends AbstractService
       Application app =
         ((ApplicationLocalizationEvent)event).getApplication();
       // 0) Create application tracking structs
-      privateRsrc.putIfAbsent(app.getUser(),
-          new LocalResourcesTrackerImpl(dispatcher));
+      userName = app.getUser();
+      privateRsrc.putIfAbsent(userName,
+          new LocalResourcesTrackerImpl(userName, dispatcher));
       if (null != appRsrc.putIfAbsent(ConverterUtils.toString(app.getAppId()),
-          new LocalResourcesTrackerImpl(dispatcher))) {
+          new LocalResourcesTrackerImpl(app.getUser(), dispatcher))) {
         LOG.warn("Initializing application " + app + " already present");
         assert false; // TODO: FIXME assert doesn't help
+                      // ^ The condition is benign. Tests should fail and it
+                      //   should appear in logs, but it's an internal error
+                      //   that should have no effect on applications
       }
       // 1) Signal container init
       dispatcher.getEventHandler().handle(new ApplicationInitedEvent(
@@ -286,6 +309,16 @@ public class ResourceLocalizationService extends AbstractService
       // all the resources in this event are of the same visibility.
       for (LocalResourceRequest req : rsrcReqs.getRequestedResources()) {
         tracker.handle(new ResourceRequestEvent(req, vis, ctxt));
+      }
+      break;
+    case CACHE_CLEANUP:
+      ResourceRetentionSet retain =
+        new ResourceRetentionSet(delService, cacheTargetSize);
+      retain.addResources(publicRsrc);
+      LOG.debug("Resource cleanup (public) " + retain);
+      for (LocalResourcesTracker t : privateRsrc.values()) {
+        retain.addResources(t);
+        LOG.debug("Resource cleanup " + t.getUser() + ":" + retain);
       }
       break;
     case CLEANUP_CONTAINER_RESOURCES:
@@ -536,8 +569,9 @@ public class ResourceLocalizationService extends AbstractService
     final Map<LocalResourceRequest,LocalizerResourceRequestEvent> scheduled;
     final List<LocalizerResourceRequestEvent> pending;
 
+    // TODO: threadsafe, use outer?
     private final RecordFactory recordFactory =
-      RecordFactoryProvider.getRecordFactory(null);
+      RecordFactoryProvider.getRecordFactory(getConfig());
 
     LocalizerRunner(LocalizerContext context, String localizerId) {
       this.context = context;
@@ -702,17 +736,37 @@ public class ResourceLocalizationService extends AbstractService
             context.getUser(),
             ConverterUtils.toString(context.getContainerId().getAppId()),
             localizerId, localDirs);
+      // TODO handle ExitCodeException separately?
       } catch (Exception e) {
+        LOG.info("Localizer failed", e);
         // 3) on error, report failure to Container and signal ABORT
         // 3.1) notify resource of failed localization
+        ContainerId cId = context.getContainerId();
+        dispatcher.getEventHandler().handle(
+            new ContainerResourceFailedEvent(cId, null, e));
+      } finally {
         for (LocalizerResourceRequestEvent event : scheduled.values()) {
           event.getResource().unlock();
         }
-        //dispatcher.getEventHandler().handle(
-        //    new ContainerResourceFailedEvent(current.getContainer(),
-        //      current.getResource().getRequest(), e));
       }
     }
 
   }
+
+  static class CacheCleanup extends Thread {
+
+    private final Dispatcher dispatcher;
+
+    public CacheCleanup(Dispatcher dispatcher) {
+      this.dispatcher = dispatcher;
+    }
+
+    @Override
+    public void run() {
+      dispatcher.getEventHandler().handle(
+          new LocalizationEvent(LocalizationEventType.CACHE_CLEANUP));
+    }
+
+  }
+
 }

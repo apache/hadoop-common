@@ -92,6 +92,7 @@ public class ConverterUtils {
   }
 
   // TODO: Why thread local?
+  // ^ NumberFormat instances are not threadsafe
   private static final ThreadLocal<NumberFormat> appIdFormat =
     new ThreadLocal<NumberFormat>() {
       @Override
@@ -104,6 +105,7 @@ public class ConverterUtils {
     };
 
   // TODO: Why thread local?
+  // ^ NumberFormat instances are not threadsafe
   private static final ThreadLocal<NumberFormat> containerIdFormat =
       new ThreadLocal<NumberFormat>() {
         @Override

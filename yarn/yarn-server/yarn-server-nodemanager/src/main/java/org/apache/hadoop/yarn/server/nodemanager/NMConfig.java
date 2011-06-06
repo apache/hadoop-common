@@ -89,4 +89,15 @@ public class NMConfig {
     NM_PREFIX + "container.manager.threads";
   
   public static final int DEFAULT_NM_CONTAINER_MGR_THREADS = 5;
+
+  public static final String NM_TARGET_CACHE_MB =
+    NM_PREFIX + "target.cache.size";
+
+  public static final long DEFAULT_NM_TARGET_CACHE_MB = 10 * 1024;
+
+  public static final String NM_CACHE_CLEANUP_MS =
+    NM_PREFIX + "target.cache.cleanup.period.ms";
+
+  public static final long DEFAULT_NM_CACHE_CLEANUP_MS = 10 * 60 * 1000;
+
 }

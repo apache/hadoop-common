@@ -20,15 +20,21 @@ package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.EventHandler;
+import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceEvent;
 
 /**
  * Component tracking resources all of the same {@link LocalResourceVisibility}
  * 
  */
-interface LocalResourcesTracker extends EventHandler<ResourceEvent> {
+interface LocalResourcesTracker
+    extends EventHandler<ResourceEvent>, Iterable<LocalizedResource> {
 
   // TODO: Not used at all!!
   boolean contains(LocalResourceRequest resource);
+
+  boolean remove(LocalizedResource req, DeletionService delService);
+
+  String getUser();
 
 }

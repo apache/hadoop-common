@@ -17,12 +17,15 @@
 */
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer;
 
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.event.ResourceEvent;
 
 /**
@@ -34,12 +37,20 @@ class LocalResourcesTrackerImpl implements LocalResourcesTracker {
 
   static final Log LOG = LogFactory.getLog(LocalResourcesTrackerImpl.class);
 
+  private final String user;
   private final Dispatcher dispatcher;
-  private final ConcurrentHashMap<LocalResourceRequest,LocalizedResource>
-    localrsrc = new ConcurrentHashMap<LocalResourceRequest,LocalizedResource>();
+  private final ConcurrentMap<LocalResourceRequest,LocalizedResource> localrsrc;
 
-  public LocalResourcesTrackerImpl(Dispatcher dispatcher) {
+  public LocalResourcesTrackerImpl(String user, Dispatcher dispatcher) {
+    this(user, dispatcher,
+        new ConcurrentHashMap<LocalResourceRequest,LocalizedResource>());
+  }
+
+  LocalResourcesTrackerImpl(String user, Dispatcher dispatcher,
+      ConcurrentMap<LocalResourceRequest,LocalizedResource> localrsrc) {
+    this.user = user;
     this.dispatcher = dispatcher;
+    this.localrsrc = localrsrc;
   }
 
   @Override
@@ -66,7 +77,40 @@ class LocalResourcesTrackerImpl implements LocalResourcesTracker {
 
   @Override
   public boolean contains(LocalResourceRequest resource) {
-    return localrsrc.contains(resource);
+    return localrsrc.containsKey(resource);
+  }
+
+  @Override
+  public boolean remove(LocalizedResource rem, DeletionService delService) {
+    // current synchronization guaranteed by crude RLS event for cleanup
+    LocalizedResource rsrc = localrsrc.remove(rem.getRequest());
+    if (null == rsrc) {
+      LOG.error("Attempt to remove absent resource: " + rem.getRequest() +
+          " from " + getUser());
+      return true;
+    }
+    if (rsrc.getRefCount() > 0
+        || ResourceState.DOWNLOADING.equals(rsrc.getState())
+        || rsrc != rem) {
+      // internal error
+      LOG.error("Attempt to remove resource with non-zero refcount");
+      assert false;
+      return false;
+    }
+    if (ResourceState.LOCALIZED.equals(rsrc.getState())) {
+      delService.delete(getUser(), rsrc.getLocalPath());
+    }
+    return true;
+  }
+
+  @Override
+  public String getUser() {
+    return user;
+  }
+
+  @Override
+  public Iterator<LocalizedResource> iterator() {
+    return localrsrc.values().iterator();
   }
 
 }

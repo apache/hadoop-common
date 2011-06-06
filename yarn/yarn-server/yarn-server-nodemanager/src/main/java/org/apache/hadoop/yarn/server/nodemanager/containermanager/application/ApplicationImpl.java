@@ -140,6 +140,9 @@ public class ApplicationImpl implements Application {
 
            // Transitions from APPLICATION_RESOURCES_CLEANINGUP state
            .addTransition(ApplicationState.APPLICATION_RESOURCES_CLEANINGUP,
+               ApplicationState.APPLICATION_RESOURCES_CLEANINGUP,
+               ApplicationEventType.APPLICATION_CONTAINER_FINISHED)
+           .addTransition(ApplicationState.APPLICATION_RESOURCES_CLEANINGUP,
                ApplicationState.FINISHED,
                ApplicationEventType.APPLICATION_RESOURCES_CLEANEDUP,
                new AppCompletelyDoneTransition())

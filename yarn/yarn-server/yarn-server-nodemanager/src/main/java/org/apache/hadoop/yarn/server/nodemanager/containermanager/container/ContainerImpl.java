@@ -194,6 +194,10 @@ public class ContainerImpl implements Container {
         ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
         ContainerEventType.CONTAINER_KILLED_ON_REQUEST,
         new ContainerKilledTransition())
+    .addTransition(ContainerState.KILLING,
+        ContainerState.KILLING,
+        ContainerEventType.RESOURCE_LOCALIZED,
+        new LocalizedResourceDuringKillTransition())
     .addTransition(ContainerState.KILLING, ContainerState.KILLING,
        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
        UPDATE_DIAGNOSTICS_TRANSITION)
@@ -205,6 +209,10 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.KILLING, ContainerState.EXITED_WITH_FAILURE,
         ContainerEventType.CONTAINER_EXITED_WITH_FAILURE,
         new ExitedWithFailureTransition())
+    .addTransition(ContainerState.KILLING,
+            ContainerState.DONE,
+            ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
+            CONTAINER_DONE_TRANSITION)
 
     // From CONTAINER_CLEANEDUP_AFTER_KILL State.
     .addTransition(ContainerState.CONTAINER_CLEANEDUP_AFTER_KILL,
@@ -564,6 +572,24 @@ public class ContainerImpl implements Container {
           new ContainerLocalizationEvent(
             LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
       container.metrics.endInitingContainer();
+    }
+  }
+
+  @SuppressWarnings("unchecked") // dispatcher not typed
+  static class LocalizedResourceDuringKillTransition implements
+      SingleArcTransition<ContainerImpl, ContainerEvent> {
+    @Override
+    public void transition(ContainerImpl container, ContainerEvent event) {
+      ContainerResourceLocalizedEvent rsrcEvent = (ContainerResourceLocalizedEvent) event;
+      String sym = container.pendingResources.remove(rsrcEvent.getResource());
+      if (null == sym) {
+        LOG.warn("Localized unknown resource " + rsrcEvent.getResource() +
+                 " for container " + container.getContainerID());
+        assert false;
+        // fail container?
+        return;
+      }
+      container.localizedResources.put(rsrcEvent.getLocation(), sym);
     }
   }
 
