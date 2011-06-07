@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Disable aggregation of logs onto DFS till JobHistoryServer starts
+    serving logs. (vinodkv)
+
     Add deletion of distributed cache resources. (cdouglas)
 
     Fix class cast exception in Task abort for old mapreduce apis. (sharad)

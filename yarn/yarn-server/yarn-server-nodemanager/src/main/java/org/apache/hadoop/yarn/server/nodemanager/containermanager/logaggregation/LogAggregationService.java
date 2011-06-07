@@ -207,27 +207,27 @@ public class LogAggregationService extends AbstractService implements
 
   @Override
   public void handle(LogAggregatorEvent event) {
-    switch (event.getType()) {
-    case APPLICATION_STARTED:
-      LogAggregatorAppStartedEvent appStartEvent =
-          (LogAggregatorAppStartedEvent) event;
-      initApp(appStartEvent.getApplicationId(), appStartEvent.getUser(),
-          appStartEvent.getCredentials(),
-          appStartEvent.getLogRetentionPolicy());
-      break;
-    case CONTAINER_FINISHED:
-      LogAggregatorContainerFinishedEvent containerFinishEvent =
-          (LogAggregatorContainerFinishedEvent) event;
-      stopContainer(containerFinishEvent.getContainerId(),
-          containerFinishEvent.getExitCode());
-      break;
-    case APPLICATION_FINISHED:
-      LogAggregatorAppFinishedEvent appFinishedEvent =
-          (LogAggregatorAppFinishedEvent) event;
-      stopApp(appFinishedEvent.getApplicationId());
-      break;
-    default:
-      ; // Ignore
-    }
+//    switch (event.getType()) {
+//    case APPLICATION_STARTED:
+//      LogAggregatorAppStartedEvent appStartEvent =
+//          (LogAggregatorAppStartedEvent) event;
+//      initApp(appStartEvent.getApplicationId(), appStartEvent.getUser(),
+//          appStartEvent.getCredentials(),
+//          appStartEvent.getLogRetentionPolicy());
+//      break;
+//    case CONTAINER_FINISHED:
+//      LogAggregatorContainerFinishedEvent containerFinishEvent =
+//          (LogAggregatorContainerFinishedEvent) event;
+//      stopContainer(containerFinishEvent.getContainerId(),
+//          containerFinishEvent.getExitCode());
+//      break;
+//    case APPLICATION_FINISHED:
+//      LogAggregatorAppFinishedEvent appFinishedEvent =
+//          (LogAggregatorAppFinishedEvent) event;
+//      stopApp(appFinishedEvent.getApplicationId());
+//      break;
+//    default:
+//      ; // Ignore
+//    }
   }
 }
