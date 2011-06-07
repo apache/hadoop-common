@@ -4,6 +4,7 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Cleanup redundant code in TaskAttemptImpl. (sharad)
 
     Disable aggregation of logs onto DFS till JobHistoryServer starts
     serving logs. (vinodkv)
