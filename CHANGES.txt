@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+
+    Work around broken signaling in public cache. (cdouglas)
+
     Cleanup redundant code in TaskAttemptImpl. (sharad)
 
     Disable aggregation of logs onto DFS till JobHistoryServer starts

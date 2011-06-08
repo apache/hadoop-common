@@ -25,6 +25,7 @@ import java.net.URISyntaxException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CancellationException;
@@ -486,21 +487,26 @@ public class ResourceLocalizationService extends AbstractService
     final ExecutorService threadPool;
     final LocalDirAllocator publicDirs;
     final CompletionService<Path> queue;
-    final ConcurrentMap<Future<Path>,LocalizerResourceRequestEvent> pending;
+    final Map<Future<Path>,LocalizerResourceRequestEvent> pending;
+    // TODO hack to work around broken signaling
+    final Map<LocalResourceRequest,List<LocalizerResourceRequestEvent>> attempts;
 
     PublicLocalizer(Configuration conf) {
       this(conf, getLocalFileContext(conf),
            Executors.newFixedThreadPool(conf.getInt(
                NM_MAX_PUBLIC_FETCH_THREADS, DEFAULT_MAX_PUBLIC_FETCH_THREADS)),
-           new ConcurrentHashMap<Future<Path>,LocalizerResourceRequestEvent>());
+           new HashMap<Future<Path>,LocalizerResourceRequestEvent>(),
+           new HashMap<LocalResourceRequest,List<LocalizerResourceRequestEvent>>());
     }
 
     PublicLocalizer(Configuration conf, FileContext lfs,
         ExecutorService threadPool,
-        ConcurrentMap<Future<Path>,LocalizerResourceRequestEvent> pending) {
+        Map<Future<Path>,LocalizerResourceRequestEvent> pending,
+        Map<LocalResourceRequest,List<LocalizerResourceRequestEvent>> attempts) {
       this.lfs = lfs;
       this.conf = conf;
       this.pending = pending;
+      this.attempts = attempts;
       String[] publicFilecache = new String[localDirs.size()];
       for (int i = 0, n = localDirs.size(); i < n; ++i) {
         publicFilecache[i] =
@@ -514,12 +520,20 @@ public class ResourceLocalizationService extends AbstractService
 
     public void addResource(LocalizerResourceRequestEvent request) {
       // TODO handle failures, cancellation, requests by other containers
-      LOG.info("Downloading public rsrc:" + request.getResource().getRequest());
-      pending.putIfAbsent(
-          queue.submit(new FSDownload(
-              lfs, null, conf, publicDirs, request.getResource().getRequest(),
-              new Random())),
-          request);
+      LocalResourceRequest key = request.getResource().getRequest();
+      LOG.info("Downloading public rsrc:" + key);
+      synchronized (attempts) {
+        List<LocalizerResourceRequestEvent> sigh = attempts.get(key);
+        if (null == sigh) {
+          pending.put(queue.submit(new FSDownload(
+                  lfs, null, conf, publicDirs,
+                  request.getResource().getRequest(), new Random())),
+              request);
+          attempts.put(key, new LinkedList<LocalizerResourceRequestEvent>());
+        } else {
+          sigh.add(request);
+        }
+      }
     }
 
     @Override
@@ -529,12 +543,21 @@ public class ResourceLocalizationService extends AbstractService
         while (!Thread.currentThread().isInterrupted()) {
           try {
             Future<Path> completed = queue.take();
-            LocalizerResourceRequestEvent assoc = pending.get(completed);
+            LocalizerResourceRequestEvent assoc = pending.remove(completed);
             try {
               Path local = completed.get();
+              if (null == assoc) {
+                LOG.error("Localized unkonwn resource to " + completed);
+                // TODO delete
+                return;
+              }
+              LocalResourceRequest key = assoc.getResource().getRequest();
               assoc.getResource().handle(
-                  new ResourceLocalizedEvent(assoc.getResource().getRequest(),
+                  new ResourceLocalizedEvent(key,
                     local, FileUtil.getDU(new File(local.toUri()))));
+              synchronized (attempts) {
+                attempts.remove(key);
+              }
             } catch (ExecutionException e) {
               LOG.info("Failed to download rsrc " + assoc.getResource(),
                   e.getCause());
@@ -542,6 +565,22 @@ public class ResourceLocalizationService extends AbstractService
                   new ContainerResourceFailedEvent(
                     assoc.getContext().getContainerId(),
                     assoc.getResource().getRequest(), e.getCause()));
+              synchronized (attempts) {
+                LocalResourceRequest req = assoc.getResource().getRequest();
+                List<LocalizerResourceRequestEvent> reqs = attempts.get(req);
+                if (null == reqs) {
+                  LOG.error("Missing pending list for " + req);
+                  return;
+                }
+                if (reqs.isEmpty()) {
+                  attempts.remove(req);
+                }
+                LocalizerResourceRequestEvent request = reqs.remove(0);
+                pending.put(queue.submit(new FSDownload(
+                        lfs, null, conf, publicDirs,
+                        request.getResource().getRequest(), new Random())),
+                    request);
+              }
             } catch (CancellationException e) {
               // ignore; shutting down
             }
