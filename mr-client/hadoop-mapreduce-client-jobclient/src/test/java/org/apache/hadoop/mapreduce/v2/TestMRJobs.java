@@ -107,10 +107,6 @@ public class TestMRJobs {
       mrCluster.start();
     }
 
-    // TestMRJobs is for testing non-uberized operation only; see TestUberAM
-    // for corresponding uberized tests.
-    mrCluster.getConfig().setBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
-
     // Copy MRAppJar and make it private. TODO: FIXME. This is a hack to
     // workaround the absent public discache.
     localFs.copyFromLocalFile(new Path(MiniMRYarnCluster.APPJAR), APP_JAR);

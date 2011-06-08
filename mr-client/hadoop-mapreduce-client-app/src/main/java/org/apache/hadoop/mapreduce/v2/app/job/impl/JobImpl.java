@@ -789,7 +789,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         //long sysMemSizeForUberSlot = JobTracker.getMemSizeForReduceSlot(); // FIXME [could use default AM-container memory size...]
 
         boolean uberEnabled =
-            job.conf.getBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, false);
+            job.conf.getBoolean(MRJobConfig.JOB_UBERTASK_ENABLE, true);
         boolean smallNumMapTasks = (job.numMapTasks <= sysMaxMaps);
         boolean smallNumReduceTasks = (job.numReduceTasks <= sysMaxReduces);
         boolean smallInput = (inputLength <= sysMaxBytes);
