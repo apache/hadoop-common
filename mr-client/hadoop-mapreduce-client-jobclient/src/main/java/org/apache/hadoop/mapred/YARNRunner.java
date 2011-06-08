@@ -252,7 +252,8 @@ public class YARNRunner implements ClientProtocol {
       throws IOException {
     LocalResource rsrc = recordFactory.newRecordInstance(LocalResource.class);
     FileStatus rsrcStat = fs.getFileStatus(p);
-    rsrc.setResource(ConverterUtils.getYarnUrlFromPath(rsrcStat.getPath()));
+    rsrc.setResource(ConverterUtils.getYarnUrlFromPath(fs
+        .getDefaultFileSystem().resolvePath(rsrcStat.getPath())));
     rsrc.setSize(rsrcStat.getLen());
     rsrc.setTimestamp(rsrcStat.getModificationTime());
     rsrc.setType(LocalResourceType.FILE);
@@ -274,9 +275,10 @@ public class YARNRunner implements ClientProtocol {
 
     Path jobConfPath = new Path(jobSubmitDir, MRConstants.JOB_CONF_FILE);
     
-    URL yarnUrlForJobSubmitDir =
-        ConverterUtils.getYarnUrlFromPath(defaultFileContext.makeQualified(new Path(
-            jobSubmitDir)));
+    URL yarnUrlForJobSubmitDir = ConverterUtils
+        .getYarnUrlFromPath(defaultFileContext.getDefaultFileSystem()
+            .resolvePath(
+                defaultFileContext.makeQualified(new Path(jobSubmitDir))));
     LOG.debug("Creating setup context, jobSubmitDir url is "
         + yarnUrlForJobSubmitDir);
 
@@ -399,7 +401,7 @@ public class YARNRunner implements ClientProtocol {
   private void parseDistributedCacheArtifacts(
       ApplicationSubmissionContext container, LocalResourceType type,
       URI[] uris, long[] timestamps, long[] sizes, boolean visibilities[], 
-      Path[] pathsToPutOnClasspath) {
+      Path[] pathsToPutOnClasspath) throws IOException {
 
     if (uris != null) {
       // Sanity check
@@ -424,8 +426,9 @@ public class YARNRunner implements ClientProtocol {
       for (int i = 0; i < uris.length; ++i) {
         URI u = uris[i];
         Path p = new Path(u);
-        p = p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
-              .getUri(), this.defaultFileContext.getWorkingDirectory());
+        p = defaultFileContext.getDefaultFileSystem().resolvePath(
+            p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
+                .getUri(), this.defaultFileContext.getWorkingDirectory()));
         // Add URI fragment or just the filename
         Path name = new Path((null == u.getFragment())
           ? p.getName()
@@ -464,9 +467,9 @@ public class YARNRunner implements ClientProtocol {
     return result;
   }
   
-  private static LocalResource createLocalResource(URI uri, 
+  private LocalResource createLocalResource(URI uri, 
       LocalResourceType type, LocalResourceVisibility visibility, 
-      long size, long timestamp) {
+      long size, long timestamp) throws IOException {
     LocalResource resource = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(LocalResource.class);
     resource.setResource(ConverterUtils.getYarnUrlFromURI(uri));
     resource.setType(type);

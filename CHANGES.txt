@@ -4,6 +4,8 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+  
+    Fully resolve paths when launching containers. (Siddharth Seth)
    
     MAPREDUCE-2566. YarnConfiguration should reloadConfiguration if 
     instantiated with a non YarnConfiguration object. (siddharth seth)

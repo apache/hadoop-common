@@ -483,9 +483,9 @@ public abstract class TaskAttemptImpl implements
 
       // //////////// Set up JobJar to be localized properly on the remote NM.
       if (conf.get(MRJobConfig.JAR) != null) {
-        Path remoteJobJar =
+        Path remoteJobJar = remoteFS.getDefaultFileSystem().resolvePath(
           remoteFS.makeQualified(new Path(remoteTask.getConf().get(
-              MRJobConfig.JAR)));
+              MRJobConfig.JAR))));
         container.setLocalResource(
             MRConstants.JOB_JAR,
             createLocalResource(remoteFS, recordFactory, remoteJobJar,
@@ -506,8 +506,8 @@ public abstract class TaskAttemptImpl implements
               .getCurrentUser().getShortUserName());
       Path remoteJobSubmitDir =
           new Path(path, oldJobId.toString());
-      Path remoteJobConfPath =
-          new Path(remoteJobSubmitDir, MRConstants.JOB_CONF_FILE);
+      Path remoteJobConfPath = remoteFS.getDefaultFileSystem().resolvePath(
+          new Path(remoteJobSubmitDir, MRConstants.JOB_CONF_FILE));
       container.setLocalResource(
           MRConstants.JOB_CONF_FILE,
           createLocalResource(remoteFS, recordFactory, remoteJobConfPath,
@@ -642,8 +642,9 @@ public abstract class TaskAttemptImpl implements
       for (int i = 0; i < uris.length; ++i) {
         URI u = uris[i];
         Path p = new Path(u);
-        p = p.makeQualified(remoteFS.getDefaultFileSystem()
-              .getUri(), remoteFS.getWorkingDirectory());
+        p = remoteFS.getDefaultFileSystem().resolvePath(
+            p.makeQualified(remoteFS.getDefaultFileSystem().getUri(),
+                remoteFS.getWorkingDirectory()));
         // Add URI fragment or just the filename
         Path name = new Path((null == u.getFragment())
           ? p.getName()
