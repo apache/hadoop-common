@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Remove retries in dist cache so that NM's do not shutdown (mahadev)
+
     Solving NPEs during ContainerManager#StopContainer. Also removing
     the unused ContainerManager#CleanupContainer api. (vinodkv)
 

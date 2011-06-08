@@ -575,12 +575,15 @@ public class ResourceLocalizationService extends AbstractService
                 if (reqs.isEmpty()) {
                   attempts.remove(req);
                 }
-                LocalizerResourceRequestEvent request = reqs.remove(0);
+                /* 
+                 * Do not retry for now. Once failed is failed!
+                 *  LocalizerResourceRequestEvent request = reqs.remove(0);
+
                 pending.put(queue.submit(new FSDownload(
-                        lfs, null, conf, publicDirs,
-                        request.getResource().getRequest(), new Random())),
+                    lfs, null, conf, publicDirs,
+                    request.getResource().getRequest(), new Random())),
                     request);
-              }
+                 */              }
             } catch (CancellationException e) {
               // ignore; shutting down
             }
@@ -588,6 +591,8 @@ public class ResourceLocalizationService extends AbstractService
             return;
           }
         }
+      } catch(Throwable t) {
+        LOG.fatal("Error: Shutting down", t);
       } finally {
         LOG.info("Public cache exiting");
         threadPool.shutdownNow();
