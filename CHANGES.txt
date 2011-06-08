@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fixed deadlock during expiring NMs. (acmurthy)
+
     Re-enabling Uber-AM feature. (vinodkv)
  
     Fully resolve paths when launching containers. (Siddharth Seth)

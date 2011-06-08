@@ -39,6 +39,7 @@ import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.util.HostsFileReader;
+import org.apache.hadoop.yarn.Lock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.NodeId;
@@ -59,6 +60,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeManagerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeResponse;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceListener;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.server.security.ContainerTokenSecretManager;
 import org.apache.hadoop.yarn.service.AbstractService;
 
@@ -118,6 +120,7 @@ NodeTracker, ClusterTracker {
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public void init(Configuration conf) {
     super.init(conf);
     this.nmExpiryInterval =  conf.getLong(RMConfig.NM_EXPIRY_INTERVAL, 
@@ -168,11 +171,13 @@ NodeTracker, ClusterTracker {
   }
   
   @Override
+  @Lock(Lock.NoLock.class)
   public void addListener(ResourceListener listener) {
     this.resourceListener = listener;
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public void start() {
     this.nmLivelinessMonitor.start();
     LOG.info("Expiry interval of NodeManagers set to " + nmExpiryInterval);
@@ -184,46 +189,52 @@ NodeTracker, ClusterTracker {
    * @param hostName the hostname of this node.
    * @return the resolved {@link Node} for this nodemanager.
    */
+  @Lock(Lock.NoLock.class)
   public static Node resolve(String hostName) {
     return new NodeBase(hostName, NetworkTopology.DEFAULT_RACK);
   }
   
+  @Lock(Lock.NoLock.class)
   protected NodeInfoTracker getAndAddNodeInfoTracker(NodeId nodeId, 
       String hostName, int cmPort, int httpPort,
       Node node, Resource capability) {
     NodeInfoTracker nTracker = null;
+    NodeManager nodeManager =
+      new NodeManagerImpl(nodeId, hostName, cmPort, httpPort, 
+          node, capability);
+
+    // Inform listeners and nodeStore
+    addNode(nodeManager);
     
+    // Record the new node
     synchronized(nodeManagers) {
-      if (!nodeManagers.containsKey(nodeId)) {
-        LOG.info("DEBUG -- Adding  " + hostName);
-        NodeManager nodeManager =
-          new NodeManagerImpl(nodeId, hostName, cmPort, httpPort, 
-              node, capability);
-        nodes.put(nodeManager.getNodeAddress(), nodeId);
-        addNode(nodeManager);
-        HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
-        response.setResponseId(0);
-        nTracker = new NodeInfoTracker(nodeManager, response);
-        nodeManagers.put(nodeId, nTracker);
-      } else {
-        nTracker = nodeManagers.get(nodeId);
-      }
+      LOG.info("DEBUG -- Adding  " + hostName);
+      nodes.put(nodeManager.getNodeAddress(), nodeId);
+      HeartbeatResponse response = 
+        recordFactory.newRecordInstance(HeartbeatResponse.class);
+      response.setResponseId(0);
+      nTracker = new NodeInfoTracker(nodeManager, response);
+      nodeManagers.put(nodeId, nTracker);
     }
+    
     return nTracker;
   }
 
+  @Lock(Lock.NoLock.class)
   private void addNode(NodeManager node) {
-    /* Inform the listeners */
+    // Inform the listeners
     resourceListener.addNode(node);
 
+    // Inform the node store
     try {
       nodeStore.storeNode(node);
     } catch (IOException ioe) {
       LOG.warn("Failed to store node " + node.getNodeAddress() + " in nodestore");
     }
-
   }
+  
   @Override
+  @Lock(Lock.NoLock.class)
   public RegistrationResponse registerNodeManager(
       String host, int cmPort, int httpPort, Resource capability) 
   throws IOException {
@@ -261,6 +272,7 @@ NodeTracker, ClusterTracker {
    * @param nodeManager the {@link NodeInfo} to update.
    * @param containers the containers from the status of the node manager.
    */
+  @Lock(Lock.NoLock.class)
   protected void updateListener(NodeInfo nodeManager, Map<String, List<Container>>
     containers) {
   /* inform any listeners of node heartbeats */
@@ -280,6 +292,7 @@ NodeTracker, ClusterTracker {
     return nodeManager.statusUpdate(containers);
   }
   
+  @Lock(Lock.NoLock.class)
   private boolean isValidNode(String hostName) {
     synchronized (hostsReader) {
       Set<String> hostsList = hostsReader.getHosts();
@@ -290,6 +303,7 @@ NodeTracker, ClusterTracker {
   }
   
   @Override
+  @Lock(Lock.NoLock.class)
   public HeartbeatResponse nodeHeartbeat(org.apache.hadoop.yarn.server.api.records.NodeStatus remoteNodeStatus) 
   throws IOException {
     /**
@@ -306,10 +320,7 @@ NodeTracker, ClusterTracker {
     NodeId nodeId = remoteNodeStatus.getNodeId();
     
     // 1. Check if it's a registered node
-    NodeInfoTracker nTracker = null;
-    synchronized(nodeManagers) {
-      nTracker = nodeManagers.get(nodeId);
-    }
+    NodeInfoTracker nTracker = getNodeInfoTracker(nodeId);
     if (nTracker == null) {
       /* node does not exist */
       LOG.info("Node not found rebooting " + remoteNodeStatus.getNodeId());
@@ -369,13 +380,6 @@ NodeTracker, ClusterTracker {
       }
     }
 
-    /** TODO This should be 3 step process.
-     * nodemanager.statusupdate
-     * listener.update()
-     * nodemanager.getNodeResponse()
-     * This will allow flexibility in updates/scheduling/premption
-     */
-
     // Heartbeat response
     HeartbeatResponse response = recordFactory.newRecordInstance(HeartbeatResponse.class);
     response.setResponseId(nTracker.getLastHeartBeatResponse().getResponseId() + 1);
@@ -400,31 +404,37 @@ NodeTracker, ClusterTracker {
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public void unregisterNodeManager(NodeId nodeId) {
+    NodeManager node = null;  
     synchronized (nodeManagers) {
-      NodeManager node = getNodeManager(nodeId);
+      node = getNodeManager(nodeId);
       if (node != null) {
-        removeNode(node);
         nodeManagers.remove(nodeId);
         nodes.remove(node.getNodeAddress());
       } else {
         LOG.warn("Unknown node " + nodeId + " unregistered");
       }
     }
+    
+    // Inform the listeners and nodeStore
+    if (node != null) {
+      removeNode(node);
+    }
   }
 
+  @Lock(Lock.NoLock.class)
   private void removeNode(NodeManager node) {
-    synchronized (nodeManagers) {
-      resourceListener.removeNode(node);
-      try {
-        nodeStore.removeNode(node);
-      } catch (IOException ioe) {
-        LOG.warn("Failed to remove node " + node.getNodeAddress() + 
-            " from nodeStore", ioe);
-      }
+    resourceListener.removeNode(node);
+    try {
+      nodeStore.removeNode(node);
+    } catch (IOException ioe) {
+      LOG.warn("Failed to remove node " + node.getNodeAddress() + 
+          " from nodeStore", ioe);
     }
   }
   
+  @Lock(Lock.NoLock.class)
   private  NodeId getNodeId(String node) {
     NodeId nodeId;
     nodeId = nodes.get(node);
@@ -436,6 +446,7 @@ NodeTracker, ClusterTracker {
   }
 
   @Override
+  @Lock(RMResourceTrackerImpl.class)
   public synchronized YarnClusterMetrics getClusterMetrics() {
     YarnClusterMetrics ymetrics = recordFactory.newRecordInstance(YarnClusterMetrics.class);
     ymetrics.setNumNodeManagers(nodeManagers.size());
@@ -443,6 +454,7 @@ NodeTracker, ClusterTracker {
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public void stop() {
     this.nmLivelinessMonitor.interrupt();
     this.nmLivelinessMonitor.shutdown();
@@ -456,6 +468,7 @@ NodeTracker, ClusterTracker {
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public List<NodeInfo> getAllNodeInfo() {
     List<NodeInfo> infoList = new ArrayList<NodeInfo>();
     synchronized (nodeManagers) {
@@ -466,12 +479,14 @@ NodeTracker, ClusterTracker {
     return infoList;
   }
 
+  @Lock(Lock.NoLock.class)
   protected void addForTracking(NodeHeartbeatStatus nmStatus) {
     synchronized(nmExpiryQueue) {
       nmExpiryQueue.add(nmStatus);
     }
   }
 
+  @Lock(Lock.NoLock.class)
   protected void expireNMs(List<NodeId> nodes) {
     for (NodeId id: nodes) {
       unregisterNodeManager(id);
@@ -516,10 +531,7 @@ NodeTracker, ClusterTracker {
               ((now - leastRecent.getLastSeen()) > 
               nmExpiryInterval)) {
             nmExpiryQueue.remove(leastRecent);
-            NodeInfoTracker info;
-            synchronized(nodeManagers) {
-              info = nodeManagers.get(leastRecent.getNodeId());
-            }
+            NodeInfoTracker info = getNodeInfoTracker(leastRecent.getNodeId());
             if (info == null) {
               continue;
             }
@@ -581,6 +593,14 @@ NodeTracker, ClusterTracker {
     return nodeManager;
   }
 
+  private NodeInfoTracker getNodeInfoTracker(NodeId nodeId) {
+    NodeInfoTracker node = null;
+    synchronized (nodeManagers) {
+      node = nodeManagers.get(nodeId);
+    }
+    return node;
+  }
+  
   private NodeManager getNodeManagerForContainer(Container container) {
     NodeManager node;
     synchronized (nodeManagers) {
@@ -593,6 +613,7 @@ NodeTracker, ClusterTracker {
   }
   
   @Override
+  @Lock({YarnScheduler.class})
   public  boolean releaseContainer(Container container) {
     NodeManager node = getNodeManagerForContainer(container);
     return ((node != null) && node.releaseContainer(container));

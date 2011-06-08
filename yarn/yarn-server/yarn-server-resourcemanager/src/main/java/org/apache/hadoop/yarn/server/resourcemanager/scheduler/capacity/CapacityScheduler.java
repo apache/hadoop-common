@@ -37,6 +37,7 @@ import org.apache.hadoop.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.yarn.Lock;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.Container;
@@ -177,12 +178,14 @@ implements ResourceScheduler, CapacitySchedulerContext {
   public static final String ROOT_QUEUE = 
     CapacitySchedulerConfiguration.PREFIX + ROOT;
 
+  @Lock(CapacityScheduler.class)
   private void initializeQueues(CapacitySchedulerConfiguration conf) {
     root = parseQueue(conf, null, ROOT, queues, queues);
     LOG.info("Initialized root queue " + root);
   }
 
-  private synchronized void reinitializeQueues(CapacitySchedulerConfiguration conf) 
+  @Lock(CapacityScheduler.class)
+  private void reinitializeQueues(CapacitySchedulerConfiguration conf) 
   throws IOException {
     // Parse new queues
     Map<String, Queue> newQueues = new HashMap<String, Queue>();
@@ -203,6 +206,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
    * @param queues existing queues
    * @param newQueues new queues
    */
+  @Lock(CapacityScheduler.class)
   private void validateExistingQueues(
       Map<String, Queue> queues, Map<String, Queue> newQueues) 
   throws IOException {
@@ -219,6 +223,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
    * @param queues
    * @param newQueues
    */
+  @Lock(CapacityScheduler.class)
   private void addNewQueues(
       Map<String, Queue> queues, Map<String, Queue> newQueues) 
   {
@@ -231,6 +236,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     }
   }
   
+  @Lock(CapacityScheduler.class)
   private Queue parseQueue(CapacitySchedulerConfiguration conf, 
       Queue parent, String queueName, Map<String, Queue> queues,
       Map<String, Queue> oldQueues) {
@@ -330,16 +336,21 @@ implements ResourceScheduler, CapacitySchedulerContext {
      * structures if the finishApplication flag is set.
      */
     if (finishApplication) {
+      // Inform the queue
       Queue queue = queues.get(application.getQueue().getQueueName());
       queue.finishApplication(application, queue.getQueueName());
-      finishedApplication(applicationId, 
+      
+      // Inform the resource-tracker
+      clusterTracker.finishedApplication(applicationId, 
           application.getAllNodesForApplication());
+      
       // Remove from our data-structure
       applications.remove(applicationId);
     }
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public Allocation allocate(ApplicationId applicationId,
       List<ResourceRequest> ask, List<Container> release)
       throws IOException {
@@ -386,6 +397,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public QueueInfo getQueueInfo(String queueName, 
       boolean includeApplications, boolean includeChildQueues, boolean recursive) 
   throws IOException {
@@ -402,6 +414,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
   @Override
+  @Lock(Lock.NoLock.class)
   public List<QueueUserACLInfo> getQueueUserAclInfo() {
     UserGroupInformation user = null;
     try {
@@ -414,12 +427,14 @@ implements ResourceScheduler, CapacitySchedulerContext {
     return root.getQueueUserAclInfo(user);
   }
 
+  @Lock(Lock.NoLock.class)
   private void normalizeRequests(List<ResourceRequest> asks) {
     for (ResourceRequest ask : asks) {
       normalizeRequest(ask);
     }
   }
 
+  @Lock(Lock.NoLock.class)
   private void normalizeRequest(ResourceRequest ask) {
     int minMemory = minimumAllocation.getMemory();
     int memory = Math.max(ask.getCapability().getMemory(), minMemory);
@@ -427,7 +442,9 @@ implements ResourceScheduler, CapacitySchedulerContext {
         minMemory * ((memory/minMemory) + (memory%minMemory > 0 ? 1 : 0)));
   }
 
-  private List<Container> getCompletedContainers(Map<String, List<Container>> allContainers) {
+  @Lock(CapacityScheduler.class)
+  private List<Container> getCompletedContainers(
+      Map<String, List<Container>> allContainers) {
     if (allContainers == null) {
       return new ArrayList<Container>();
     }
@@ -483,7 +500,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
 
   }
 
-  private synchronized void killRunningContainers(List<Container> containers) {
+  @Lock(CapacityScheduler.class)
+  private void killRunningContainers(List<Container> containers) {
     for (Container container : containers) {
       container.setState(ContainerState.COMPLETE);
       LOG.info("Killing running container " + container.getId());
@@ -492,7 +510,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
     }
   }
   
-  private synchronized void processCompletedContainers(
+  @Lock(Lock.NoLock.class)
+  private void processCompletedContainers(
       List<Container> completedContainers) {
     for (Container container: completedContainers) {
       Application application = getApplication(container.getId().getAppId());
@@ -509,6 +528,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     }
   }
 
+  @Lock(Lock.NoLock.class)
   private synchronized void processReleasedContainers(Application application,
       List<Container> releasedContainers) {
     // Inform the application
@@ -528,7 +548,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
     processCompletedContainers(unusedContainers);
   }
 
-  private synchronized void releaseReservedContainers(Application application) {
+  @Lock(CapacityScheduler.class)
+  private void releaseReservedContainers(Application application) {
     LOG.info("Releasing reservations for completed application: " + 
         application.getApplicationId());
     Queue queue = queues.get(application.getQueue().getQueueName());
@@ -548,6 +569,7 @@ implements ResourceScheduler, CapacitySchedulerContext {
     }
   }
   
+  @Lock(Lock.NoLock.class)
   private Application getApplication(ApplicationId applicationId) {
     return applications.get(applicationId);
   }
@@ -617,7 +639,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
         " clusterResource: " + clusterResource);
   }
   
-  public synchronized boolean releaseContainer(ApplicationId applicationId, 
+  @Lock(CapacityScheduler.class)
+  private boolean releaseContainer(ApplicationId applicationId, 
       Container container) {
     // Reap containers
     LOG.info("Application " + applicationId + " released container " + container);
@@ -625,12 +648,8 @@ implements ResourceScheduler, CapacitySchedulerContext {
   }
 
 
-  public synchronized void finishedApplication(ApplicationId applicationId,
-      List<NodeInfo> nodesToNotify) {
-    clusterTracker.finishedApplication(applicationId, nodesToNotify);
-  }
-
   @Override
+  @Lock(Lock.NoLock.class)
   public void recover(RMState state) throws Exception {
     applications.clear();
     for (Map.Entry<ApplicationId, ApplicationInfo> entry : state.getStoredApplications().entrySet()) {
