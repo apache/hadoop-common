@@ -8,6 +8,5 @@ import "yarn_service_protos.proto";
 service ContainerManagerService {
   rpc startContainer(StartContainerRequestProto) returns (StartContainerResponseProto);
   rpc stopContainer(StopContainerRequestProto) returns (StopContainerResponseProto);
-  rpc cleanupContainer(CleanupContainerRequestProto) returns (CleanupContainerResponseProto);
   rpc getContainerStatus(GetContainerStatusRequestProto) returns (GetContainerStatusResponseProto);
 }

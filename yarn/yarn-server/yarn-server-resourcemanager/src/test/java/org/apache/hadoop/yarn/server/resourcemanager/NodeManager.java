@@ -31,8 +31,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
@@ -49,8 +47,6 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
-import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
-import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.records.HeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.records.NodeStatus;
 import org.apache.hadoop.yarn.server.api.records.RegistrationResponse;
@@ -131,13 +127,6 @@ public class NodeManager implements ContainerManager {
     nodeStatus.setResponseId(responseID);
     HeartbeatResponse response = resourceTracker.nodeHeartbeat(nodeStatus);
     responseID = response.getResponseId();
-  }
-
-  @Override
-  synchronized public CleanupContainerResponse cleanupContainer(CleanupContainerRequest request) throws YarnRemoteException {
-    ContainerId containerID = request.getContainerId();
-    CleanupContainerResponse response = recordFactory.newRecordInstance(CleanupContainerResponse.class);
-    return response;
   }
 
   @Override

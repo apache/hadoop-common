@@ -126,13 +126,6 @@ message StopContainerRequestProto {
 message StopContainerResponseProto {
 }
 
-message CleanupContainerRequestProto {
-  optional ContainerIdProto container_id = 1;
-}
-
-message CleanupContainerResponseProto {
-}
-
 message GetContainerStatusRequestProto {
   optional ContainerIdProto container_id = 1;
 }

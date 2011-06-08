@@ -19,8 +19,6 @@
 package org.apache.hadoop.yarn;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.HashMap;
 
 import junit.framework.Assert;
 
@@ -28,8 +26,6 @@ import org.apache.avro.ipc.Server;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
@@ -46,9 +42,7 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.factory.providers.YarnRemoteExceptionFactoryProvider;
-import org.apache.hadoop.yarn.ipc.AvroYarnRPC;
 import org.apache.hadoop.yarn.ipc.HadoopYarnProtoRPC;
-import org.apache.hadoop.yarn.ipc.HadoopYarnRPC;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.junit.Test;
@@ -128,14 +122,7 @@ public class TestRPC {
 
   public class DummyContainerManager implements ContainerManager {
 
-    private ContainerStatus status = null;
-
-    @Override
-    public CleanupContainerResponse cleanupContainer(CleanupContainerRequest request) throws YarnRemoteException {
-      CleanupContainerResponse response = recordFactory.newRecordInstance(CleanupContainerResponse.class);
-      return response;
-    }
-    
+    private ContainerStatus status = null;    
     
     @Override
     public GetContainerStatusResponse getContainerStatus(GetContainerStatusRequest request) throws YarnRemoteException {

@@ -40,8 +40,6 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
@@ -230,13 +228,6 @@ public class ContainerManagerImpl extends CompositeService implements
     }
     super.stop();
   }
-
-  @Override
-  public CleanupContainerResponse cleanupContainer(CleanupContainerRequest request) throws YarnRemoteException {
- // TODO Is this necessary?
-    CleanupContainerResponse response = recordFactory.newRecordInstance(CleanupContainerResponse.class);
-    return response;
-  }
   
   @Override
   public StartContainerResponse startContainer(StartContainerRequest request) throws YarnRemoteException {
@@ -291,14 +282,17 @@ public class ContainerManagerImpl extends CompositeService implements
   }
 
   @Override
-  public StopContainerResponse stopContainer(StopContainerRequest request) throws YarnRemoteException {
+  public StopContainerResponse stopContainer(StopContainerRequest request)
+      throws YarnRemoteException {
+
+    StopContainerResponse response =
+        recordFactory.newRecordInstance(StopContainerResponse.class);
+
     ContainerId containerID = request.getContainerId();
     Container container = this.context.getContainers().get(containerID);
     if (container == null) {
       LOG.warn("Trying to stop unknown container " + containerID);
-      return null;
-      //throw RPCUtil.getRemoteException("Trying to stop unknown container "
-      //    + containerID + " on this NodeManager!!");
+      return response; // Return immediately.
     }
     dispatcher.getEventHandler().handle(
         new ContainerDiagnosticsUpdateEvent(containerID,
@@ -310,7 +304,6 @@ public class ContainerManagerImpl extends CompositeService implements
     // implemented.
     nodeStatusUpdater.sendOutofBandHeartBeat();
 
-    StopContainerResponse response = recordFactory.newRecordInstance(StopContainerResponse.class);
     return response;
   }
 

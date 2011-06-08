@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Solving NPEs during ContainerManager#StopContainer. Also removing
+    the unused ContainerManager#CleanupContainer api. (vinodkv)
+
     Fixed deadlock during expiring NMs. (acmurthy)
 
     Re-enabling Uber-AM feature. (vinodkv)

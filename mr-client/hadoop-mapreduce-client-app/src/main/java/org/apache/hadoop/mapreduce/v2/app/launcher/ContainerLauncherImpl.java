@@ -20,8 +20,6 @@ package org.apache.hadoop.mapreduce.v2.app.launcher;
 
 import java.io.IOException;
 import java.security.PrivilegedAction;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -32,8 +30,8 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.AMConstants;
+import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptEventType;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
@@ -44,7 +42,6 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
 import org.apache.hadoop.yarn.api.records.ContainerId;
@@ -224,10 +221,7 @@ public class ContainerLauncherImpl extends AbstractService implements
             StopContainerRequest stopRequest = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(StopContainerRequest.class);
             stopRequest.setContainerId(event.getContainerID());
             proxy.stopContainer(stopRequest);
-            
-            CleanupContainerRequest cleanupRequest = RecordFactoryProvider.getRecordFactory(null).newRecordInstance(CleanupContainerRequest.class);
-            cleanupRequest.setContainerId(event.getContainerID());
-            proxy.cleanupContainer(cleanupRequest);
+
           } catch (Exception e) {
             //ignore the cleanup failure
             LOG.warn("cleanup failed for container " + event.getContainerID() ,

@@ -44,7 +44,6 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -128,10 +127,6 @@ public class AMLauncher implements Runnable {
     StopContainerRequest stopRequest = recordFactory.newRecordInstance(StopContainerRequest.class);
     stopRequest.setContainerId(containerId);
     containerMgrProxy.stopContainer(stopRequest);
-    
-    CleanupContainerRequest cleanupRequest = recordFactory.newRecordInstance(CleanupContainerRequest.class);
-    cleanupRequest.setContainerId(containerId);
-    containerMgrProxy.cleanupContainer(cleanupRequest);
   }
 
   private ContainerManager getContainerMgrProxy(

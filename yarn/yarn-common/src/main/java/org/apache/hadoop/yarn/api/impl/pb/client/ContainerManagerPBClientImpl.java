@@ -7,16 +7,12 @@ import java.net.InetSocketAddress;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerRequest;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerResponse;
-import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.CleanupContainerRequestPBImpl;
-import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.CleanupContainerResponsePBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetContainerStatusRequestPBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetContainerStatusResponsePBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.StartContainerRequestPBImpl;
@@ -26,7 +22,6 @@ import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.StopContainerResponseP
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.ipc.ProtoOverHadoopRpcEngine;
 import org.apache.hadoop.yarn.proto.ContainerManager.ContainerManagerService;
-import org.apache.hadoop.yarn.proto.YarnServiceProtos.CleanupContainerRequestProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetContainerStatusRequestProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.StartContainerRequestProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.StopContainerRequestProto;
@@ -41,23 +36,6 @@ public class ContainerManagerPBClientImpl implements ContainerManager {
     RPC.setProtocolEngine(conf, ContainerManagerService.BlockingInterface.class, ProtoOverHadoopRpcEngine.class);
     proxy = (ContainerManagerService.BlockingInterface)RPC.getProxy(
         ContainerManagerService.BlockingInterface.class, clientVersion, addr, conf);
-  }
-  
-  @Override
-  public CleanupContainerResponse cleanupContainer(CleanupContainerRequest request)
-      throws YarnRemoteException {
-    CleanupContainerRequestProto requestProto = ((CleanupContainerRequestPBImpl)request).getProto();
-    try {
-      return new CleanupContainerResponsePBImpl(proxy.cleanupContainer(null, requestProto));
-    } catch (ServiceException e) {
-      if (e.getCause() instanceof YarnRemoteException) {
-        throw (YarnRemoteException)e.getCause();
-      } else if (e.getCause() instanceof UndeclaredThrowableException) {
-        throw (UndeclaredThrowableException)e.getCause();
-      } else {
-        throw new UndeclaredThrowableException(e);
-      }
-    }
   }
 
   @Override

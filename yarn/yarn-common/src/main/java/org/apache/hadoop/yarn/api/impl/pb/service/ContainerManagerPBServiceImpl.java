@@ -1,12 +1,9 @@
 package org.apache.hadoop.yarn.api.impl.pb.service;
 
 import org.apache.hadoop.yarn.api.ContainerManager;
-import org.apache.hadoop.yarn.api.protocolrecords.CleanupContainerResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StopContainerResponse;
-import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.CleanupContainerRequestPBImpl;
-import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.CleanupContainerResponsePBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetContainerStatusRequestPBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.GetContainerStatusResponsePBImpl;
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.StartContainerRequestPBImpl;
@@ -15,8 +12,6 @@ import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.StopContainerRequestPB
 import org.apache.hadoop.yarn.api.protocolrecords.impl.pb.StopContainerResponsePBImpl;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.proto.ContainerManager.ContainerManagerService.BlockingInterface;
-import org.apache.hadoop.yarn.proto.YarnServiceProtos.CleanupContainerRequestProto;
-import org.apache.hadoop.yarn.proto.YarnServiceProtos.CleanupContainerResponseProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetContainerStatusRequestProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.GetContainerStatusResponseProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.StartContainerRequestProto;
@@ -33,18 +28,6 @@ public class ContainerManagerPBServiceImpl implements BlockingInterface {
   
   public ContainerManagerPBServiceImpl(ContainerManager impl) {
     this.real = impl;
-  }
-  
-  @Override
-  public CleanupContainerResponseProto cleanupContainer(RpcController arg0,
-      CleanupContainerRequestProto proto) throws ServiceException {
-    CleanupContainerRequestPBImpl request = new CleanupContainerRequestPBImpl(proto);
-    try {
-      CleanupContainerResponse response = real.cleanupContainer(request);
-      return ((CleanupContainerResponsePBImpl)response).getProto();
-    } catch (YarnRemoteException e) {
-      throw new ServiceException(e);
-    }
   }
 
   @Override
