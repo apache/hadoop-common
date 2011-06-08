@@ -107,10 +107,10 @@ public class YARNRunner implements ClientProtocol {
   public YARNRunner(Configuration conf) {
     this.conf = new YarnConfiguration(conf);
     try {
-      this.resMgrDelegate = new ResourceMgrDelegate(conf);
-      this.clientServiceDelegate = new ClientServiceDelegate(conf,
+      this.resMgrDelegate = new ResourceMgrDelegate(this.conf);
+      this.clientServiceDelegate = new ClientServiceDelegate(this.conf,
           resMgrDelegate);
-      this.defaultFileContext = FileContext.getFileContext(conf);
+      this.defaultFileContext = FileContext.getFileContext(this.conf);
     } catch (UnsupportedFileSystemException ufe) {
       throw new RuntimeException("Error in instantiating YarnClient", ufe);
     }

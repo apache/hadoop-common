@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+   
+    MAPREDUCE-2566. YarnConfiguration should reloadConfiguration if 
+    instantiated with a non YarnConfiguration object. (siddharth seth)
 
     Work around broken signaling in public cache. (cdouglas)
 

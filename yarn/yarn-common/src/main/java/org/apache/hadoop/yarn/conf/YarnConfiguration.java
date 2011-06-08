@@ -74,6 +74,9 @@ public class YarnConfiguration extends Configuration {
   
   public YarnConfiguration(Configuration conf) {
     super(conf);
+    if (! (conf instanceof YarnConfiguration)) {
+      this.reloadConfiguration();
+    }
   }
 
   public static String getRMWebAppURL(Configuration conf) {
