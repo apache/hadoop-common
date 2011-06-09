@@ -9,7 +9,6 @@
   <groupId>org.apache.hadoop</groupId>
   <artifactId>hadoop-mapreduce-client</artifactId>
   <name>hadoop-mapreduce-client</name>
-  <version>${hadoop-mapreduce.version}</version>
   <packaging>pom</packaging>
 
   <dependencyManagement>
@@ -40,8 +39,26 @@
       <!-- end MNG-4223 workaround -->
       <dependency>
         <groupId>org.apache.hadoop</groupId>
+        <!-- mr security depends on hdfs -->
+        <artifactId>hadoop-hdfs</artifactId>
+        <version>${hadoop-hdfs.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
         <artifactId>yarn-common</artifactId>
         <version>${yarn.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>yarn-common</artifactId>
+        <version>${yarn.version}</version>
+        <type>test-jar</type>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>yarn-server-tests</artifactId>
+        <version>${yarn.version}</version>
+        <type>test-jar</type>
       </dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>
@@ -67,6 +84,12 @@
         <groupId>org.apache.hadoop</groupId>
         <artifactId>hadoop-mapreduce-client-app</artifactId>
         <version>${hadoop-mapreduce.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-mapreduce-client-app</artifactId>
+        <version>${hadoop-mapreduce.version}</version>
+        <type>test-jar</type>
       </dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>

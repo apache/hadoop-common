@@ -9,7 +9,6 @@
   <groupId>org.apache.hadoop</groupId>
   <artifactId>hadoop-mapreduce-client-common</artifactId>
   <name>hadoop-mapreduce-client-common</name>
-  <version>${hadoop-mapreduce.version}</version>
 
   <properties>
     <install.file>${project.artifact.file}</install.file>

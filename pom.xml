@@ -29,6 +29,15 @@
         <enabled>false</enabled>
       </snapshots>
     </repository>
+    <repository>
+      <id>apache.snapshots</id>
+      <url>http://repository.apache.org/snapshots</url>
+      <!-- until we move to hadoop-common/hdfs trunk and/or maven 3 -->
+      <!-- cf. MNG-4326 -->
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
   </repositories>
 
   <dependencies>
@@ -103,9 +112,9 @@
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
+      <!-- needed for security and runtime -->
       <artifactId>hadoop-hdfs</artifactId>
       <version>${hadoop-hdfs.version}</version>
-      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>com.google.inject.extensions</groupId>
@@ -205,6 +214,16 @@
           <artifactId>maven-install-plugin</artifactId>
           <version>2.3.1</version>
         </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>2.3.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-source-plugin</artifactId>
+          <version>2.1.2</version>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
@@ -284,6 +303,28 @@
     </plugins>
   </build>
 
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <!-- avoid warning about recursion -->
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
   <modules>
     <module>yarn</module>
     <module>mr-client</module>
@@ -294,6 +335,8 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>findbugs-maven-plugin</artifactId>
+        <!-- until we have reporting management cf. MSITE-443 -->
+        <version>2.3.1</version>
         <configuration>
           <findbugsXmlOutput>true</findbugsXmlOutput>
         </configuration>
@@ -301,6 +344,8 @@
       <plugin>
         <groupId>com.atlassian.maven.plugins</groupId>
         <artifactId>maven-clover2-plugin</artifactId>
+        <!-- until we have reporting management cf. MSITE-443 -->
+        <version>3.0.2</version>
       </plugin>
     </plugins>
   </reporting>

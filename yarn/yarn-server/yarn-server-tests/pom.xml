@@ -8,7 +8,6 @@
   <groupId>org.apache.hadoop</groupId>
   <artifactId>yarn-server-tests</artifactId>
   <name>yarn-server-tests</name>
-  <version>${yarn.version}</version>
 
   <properties>
     <install.file>${project.artifact.file}</install.file>

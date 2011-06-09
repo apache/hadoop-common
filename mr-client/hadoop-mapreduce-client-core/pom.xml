@@ -9,8 +9,6 @@
   <groupId>org.apache.hadoop</groupId>
   <artifactId>hadoop-mapreduce-client-core</artifactId>
   <name>hadoop-mapreduce-client-core</name>
-  <version>${hadoop-mapreduce.version}</version>
-  <url>http://maven.apache.org</url>
 
   <properties>
     <install.file>${project.artifact.file}</install.file>
@@ -24,7 +22,6 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-hdfs</artifactId>
-      <version>${hadoop-hdfs.version}</version>
     </dependency>
   </dependencies>
 

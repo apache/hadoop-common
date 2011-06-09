@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Including source files in release distribution (luke lu via mahadev)
+
     Intermittent TestMRApp failures on faster Linux desktop. (Luke lu via mahadev)
 
     Added clover in pom dependency. (sharad)

@@ -9,7 +9,6 @@
   <groupId>org.apache.hadoop</groupId>
   <artifactId>yarn-api</artifactId>
   <name>yarn-api</name>
-  <version>${yarn.version}</version>
 
   <properties>
     <install.file>${project.artifact.file}</install.file>

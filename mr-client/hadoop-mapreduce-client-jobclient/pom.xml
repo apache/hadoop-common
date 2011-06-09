@@ -9,7 +9,6 @@
   <groupId>org.apache.hadoop</groupId>
   <artifactId>hadoop-mapreduce-client-jobclient</artifactId>
   <name>hadoop-mapreduce-client-jobclient</name>
-  <version>${hadoop-mapreduce.version}</version>
 
   <properties>
     <install.file>${project.artifact.file}</install.file>
@@ -33,7 +32,6 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-mapreduce-client-app</artifactId>
-      <version>${hadoop-mapreduce.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
@@ -60,7 +58,6 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>yarn-server-tests</artifactId>
-      <version>${yarn.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
