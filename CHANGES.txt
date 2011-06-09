@@ -5,6 +5,8 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Disable Uber AM. (mahadev)
+
     Intermittent TestMRApp failures on faster Linux desktop (part 2) (Luke lu via mahadev)
     
     Including source files in release distribution (luke lu via mahadev)
