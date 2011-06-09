@@ -227,7 +227,7 @@ public class MRApp extends MRAppMaster {
         for (TaskAttempt attempt : task.getAttempts().values()) {
           TaskAttemptReport attemptReport = attempt.getReport();
           Assert.assertTrue("Attempt start time is not less than finish time",
-              attemptReport.getStartTime() < attemptReport.getFinishTime());
+              attemptReport.getStartTime() <= attemptReport.getFinishTime());
         }
       }
     }
