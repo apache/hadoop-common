@@ -77,7 +77,12 @@ public class ContainerLogsPage extends NMView {
         ConverterUtils.toContainerId(this.recordFactory, $(CONTAINER_ID));
       Container container = this.nmContext.getContainers().get(containerId);
 
-      if (EnumSet.of(ContainerState.NEW, ContainerState.LOCALIZING,
+      if (container == null) {
+        div.h1(
+            "Unknown container. Container is either not yet running or "
+                + "has already completed or "
+                + "doesn't belong to this node at all.")._();
+      } else if (EnumSet.of(ContainerState.NEW, ContainerState.LOCALIZING,
           ContainerState.LOCALIZING).contains(container.getContainerState())) {
         div.h1("Container is not yet running. Current state is "
                 + container.getContainerState())

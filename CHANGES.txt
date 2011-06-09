@@ -4,6 +4,10 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+
+    Sending Job diagnostics from AM to RM and redirect to history-url on job
+    completion. (vinodkv and sharadag)
+
     Fix classpath construction for Task. (vinodkv via sharad)
 
     Remove retries in dist cache so that NM's do not shutdown (mahadev)

@@ -483,7 +483,7 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
     ASMEvent<ApplicationEventType> event) {
       ApplicationMaster registeredMaster = event.getAppContext().getMaster();
       masterInfo.master.setHost(registeredMaster.getHost());
-      masterInfo.master.setHttpPort(registeredMaster.getHttpPort());
+      masterInfo.master.setTrackingUrl(registeredMaster.getTrackingUrl());
       masterInfo.master.setRpcPort(registeredMaster.getRpcPort());
       masterInfo.master.setStatus(registeredMaster.getStatus());
       masterInfo.master.getStatus().setProgress(0.0f);

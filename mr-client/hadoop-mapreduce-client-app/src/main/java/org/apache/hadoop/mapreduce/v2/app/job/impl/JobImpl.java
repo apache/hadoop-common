@@ -1080,6 +1080,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     @Override
     public void transition(JobImpl job, JobEvent event) {
       job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.KILLED);
+      job.addDiagnostic("Job received Kill in INITED state.");
       job.finished(JobState.KILLED);
     }
   }
@@ -1088,6 +1089,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       implements SingleArcTransition<JobImpl, JobEvent> {
     @Override
     public void transition(JobImpl job, JobEvent event) {
+      job.addDiagnostic("Job received Kill while in RUNNING state.");
       for (Task task : job.tasks.values()) {
         job.eventHandler.handle(
             new TaskEvent(task.getID(), TaskEventType.T_KILL));
@@ -1194,6 +1196,11 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         job.eventHandler.handle(new JobHistoryEvent(job.jobId, failedEvent));
         //TODO This event not likely required - sent via abort(). 
 
+        String diagnosticMsg = "Job failed as tasks failed. " +
+            "failedMaps:" + job.failedMapTaskCount + 
+            " failedReduces:" + job.failedReduceTaskCount;
+        LOG.info(diagnosticMsg);
+        job.addDiagnostic(diagnosticMsg);
         job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.FAILED);
         return job.finished(JobState.FAILED);
       }

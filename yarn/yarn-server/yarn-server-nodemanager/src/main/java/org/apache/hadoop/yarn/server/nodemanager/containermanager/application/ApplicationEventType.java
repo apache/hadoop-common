@@ -19,11 +19,18 @@
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.application;
 
 public enum ApplicationEventType {
+
+  // Source: ContainerManager
   INIT_APPLICATION,
   FINISH_APPLICATION,
 
+  // Source: ResourceLocalizationService
   APPLICATION_INITED,
-  APPLICATION_CONTAINER_FINISHED,
   APPLICATION_RESOURCES_CLEANEDUP,
+
+  // Source: Container
+  APPLICATION_CONTAINER_FINISHED,
+
+  // Source: LogAggregationService.
   APPLICATION_FINISHED,
 }

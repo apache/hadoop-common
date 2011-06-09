@@ -48,14 +48,14 @@ class AppsBlock extends HtmlBlock {
             th(".queue", "Queue").
             th(".state", "State").
             th(".progress", "Progress").
-            th(".master", "Master UI")._()._().
+            th(".master", "Master Tracking URL")._()._().
         tbody();
     int i = 0;
     for (Application app : list.apps) {
       String appId = Apps.toString(app.getApplicationId());
-      CharSequence master = app.getMasterHost();
-      String am = master == null ? "UNASSIGNED"
-                                 : join(master, ':', app.getMasterPort());
+      String masterTrackingURL = app.getTrackingUrl();
+      masterTrackingURL =
+          masterTrackingURL == null ? "UNASSIGNED" : masterTrackingURL;
       String percent = String.format("%.1f", app.getStatus().getProgress() * 100);
       tbody.
         tr().
@@ -73,7 +73,8 @@ class AppsBlock extends HtmlBlock {
               div(_PROGRESSBAR_VALUE).
                 $style(join("width:", percent, '%'))._()._()._().
           td().
-            a(master == null ? "#" : join("http://", am), am)._()._();
+            a(masterTrackingURL == null ? "#" : join("http://",
+                masterTrackingURL), masterTrackingURL)._()._();
       if (list.rendering != Render.HTML && ++i >= 20) break;
     }
     tbody._()._();

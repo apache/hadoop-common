@@ -1,6 +1,8 @@
 package org.apache.hadoop.yarn.api.records.impl.pb;
 
 
+import java.util.List;
+
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
@@ -139,15 +141,15 @@ public class ApplicationMasterPBImpl extends ProtoBase<ApplicationMasterProto> i
     builder.setRpcPort((rpcPort));
   }
   @Override
-  public int getHttpPort() {
+  public String getTrackingUrl() {
     ApplicationMasterProtoOrBuilder p = viaProto ? proto : builder;
-    return (p.getHttpPort());
+    return (p.getTrackingUrl());
   }
 
   @Override
-  public void setHttpPort(int httpPort) {
+  public void setTrackingUrl(String url) {
     maybeInitBuilder();
-    builder.setHttpPort((httpPort));
+    builder.setTrackingUrl(url);
   }
   @Override
   public ApplicationStatus getStatus() {
@@ -214,6 +216,21 @@ public class ApplicationMasterPBImpl extends ProtoBase<ApplicationMasterProto> i
     builder.setContainerCount(containerCount);
   }
 
+  @Override
+  public String getDiagnostics() {
+    ApplicationMasterProtoOrBuilder p = viaProto ? proto : builder;
+    return p.getDiagnostics();
+  }
+
+  @Override
+  public void setDiagnostics(String diagnostics) {
+    maybeInitBuilder();
+    if (diagnostics == null) {
+      builder.clearDiagnostics();
+      return;
+    }
+    builder.setDiagnostics(diagnostics);
+  }
 
   private ApplicationStateProto convertToProtoFormat(ApplicationState e) {
     return ProtoUtils.convertToProtoFormat(e);

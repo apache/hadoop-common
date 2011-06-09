@@ -384,17 +384,8 @@ public class TypeConverter {
   }
 
   public static JobStatus fromYarn(Application application) {
-    String trackingUrl = "";
-    try {
-      if (application.getMasterHost() != null && 
-          !application.getMasterHost().isEmpty()) {
-        URL url = 
-          new URL("http", application.getMasterHost(),
-              application.getMasterPort(), "");
-        trackingUrl = url.toString();
-      }
-    } catch (MalformedURLException ignored) {
-    }
+    String trackingUrl = application.getTrackingUrl();
+    trackingUrl = trackingUrl == null ? "" : trackingUrl;
 
     JobStatus jobStatus = 
       new JobStatus(

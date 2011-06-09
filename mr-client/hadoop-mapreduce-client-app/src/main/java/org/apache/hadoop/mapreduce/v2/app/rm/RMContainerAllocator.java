@@ -28,22 +28,18 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
+import java.util.Map.Entry;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.MRJobConfig;
-import org.apache.hadoop.mapreduce.TypeConverter;
-import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AMConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
-import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobEventType;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
@@ -112,8 +108,6 @@ public class RMContainerAllocator extends RMContainerRequestor
   private int hostLocalAssigned = 0;
   private int rackLocalAssigned = 0;
   
-  private final AppContext context;
-  private Job job;
   private boolean recalculateReduceSchedule = false;
   private int mapResourceReqt;//memory
   private int reduceResourceReqt;//memory
@@ -127,7 +121,6 @@ public class RMContainerAllocator extends RMContainerRequestor
 
   public RMContainerAllocator(ClientService clientService, AppContext context) {
     super(clientService, context);
-    this.context = context;
   }
 
   @Override
@@ -142,14 +135,6 @@ public class RMContainerAllocator extends RMContainerRequestor
     maxReducePreemptionLimit = conf.getFloat(
         AMConstants.REDUCE_PREEMPTION_LIMIT,
         AMConstants.DEFAULT_REDUCE_PREEMPTION_LIMIT);
-  }
-
-  @Override 
-  public void start() {
-    super.start();
-    JobID id = TypeConverter.fromYarn(context.getApplicationID());
-    JobId jobId = TypeConverter.toYarn(id);
-    job = context.getJob(jobId);
   }
 
   @Override
@@ -191,7 +176,7 @@ public class RMContainerAllocator extends RMContainerRequestor
           if (mapResourceReqt > getMaxContainerCapability().getMemory()) {
             LOG.info("Map capability required is more than the supported " +
             		"max container capability in the cluster. Killing the Job.");
-            eventHandler.handle(new JobEvent(job.getID(), JobEventType.JOB_KILL));
+            eventHandler.handle(new JobEvent(getJob().getID(), JobEventType.JOB_KILL));
           }
         }
         //set the rounded off memory
@@ -207,7 +192,7 @@ public class RMContainerAllocator extends RMContainerRequestor
           if (reduceResourceReqt > getMaxContainerCapability().getMemory()) {
             LOG.info("Reduce capability required is more than the supported " +
                     "max container capability in the cluster. Killing the Job.");
-            eventHandler.handle(new JobEvent(job.getID(), JobEventType.JOB_KILL));
+            eventHandler.handle(new JobEvent(getJob().getID(), JobEventType.JOB_KILL));
           }
         }
         //set the rounded off memory
@@ -656,8 +641,8 @@ public class RMContainerAllocator extends RMContainerRequestor
           new Comparator<TaskAttemptId>() {
         @Override
         public int compare(TaskAttemptId o1, TaskAttemptId o2) {
-          float p = job.getTask(o1.getTaskId()).getAttempt(o1).getProgress() -
-              job.getTask(o2.getTaskId()).getAttempt(o2).getProgress();
+          float p = getJob().getTask(o1.getTaskId()).getAttempt(o1).getProgress() -
+              getJob().getTask(o2.getTaskId()).getAttempt(o2).getProgress();
           return p >= 0 ? 1 : -1;
         }
       });

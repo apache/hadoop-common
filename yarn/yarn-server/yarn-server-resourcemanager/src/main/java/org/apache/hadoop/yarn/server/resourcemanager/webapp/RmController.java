@@ -18,23 +18,24 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.webapp;
 
-import com.google.inject.Inject;
+import static org.apache.hadoop.yarn.server.resourcemanager.webapp.RMWebApp.APP_ID;
+import static org.apache.hadoop.yarn.server.resourcemanager.webapp.RMWebApp.QUEUE_NAME;
+import static org.apache.hadoop.yarn.util.StringHelper.join;
 
 import org.apache.hadoop.util.VersionInfo;
 import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.ApplicationsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler;
 import org.apache.hadoop.yarn.util.Apps;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Times;
 import org.apache.hadoop.yarn.webapp.Controller;
 import org.apache.hadoop.yarn.webapp.ResponseInfo;
 
-import static org.apache.hadoop.yarn.server.resourcemanager.webapp.RMWebApp.*;
-import static org.apache.hadoop.yarn.util.StringHelper.*;
+import com.google.inject.Inject;
 
 // Do NOT rename/refactor this to RMView as it will wreak havoc
 // on Mac OS HFS as its case-insensitive!
@@ -75,9 +76,8 @@ public class RmController extends Controller {
       return;
     }
     setTitle(join("Application ", aid));
-    CharSequence master = app.getMasterHost();
-    String ui = master == null ? "UNASSIGNED"
-                               : join(master, ':', app.getMasterPort());
+    CharSequence masterTrackingURL = app.getTrackingUrl();
+    String ui = masterTrackingURL == null ? "UNASSIGNED" : app.getTrackingUrl();
 
     ResponseInfo info = info("Application Overview").
       _("User:", app.getUser()).
@@ -85,11 +85,17 @@ public class RmController extends Controller {
       _("State:", app.getState()).
       _("Started:", "FIXAPI!").
       _("Elapsed:", "FIXAPI!").
-      _("Master UI:", master == null ? "#" : join("http://", ui), ui);
-    if (app.getState() == ApplicationState.COMPLETED || 
-        app.getState() == ApplicationState.FAILED || 
-        app.getState() == ApplicationState.KILLED) {
-      info._("History:", "FIXAPI!");
+            _("Master Tracking URL:",
+                masterTrackingURL == null ? "#" : join("http://", ui), ui).
+      _("Diagnostics:", app.getDiagnostics());
+    if (app.getMasterContainer() != null) {
+      info._(
+          "AM container logs:",
+          join("http://", app.getMasterContainer().getNodeHttpAddress(),
+              "yarn", "containerlogs",
+              ConverterUtils.toString(app.getMasterContainer().getId())));
+    } else {
+      info._("AM container logs:", "AM not yet registered with RM");
     }
     render(InfoPage.class);
   }

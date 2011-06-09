@@ -36,6 +36,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationMaster;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
@@ -210,7 +211,7 @@ public class ApplicationsManagerImpl extends CompositeService
   @Override
   public void finishApplicationMaster(ApplicationMaster applicationMaster)
   throws IOException {
-    amTracker.finish(applicationMaster.getApplicationId());
+    amTracker.finish(applicationMaster);
   }
 
   /**
@@ -265,12 +266,13 @@ public class ApplicationsManagerImpl extends CompositeService
   }
   
   private Application createApplication(ApplicationMaster am, String user,
-      String queue, String name) {
+      String queue, String name, Container masterContainer) {
     Application application = 
       recordFactory.newRecordInstance(Application.class);
     application.setApplicationId(am.getApplicationId());
-    application.setMasterHost(am.getHost());
-    application.setMasterPort(am.getHttpPort());
+    application.setMasterContainer(masterContainer);
+    application.setTrackingUrl(am.getTrackingUrl());
+    application.setDiagnostics(am.getDiagnostics());
     application.setName(name);
     application.setQueue(queue);
     application.setState(am.getState());
@@ -284,7 +286,7 @@ public class ApplicationsManagerImpl extends CompositeService
     List<Application> apps = new ArrayList<Application>();
     for (AppContext am: getAllApplications()) {
       apps.add(createApplication(am.getMaster(), 
-          am.getUser(), am.getQueue(), am.getName()));
+          am.getUser(), am.getQueue(), am.getName(), am.getMasterContainer()));
     }
     return apps;
   }
@@ -292,9 +294,9 @@ public class ApplicationsManagerImpl extends CompositeService
   @Override
   public Application getApplication(ApplicationId appID) {
     ApplicationMasterInfo master = amTracker.get(appID);
-    return (master == null) ? null : 
-      createApplication(master.getMaster(), 
-          master.getUser(), master.getQueue(), master.getName());
+    return (master == null) ? null : createApplication(master.getMaster(),
+        master.getUser(), master.getQueue(), master.getName(),
+        master.getMasterContainer());
   }
 
 

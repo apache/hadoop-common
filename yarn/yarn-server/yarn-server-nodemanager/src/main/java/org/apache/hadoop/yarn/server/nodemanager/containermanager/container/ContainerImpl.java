@@ -32,6 +32,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
@@ -124,7 +125,7 @@ public class ContainerImpl implements Container {
     .addTransition(ContainerState.LOCALIZING,
         ContainerState.LOCALIZATION_FAILED,
         ContainerEventType.RESOURCE_FAILED,
-        new KillDuringLocalizationTransition()) // TODO update diagnostics
+        new ResourceFailedTransition())
     .addTransition(ContainerState.LOCALIZING, ContainerState.LOCALIZING,
         ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
         UPDATE_DIAGNOSTICS_TRANSITION)
@@ -137,6 +138,10 @@ public class ContainerImpl implements Container {
         ContainerState.DONE,
         ContainerEventType.CONTAINER_RESOURCES_CLEANEDUP,
         CONTAINER_DONE_TRANSITION)
+    .addTransition(ContainerState.LOCALIZATION_FAILED,
+        ContainerState.LOCALIZATION_FAILED,
+        ContainerEventType.UPDATE_DIAGNOSTICS_MSG,
+        UPDATE_DIAGNOSTICS_TRANSITION)
 
     // From LOCALIZED State
     .addTransition(ContainerState.LOCALIZED, ContainerState.RUNNING,
@@ -322,6 +327,7 @@ public class ContainerImpl implements Container {
       c.setId(this.launchContext.getContainerId());
       c.setResource(this.launchContext.getResource());
       c.setState(getCurrentState());
+      c.setContainerStatus(cloneAndGetContainerStatus());
       return c;
     } finally {
       this.readLock.unlock();
@@ -561,6 +567,27 @@ public class ContainerImpl implements Container {
     }
   }
 
+  @SuppressWarnings("unchecked") // dispatcher not typed
+  static class ResourceFailedTransition implements
+      SingleArcTransition<ContainerImpl, ContainerEvent> {
+    @Override
+    public void transition(ContainerImpl container, ContainerEvent event) {
+
+      ContainerResourceFailedEvent rsrcFailedEvent =
+          (ContainerResourceFailedEvent) event;
+      container.diagnostics.append(
+          StringUtils.stringifyException(rsrcFailedEvent.getCause())).append(
+          "\n");
+
+      // Inform the localizer to decrement reference counts and cleanup
+      // resources.
+      container.dispatcher.getEventHandler().handle(
+          new ContainerLocalizationEvent(
+            LocalizationEventType.CLEANUP_CONTAINER_RESOURCES, container));
+      container.metrics.endInitingContainer();
+    }
+  }
+  
   @SuppressWarnings("unchecked") // dispatcher not typed
   static class KillDuringLocalizationTransition implements
       SingleArcTransition<ContainerImpl, ContainerEvent> {

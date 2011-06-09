@@ -26,9 +26,15 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.mapreduce.JobID;
+import org.apache.hadoop.mapreduce.TypeConverter;
+import org.apache.hadoop.mapreduce.v2.api.records.JobId;
+import org.apache.hadoop.mapreduce.v2.api.records.JobState;
 import org.apache.hadoop.mapreduce.v2.app.AMConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
+import org.apache.hadoop.mapreduce.v2.app.job.Job;
+import org.apache.hadoop.mapreduce.v2.jobhistory.JobHistoryUtils;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -77,10 +83,14 @@ public class RMCommunicator extends AbstractService  {
 
   private final RecordFactory recordFactory =
       RecordFactoryProvider.getRecordFactory(null);
+  
+  private final AppContext context;
+  private Job job;
 
   public RMCommunicator(ClientService clientService, AppContext context) {
     super("RMCommunicator");
     this.clientService = clientService;
+    this.context = context;
     this.eventHandler = context.getEventHandler();
     this.applicationId = context.getApplicationID();
     this.applicationMaster =
@@ -101,17 +111,30 @@ public class RMCommunicator extends AbstractService  {
     //LOG.info("Scheduler is " + scheduler);
     register();
     startAllocatorThread();
+    JobID id = TypeConverter.fromYarn(context.getApplicationID());
+    JobId jobId = TypeConverter.toYarn(id);
+    job = context.getJob(jobId);
     super.start();
+  }
+
+  protected AppContext getContext() {
+    return context;
+  }
+
+  protected Job getJob() {
+    return job;
   }
 
   protected void register() {
     //Register
     applicationMaster.setApplicationId(applicationId);
-    applicationMaster.setHost(
-        clientService.getBindAddress().getAddress().getHostAddress());
+    String host = 
+      clientService.getBindAddress().getAddress().getHostAddress();
+    applicationMaster.setHost(host);
     applicationMaster.setRpcPort(clientService.getBindAddress().getPort());
     applicationMaster.setState(ApplicationState.RUNNING);
-    applicationMaster.setHttpPort(clientService.getHttpPort());
+    applicationMaster.setTrackingUrl(
+        host + ":" + clientService.getHttpPort());
     applicationMaster.setStatus(
         recordFactory.newRecordInstance(ApplicationStatus.class));
     applicationMaster.getStatus().setApplicationId(applicationId);
@@ -134,7 +157,28 @@ public class RMCommunicator extends AbstractService  {
 
   protected void unregister() {
     try {
-      applicationMaster.setState(ApplicationState.COMPLETED);
+      ApplicationState finalState = ApplicationState.RUNNING;
+      if (job.getState() == JobState.SUCCEEDED) {
+        finalState = ApplicationState.COMPLETED;
+      } else if (job.getState() == JobState.KILLED) {
+        finalState = ApplicationState.KILLED;
+      } else if (job.getState() == JobState.FAILED
+          || job.getState() == JobState.ERROR) {
+        finalState = ApplicationState.FAILED;
+      }
+      applicationMaster.setState(finalState);
+      StringBuffer sb = new StringBuffer();
+      for (String s : job.getDiagnostics()) {
+        sb.append(s).append("\n");
+      }
+      applicationMaster.setDiagnostics(sb.toString());
+      LOG.info("Setting job diagnostics to " + sb.toString());
+      
+      String historyUrl = JobHistoryUtils.getHistoryUrl(getConfig(), 
+          context.getApplicationID());
+      LOG.info("History url is " + historyUrl);
+      applicationMaster.setTrackingUrl(historyUrl);
+
       FinishApplicationMasterRequest request =
           recordFactory.newRecordInstance(FinishApplicationMasterRequest.class);
       request.setApplicationMaster(applicationMaster);

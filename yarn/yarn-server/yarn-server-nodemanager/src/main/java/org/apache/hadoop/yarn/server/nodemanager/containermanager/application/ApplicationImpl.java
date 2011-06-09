@@ -259,7 +259,7 @@ public class ApplicationImpl implements Application {
       for (ContainerId containerID : app.containers.keySet()) {
         app.dispatcher.getEventHandler().handle(
             new ContainerDiagnosticsUpdateEvent(containerID,
-                "Container killed on application-finish."));
+                "Container killed on application-finish event from RM."));
         app.dispatcher.getEventHandler().handle(
             new ContainerEvent(containerID,
                 ContainerEventType.KILL_CONTAINER));

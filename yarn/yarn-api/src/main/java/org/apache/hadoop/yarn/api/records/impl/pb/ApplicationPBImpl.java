@@ -4,12 +4,14 @@ import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ProtoBase;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationIdProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationStateProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ApplicationStatusProto;
+import org.apache.hadoop.yarn.proto.YarnProtos.ContainerProto;
 import org.apache.hadoop.yarn.util.ProtoUtils;
 
 public class ApplicationPBImpl extends ProtoBase<ApplicationProto> 
@@ -20,6 +22,7 @@ implements Application {
 
   ApplicationId applicationId;
   ApplicationStatus status;
+  Container masterContainer = null;
 
   public ApplicationPBImpl() {
     builder = ApplicationProto.newBuilder();
@@ -37,7 +40,7 @@ implements Application {
     }
 
     ApplicationProtoOrBuilder p = viaProto ? proto : builder;
-    if (!p.hasStatus()) {
+    if (!p.hasApplicationId()) {
       return null;
     }
     this.applicationId = convertFromProtoFormat(p.getApplicationId());
@@ -45,21 +48,26 @@ implements Application {
   }
   
   @Override
-  public String getMasterHost() {
+  public Container getMasterContainer() {
+    if (this.masterContainer != null) {
+      return this.masterContainer;
+    }
+
     ApplicationProtoOrBuilder p = viaProto ? proto : builder;
-    if (!p.hasMasterHost()) {
+    if (!p.hasMasterContainer()) {
       return null;
     }
-    return (p.getMasterHost());
+    this.masterContainer = convertFromProtoFormat(p.getMasterContainer());
+    return this.masterContainer;
   }
 
   @Override
-  public int getMasterPort() {
+  public String getTrackingUrl() {
     ApplicationProtoOrBuilder p = viaProto ? proto : builder;
-    if (!p.hasMasterPort()) {
-      return -1;
+    if (!p.hasTrackingUrl()) {
+      return null;
     }
-    return p.getMasterPort();
+    return p.getTrackingUrl();
   }
 
   @Override
@@ -111,7 +119,17 @@ implements Application {
     }
     return p.getUser();
   }
-  
+
+
+  @Override
+  public String getDiagnostics() {
+    ApplicationProtoOrBuilder p = viaProto ? proto : builder;
+    if (!p.hasDiagnostics()) {
+      return null;
+    }
+    return p.getDiagnostics();
+  }
+
   @Override
   public void setApplicationId(ApplicationId applicationId) {
     maybeInitBuilder();
@@ -121,23 +139,21 @@ implements Application {
   }
 
   @Override
-  public void setMasterHost(String masterHost) {
+  public void setMasterContainer(Container container) {
     maybeInitBuilder();
-    if (masterHost == null) {
-      builder.clearMasterHost();
-      return;
-    }
-    builder.setMasterHost((masterHost));
+    if (container == null)
+      builder.clearMasterContainer();
+    this.masterContainer = container;
   }
 
   @Override
-  public void setMasterPort(int masterPort) {
+  public void setTrackingUrl(String url) {
     maybeInitBuilder();
-    if (masterPort == -1) {
-      builder.clearMasterPort();
+    if (url == null) {
+      builder.clearTrackingUrl();
       return;
     }
-    builder.setMasterPort(masterPort);
+    builder.setTrackingUrl(url);
   }
 
   @Override
@@ -186,6 +202,16 @@ implements Application {
       return;
     }
     builder.setUser((user));
+  }
+
+  @Override
+  public void setDiagnostics(String diagnostics) {
+    maybeInitBuilder();
+    if (diagnostics == null) {
+      builder.clearDiagnostics();
+      return;
+    }
+    builder.setDiagnostics(diagnostics);
   }
 
   @Override
@@ -248,6 +274,14 @@ implements Application {
   private ApplicationIdPBImpl convertFromProtoFormat(
       ApplicationIdProto applicationId) {
     return new ApplicationIdPBImpl(applicationId);
+  }
+
+  private ContainerProto convertToProtoFormat(Container t) {
+    return ((ContainerPBImpl) t).getProto();
+  }
+
+  private Container convertFromProtoFormat(ContainerProto c) {
+    return new ContainerPBImpl(c);
   }
 
 }

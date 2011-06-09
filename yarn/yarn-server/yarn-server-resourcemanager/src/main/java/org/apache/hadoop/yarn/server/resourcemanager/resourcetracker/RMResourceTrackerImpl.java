@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -108,6 +109,7 @@ NodeTracker, ClusterTracker {
   private static final HeartbeatResponse reboot = recordFactory.newRecordInstance(HeartbeatResponse.class);
   private long nmExpiryInterval;
   private final NodeStore nodeStore;
+  private final RMContext rmContext;
   
   public RMResourceTrackerImpl(
       ContainerTokenSecretManager containerTokenSecretManager, 
@@ -116,6 +118,7 @@ NodeTracker, ClusterTracker {
     reboot.setReboot(true);
     this.containerTokenSecretManager = containerTokenSecretManager;
     this.nmLivelinessMonitor = new NMLivelinessMonitor();
+    this.rmContext = context;
     this.nodeStore = context.getNodeStore();
   }
 
@@ -395,7 +398,13 @@ NodeTracker, ClusterTracker {
       /* inform any listeners of node heartbeats */
       updateListener(nodeManager, remoteNodeStatus.getAllContainers());
     }
-  
+
+    // For handling diagnostic information
+    for (Entry<String, List<Container>> entry : remoteNodeStatus
+        .getAllContainers().entrySet()) {
+      
+    }
+
     // Save the response    
     nTracker.setLastHeartBeatResponse(response);
     nTracker.getNodeManager().updateHealthStatus(currentNodeHealthStatus);

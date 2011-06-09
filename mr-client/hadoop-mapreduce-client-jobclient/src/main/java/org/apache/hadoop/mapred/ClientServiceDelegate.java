@@ -113,7 +113,7 @@ public class ClientServiceDelegate {
           continue;
         }
         serviceAddr = appMaster.getHost() + ":" + appMaster.getRpcPort();
-        serviceHttpAddr = appMaster.getHost() + ":" + appMaster.getHttpPort();
+        serviceHttpAddr = appMaster.getTrackingUrl();
         currentAppState = appMaster.getState();
         if (UserGroupInformation.isSecurityEnabled()) {
           String clientTokenEncoded = appMaster.getClientToken();

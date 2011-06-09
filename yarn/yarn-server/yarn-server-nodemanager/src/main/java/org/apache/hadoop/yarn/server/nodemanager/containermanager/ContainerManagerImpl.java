@@ -230,7 +230,8 @@ public class ContainerManagerImpl extends CompositeService implements
   }
   
   @Override
-  public StartContainerResponse startContainer(StartContainerRequest request) throws YarnRemoteException {
+  public StartContainerResponse startContainer(StartContainerRequest request)
+      throws YarnRemoteException {
     ContainerLaunchContext launchContext = request.getContainerLaunchContext();
 
     LOG.info(" container is " + request);
@@ -275,7 +276,8 @@ public class ContainerManagerImpl extends CompositeService implements
 
     // TODO: Validate the request
     dispatcher.getEventHandler().handle(new ApplicationInitEvent(container));
-    StartContainerResponse response = recordFactory.newRecordInstance(StartContainerResponse.class);
+    StartContainerResponse response =
+        recordFactory.newRecordInstance(StartContainerResponse.class);
     metrics.launchedContainer();
     metrics.allocateContainer(launchContext.getResource());
     return response;
@@ -296,7 +298,7 @@ public class ContainerManagerImpl extends CompositeService implements
     }
     dispatcher.getEventHandler().handle(
         new ContainerDiagnosticsUpdateEvent(containerID,
-            "Container killed by the application."));
+            "Container killed by the ApplicationMaster."));
     dispatcher.getEventHandler().handle(
         new ContainerEvent(containerID, ContainerEventType.KILL_CONTAINER));
 

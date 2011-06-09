@@ -189,7 +189,7 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     }
   }
 
-  protected void expireAMs(List<ApplicationId> toExpire) {
+  private void expireAMs(List<ApplicationId> toExpire) {
     for (ApplicationId app: toExpire) {
       ApplicationMasterInfo am = null;
       synchronized (applications) {
@@ -246,15 +246,21 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
         ApplicationEventType.FAILED, masterInfo));
    }
 
-  public void finish(ApplicationId application) {
+  public void finish(ApplicationMaster remoteApplicationMaster) {
+    ApplicationId applicationId = remoteApplicationMaster.getApplicationId() ;
     ApplicationMasterInfo masterInfo = null;
     synchronized(applications) {
-      masterInfo = applications.get(application);
+      masterInfo = applications.get(applicationId);
     }
     if (masterInfo == null) {
-      LOG.info("Cant find application to finish " + application);
+      LOG.info("Cant find application to finish " + applicationId);
       return;
     }
+    masterInfo.getMaster().setTrackingUrl(
+        remoteApplicationMaster.getTrackingUrl());
+    masterInfo.getMaster().setDiagnostics(
+        remoteApplicationMaster.getDiagnostics());
+
     rmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
         ApplicationEventType.FINISH, masterInfo));
   }
@@ -448,7 +454,8 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
       master.setApplicationId(storedAppMaster.getApplicationId());
       master.setClientToken(storedAppMaster.getClientToken());
       master.setContainerCount(storedAppMaster.getContainerCount());
-      master.setHttpPort(storedAppMaster.getHttpPort());
+      master.setTrackingUrl(storedAppMaster.getTrackingUrl());
+      master.setDiagnostics(storedAppMaster.getDiagnostics());
       master.setHost(storedAppMaster.getHost());
       master.setRpcPort(storedAppMaster.getRpcPort());
       master.setStatus(storedAppMaster.getStatus());

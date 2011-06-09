@@ -20,6 +20,9 @@ package org.apache.hadoop.mapreduce.v2.jobhistory;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,7 +41,9 @@ import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.yarn.api.records.ApplicationId;
 
 public class JobHistoryUtils {
   
@@ -459,5 +464,27 @@ public class JobHistoryUtils {
     }
 
     return result;
+  }
+
+  public static String getHistoryUrl(Configuration conf, ApplicationId appId) 
+       throws UnknownHostException {
+  //construct the history url for job
+    String hsAddress = conf.get(JHConfig.HS_WEBAPP_BIND_ADDRESS,
+        JHConfig.DEFAULT_HS_WEBAPP_BIND_ADDRESS);
+    InetSocketAddress address = NetUtils.createSocketAddr(hsAddress);
+    StringBuffer sb = new StringBuffer();
+    if (address.getAddress().isAnyLocalAddress() || 
+        address.getAddress().isLoopbackAddress()) {
+      sb.append(InetAddress.getLocalHost().getHostAddress());
+    } else {
+      sb.append(address.getHostName());
+    }
+    sb.append(":").append(address.getPort());
+    sb.append("/yarn/job/"); // TODO This will change when the history server
+                            // understands apps.
+    // TOOD Use JobId toString once UI stops using _id_id
+    sb.append("job_").append(appId.getClusterTimestamp());
+    sb.append("_").append(appId.getId()).append("_").append(appId.getId());
+    return sb.toString();
   }
 }

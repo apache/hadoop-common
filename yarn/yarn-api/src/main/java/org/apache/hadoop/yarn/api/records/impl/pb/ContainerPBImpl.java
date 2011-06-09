@@ -1,19 +1,36 @@
+/**
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 package org.apache.hadoop.yarn.api.records.impl.pb;
 
 
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.ProtoBase;
 import org.apache.hadoop.yarn.api.records.Resource;
-import org.apache.hadoop.yarn.api.records.impl.pb.ContainerIdPBImpl;
-import org.apache.hadoop.yarn.api.records.impl.pb.ContainerTokenPBImpl;
-import org.apache.hadoop.yarn.api.records.impl.pb.ResourcePBImpl;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerIdProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerProtoOrBuilder;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerStateProto;
+import org.apache.hadoop.yarn.proto.YarnProtos.ContainerStatusProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerTokenProto;
 import org.apache.hadoop.yarn.proto.YarnProtos.ResourceProto;
 import org.apache.hadoop.yarn.util.ProtoUtils;
@@ -28,7 +45,7 @@ public class ContainerPBImpl extends ProtoBase<ContainerProto> implements Contai
   private ContainerId containerId = null;
   private Resource resource = null;
   private ContainerToken containerToken = null;
-  
+  private ContainerStatus containerStatus = null;
   
   public ContainerPBImpl() {
     builder = ContainerProto.newBuilder();
@@ -192,6 +209,27 @@ public class ContainerPBImpl extends ProtoBase<ContainerProto> implements Contai
     this.containerToken = containerToken;
   }
 
+  @Override
+  public ContainerStatus getContainerStatus() {
+    ContainerProtoOrBuilder p = viaProto ? proto : builder;
+    if (this.containerStatus != null) {
+      return this.containerStatus;
+    }
+    if (!p.hasContainerStatus()) {
+      return null;
+    }
+    this.containerStatus = convertFromProtoFormat(p.getContainerStatus());
+    return this.containerStatus;
+  }
+
+  @Override
+  public void setContainerStatus(ContainerStatus containerStatus) {
+    maybeInitBuilder();
+    if (containerStatus == null) 
+      builder.clearContainerStatus();
+    this.containerStatus = containerStatus;
+  }
+
   private ContainerStateProto convertToProtoFormat(ContainerState e) {
     return ProtoUtils.convertToProtoFormat(e);
   }
@@ -222,6 +260,14 @@ public class ContainerPBImpl extends ProtoBase<ContainerProto> implements Contai
 
   private ContainerTokenProto convertToProtoFormat(ContainerToken t) {
     return ((ContainerTokenPBImpl)t).getProto();
+  }
+
+  private ContainerStatusPBImpl convertFromProtoFormat(ContainerStatusProto p) {
+    return new ContainerStatusPBImpl(p);
+  }
+
+  private ContainerStatusProto convertToProtoFormat(ContainerStatus t) {
+    return ((ContainerStatusPBImpl)t).getProto();
   }
 
   //TODO Comparator

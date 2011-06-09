@@ -475,7 +475,6 @@ public class Application {
     org.apache.hadoop.yarn.api.records.Application application = recordFactory
         .newRecordInstance(org.apache.hadoop.yarn.api.records.Application.class);
     application.setApplicationId(applicationId);
-    application.setMasterHost("");
     application.setName("");
     application.setQueue(queue.getQueueName());
     application.setState(org.apache.hadoop.yarn.api.records.ApplicationState.RUNNING);

@@ -28,6 +28,7 @@ import org.apache.hadoop.yarn.api.records.Application;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationState;
 import org.apache.hadoop.yarn.api.records.ApplicationStatus;
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 
 /**
@@ -79,6 +80,7 @@ public class MockApps {
     final String user = newUserName();
     final String name = newAppName();
     final String queue = newQueue();
+    final Container masterContainer = null;
     return new Application() {
       @Override public ApplicationId getApplicationId() { return id; }
       @Override public String getUser() { return user; }
@@ -86,22 +88,22 @@ public class MockApps {
       @Override public ApplicationStatus getStatus() { return status; }
       @Override public ApplicationState getState() { return state; }
       @Override public String getQueue() { return queue; }
-      @Override public String getMasterHost() {
-        return Math.random() > 0.8 ? null : "localhost";
+      @Override public Container getMasterContainer() {
+        return masterContainer;
       }
-      @Override public int getMasterPort() { return 58888; }
+      @Override public String getTrackingUrl() { return ""; }
       @Override
       public void setApplicationId(ApplicationId applicationId) {
         // TODO Auto-generated method stub
         
       }
       @Override
-      public void setMasterHost(String masterHost) {
+      public void setMasterContainer(Container container) {
         // TODO Auto-generated method stub
         
       }
       @Override
-      public void setMasterPort(int masterPort) {
+      public void setTrackingUrl(String url) {
         // TODO Auto-generated method stub
         
       }
@@ -127,6 +129,16 @@ public class MockApps {
       }
       @Override
       public void setUser(String user) {
+        // TODO Auto-generated method stub
+        
+      }
+      @Override
+      public String getDiagnostics() {
+        // TODO Auto-generated method stub
+        return null;
+      }
+      @Override
+      public void setDiagnostics(String diagnostics) {
         // TODO Auto-generated method stub
         
       }

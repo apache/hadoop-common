@@ -26,6 +26,7 @@ public interface Container extends Comparable<Container> {
   Resource getResource();
   ContainerState getState();
   ContainerToken getContainerToken();
+  ContainerStatus getContainerStatus();
   
   void setId(ContainerId id);
   void setContainerManagerAddress(String containerManagerAddress);
@@ -33,5 +34,5 @@ public interface Container extends Comparable<Container> {
   void setResource(Resource resource);
   void setState(ContainerState state);
   void setContainerToken(ContainerToken containerToken);
-  
+  void setContainerStatus(ContainerStatus containerStatus);
 }

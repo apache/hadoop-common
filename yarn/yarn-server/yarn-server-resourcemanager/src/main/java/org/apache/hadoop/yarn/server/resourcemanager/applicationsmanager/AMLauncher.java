@@ -113,7 +113,7 @@ public class AMLauncher implements Runnable {
     LOG.info("Setting up container " + master.getMasterContainer() 
         + " for AM " + master.getMaster());  
     ContainerLaunchContext launchContext =
-        getLaunchSpec(applicationContext, masterContainerID);
+        createAMContainerLaunchContext(applicationContext, masterContainerID);
     StartContainerRequest request = recordFactory.newRecordInstance(StartContainerRequest.class);
     request.setContainerLaunchContext(launchContext);
     containerMgrProxy.startContainer(request);
@@ -159,7 +159,7 @@ public class AMLauncher implements Runnable {
     });
   }
 
-  private ContainerLaunchContext getLaunchSpec(
+  private ContainerLaunchContext createAMContainerLaunchContext(
       ApplicationSubmissionContext applicationMasterContext,
       ContainerId containerID) throws IOException {
 

@@ -44,6 +44,7 @@ message ContainerProto {
   optional ResourceProto resource = 4;
   optional ContainerStateProto state = 5;
   optional ContainerTokenProto container_token = 6;
+  optional ContainerStatusProto container_status = 7;
 }
 
 enum ApplicationStateProto {
@@ -72,12 +73,13 @@ message ApplicationMasterProto {
   optional ApplicationIdProto application_id = 1;
   optional string host = 2;
   optional int32 rpc_port = 3;
-  optional int32 http_port = 4;
+  optional string trackingUrl = 4;
   optional ApplicationStatusProto status = 5;
   optional ApplicationStateProto state = 6;
   optional string client_token = 7;
   optional int32 containerCount = 8;
   optional int32 amFailCount = 9;
+  optional string diagnostics = 10 [default = ""];
 }
 
 message URLProto {
@@ -113,8 +115,9 @@ message ApplicationProto {
   optional string name = 4;
   optional ApplicationStatusProto status = 5;
   optional ApplicationStateProto state = 6;
-  optional string masterHost = 7;
-  optional int32 masterPort = 8;
+  optional ContainerProto masterContainer = 7;
+  optional string trackingUrl = 8;
+  optional string diagnostics = 9 [default = "N/A"];
 }
 
 message NodeIdProto {
