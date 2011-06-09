@@ -4,6 +4,7 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Added clover in pom dependency. (sharad)
 
     Sending Job diagnostics from AM to RM and redirect to history-url on job
     completion. (vinodkv and sharadag)
