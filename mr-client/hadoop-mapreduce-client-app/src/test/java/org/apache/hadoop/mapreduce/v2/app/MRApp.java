@@ -212,18 +212,18 @@ public class MRApp extends MRAppMaster {
   public void verifyCompleted() {
     for (Job job : getContext().getAllJobs().values()) {
       JobReport jobReport = job.getReport();
-      Assert.assertTrue("Job start time is not less than finish time",
-          jobReport.getStartTime() < jobReport.getFinishTime());
       System.out.println("Job start time :" + jobReport.getStartTime());
       System.out.println("Job finish time :" + jobReport.getFinishTime());
+      Assert.assertTrue("Job start time is not less than finish time",
+          jobReport.getStartTime() <= jobReport.getFinishTime());
       Assert.assertTrue("Job finish time is in future",
-          jobReport.getFinishTime() < System.currentTimeMillis());
+          jobReport.getFinishTime() <= System.currentTimeMillis());
       for (Task task : job.getTasks().values()) {
         TaskReport taskReport = task.getReport();
         System.out.println("Task start time : " + taskReport.getStartTime());
         System.out.println("Task finish time : " + taskReport.getFinishTime());
         Assert.assertTrue("Task start time is not less than finish time",
-            taskReport.getStartTime() < taskReport.getFinishTime());
+            taskReport.getStartTime() <= taskReport.getFinishTime());
         for (TaskAttempt attempt : task.getAttempts().values()) {
           TaskAttemptReport attemptReport = attempt.getReport();
           Assert.assertTrue("Attempt start time is not less than finish time",

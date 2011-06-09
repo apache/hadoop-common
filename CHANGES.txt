@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+
+    Intermittent TestMRApp failures on faster Linux desktop. (Luke lu via mahadev)
+
     Added clover in pom dependency. (sharad)
 
     Sending Job diagnostics from AM to RM and redirect to history-url on job
