@@ -124,13 +124,18 @@ public class MRApps extends Apps {
       Map<String, String> environment) throws IOException {
 
     // Get yarn mapreduce-app classpath from generated classpath
-    // Works if compile time env is same as runtime. For e.g. tests.
+    // Works if compile time env is same as runtime. Mainly tests.
+    ClassLoader thisClassLoader =
+        Thread.currentThread().getContextClassLoader();
+    String mrAppGeneratedClasspathFile = "mrapp-generated-classpath";
     InputStream classpathFileStream =
-        Thread.currentThread().getContextClassLoader()
-            .getResourceAsStream("mrapp-generated-classpath");
+        thisClassLoader.getResourceAsStream(mrAppGeneratedClasspathFile);
     BufferedReader reader =
         new BufferedReader(new InputStreamReader(classpathFileStream));
     addToClassPath(environment, reader.readLine().trim());
+    // Put the file itself on classpath for tasks.
+    addToClassPath(environment,
+        thisClassLoader.getResource(mrAppGeneratedClasspathFile).getFile());
 
     // If runtime env is different.
     if (System.getenv().get("YARN_HOME") != null) {

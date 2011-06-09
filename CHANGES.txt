@@ -4,6 +4,7 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Fix classpath construction for Task. (vinodkv via sharad)
 
     Remove retries in dist cache so that NM's do not shutdown (mahadev)
 
