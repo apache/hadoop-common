@@ -287,9 +287,9 @@ public class RMContainerAllocator extends RMContainerRequestor
       }
     }
     
-    int completedMapPercent = 0;
+    float completedMapPercent = 0f;
     if (totalMaps != 0) {//support for 0 maps
-      completedMapPercent = completedMaps/totalMaps;
+      completedMapPercent = (float)completedMaps/totalMaps;
     } else {
       completedMapPercent = 1;
     }
@@ -301,7 +301,7 @@ public class RMContainerAllocator extends RMContainerRequestor
     
     // ramp up the reduces based on completed map percentage
     int memLimit = getMemLimit();
-    reduceMemLimit = Math.min(completedMapPercent * memLimit,
+    reduceMemLimit = Math.min((int)(completedMapPercent * memLimit),
         (int) maxReduceRampupLimit * memLimit);
     mapMemLimit = memLimit - reduceMemLimit;
 
