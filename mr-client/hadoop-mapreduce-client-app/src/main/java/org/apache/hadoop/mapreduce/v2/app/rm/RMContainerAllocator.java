@@ -249,7 +249,7 @@ public class RMContainerAllocator extends RMContainerRequestor
       if (availableMemForMap < mapResourceReqt) {
         //preempt for making space for atleast one map
         int premeptionLimit = Math.max(mapResourceReqt - availableMemForMap, 
-            (int) maxReducePreemptionLimit * memLimit);
+            (int) (maxReducePreemptionLimit * memLimit));
         
         int preemptMem = Math.min(scheduledRequests.maps.size() * mapResourceReqt, 
             premeptionLimit);
@@ -294,34 +294,42 @@ public class RMContainerAllocator extends RMContainerRequestor
       completedMapPercent = 1;
     }
     
-    int scheduledMapMem = scheduledRequests.maps.size() * mapResourceReqt;
-    
-    int mapMemLimit = 0;
-    int reduceMemLimit = 0;
+    int netScheduledMapMem = scheduledRequests.maps.size() * mapResourceReqt
+        + assignedRequests.maps.size() * mapResourceReqt;
+
+    int netScheduledReduceMem = scheduledRequests.reduces.size()
+        * reduceResourceReqt + assignedRequests.reduces.size()
+        * reduceResourceReqt;
+
+    int finalMapMemLimit = 0;
+    int finalReduceMemLimit = 0;
     
     // ramp up the reduces based on completed map percentage
-    int memLimit = getMemLimit();
-    reduceMemLimit = Math.min((int)(completedMapPercent * memLimit),
-        (int) maxReduceRampupLimit * memLimit);
-    mapMemLimit = memLimit - reduceMemLimit;
+    int totalMemLimit = getMemLimit();
+    int idealReduceMemLimit = Math.min((int)(completedMapPercent * totalMemLimit),
+        (int) (maxReduceRampupLimit * totalMemLimit));
+    int idealMapMemLimit = totalMemLimit - idealReduceMemLimit;
 
     // check if there aren't enough maps scheduled, give the free map capacity
     // to reduce
-    if (mapMemLimit > scheduledMapMem) {
-      int unusedMapMemLimit = mapMemLimit - scheduledMapMem;
-      reduceMemLimit = reduceMemLimit + unusedMapMemLimit;
+    if (idealMapMemLimit > netScheduledMapMem) {
+      int unusedMapMemLimit = idealMapMemLimit - netScheduledMapMem;
+      finalReduceMemLimit = idealReduceMemLimit + unusedMapMemLimit;
+      finalMapMemLimit = totalMemLimit - finalReduceMemLimit;
+    } else {
+      finalMapMemLimit = idealMapMemLimit;
+      finalReduceMemLimit = idealReduceMemLimit;
     }
     
-    int netReducesMemScheduled = scheduledRequests.reduces.size() * reduceResourceReqt 
-       + assignedRequests.reduces.size() * reduceResourceReqt;
+    LOG.info("completedMapPercent " + completedMapPercent +
+        " totalMemLimit:" + totalMemLimit +
+        " finalMapMemLimit:" + finalMapMemLimit +
+        " finalReduceMemLimit:" + finalReduceMemLimit + 
+        " netScheduledMapMem:" + netScheduledMapMem +
+        " netScheduledReduceMem:" + netScheduledReduceMem);
     
-    LOG.info("completedMapPercent " + completedMapPercent + 
-        " mapMemLimit:" + mapMemLimit +
-        " reduceMemLimit:" + reduceMemLimit + 
-        " scheduledMapMem:" + scheduledMapMem +
-        " netReducesScheduled:" + netReducesMemScheduled);
-    
-    int rampUp =  (reduceMemLimit - netReducesMemScheduled)/reduceResourceReqt;
+    int rampUp = (finalReduceMemLimit - netScheduledReduceMem)
+        / reduceResourceReqt;
     
     if (rampUp > 0) {
       rampUp = Math.min(rampUp, pendingReduces.size());

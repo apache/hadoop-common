@@ -4,6 +4,10 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+
+    Fix more rounding off problems in reduce ramp up. Also fix a bug preventing
+    the application of the cap on reduce ramp-up. (Sharad Agarwal via vinodkv)
+
     Fix rounding off problem in reduce ramp up. (sharad)
 
     MAPREDUCE-2582. Cleanup JobHistory event generation.(Siddharth Seth via sharad)   
