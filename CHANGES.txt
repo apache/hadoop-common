@@ -4,6 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    
+    Add ability to includes src files in assembly target for maven (Luke Lu via mahadev)
+ 
     Added few job diagnostic messages. (sharad)
 
     Disable Uber AM. (mahadev)

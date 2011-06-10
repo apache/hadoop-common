@@ -39,6 +39,28 @@
         <include>**/*</include>
       </includes>
     </fileSet>
+    <fileSet>
+      <outputDirectory>sources</outputDirectory>
+      <excludes>
+        <exclude>**/*.jar</exclude>
+        <exclude>**/target/**</exclude>
+        <!-- until the code that does this is fixed -->
+        <exclude>**/file:/**</exclude>
+        <exclude>**/SecurityAuth.audit*</exclude>
+      </excludes>
+      <includes>
+        <include>assembly/**</include>
+        <include>pom.xml</include>
+        <include>build*.xml</include>
+        <include>ivy.xml</include>
+        <include>ivy/**</include>
+        <include>INSTALL</include>
+        <include>LICENSE.txt</include>
+        <include>mr-client/**</include>
+        <include>yarn/**</include>
+        <include>src/**</include>
+      </includes>
+    </fileSet>
   </fileSets>
   <moduleSets>
     <moduleSet>
