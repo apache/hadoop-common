@@ -30,7 +30,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobACLsManager;
 import org.apache.hadoop.mapreduce.JobACL;
-import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryParser.JobInfo;
@@ -131,7 +130,7 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
   }
 
   //History data is leisurely loaded when task level data is requested
-  private synchronized void loadFullHistoryData(boolean loadTasks, Path historyFileAbsolute) {
+  private synchronized void loadFullHistoryData(boolean loadTasks, Path historyFileAbsolute) throws IOException {
     if (jobInfo != null) {
       return; //data already loaded
     }
@@ -144,6 +143,8 @@ public class CompletedJob implements org.apache.hadoop.mapreduce.v2.app.job.Job 
         throw new YarnException("Could not load history file " + historyFileAbsolute,
             e);
       }
+    } else {
+      throw new IOException("History file not found");
     }
     
     if (loadTasks) {

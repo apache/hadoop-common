@@ -35,6 +35,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.OutputCommitter;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
+import org.apache.hadoop.mapreduce.jobhistory.TaskFailedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskFinishedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.TaskStartedEvent;
 import org.apache.hadoop.mapreduce.security.token.JobTokenIdentifier;
@@ -95,6 +96,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
   private final Lock readLock;
   private final Lock writeLock;
   private final MRAppMetrics metrics;
+  private long scheduledTime;
   
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
   
@@ -386,10 +388,14 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
         launchTime = at.getLaunchTime();
       }
     }
+    if (launchTime == 0) {
+      return this.scheduledTime;
+    }
     return launchTime;
   }
 
   //this is always called in read/write lock
+  //TODO Verify behaviour is Task is killed (no finished attempt)
   private long getFinishTime() {
     if (!isFinished()) {
       return 0;
@@ -404,6 +410,20 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     return finishTime;
   }
 
+  private long getFinishTime(TaskAttemptId taId) {
+    if (taId == null) {
+      return clock.getTime();
+    }
+    long finishTime = 0;
+    for (TaskAttempt at : attempts.values()) {
+      //select the max finish time of all attempts
+      if (at.getID().equals(taId)) {
+        return at.getFinishTime();
+      }
+    }
+    return finishTime;
+  }
+  
   private TaskState finished(TaskState finalState) {
     if (getState() == TaskState.RUNNING) {
       metrics.endRunningTask(this);
@@ -558,19 +578,54 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     }
   }
 
+  private static TaskFinishedEvent createTaskFinishedEvent(TaskImpl task, TaskState taskState) {
+    TaskFinishedEvent tfe =
+      new TaskFinishedEvent(TypeConverter.fromYarn(task.taskId),
+        task.getFinishTime(task.successfulAttempt),
+        TypeConverter.fromYarn(task.taskId.getTaskType()),
+        taskState.toString(),
+        TypeConverter.fromYarn(task.getCounters()));
+    return tfe;
+  }
+  
+  private static TaskFailedEvent createTaskFailedEvent(TaskImpl task, String error, TaskState taskState, TaskAttemptId taId) {
+    TaskFailedEvent taskFailedEvent = new TaskFailedEvent(
+        TypeConverter.fromYarn(task.taskId),
+     // Hack since getFinishTime needs isFinished to be true and that doesn't happen till after the transition.
+        task.getFinishTime(taId),
+        TypeConverter.fromYarn(task.getType()),
+        error == null ? "" : error,
+        taskState.toString(),
+        taId == null ? null : TypeConverter.fromYarn(taId));
+    return taskFailedEvent;
+  }
+  
   private static class InitialScheduleTransition
     implements SingleArcTransition<TaskImpl, TaskEvent> {
 
     @Override
     public void transition(TaskImpl task, TaskEvent event) {
-      TaskStartedEvent tse = new TaskStartedEvent(TypeConverter
-          .fromYarn(task.taskId), task.getLaunchTime(), TypeConverter
-          .fromYarn(task.taskId.getTaskType()), TaskState.RUNNING.toString());
-      task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tse));
-      //TODO This is a transition from NEW to SCHEDULED, not RUNNING
-
       task.addAndScheduleAttempt();
+      task.scheduledTime = task.clock.getTime();
+      TaskStartedEvent tse = new TaskStartedEvent(
+          TypeConverter.fromYarn(task.taskId), task.getLaunchTime(),
+          TypeConverter.fromYarn(task.taskId.getTaskType()),
+          task instanceof MapTaskImpl ? splitsAsString(((MapTaskImpl) task) //TODO Should not be accessing MapTaskImpl
+              .getTaskSplitMetaInfo().getLocations()) : "");
+      task.eventHandler
+          .handle(new JobHistoryEvent(task.taskId.getJobId(), tse));
       task.metrics.launchedTask(task);
+    }
+    
+    private String splitsAsString(String[] splits) {
+      if (splits == null || splits.length == 0)
+        return "";
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < splits.length; i++) {
+        if (i != 0) sb.append(",");
+        sb.append(splits[i]);
+      }
+      return sb.toString();
     }
   }
 
@@ -625,12 +680,7 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
           task.taskId, TaskState.SUCCEEDED));
       LOG.info("Task succeeded with attempt " + task.successfulAttempt);
       // issue kill to all other attempts
-      TaskFinishedEvent tfe =
-          new TaskFinishedEvent(TypeConverter.fromYarn(task.taskId),
-            task.getFinishTime(),
-            TypeConverter.fromYarn(task.taskId.getTaskType()),
-            TaskState.SUCCEEDED.toString(),
-            TypeConverter.fromYarn(task.getCounters()));
+      TaskFinishedEvent tfe = createTaskFinishedEvent(task, TaskState.SUCCEEDED);
       task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfe));
       for (TaskAttempt attempt : task.attempts.values()) {
         if (attempt.getID() != task.successfulAttempt &&
@@ -675,6 +725,11 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
           TaskAttemptCompletionEventStatus.KILLED);
       // check whether all attempts are finished
       if (task.finishedAttempts == task.attempts.size()) {
+        TaskFailedEvent taskFailedEvent = createTaskFailedEvent(task, "",
+            finalState, null); //TODO JH verify failedAttempt null
+        task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(),
+            taskFailedEvent)); 
+
         task.eventHandler.handle(
             new JobTaskEvent(task.taskId, finalState));
         return finalState;
@@ -704,13 +759,13 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
             ((TaskTAttemptEvent) event).getTaskAttemptID(), 
             TaskAttemptCompletionEventStatus.TIPFAILED);
         TaskTAttemptEvent ev = (TaskTAttemptEvent) event;
-        TaskFinishedEvent tfi =
-            new TaskFinishedEvent(TypeConverter.fromYarn(task.taskId),
-                task.getFinishTime(),
-            TypeConverter.fromYarn(task.taskId.getTaskType()),
-                TaskState.FAILED.toString(),
-                TypeConverter.fromYarn(task.getCounters()));
-        task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfi));
+        TaskAttemptId taId = ev.getTaskAttemptID();
+        
+        //TODO JH Populate the error string. FailReason from TaskAttempt(taId)
+        TaskFailedEvent taskFailedEvent = createTaskFailedEvent(task, "",
+            TaskState.FAILED, taId);
+        task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(),
+            taskFailedEvent));
         task.eventHandler.handle(
             new JobTaskEvent(task.taskId, TaskState.FAILED));
         return task.finished(TaskState.FAILED);
@@ -761,12 +816,12 @@ public abstract class TaskImpl implements Task, EventHandler<TaskEvent> {
     implements SingleArcTransition<TaskImpl, TaskEvent> {
     @Override
     public void transition(TaskImpl task, TaskEvent event) {
-      TaskFinishedEvent tfe =
-          new TaskFinishedEvent(TypeConverter.fromYarn(task.taskId),
-              task.getFinishTime(), TypeConverter.fromYarn(task.taskId.getTaskType()),
-              TaskState.KILLED.toString(), TypeConverter.fromYarn(task
-                  .getCounters()));
-      task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(), tfe));
+      
+      TaskFailedEvent taskFailedEvent = createTaskFailedEvent(task, null,
+          TaskState.KILLED, null); //TODO Verify failedAttemptId is null
+      task.eventHandler.handle(new JobHistoryEvent(task.taskId.getJobId(),
+          taskFailedEvent));
+
       task.eventHandler.handle(
           new JobTaskEvent(task.taskId, TaskState.KILLED));
       task.metrics.endWaitingTask(task);

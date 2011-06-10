@@ -75,4 +75,7 @@ public class MapTaskImpl extends TaskImpl {
     return TaskType.MAP;
   }
 
+  protected TaskSplitMetaInfo getTaskSplitMetaInfo() {
+    return this.taskSplitMetaInfo;
+  }
 }

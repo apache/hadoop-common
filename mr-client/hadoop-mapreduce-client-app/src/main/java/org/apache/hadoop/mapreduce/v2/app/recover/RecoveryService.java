@@ -298,7 +298,7 @@ public class RecoveryService extends CompositeService implements Recovery {
         // send the status update event
         sendStatusUpdateEvent(aId, attInfo);
 
-        TaskAttemptState state = TaskAttemptState.valueOf(attInfo.getState());
+        TaskAttemptState state = TaskAttemptState.valueOf(attInfo.getTaskStatus());
         switch (state) {
         case SUCCEEDED:
           // send the done event

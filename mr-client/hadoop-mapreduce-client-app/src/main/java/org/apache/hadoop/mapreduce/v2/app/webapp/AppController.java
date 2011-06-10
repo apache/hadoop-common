@@ -121,7 +121,7 @@ public class AppController extends Controller implements AMParams {
         notFound($(JOB_ID));
       }
     } catch (Exception e) {
-      badRequest(e.getMessage());
+      badRequest(e.getMessage() == null ? e.getClass().getName() : e.getMessage());
     }
   }
 

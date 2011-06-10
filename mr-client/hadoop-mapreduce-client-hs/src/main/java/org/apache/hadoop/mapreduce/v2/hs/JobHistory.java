@@ -625,7 +625,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
         addToLoadedJobCache(job);
         return job;
       } catch (IOException e) {
-        throw new YarnException(e);
+        throw new YarnException("Could not find/load job: " + metaInfo.getJobIndexInfo().getJobId(), e);
       }
     }
   }
@@ -979,6 +979,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     Job job = null;
     try {
       job = findJob(jobId);
+      //This could return a null job.
     } catch (IOException e) {
       throw new YarnException(e);
     }

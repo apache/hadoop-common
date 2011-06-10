@@ -365,7 +365,7 @@ public class JobHistoryEventHandler extends AbstractService
       throw new YarnException(e);
     }
     // check for done
-    if (event.getHistoryEvent().getEventType().equals(EventType.JOB_FINISHED)) {
+    if (event.getHistoryEvent().getEventType() == EventType.JOB_FINISHED) {
       try {
           JobFinishedEvent jFinishedEvent = (JobFinishedEvent) event
               .getHistoryEvent();
@@ -378,6 +378,19 @@ public class JobHistoryEventHandler extends AbstractService
         throw new YarnException(e);
       }
     }
+      if (event.getHistoryEvent().getEventType() == EventType.JOB_FAILED
+          || event.getHistoryEvent().getEventType() == EventType.JOB_KILLED) {
+        try {
+          JobUnsuccessfulCompletionEvent jucEvent = (JobUnsuccessfulCompletionEvent) event
+              .getHistoryEvent();
+          mi.getJobIndexInfo().setFinishTime(jucEvent.getFinishTime());
+          mi.getJobIndexInfo().setNumMaps(jucEvent.getFinishedMaps());
+          mi.getJobIndexInfo().setNumReduces(jucEvent.getFinishedReduces());
+          closeEventWriter(event.getJobID());
+        } catch (IOException e) {
+          throw new YarnException(e);
+        }
+      }
   }
   }
 
@@ -432,6 +445,11 @@ public class JobHistoryEventHandler extends AbstractService
     
     if (mi == null) {
       throw new IOException("No MetaInfo found for JobId: [" + jobId + "]");
+    }
+    if (!mi.isWriterActive()) {
+      throw new IOException(
+          "Inactive Writer: Likely received multiple JobFinished / JobUnsuccessful events for JobId: ["
+              + jobId + "]");
     }
     try {
         mi.closeWriter();
@@ -522,6 +540,8 @@ public class JobHistoryEventHandler extends AbstractService
     JobIndexInfo getJobIndexInfo() { return jobIndexInfo; }
 
     JobSummary getJobSummary() { return jobSummary; }
+
+    boolean isWriterActive() {return writer != null ; }
 
     void closeWriter() throws IOException {
       synchronized (lock) {

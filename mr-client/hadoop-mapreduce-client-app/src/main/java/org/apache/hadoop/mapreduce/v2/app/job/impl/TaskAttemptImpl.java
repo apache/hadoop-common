@@ -850,6 +850,18 @@ public abstract class TaskAttemptImpl implements
     }
   }
 
+  private static TaskAttemptUnsuccessfulCompletionEvent createTaskAttemptUnsuccessfulCompletionEvent(
+      TaskAttemptImpl taskAttempt, TaskAttemptState attemptState) {
+    TaskAttemptUnsuccessfulCompletionEvent tauce = new TaskAttemptUnsuccessfulCompletionEvent(
+        TypeConverter.fromYarn(taskAttempt.attemptId),
+        TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
+        attemptState.toString(), taskAttempt.finishTime,
+        taskAttempt.containerMgrAddress,
+        taskAttempt.reportedStatus.diagnosticInfo.toString());
+      //TODO Different constructor - allSplits
+    return tauce;
+  }
+
   private static String[] racks = new String[] {NetworkTopology.DEFAULT_RACK};
   private static class RequestContainerTransition implements
       SingleArcTransition<TaskAttemptImpl, TaskAttemptEvent> {
@@ -956,6 +968,10 @@ public abstract class TaskAttemptImpl implements
               TaskEventType.T_ATTEMPT_KILLED));
           break;
       }
+      TaskAttemptUnsuccessfulCompletionEvent tauce = createTaskAttemptUnsuccessfulCompletionEvent(
+          taskAttempt, finalState);
+      taskAttempt.eventHandler.handle(new JobHistoryEvent(taskAttempt.attemptId
+          .getTaskId().getJobId(), tauce));
     }
   }
 
@@ -970,6 +986,7 @@ public abstract class TaskAttemptImpl implements
       // for it
       taskAttempt.taskAttemptListener.register(
           taskAttempt.attemptId, taskAttempt.remoteTask, taskAttempt.jvmID);
+      //TODO Resolve to host / IP in case of a local address.
       InetSocketAddress nodeHttpInetAddr =
           NetUtils.createSocketAddr(taskAttempt.nodeHttpAddress); // TODO:
                                                                   // Costly?
@@ -1058,17 +1075,11 @@ public abstract class TaskAttemptImpl implements
         TaskAttemptEvent event) {
       //set the finish time
       taskAttempt.setFinishTime();
-      TaskAttemptUnsuccessfulCompletionEvent ta =
-          new TaskAttemptUnsuccessfulCompletionEvent(
-          TypeConverter.fromYarn(taskAttempt.attemptId),
-          TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
-          TaskAttemptState.FAILED.toString(),
-          taskAttempt.finishTime,
-          "hostname",
-          taskAttempt.reportedStatus.diagnosticInfo.toString());
-      taskAttempt.eventHandler.handle(
-          new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), ta));
-      taskAttempt.logAttemptFinishedEvent(TaskAttemptState.FAILED);
+      TaskAttemptUnsuccessfulCompletionEvent tauce = createTaskAttemptUnsuccessfulCompletionEvent(
+          taskAttempt, TaskAttemptState.FAILED);
+      taskAttempt.eventHandler.handle(new JobHistoryEvent(taskAttempt.attemptId
+          .getTaskId().getJobId(), tauce));
+//      taskAttempt.logAttemptFinishedEvent(TaskAttemptState.FAILED); Not handling failed map/reduce events.
       taskAttempt.eventHandler.handle(new TaskTAttemptEvent(
           taskAttempt.attemptId,
           TaskEventType.T_ATTEMPT_FAILED));
@@ -1081,9 +1092,9 @@ public abstract class TaskAttemptImpl implements
          new MapAttemptFinishedEvent(TypeConverter.fromYarn(attemptId),
          TypeConverter.fromYarn(attemptId.getTaskId().getTaskType()),
          state.toString(),
-         finishTime,
-         finishTime, "hostname",
-         state.toString(),
+         finishTime, //TODO TaskAttemptStatus changes. MapFinishTime
+         finishTime, this.containerMgrAddress,
+         state.toString(), //TODO state is a progress string.
          TypeConverter.fromYarn(getCounters()),null);
          eventHandler.handle(
            new JobHistoryEvent(attemptId.getTaskId().getJobId(), mfe));
@@ -1092,9 +1103,9 @@ public abstract class TaskAttemptImpl implements
          new ReduceAttemptFinishedEvent(TypeConverter.fromYarn(attemptId),
          TypeConverter.fromYarn(attemptId.getTaskId().getTaskType()),
          state.toString(),
-         finishTime,
-         finishTime,
-         finishTime, "hostname",
+         finishTime, //TODO TaskAttemptStatus changes. ShuffleFinishTime
+         finishTime, //TODO TaskAttemptStatus changes. SortFinishTime
+         finishTime, this.containerMgrAddress,
          state.toString(),
          TypeConverter.fromYarn(getCounters()),null);
          eventHandler.handle(
@@ -1110,6 +1121,10 @@ public abstract class TaskAttemptImpl implements
       taskAttempt.addDiagnosticInfo("Too Many fetch failures.Failing the attempt");
       //set the finish time
       taskAttempt.setFinishTime();
+      TaskAttemptUnsuccessfulCompletionEvent tauce = createTaskAttemptUnsuccessfulCompletionEvent(
+          taskAttempt, TaskAttemptState.FAILED);
+      taskAttempt.eventHandler.handle(new JobHistoryEvent(taskAttempt.attemptId
+          .getTaskId().getJobId(), tauce));
       taskAttempt.eventHandler.handle(new TaskTAttemptEvent(
           taskAttempt.attemptId, TaskEventType.T_ATTEMPT_FAILED));
     }
@@ -1123,17 +1138,11 @@ public abstract class TaskAttemptImpl implements
         TaskAttemptEvent event) {
       //set the finish time
       taskAttempt.setFinishTime();
-      TaskAttemptUnsuccessfulCompletionEvent tke =
-          new TaskAttemptUnsuccessfulCompletionEvent(
-          TypeConverter.fromYarn(taskAttempt.attemptId),
-          TypeConverter.fromYarn(taskAttempt.attemptId.getTaskId().getTaskType()),
-          TaskAttemptState.KILLED.toString(),
-          taskAttempt.finishTime,
-          TaskAttemptState.KILLED.toString(),
-          taskAttempt.reportedStatus.diagnosticInfo.toString());
-      taskAttempt.eventHandler.handle(
-          new JobHistoryEvent(taskAttempt.attemptId.getTaskId().getJobId(), tke));
-      taskAttempt.logAttemptFinishedEvent(TaskAttemptState.KILLED);
+      TaskAttemptUnsuccessfulCompletionEvent tauce = createTaskAttemptUnsuccessfulCompletionEvent(
+          taskAttempt, TaskAttemptState.KILLED);
+      taskAttempt.eventHandler.handle(new JobHistoryEvent(taskAttempt.attemptId
+          .getTaskId().getJobId(), tauce));
+//      taskAttempt.logAttemptFinishedEvent(TaskAttemptState.KILLED); Not logging Map/Reduce attempts in case of failure.
       taskAttempt.eventHandler.handle(new TaskTAttemptEvent(
           taskAttempt.attemptId,
           TaskEventType.T_ATTEMPT_KILLED));

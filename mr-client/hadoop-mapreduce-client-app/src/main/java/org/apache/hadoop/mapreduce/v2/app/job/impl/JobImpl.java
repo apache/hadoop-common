@@ -36,6 +36,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
@@ -51,6 +52,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TypeConverter;
 import org.apache.hadoop.mapreduce.jobhistory.JobFinishedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobHistoryEvent;
+import org.apache.hadoop.mapreduce.jobhistory.JobInfoChangeEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobInitedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobSubmittedEvent;
 import org.apache.hadoop.mapreduce.jobhistory.JobUnsuccessfulCompletionEvent;
@@ -333,6 +335,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   private int failedReduceTaskCount = 0;
   private int killedMapTaskCount = 0;
   private int killedReduceTaskCount = 0;
+  private long submitTime;
   private long startTime;
   private long finishTime;
   private float setupProgress;
@@ -709,7 +712,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
      */
     @Override
     public JobState transition(JobImpl job, JobEvent event) {
-      job.startTime = job.clock.getTime();
+      job.submitTime = job.clock.getTime();
       job.metrics.submittedJob(job);
       job.metrics.preparingJob(job);
       try {
@@ -717,14 +720,14 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         job.fs = FileSystem.get(job.conf);
 
         //log to job history
-        //TODO_JH_Validate the values being sent here (along with defaults). Ideally for all JH evnts.
-        JobSubmittedEvent jse =
-          new JobSubmittedEvent(job.oldJobId, 
+        JobSubmittedEvent jse = new JobSubmittedEvent(job.oldJobId,
               job.conf.get(MRJobConfig.JOB_NAME, "test"), 
-              job.conf.get(MRJobConfig.USER_NAME,"mapred"), job.startTime,
-              job.remoteJobConfFile.toString(), job.jobACLs, 
-              job.conf.get(MRJobConfig.QUEUE_NAME,"test"));
+            job.conf.get(MRJobConfig.USER_NAME, "mapred"),
+            job.submitTime,
+            job.remoteJobConfFile.toString(),
+            job.jobACLs, job.conf.get(MRJobConfig.QUEUE_NAME, "test"));
         job.eventHandler.handle(new JobHistoryEvent(job.jobId, jse));
+        //TODO JH Verify jobACLs, UserName via UGI?
 
         TaskSplitMetaInfo[] taskSplitMetaInfo = createSplits(job, job.jobId);
         job.numMapTasks = taskSplitMetaInfo.length;
@@ -868,6 +871,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
         job.metrics.endPreparingJob(job);
         return JobState.INITED;
+        //TODO XXX Should JobInitedEvent be generated here (instead of in StartTransition)
 
       } catch (Exception e) {
         LOG.warn("Job init failed", e);
@@ -1025,8 +1029,11 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
              job.startTime,
              job.numMapTasks, job.numReduceTasks,
              job.isUber, 0, 0,  // FIXME: lose latter two args again (old-style uber junk:  needs to go along with 98% of other old-style uber junk)
-             JobState.NEW.toString());
+             job.getState().toString()); //Will transition to state running. Currently in INITED
       job.eventHandler.handle(new JobHistoryEvent(job.jobId, jie));
+      JobInfoChangeEvent jice = new JobInfoChangeEvent(job.oldJobId,
+          job.submitTime, job.startTime);
+      job.eventHandler.handle(new JobHistoryEvent(job.jobId, jice));
       job.metrics.runningJob(job);
     }
   }
@@ -1038,26 +1045,29 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
     } catch (IOException e) {
       LOG.warn("Could not abortJob", e);
     }
+    if (finishTime == 0) setFinishTime();
     cleanupProgress = 1.0f;
     JobUnsuccessfulCompletionEvent unsuccessfulJobEvent =
       new JobUnsuccessfulCompletionEvent(oldJobId,
           finishTime,
           succeededMapTaskCount,
-          numReduceTasks, //TODO finishedReduceTasks
+          succeededReduceTaskCount,
           finalState.toString());
     eventHandler.handle(new JobHistoryEvent(jobId, unsuccessfulJobEvent));
+  }
     
-    JobFinishedEvent jfe =
-      new JobFinishedEvent(oldJobId,
-          finishTime,
-          succeededMapTaskCount,
-          succeededReduceTaskCount, failedMapTaskCount,
-          failedReduceTaskCount,
-          TypeConverter.fromYarn(getCounters()), //TODO replace with MapCounter
-          TypeConverter.fromYarn(getCounters()), // TODO reduceCounters
-          TypeConverter.fromYarn(getCounters()));
-    eventHandler.handle(new JobHistoryEvent(jobId, jfe));
-    //TODO Does this require a JobFinishedEvent?
+  // JobFinishedEvent triggers the move of the history file out of the staging
+  // area. May need to create a new event type for this if JobFinished should 
+  // not be generated for KilledJobs, etc.
+  private static JobFinishedEvent createJobFinishedEvent(JobImpl job) {
+    JobFinishedEvent jfe = new JobFinishedEvent(
+        job.oldJobId, job.finishTime,
+        job.succeededMapTaskCount, job.succeededReduceTaskCount,
+        job.failedMapTaskCount, job.failedReduceTaskCount,
+        TypeConverter.fromYarn(job.getCounters()), //TODO replace with MapCounters
+        TypeConverter.fromYarn(job.getCounters()), //TODO replace with ReduceCoutners
+        TypeConverter.fromYarn(job.getCounters()));
+    return jfe;
   }
 
   // Task-start has been moved out of InitTransition, so this arc simply
@@ -1066,10 +1076,11 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
   implements SingleArcTransition<JobImpl, JobEvent> {
     @Override
     public void transition(JobImpl job, JobEvent event) {
+      job.setFinishTime();
       JobUnsuccessfulCompletionEvent failedEvent =
           new JobUnsuccessfulCompletionEvent(job.oldJobId,
               job.finishTime, 0, 0,
-              org.apache.hadoop.mapreduce.JobStatus.State.FAILED.toString()); //TODO correct state
+              JobState.KILLED.toString());
       job.eventHandler.handle(new JobHistoryEvent(job.jobId, failedEvent));
       job.finished(JobState.KILLED);
     }
@@ -1187,14 +1198,6 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         job.failedReduceTaskCount*100 > 
         job.allowedReduceFailuresPercent*job.numReduceTasks) {
         job.setFinishTime();
-        JobUnsuccessfulCompletionEvent failedEvent =
-          new JobUnsuccessfulCompletionEvent(job.oldJobId,
-              job.finishTime,
-              job.failedMapTaskCount,
-              job.failedReduceTaskCount, //TODO finishedReduceTasks
-              org.apache.hadoop.mapreduce.JobStatus.State.FAILED.toString()); //TODO correct state
-        job.eventHandler.handle(new JobHistoryEvent(job.jobId, failedEvent));
-        //TODO This event not likely required - sent via abort(). 
 
         String diagnosticMsg = "Job failed as tasks failed. " +
             "failedMaps:" + job.failedMapTaskCount + 
@@ -1214,17 +1217,9 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
         }
        // Log job-history
         job.setFinishTime();
-        JobFinishedEvent jfe =
-        new JobFinishedEvent(TypeConverter.fromYarn(job.jobId),
-          job.finishTime,
-          job.succeededMapTaskCount, job.numReduceTasks, job.failedMapTaskCount,
-          job.failedReduceTaskCount,
-          TypeConverter.fromYarn(job.getCounters()), //TODO replace with MapCounter
-          TypeConverter.fromYarn(job.getCounters()), // TODO reduceCounters
-          TypeConverter.fromYarn(job.getCounters()));
+        JobFinishedEvent jfe = createJobFinishedEvent(job);
         LOG.info("Calling handler for JobFinishedEvent ");
         job.eventHandler.handle(new JobHistoryEvent(job.jobId, jfe));
-
         return job.finished(JobState.SUCCEEDED);
       }
       
@@ -1302,7 +1297,13 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       SingleArcTransition<JobImpl, JobEvent> {
     @Override
     public void transition(JobImpl job, JobEvent event) {
-      //TODO JH Event?
+      //TODO Is this JH event required.
+      job.setFinishTime();
+      JobUnsuccessfulCompletionEvent failedEvent =
+          new JobUnsuccessfulCompletionEvent(job.oldJobId,
+              job.finishTime, 0, 0,
+              JobState.ERROR.toString());
+      job.eventHandler.handle(new JobHistoryEvent(job.jobId, failedEvent));
       job.finished(JobState.ERROR);
     }
   }

@@ -4,7 +4,9 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
-    
+
+    MAPREDUCE-2582. Cleanup JobHistory event generation.(Siddharth Seth via sharad)   
+ 
     Add ability to includes src files in assembly target for maven (Luke Lu via mahadev)
  
     Added few job diagnostic messages. (sharad)
