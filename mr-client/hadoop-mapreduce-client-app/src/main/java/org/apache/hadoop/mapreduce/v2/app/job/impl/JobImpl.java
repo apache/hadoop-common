@@ -1247,6 +1247,7 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
       } else if (task.getType() == TaskType.REDUCE) {
         job.failedReduceTaskCount++;
       }
+      job.addDiagnostic("Task failed " + task.getID());
       job.metrics.failedTask(task);
     }
 

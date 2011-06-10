@@ -40,6 +40,7 @@ import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.mapreduce.v2.app.AMConstants;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.client.ClientService;
+import org.apache.hadoop.mapreduce.v2.app.job.event.JobDiagnosticsUpdateEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobEvent;
 import org.apache.hadoop.mapreduce.v2.app.job.event.JobEventType;
 import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssignedEvent;
@@ -174,8 +175,12 @@ public class RMContainerAllocator extends RMContainerRequestor
           mapResourceReqt = (int) Math.ceil((float) mapResourceReqt/minSlotMemSize) * minSlotMemSize;
           LOG.info("mapResourceReqt:"+mapResourceReqt);
           if (mapResourceReqt > getMaxContainerCapability().getMemory()) {
-            LOG.info("Map capability required is more than the supported " +
-            		"max container capability in the cluster. Killing the Job.");
+            String diagMsg = "MAP capability required is more than the supported " +
+            "max container capability in the cluster. Killing the Job. mapResourceReqt: " + 
+            mapResourceReqt + " maxContainerCapability:" + getMaxContainerCapability().getMemory();
+            LOG.info(diagMsg);
+            eventHandler.handle(new JobDiagnosticsUpdateEvent(
+                getJob().getID(), diagMsg));
             eventHandler.handle(new JobEvent(getJob().getID(), JobEventType.JOB_KILL));
           }
         }
@@ -190,8 +195,12 @@ public class RMContainerAllocator extends RMContainerRequestor
           reduceResourceReqt = (int) Math.ceil((float) reduceResourceReqt/minSlotMemSize) * minSlotMemSize;
           LOG.info("reduceResourceReqt:"+reduceResourceReqt);
           if (reduceResourceReqt > getMaxContainerCapability().getMemory()) {
-            LOG.info("Reduce capability required is more than the supported " +
-                    "max container capability in the cluster. Killing the Job.");
+            String diagMsg = "REDUCE capability required is more than the supported " +
+            "max container capability in the cluster. Killing the Job. reduceResourceReqt: " + 
+            reduceResourceReqt + " maxContainerCapability:" + getMaxContainerCapability().getMemory();
+            LOG.info(diagMsg);
+            eventHandler.handle(new JobDiagnosticsUpdateEvent(
+                getJob().getID(), diagMsg));
             eventHandler.handle(new JobEvent(getJob().getID(), JobEventType.JOB_KILL));
           }
         }

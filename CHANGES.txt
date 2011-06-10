@@ -4,6 +4,7 @@ Trunk (unreleased changes)
 
 
     MAPREDUCE-279
+    Added few job diagnostic messages. (sharad)
 
     Disable Uber AM. (mahadev)
 
