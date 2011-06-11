@@ -44,6 +44,8 @@
       <excludes>
         <exclude>**/*.jar</exclude>
         <exclude>**/target/**</exclude>
+        <!-- images that we don't need (and cause problems for our tools) -->
+        <exclude>**/dt-*/images/**</exclude>
         <!-- until the code that does this is fixed -->
         <exclude>**/file:/**</exclude>
         <exclude>**/SecurityAuth.audit*</exclude>
