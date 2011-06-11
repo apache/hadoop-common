@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Display failed/killed attempts of the task on MR AM UI
+    separately. (vinodkv)
+
     Changes a couple of usages of FileContext to FileSystem in YarnRunner
     to handle distributed cache path resolutions on non-default filesystems.
     (ddas)

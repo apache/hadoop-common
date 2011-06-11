@@ -100,6 +100,27 @@ public class AppController extends Controller implements AMParams {
     render(TaskPage.class);
   }
 
+  public void attempts() {
+    requireJob();
+    if (app.job != null) {
+      try {
+        String taskType = $(TASK_TYPE);
+        if (taskType.isEmpty()) {
+          throw new RuntimeException("missing task-type.");
+        }
+        String attemptState = $(ATTEMPT_STATE);
+        if (attemptState.isEmpty()) {
+          throw new RuntimeException("missing attempt-state.");
+        }
+        setTitle(join(attemptState, " ",
+            MRApps.taskType(taskType).toString(), " attempts in ", $(JOB_ID)));
+      } catch (Exception e) {
+        badRequest(e.getMessage());
+      }
+    }
+    render(AttemptsPage.class);
+  }
+
   void badRequest(String s) {
     setStatus(response().SC_BAD_REQUEST);
     setTitle(join("Bad request: ", s));

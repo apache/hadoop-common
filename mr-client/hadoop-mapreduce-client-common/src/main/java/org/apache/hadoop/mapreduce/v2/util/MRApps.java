@@ -25,7 +25,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
@@ -33,6 +35,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.v2.MRConstants;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptState;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskType;
 import org.apache.hadoop.util.Shell.ShellCommandExecutor;
@@ -113,11 +116,42 @@ public class MRApps extends Apps {
     throw new YarnException("Unknown task type: "+ type.toString());
   }
 
+  public static enum TaskAttemptStateUI {
+    NEW(
+        new TaskAttemptState[] { TaskAttemptState.NEW,
+        TaskAttemptState.UNASSIGNED, TaskAttemptState.ASSIGNED }),
+    RUNNING(
+        new TaskAttemptState[] { TaskAttemptState.RUNNING,
+            TaskAttemptState.COMMIT_PENDING,
+            TaskAttemptState.SUCCESS_CONTAINER_CLEANUP,
+            TaskAttemptState.FAIL_CONTAINER_CLEANUP,
+            TaskAttemptState.FAIL_TASK_CLEANUP,
+            TaskAttemptState.KILL_CONTAINER_CLEANUP,
+            TaskAttemptState.KILL_TASK_CLEANUP }),
+    SUCCESSFUL(new TaskAttemptState[] { TaskAttemptState.SUCCEEDED}),
+    FAILED(new TaskAttemptState[] { TaskAttemptState.FAILED}),
+    KILLED(new TaskAttemptState[] { TaskAttemptState.KILLED});
+
+    private final List<TaskAttemptState> correspondingStates;
+
+    private TaskAttemptStateUI(TaskAttemptState[] correspondingStates) {
+      this.correspondingStates = Arrays.asList(correspondingStates);
+    }
+
+    public boolean correspondsTo(TaskAttemptState state) {
+      return this.correspondingStates.contains(state);
+    }
+  }
+
   public static TaskType taskType(String symbol) {
     // JDK 7 supports switch on strings
     if (symbol.equals("m")) return TaskType.MAP;
     if (symbol.equals("r")) return TaskType.REDUCE;
     throw new YarnException("Unknown task symbol: "+ symbol);
+  }
+
+  public static TaskAttemptStateUI taskAttemptState(String attemptStateStr) {
+    return TaskAttemptStateUI.valueOf(attemptStateStr);
   }
 
   public static void setInitialClasspath(

@@ -34,6 +34,8 @@ public class AMWebApp extends WebApp implements AMParams {
     route(pajoin("/job", JOB_ID), AppController.class, "job");
     route(pajoin("/jobcounters", JOB_ID), AppController.class, "jobCounters");
     route(pajoin("/tasks", JOB_ID, TASK_TYPE), AppController.class, "tasks");
+    route(pajoin("/attempts", JOB_ID, TASK_TYPE, ATTEMPT_STATE),
+        AppController.class, "attempts");
     route(pajoin("/task", TASK_ID), AppController.class, "task");
   }
 }

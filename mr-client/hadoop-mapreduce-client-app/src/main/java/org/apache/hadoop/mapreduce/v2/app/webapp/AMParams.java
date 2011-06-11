@@ -27,4 +27,5 @@ interface AMParams {
   static final String JOB_ID = "job.id";
   static final String TASK_ID = "task.id";
   static final String TASK_TYPE = "task.type";
+  static final String ATTEMPT_STATE = "attempt.state";
 }

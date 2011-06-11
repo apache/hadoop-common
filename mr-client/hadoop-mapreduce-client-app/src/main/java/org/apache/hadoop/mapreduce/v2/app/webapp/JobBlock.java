@@ -24,11 +24,14 @@ import java.util.Map;
 
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobReport;
+import org.apache.hadoop.mapreduce.v2.api.records.TaskAttemptId;
 import org.apache.hadoop.mapreduce.v2.api.records.TaskId;
 import org.apache.hadoop.mapreduce.v2.app.AppContext;
 import org.apache.hadoop.mapreduce.v2.app.job.Job;
 import org.apache.hadoop.mapreduce.v2.app.job.Task;
+import org.apache.hadoop.mapreduce.v2.app.job.TaskAttempt;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
+import org.apache.hadoop.mapreduce.v2.util.MRApps.TaskAttemptStateUI;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.util.Times;
 import org.apache.hadoop.yarn.webapp.view.HtmlBlock;
@@ -39,10 +42,22 @@ import static org.apache.hadoop.yarn.webapp.view.JQueryUI.*;
 
 public class JobBlock extends HtmlBlock {
   final AppContext appContext;
-  int runningMaps = 0;
-  int pendingMaps = 0;
-  int runningReds = 0;
-  int pendingReds = 0;
+
+  int runningMapTasks = 0;
+  int pendingMapTasks = 0;
+  int runningReduceTasks = 0;
+  int pendingReduceTasks = 0;
+
+  int newMapAttempts = 0;
+  int runningMapAttempts = 0;
+  int killedMapAttempts = 0;
+  int failedMapAttempts = 0;
+  int successfulMapAttempts = 0;
+  int newReduceAttempts = 0;
+  int runningReduceAttempts = 0;
+  int killedReduceAttempts = 0;
+  int failedReduceAttempts = 0;
+  int successfulReduceAttempts = 0;
 
   @Inject JobBlock(AppContext appctx) {
     appContext = appctx;
@@ -65,13 +80,13 @@ public class JobBlock extends HtmlBlock {
     JobReport jobReport = job.getReport();
     String mapPct = percent(jobReport.getMapProgress());
     String reducePct = percent(jobReport.getReduceProgress());
-    int maps = job.getTotalMaps();
-    int mapsComplete = job.getCompletedMaps();
-    int reduces = job.getTotalReduces();
-    int reducesComplete = job.getCompletedReduces();
+    int mapTasks = job.getTotalMaps();
+    int mapTasksComplete = job.getCompletedMaps();
+    int reduceTasks = job.getTotalReduces();
+    int reducesTasksComplete = job.getCompletedReduces();
     long startTime = jobReport.getStartTime();
     long finishTime = jobReport.getFinishTime();
-    countTasks(job);
+    countTasksAndAttempts(job);
     info("Job Overview").
         _("Job Name:", job.getName()).
         _("State:", job.getState()).
@@ -82,6 +97,8 @@ public class JobBlock extends HtmlBlock {
     html.
       _(InfoBlock.class).
       div(_INFO_WRAP).
+
+      // Tasks table
         table("#job").
           tr().
             th(_TH, "Task Type").
@@ -98,10 +115,10 @@ public class JobBlock extends HtmlBlock {
                 $title(join(mapPct, '%')). // tooltip
                 div(_PROGRESSBAR_VALUE).
                   $style(join("width:", mapPct, '%'))._()._()._().
-            td(String.valueOf(maps)).
-            td(String.valueOf(pendingMaps)).
-            td(String.valueOf(runningMaps)).
-            td(String.valueOf(mapsComplete))._().
+            td(String.valueOf(mapTasks)).
+            td(String.valueOf(pendingMapTasks)).
+            td(String.valueOf(runningMapTasks)).
+            td(String.valueOf(mapTasksComplete))._().
           tr(_EVEN).
             th().
               a(url("tasks", jid, "r"), "Reduce")._().
@@ -110,24 +127,127 @@ public class JobBlock extends HtmlBlock {
                 $title(join(reducePct, '%')). // tooltip
                 div(_PROGRESSBAR_VALUE).
                   $style(join("width:", reducePct, '%'))._()._()._().
-            td(String.valueOf(reduces)).
-            td(String.valueOf(pendingReds)).
-            td(String.valueOf(runningReds)).
-            td(String.valueOf(reducesComplete))._()._()._();
+            td(String.valueOf(reduceTasks)).
+            td(String.valueOf(pendingReduceTasks)).
+            td(String.valueOf(runningReduceTasks)).
+            td(String.valueOf(reducesTasksComplete))._()
+          ._().
+
+        // Attempts table
+        table("#job").
+        tr().
+          th(_TH, "Attempt Type").
+          th(_TH, "New").
+          th(_TH, "Running").
+          th(_TH, "Failed").
+          th(_TH, "Killed").
+          th(_TH, "Successful")._().
+        tr(_ODD).
+          th("Maps").
+          td().a(url("attempts", jid, "m",
+              TaskAttemptStateUI.NEW.toString()), 
+              String.valueOf(newMapAttempts))._().
+          td().a(url("attempts", jid, "m",
+              TaskAttemptStateUI.RUNNING.toString()), 
+              String.valueOf(runningMapAttempts))._().
+          td().a(url("attempts", jid, "m",
+              TaskAttemptStateUI.FAILED.toString()), 
+              String.valueOf(failedMapAttempts))._().
+          td().a(url("attempts", jid, "m",
+              TaskAttemptStateUI.KILLED.toString()), 
+              String.valueOf(killedMapAttempts))._().
+          td().a(url("attempts", jid, "m",
+              TaskAttemptStateUI.SUCCESSFUL.toString()), 
+              String.valueOf(successfulMapAttempts))._().
+        _().
+        tr(_EVEN).
+          th("Reduces").
+          td().a(url("attempts", jid, "r",
+              TaskAttemptStateUI.NEW.toString()), 
+              String.valueOf(newReduceAttempts))._().
+          td().a(url("attempts", jid, "r",
+              TaskAttemptStateUI.RUNNING.toString()), 
+              String.valueOf(runningReduceAttempts))._().
+          td().a(url("attempts", jid, "r",
+              TaskAttemptStateUI.FAILED.toString()), 
+              String.valueOf(failedReduceAttempts))._().
+          td().a(url("attempts", jid, "r",
+              TaskAttemptStateUI.KILLED.toString()), 
+              String.valueOf(killedReduceAttempts))._().
+          td().a(url("attempts", jid, "r",
+              TaskAttemptStateUI.SUCCESSFUL.toString()), 
+              String.valueOf(successfulReduceAttempts))._().
+         _().
+       _().
+     _();
   }
 
-  private void countTasks(Job job) {
+  private void countTasksAndAttempts(Job job) {
     Map<TaskId, Task> tasks = job.getTasks();
     for (Task task : tasks.values()) {
       switch (task.getType()) {
-        case MAP: switch (task.getState()) {
-          case RUNNING:   ++runningMaps;  break;
-          case SCHEDULED: ++pendingMaps;  break;
-        } break;
-        case REDUCE: switch(task.getState()) {
-          case RUNNING:   ++runningReds;  break;
-          case SCHEDULED: ++pendingReds;  break;
-        } break;
+      case MAP:
+        // Task counts
+        switch (task.getState()) {
+        case RUNNING:
+          ++runningMapTasks;
+          break;
+        case SCHEDULED:
+          ++pendingMapTasks;
+          break;
+        }
+        break;
+      case REDUCE:
+        // Task counts
+        switch (task.getState()) {
+        case RUNNING:
+          ++runningReduceTasks;
+          break;
+        case SCHEDULED:
+          ++pendingReduceTasks;
+          break;
+        }
+        break;
+      }
+
+      // Attempts counts
+      Map<TaskAttemptId, TaskAttempt> attempts = task.getAttempts();
+      for (TaskAttempt attempt : attempts.values()) {
+
+        int newAttempts = 0, running = 0, successful = 0, failed = 0, killed =0;
+
+        if (TaskAttemptStateUI.NEW.correspondsTo(attempt.getState())) {
+          ++newAttempts;
+        } else if (TaskAttemptStateUI.RUNNING.correspondsTo(attempt
+            .getState())) {
+          ++running;
+        } else if (TaskAttemptStateUI.SUCCESSFUL.correspondsTo(attempt
+            .getState())) {
+          ++successful;
+        } else if (TaskAttemptStateUI.FAILED
+            .correspondsTo(attempt.getState())) {
+          ++failed;
+        } else if (TaskAttemptStateUI.KILLED
+            .correspondsTo(attempt.getState())) {
+          ++killed;
+        }
+
+        switch (task.getType()) {
+        case MAP:
+          newMapAttempts += newAttempts;
+          runningMapAttempts += running;
+          successfulMapAttempts += successful;
+          failedMapAttempts += failed;
+          killedMapAttempts += killed;
+          break;
+        case REDUCE:
+          newReduceAttempts += newAttempts;
+          runningReduceAttempts += running;
+          successfulReduceAttempts += successful;
+          failedReduceAttempts += failed;
+          killedReduceAttempts += killed;
+          break;
+        }
       }
     }
   }

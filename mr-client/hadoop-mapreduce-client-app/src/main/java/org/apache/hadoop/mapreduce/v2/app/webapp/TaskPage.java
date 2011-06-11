@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.mapreduce.v2.app.webapp;
 
+import java.util.Collection;
+
 import com.google.common.base.Joiner;
 import com.google.inject.Inject;
 
@@ -46,7 +48,7 @@ public class TaskPage extends AppView {
 
     @Override
     protected void render(Block html) {
-      if (app.task == null) {
+      if (!isValidRequest()) {
         html.
           h2($(TITLE));
         return;
@@ -64,7 +66,7 @@ public class TaskPage extends AppView {
             th(".tsh", "Elapsed").
             th(".note", "Note")._()._().
         tbody();
-      for (TaskAttempt ta : app.task.getAttempts().values()) {
+      for (TaskAttempt ta : getTaskAttempts()) {
         String taid = MRApps.toString(ta.getID());
         String progress = percent(ta.getProgress());
         ContainerId containerId = ta.getAssignedContainerID();
@@ -93,6 +95,14 @@ public class TaskPage extends AppView {
           td(".note", Joiner.on('\n').join(ta.getDiagnostics()))._();
       }
       tbody._()._();
+    }
+
+    protected boolean isValidRequest() {
+      return app.task != null;
+    }
+
+    protected Collection<TaskAttempt> getTaskAttempts() {
+      return app.task.getAttempts().values();
     }
   }
 
