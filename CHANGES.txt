@@ -5,6 +5,10 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Changes a couple of usages of FileContext to FileSystem in YarnRunner
+    to handle distributed cache path resolutions on non-default filesystems.
+    (ddas)
+
     Fix to exclude images dir into the tar distribution (luke lu via gkesavan)
 
     Fix more rounding off problems in reduce ramp up. Also fix a bug preventing

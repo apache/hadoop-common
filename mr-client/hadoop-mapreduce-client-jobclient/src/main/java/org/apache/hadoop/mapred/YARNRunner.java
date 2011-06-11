@@ -33,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.io.DataOutputBuffer;
@@ -380,7 +381,7 @@ public class YARNRunner implements ClientProtocol {
       ApplicationSubmissionContext container) throws IOException {
     
     // Cache archives
-    parseDistributedCacheArtifacts(container, LocalResourceType.ARCHIVE, 
+    parseDistributedCacheArtifacts(conf, container, LocalResourceType.ARCHIVE, 
         DistributedCache.getCacheArchives(conf), 
         DistributedCache.getArchiveTimestamps(conf), 
         getFileSizes(conf, MRJobConfig.CACHE_ARCHIVES_SIZES), 
@@ -388,7 +389,7 @@ public class YARNRunner implements ClientProtocol {
         DistributedCache.getArchiveClassPaths(conf));
     
     // Cache files
-    parseDistributedCacheArtifacts(container, LocalResourceType.FILE, 
+    parseDistributedCacheArtifacts(conf, container, LocalResourceType.FILE, 
         DistributedCache.getCacheFiles(conf),
         DistributedCache.getFileTimestamps(conf),
         getFileSizes(conf, MRJobConfig.CACHE_FILES_SIZES),
@@ -398,7 +399,7 @@ public class YARNRunner implements ClientProtocol {
 
   // TODO - Move this to MR!
   // Use TaskDistributedCacheManager.CacheFiles.makeCacheFiles(URI[], long[], boolean[], Path[], FileType)
-  private void parseDistributedCacheArtifacts(
+  private void parseDistributedCacheArtifacts(Configuration conf,
       ApplicationSubmissionContext container, LocalResourceType type,
       URI[] uris, long[] timestamps, long[] sizes, boolean visibilities[], 
       Path[] pathsToPutOnClasspath) throws IOException {
@@ -418,17 +419,17 @@ public class YARNRunner implements ClientProtocol {
       Map<String, Path> classPaths = new HashMap<String, Path>();
       if (pathsToPutOnClasspath != null) {
         for (Path p : pathsToPutOnClasspath) {
-          p = p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
-                .getUri(), this.defaultFileContext.getWorkingDirectory());
+          FileSystem fs = p.getFileSystem(conf);
+          p = p.makeQualified(fs.getUri(), fs.getWorkingDirectory());
           classPaths.put(p.toUri().getPath().toString(), p);
         }
       }
       for (int i = 0; i < uris.length; ++i) {
         URI u = uris[i];
         Path p = new Path(u);
-        p = defaultFileContext.getDefaultFileSystem().resolvePath(
-            p.makeQualified(this.defaultFileContext.getDefaultFileSystem()
-                .getUri(), this.defaultFileContext.getWorkingDirectory()));
+        FileSystem fs = p.getFileSystem(conf);
+        p = fs.resolvePath(
+            p.makeQualified(fs.getUri(), fs.getWorkingDirectory()));
         // Add URI fragment or just the filename
         Path name = new Path((null == u.getFragment())
           ? p.getName()
