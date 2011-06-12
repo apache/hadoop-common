@@ -32,9 +32,9 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.container.Cont
  */
 public interface Context {
 
-  public ConcurrentMap<ApplicationId, Application> getApplications();
+  ConcurrentMap<ApplicationId, Application> getApplications();
 
-  public ConcurrentMap<ContainerId, Container> getContainers();
+  ConcurrentMap<ContainerId, Container> getContainers();
 
-  public NodeHealthStatus getNodeHealthStatus();
+  NodeHealthStatus getNodeHealthStatus();
 }

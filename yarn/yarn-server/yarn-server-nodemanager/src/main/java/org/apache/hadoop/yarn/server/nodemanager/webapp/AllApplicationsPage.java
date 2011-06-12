@@ -90,7 +90,7 @@ public class AllApplicationsPage extends NMView {
         String appIdStr = ConverterUtils.toString(appId);
         tableBody
           .tr()
-            .td().a(url($(NM_HTTP_URL), "yarn", "application", appIdStr), appIdStr)._()
+            .td().a(url("application", appIdStr), appIdStr)._()
             .td()._(app.getApplicationState())
             ._()
           ._();

@@ -19,9 +19,8 @@
 package org.apache.hadoop.yarn.server.nodemanager.webapp;
 
 public interface NMWebParams {
-  public static final String NM_NODENAME = "nm.id";
-  public static final String NM_HTTP_URL = "nm.http-url";
-  public static final String APPLICATION_ID = "nm.appId";
-  public static final String CONTAINER_ID = "nm.containerId";
-  public static final String CONTAINER_LOG_TYPE= "nm.containerLogType";
+  String NM_NODENAME = "nm.id";
+  String APPLICATION_ID = "nm.appId";
+  String CONTAINER_ID = "nm.containerId";
+  String CONTAINER_LOG_TYPE= "nm.containerLogType";
 }

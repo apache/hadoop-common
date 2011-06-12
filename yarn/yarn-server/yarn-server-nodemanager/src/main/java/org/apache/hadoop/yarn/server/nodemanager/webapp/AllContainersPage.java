@@ -87,12 +87,11 @@ public class AllContainersPage extends NMView {
         String containerIdStr = ConverterUtils.toString(containerId);
         tableBody
           .tr()
-            .td().a(url($(NM_HTTP_URL), "yarn", "container", containerIdStr), 
-                containerIdStr)._()
+            .td().a(url("container", containerIdStr), containerIdStr)
+            ._()
             .td()._(container.getContainerState())._()
             .td()
-                .a(url($(NM_HTTP_URL), "yarn", "containerlogs", containerIdStr),
-                   "logs")._()
+                .a(url("containerlogs", containerIdStr), "logs")._()
           ._();
       }
       tableBody._()._()._();

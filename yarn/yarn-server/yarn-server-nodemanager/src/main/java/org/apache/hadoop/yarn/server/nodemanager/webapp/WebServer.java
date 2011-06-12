@@ -23,6 +23,7 @@ import static org.apache.hadoop.yarn.util.StringHelper.pajoin;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.server.nodemanager.Context;
 import org.apache.hadoop.yarn.server.nodemanager.NMConfig;
@@ -38,7 +39,6 @@ public class WebServer extends AbstractService {
   private final Context nmContext;
   private final ResourceView resourceView;
   private WebApp webApp;
-  private String bindAddress;
 
   public WebServer(Context nmContext, ResourceView resourceView) {
     super(WebServer.class.getName());
@@ -53,13 +53,13 @@ public class WebServer extends AbstractService {
 
   @Override
   public synchronized void start() {
-    this.bindAddress = getConfig().get(NMConfig.NM_HTTP_BIND_ADDRESS,
+    String bindAddress = getConfig().get(NMConfig.NM_HTTP_BIND_ADDRESS,
         NMConfig.DEFAULT_NM_HTTP_BIND_ADDRESS);
-    LOG.info("Instantiating NMWebApp at " + this.bindAddress);
+    LOG.info("Instantiating NMWebApp at " + bindAddress);
     try {
       this.webApp =
           WebApps.$for("yarn", Context.class, this.nmContext)
-              .at(this.bindAddress).with(getConfig())
+              .at(bindAddress).with(getConfig())
               .start(new NMWebApp(this.resourceView));
     } catch (Exception e) {
       String msg = "NMWebapps failed to start.";

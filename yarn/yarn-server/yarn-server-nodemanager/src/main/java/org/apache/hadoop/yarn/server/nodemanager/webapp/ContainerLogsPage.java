@@ -123,8 +123,7 @@ public class ContainerLogsPage extends NMView {
             long toRead = end - start;
             if (toRead < logFile.length()) {
                 div._("Showing " + toRead + " bytes. Click ")
-                    .a(url($(NM_HTTP_URL), "yarn", "containerlogs",
-                        $(CONTAINER_ID),
+                    .a(url("containerlogs", $(CONTAINER_ID),
                         logFile.getName()), "here")
                     ._(" for full log").br()._();
             }
@@ -158,8 +157,7 @@ public class ContainerLogsPage extends NMView {
               div
                   .p()
                   .a(
-                      url($(NM_HTTP_URL), "yarn", "containerlogs",
-                          $(CONTAINER_ID),
+                      url("containerlogs", $(CONTAINER_ID),
                           logFile.getName(), "?start=-4076"),
                       logFile.getName() + " : Total file length is "
                           + logFile.length() + " bytes.")

@@ -91,8 +91,7 @@ public class ApplicationPage extends NMView implements NMWebParams {
         String containerIdStr = ConverterUtils.toString(containerId);
         containersListBody
                .tr().td()
-                 .a(url($(NM_HTTP_URL), "yarn", "container", containerIdStr),
-                     containerIdStr)
+                 .a(url("container", containerIdStr), containerIdStr)
                  ._()._();
       }
       containersListBody._();

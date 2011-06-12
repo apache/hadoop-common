@@ -31,9 +31,6 @@ public class NMController extends Controller implements NMWebParams {
   @Inject
   public NMController(Configuration nmConf, RequestContext requestContext) {
     super(requestContext);
-    set(NM_HTTP_URL,
-        join("http://", nmConf.get(NMConfig.NM_HTTP_BIND_ADDRESS,
-            NMConfig.DEFAULT_NM_HTTP_BIND_ADDRESS)));
   }
 
   @Override
@@ -43,7 +40,6 @@ public class NMController extends Controller implements NMWebParams {
   }
 
   public void info() {
-    info("NodeManager:\n" + $(NM_HTTP_URL));
     render(NodePage.class);    
   }
 

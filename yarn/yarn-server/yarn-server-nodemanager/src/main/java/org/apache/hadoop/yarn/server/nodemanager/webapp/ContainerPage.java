@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.nodemanager.webapp;
 
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.ACCORDION;
 import static org.apache.hadoop.yarn.webapp.view.JQueryUI.initID;
+import static org.apache.hadoop.yarn.util.StringHelper.ujoin;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.api.records.ContainerId;
@@ -40,7 +41,7 @@ public class ContainerPage extends NMView implements NMWebParams {
   protected void preHead(Page.HTML<_> html) {
     commonPreHead(html);
     setTitle("Container " + $(CONTAINER_ID));
-    set(initID(ACCORDION, "nav"), "{autoHeight:false, active:2}");
+    set(initID(ACCORDION, "nav"), "{autoHeight:false, active:0}");
   }
 
   @Override
@@ -69,9 +70,7 @@ public class ContainerPage extends NMView implements NMWebParams {
     info("Container information")
       ._("ContainerID", $(CONTAINER_ID))
       ._("ContainerState", container.getContainerState())
-      ._("logs",
-          url($(NM_HTTP_URL), "yarn", "containerlogs", $(CONTAINER_ID)),
-          "Link to logs");
+      ._("logs", ujoin("containerlogs", $(CONTAINER_ID)), "Link to logs");
     html._(InfoBlock.class);
     }
   }
