@@ -98,6 +98,7 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -875,6 +876,8 @@ public class JobImpl implements org.apache.hadoop.mapreduce.v2.app.job.Job,
 
       } catch (Exception e) {
         LOG.warn("Job init failed", e);
+        job.addDiagnostic("Job init failed : "
+            + StringUtils.stringifyException(e));
         job.abortJob(org.apache.hadoop.mapreduce.JobStatus.State.FAILED);
         job.metrics.endPreparingJob(job);
         return job.finished(JobState.FAILED);

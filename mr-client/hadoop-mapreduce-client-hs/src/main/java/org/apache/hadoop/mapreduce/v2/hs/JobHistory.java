@@ -184,11 +184,7 @@ public class JobHistory extends AbstractService implements HistoryContext   {
         + (JobHistoryUtils.SERIAL_NUMBER_DIRECTORY_DIGITS + serialNumberLowDigits) + "d");
 
     String doneDirPrefix = null;
-    try {
-      doneDirPrefix = JobHistoryUtils.getConfiguredHistoryServerDoneDirPrefix(conf);
-    } catch (IOException e) {
-      throw new YarnException(e);
-    }
+    doneDirPrefix = JobHistoryUtils.getConfiguredHistoryServerDoneDirPrefix(conf);
     try {
       doneDirPrefixPath = FileContext.getFileContext(conf).makeQualified(
           new Path(doneDirPrefix));
@@ -199,12 +195,8 @@ public class JobHistory extends AbstractService implements HistoryContext   {
     }
 
     String intermediateDoneDirPrefix = null;
-    try {
-      intermediateDoneDirPrefix = JobHistoryUtils
-      .getConfiguredHistoryIntermediateDoneDirPrefix(conf);
-    } catch (IOException e) {
-      throw new YarnException(e);
-    }
+    intermediateDoneDirPrefix = JobHistoryUtils
+        .getConfiguredHistoryIntermediateDoneDirPrefix(conf);
     try {
       intermediateDoneDirPath = FileContext.getFileContext(conf)
           .makeQualified(new Path(intermediateDoneDirPrefix));

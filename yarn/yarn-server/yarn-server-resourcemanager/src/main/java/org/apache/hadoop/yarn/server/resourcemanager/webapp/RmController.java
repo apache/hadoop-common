@@ -85,15 +85,14 @@ public class RmController extends Controller {
       _("State:", app.getState()).
       _("Started:", "FIXAPI!").
       _("Elapsed:", "FIXAPI!").
-            _("Master Tracking URL:",
-                masterTrackingURL == null ? "#" : join("http://", ui), ui).
+      _("Master Tracking URL:", join("http://", ui), join("http://", ui)).
       _("Diagnostics:", app.getDiagnostics());
     if (app.getMasterContainer() != null) {
-      info._(
-          "AM container logs:",
-          join("http://", app.getMasterContainer().getNodeHttpAddress(),
-              "yarn", "containerlogs",
-              ConverterUtils.toString(app.getMasterContainer().getId())));
+      String masterTrackingURLLink = join("http://", app.getMasterContainer()
+          .getNodeHttpAddress(), "/yarn", "/containerlogs/", ConverterUtils
+          .toString(app.getMasterContainer().getId()));
+      info._("AM container logs:", masterTrackingURLLink,
+          masterTrackingURLLink);
     } else {
       info._("AM container logs:", "AM not yet registered with RM");
     }

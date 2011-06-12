@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Miscellaneous UI fixes + source code formatting for
+    MR JobHistoryEventHandler. (vinodkv)
+
     Display failed/killed attempts of the task on MR AM UI
     separately. (vinodkv)
 

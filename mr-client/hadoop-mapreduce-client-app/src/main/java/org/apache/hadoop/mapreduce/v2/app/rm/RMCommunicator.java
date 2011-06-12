@@ -133,8 +133,8 @@ public class RMCommunicator extends AbstractService  {
     applicationMaster.setHost(host);
     applicationMaster.setRpcPort(clientService.getBindAddress().getPort());
     applicationMaster.setState(ApplicationState.RUNNING);
-    applicationMaster.setTrackingUrl(
-        host + ":" + clientService.getHttpPort());
+    applicationMaster
+        .setTrackingUrl(host + ":" + clientService.getHttpPort());
     applicationMaster.setStatus(
         recordFactory.newRecordInstance(ApplicationStatus.class));
     applicationMaster.getStatus().setApplicationId(applicationId);

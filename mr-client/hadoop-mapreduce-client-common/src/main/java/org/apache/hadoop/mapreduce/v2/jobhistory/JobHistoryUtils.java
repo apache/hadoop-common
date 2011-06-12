@@ -108,11 +108,6 @@ public class JobHistoryUtils {
   public static final String TIMESTAMP_DIR_REGEX = "\\d{4}" + "\\" + File.separator +  "\\d{2}" + "\\" + File.separator + "\\d{2}";
   public static final Pattern TIMESTAMP_DIR_PATTERN = Pattern.compile(TIMESTAMP_DIR_REGEX);
   private static final String TIMESTAMP_DIR_FORMAT = "%04d" + File.separator + "%02d" + File.separator + "%02d";
-  
-  /**
-   * Version substring to use while storing history files.
-   */
-  public static final String LOG_VERSION_STRING = "version-" + VERSION;
 
   private static final PathFilter CONF_FILTER = new PathFilter() {
     @Override
@@ -144,23 +139,15 @@ public class JobHistoryUtils {
   public static PathFilter getHistoryFileFilter() {
     return JOB_HISTORY_FILE_FILTER;
   }
-  
-  //The version string may need to be removed.
-  /**
-   * Returns the current done directory.
-   * @param doneDirPrefix the prefix for the done directory.
-   * @return A string representation of the done directory.
-   */
-  private static String getCurrentDoneDir(String doneDirPrefix) {
-    return doneDirPrefix + File.separator + LOG_VERSION_STRING + File.separator;
-  }
 
   /**
    * Gets the configured directory prefix for In Progress history files.
    * @param conf
    * @return A string representation of the prefix.
    */
-  public static String getConfiguredHistoryLogDirPrefix(Configuration conf) throws IOException {
+  public static String
+      getConfiguredHistoryStagingDirPrefix(Configuration conf)
+          throws IOException {
     String user = UserGroupInformation.getCurrentUser().getShortUserName();
     Path path = MRApps.getStagingAreaDir(conf, user);
     String logDir = path.toString();
@@ -172,13 +159,13 @@ public class JobHistoryUtils {
    * @param conf
    * @return A string representation of the prefix.
    */
-  public static String getConfiguredHistoryIntermediateDoneDirPrefix(Configuration conf) throws IOException {
-    String  doneDirPrefix =
-      conf.get(JHConfig.HISTORY_INTERMEDIATE_DONE_DIR_KEY);
+  public static String getConfiguredHistoryIntermediateDoneDirPrefix(
+      Configuration conf) {
+    String doneDirPrefix = conf
+        .get(JHConfig.HISTORY_INTERMEDIATE_DONE_DIR_KEY);
     if (doneDirPrefix == null) {
-      doneDirPrefix =
-          conf.get(MRConstants.APPS_STAGING_DIR_KEY)
-              + "/history/done_intermediate";
+      doneDirPrefix = conf.get(MRConstants.APPS_STAGING_DIR_KEY)
+          + "/history/done_intermediate";
     }
     return doneDirPrefix;
   }
@@ -188,12 +175,12 @@ public class JobHistoryUtils {
    * @param conf
    * @return
    */
-  public static String getConfiguredHistoryServerDoneDirPrefix(Configuration conf) throws IOException {
-    String  doneDirPrefix =
-      conf.get(JHConfig.HISTORY_DONE_DIR_KEY);
+  public static String getConfiguredHistoryServerDoneDirPrefix(
+      Configuration conf) {
+    String doneDirPrefix = conf.get(JHConfig.HISTORY_DONE_DIR_KEY);
     if (doneDirPrefix == null) {
-      doneDirPrefix =
-          conf.get(MRConstants.APPS_STAGING_DIR_KEY) + "/history/done";
+      doneDirPrefix = conf.get(MRConstants.APPS_STAGING_DIR_KEY)
+          + "/history/done";
     }
     return doneDirPrefix;
   }
