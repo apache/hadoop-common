@@ -5,6 +5,9 @@ Trunk (unreleased changes)
 
     MAPREDUCE-279
 
+    Fixing the bug which was causing FAILED jobs to be displayed as COMPLETED
+    on the RM UI. (vinodkv)
+
     Fixing broken link to logs for container on NM web UI. (vinodkv)
 
     Miscellaneous UI fixes + source code formatting for

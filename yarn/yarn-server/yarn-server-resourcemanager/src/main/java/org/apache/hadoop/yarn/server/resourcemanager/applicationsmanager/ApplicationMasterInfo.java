@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 import org.apache.commons.logging.Log;
@@ -38,12 +39,14 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationFinishEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.SNEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
+import org.apache.hadoop.yarn.state.MultipleArcTransition;
 import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
@@ -93,125 +96,108 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   <ApplicationMasterInfo, ApplicationState, ApplicationEventType, ASMEvent<ApplicationEventType>>
   (ApplicationState.PENDING)
 
+  // Transitions from PENDING State
   .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING,
-  ApplicationEventType.ALLOCATE, allocateTransition)
-  
+      ApplicationEventType.ALLOCATE, allocateTransition)
   .addTransition(ApplicationState.PENDING, ApplicationState.FAILED,
-  ApplicationEventType.FAILED)
-  
-  .addTransition(ApplicationState.PENDING, ApplicationState.KILLED, 
-  ApplicationEventType.KILL)
-
-  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
+      ApplicationEventType.FAILED)
+  .addTransition(ApplicationState.PENDING, ApplicationState.KILLED,
+      ApplicationEventType.KILL)
+  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING,
       ApplicationEventType.RECOVER, allocateTransition)
-    
-  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING, 
-  ApplicationEventType.RELEASED, new ScheduleTransition())
+  .addTransition(ApplicationState.PENDING, ApplicationState.ALLOCATING,
+      ApplicationEventType.RELEASED, new ScheduleTransition())
 
-  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.ALLOCATING, 
-  ApplicationEventType.ALLOCATE, allocateTransition)
-  
-  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.ALLOCATING,
-  ApplicationEventType.RECOVER, allocateTransition)
-  
-  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.FAILED,
-  ApplicationEventType.FAILED_MAX_RETRIES, failedTransition)
-  
-  .addTransition(ApplicationState.EXPIRED_PENDING, ApplicationState.KILLED,
-   ApplicationEventType.KILL, killTransition)
- 
+   // Transitions from ALLOCATING State
   .addTransition(ApplicationState.ALLOCATING, ApplicationState.ALLOCATED,
-  ApplicationEventType.ALLOCATED, new AllocatedTransition())
+      ApplicationEventType.ALLOCATED, new AllocatedTransition())
+  .addTransition(ApplicationState.ALLOCATING,
+      ApplicationState.ALLOCATING, ApplicationEventType.RECOVER,
+      allocateTransition)
+  .addTransition(ApplicationState.ALLOCATING, ApplicationState.KILLED,
+      ApplicationEventType.KILL, new AllocatingKillTransition())
 
-  .addTransition(ApplicationState.ALLOCATING, ApplicationState.ALLOCATING,
-  ApplicationEventType.RECOVER, allocateTransition)
-      
-  .addTransition(ApplicationState.ALLOCATING, ApplicationState.KILLED, 
-  ApplicationEventType.KILL, new AllocatingKillTransition())
-
-  .addTransition(ApplicationState.ALLOCATED, ApplicationState.KILLED, 
-  ApplicationEventType.KILL, killTransition)
-
+  // Transitions from ALLOCATED State
+  .addTransition(ApplicationState.ALLOCATED, ApplicationState.KILLED,
+      ApplicationEventType.KILL, killTransition)
   .addTransition(ApplicationState.ALLOCATED, ApplicationState.LAUNCHING,
-  ApplicationEventType.LAUNCH, launchTransition)
-
+      ApplicationEventType.LAUNCH, launchTransition)
   .addTransition(ApplicationState.ALLOCATED, ApplicationState.LAUNCHING,
-  ApplicationEventType.RECOVER, new RecoverLaunchTransition())
-      
+      ApplicationEventType.RECOVER, new RecoverLaunchTransition())
+
+  // Transitions from LAUNCHING State
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.LAUNCHED,
-  ApplicationEventType.LAUNCHED, launchedTransition)
-  
+      ApplicationEventType.LAUNCHED, launchedTransition)
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.PENDING,
-  ApplicationEventType.LAUNCH_FAILED, failedLaunchTransition)
-  
-  /** we cant say if the application was launched or not on a recovery, so for now 
-   * we assume it was launched and wait for its restart.
-   */
+      ApplicationEventType.LAUNCH_FAILED, failedLaunchTransition)
+  // We cant say if the application was launched or not on a recovery, so
+  // for now we assume it was launched and wait for its restart.
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.LAUNCHED,
-  ApplicationEventType.RECOVER, new RecoverLaunchedTransition())
-  
+      ApplicationEventType.RECOVER, new RecoverLaunchedTransition())
   .addTransition(ApplicationState.LAUNCHING, ApplicationState.KILLED,
-   ApplicationEventType.KILL, killTransition)
-   
-  .addTransition(ApplicationState.LAUNCHED, ApplicationState.CLEANUP, 
-  ApplicationEventType.KILL, killTransition)
-  
+      ApplicationEventType.KILL, killTransition)
+
+  // Transitions from LAUNCHED State
+  .addTransition(ApplicationState.LAUNCHED, ApplicationState.CLEANUP,
+      ApplicationEventType.KILL, killTransition)
   .addTransition(ApplicationState.LAUNCHED, ApplicationState.FAILED,
-  ApplicationEventType.EXPIRE, expireTransition)
-  
-  .addTransition(ApplicationState.LAUNCHED, ApplicationState.RUNNING, 
-  ApplicationEventType.REGISTERED, new RegisterTransition())
-    
-  .addTransition(ApplicationState.LAUNCHED, ApplicationState.LAUNCHED,
-   ApplicationEventType.RECOVER)
-
-  /* for now we assume that acting on expiry is synchronous and we do not 
-   * have to wait for cleanup acks from scheduler negotiator and launcher.
-   */
-  .addTransition(ApplicationState.LAUNCHED, ApplicationState.EXPIRED_PENDING,
       ApplicationEventType.EXPIRE, expireTransition)
-      
-  .addTransition(ApplicationState.RUNNING,  ApplicationState.EXPIRED_PENDING, 
-  ApplicationEventType.EXPIRE, expireTransition)
-  
-  .addTransition(ApplicationState.RUNNING, ApplicationState.COMPLETED,
-  ApplicationEventType.FINISH, new DoneTransition())
+   .addTransition(ApplicationState.LAUNCHED, ApplicationState.RUNNING,
+      ApplicationEventType.REGISTERED, new RegisterTransition())
+  .addTransition(ApplicationState.LAUNCHED, ApplicationState.LAUNCHED,
+      ApplicationEventType.RECOVER)
+  // for now we assume that acting on expiry is synchronous and we do not
+  // have to wait for cleanup acks from scheduler negotiator and launcher.
+  .addTransition(ApplicationState.LAUNCHED,
+      ApplicationState.EXPIRED_PENDING, ApplicationEventType.EXPIRE,
+      expireTransition)
 
+  // Transitions from RUNNING State
+  .addTransition(ApplicationState.RUNNING,
+      ApplicationState.EXPIRED_PENDING, ApplicationEventType.EXPIRE,
+      expireTransition)
+  .addTransition(ApplicationState.RUNNING,
+      EnumSet.of(ApplicationState.COMPLETED, ApplicationState.FAILED),
+      ApplicationEventType.FINISH, new DoneTransition())
+      // TODO: For now, no KILLED above. As all kills come to RM directly.
   .addTransition(ApplicationState.RUNNING, ApplicationState.RUNNING,
-  ApplicationEventType.STATUSUPDATE, statusUpdatetransition)
-
+      ApplicationEventType.STATUSUPDATE, statusUpdatetransition)
   .addTransition(ApplicationState.RUNNING, ApplicationState.KILLED,
-   ApplicationEventType.KILL, killTransition)
-
+      ApplicationEventType.KILL, killTransition)
   .addTransition(ApplicationState.RUNNING, ApplicationState.RUNNING, 
-  ApplicationEventType.RECOVER, new RecoverRunningTransition())
-  
-  .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED, 
-  ApplicationEventType.EXPIRE)
+      ApplicationEventType.RECOVER, new RecoverRunningTransition())
 
+  // Transitions from EXPIRED_PENDING State
+  .addTransition(ApplicationState.EXPIRED_PENDING,
+      ApplicationState.ALLOCATING, ApplicationEventType.ALLOCATE,
+      allocateTransition)
+  .addTransition(ApplicationState.EXPIRED_PENDING,
+      ApplicationState.ALLOCATING, ApplicationEventType.RECOVER,
+      allocateTransition)
+   .addTransition(ApplicationState.EXPIRED_PENDING,
+      ApplicationState.FAILED, ApplicationEventType.FAILED_MAX_RETRIES,
+      failedTransition)
+   .addTransition(ApplicationState.EXPIRED_PENDING,
+      ApplicationState.KILLED, ApplicationEventType.KILL, killTransition)
+
+  // Transitions from COMPLETED State
   .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
-  ApplicationEventType.FINISH)
-  
-  .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
-   ApplicationEventType.KILL)
-   
-  .addTransition(ApplicationState.COMPLETED, ApplicationState.COMPLETED,
-  ApplicationEventType.RECOVER)
-  
+      EnumSet.of(ApplicationEventType.EXPIRE,
+          ApplicationEventType.FINISH, ApplicationEventType.KILL,
+          ApplicationEventType.RECOVER))
+
+  // Transitions from FAILED State
   .addTransition(ApplicationState.FAILED, ApplicationState.FAILED,
-      ApplicationEventType.RECOVER)
-  .addTransition(ApplicationState.FAILED, ApplicationState.FAILED, 
-     ApplicationEventType.FINISH)
-  
-  .addTransition(ApplicationState.FAILED, ApplicationState.FAILED, ApplicationEventType.KILL)
-  
+      EnumSet.of(ApplicationEventType.RECOVER, 
+           ApplicationEventType.FINISH,
+           ApplicationEventType.KILL))
+
+  // Transitions from KILLED State
   .addTransition(ApplicationState.KILLED, ApplicationState.KILLED, 
-      ApplicationEventType.RECOVER)
-  
-  .addTransition(ApplicationState.KILLED, ApplicationState.KILLED, ApplicationEventType.KILL)
-  
-  .addTransition(ApplicationState.KILLED, ApplicationState.KILLED,
-      ApplicationEventType.FINISH)
+      EnumSet.of(ApplicationEventType.RECOVER,
+           ApplicationEventType.KILL,
+           ApplicationEventType.FINISH))
+
   .installTopology();
 
 
@@ -307,10 +293,10 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
   
   /* the applicaiton master completed successfully */
   private static class DoneTransition implements 
-    SingleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>> {
+    MultipleArcTransition<ApplicationMasterInfo, ASMEvent<ApplicationEventType>, ApplicationState> {
 
     @Override
-    public void transition(ApplicationMasterInfo masterInfo,
+    public ApplicationState transition(ApplicationMasterInfo masterInfo,
     ASMEvent<ApplicationEventType> event) {
       masterInfo.handler.handle(new ASMEvent<SNEventType>(
         SNEventType.CLEANUP, masterInfo));
@@ -318,6 +304,9 @@ public class ApplicationMasterInfo implements AppContext, EventHandler<ASMEvent<
         AMLauncherEventType.CLEANUP, masterInfo));
       masterInfo.handler.handle(new ASMEvent<ApplicationTrackerEventType>(
       ApplicationTrackerEventType.REMOVE, masterInfo));
+
+      ApplicationFinishEvent finishEvent = (ApplicationFinishEvent) event;
+      return finishEvent.getFinalApplicationState();
     }
   }
   

@@ -46,6 +46,7 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.RMConfig;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationFinishEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.ApplicationsStore.ApplicationStore;
@@ -261,8 +262,9 @@ public class AMTracker extends AbstractService  implements EventHandler<ASMEvent
     masterInfo.getMaster().setDiagnostics(
         remoteApplicationMaster.getDiagnostics());
 
-    rmContext.getDispatcher().getSyncHandler().handle(new ASMEvent<ApplicationEventType>(
-        ApplicationEventType.FINISH, masterInfo));
+    rmContext.getDispatcher().getSyncHandler().handle(
+        new ApplicationFinishEvent(masterInfo, remoteApplicationMaster
+            .getState()));
   }
 
   public ApplicationMasterInfo get(ApplicationId applicationId) {

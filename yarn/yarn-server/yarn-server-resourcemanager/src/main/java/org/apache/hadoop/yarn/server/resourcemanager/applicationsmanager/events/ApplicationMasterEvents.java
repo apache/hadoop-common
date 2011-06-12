@@ -47,21 +47,37 @@ public class ApplicationMasterEvents {
   }
   
   public enum ApplicationEventType {
-    ALLOCATE,
+
+    // Source: ApplicationMasterService -> ASM -> AMTracker-self
     REGISTERED,
-    RELEASED,
-    RECOVER,
-    REMOVE,
     STATUSUPDATE,
-    LAUNCH,
-    LAUNCH_FAILED,
-    LAUNCHED,
-    FAILED,
-    FAILED_MAX_RETRIES,
+    FINISH, // Also by AMLauncher
+
+    // Source: SchedulerNegotiator.
     ALLOCATED,
+    RELEASED,
+
+    // Source: ASM -> AMTracker
+    ALLOCATE, // Also AMTracker->Self
+    FAILED,
+    RECOVER,
+
+    // TODO: Nobody Uses!
+    REMOVE,
     CLEANUP,
-    FINISH, 
+
+    // Source: AMLauncher
+    LAUNCHED,
+    LAUNCH_FAILED,
+
+    // Source: AMTracker: Self-event
+    LAUNCH,
+    FAILED_MAX_RETRIES,
+
+    // Source: AMLivelinessMonitor -> AMTracker
     EXPIRE,
+
+    // Source: ClientRMService -> ASM -> AMTracker
     KILL
   };
 }

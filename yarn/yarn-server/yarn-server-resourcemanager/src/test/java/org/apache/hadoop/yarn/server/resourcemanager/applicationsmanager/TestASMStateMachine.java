@@ -39,6 +39,7 @@ import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ASMEvent;
+import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationFinishEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.AMLauncherEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.applicationsmanager.events.ApplicationMasterEvents.ApplicationTrackerEventType;
@@ -259,8 +260,8 @@ public class TestASMStateMachine extends TestCase {
 
     Assert.assertEquals(ApplicationState.RUNNING, masterInfo.getState());
 
-    handler.handle(
-        new ASMEvent<ApplicationEventType>(ApplicationEventType.FINISH, masterInfo));
+    handler.handle(new ApplicationFinishEvent(masterInfo,
+        ApplicationState.COMPLETED));
     waitForState(ApplicationState.COMPLETED, masterInfo);
     Assert.assertEquals(ApplicationState.COMPLETED, masterInfo.getState());
     /* check if clean up is called for everyone */
