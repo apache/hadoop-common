@@ -130,7 +130,7 @@ class RollingLogsImpl implements RollingLogs {
   
   /**
    * This is used to read the lines in order.
-   * If the data is not read completely (i.e, untill hasNext() returns
+   * If the data is not read completely (i.e, until hasNext() returns
    * false), it needs to be explicitly 
    */
   private class Reader implements RollingLogs.LineIterator {
