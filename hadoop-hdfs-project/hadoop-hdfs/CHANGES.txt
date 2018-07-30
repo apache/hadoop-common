@@ -7009,7 +7009,7 @@ Release 0.23.0 - 2011-11-01
     TestDiskError, TestDatanodeRestart and TestDFSTartupVersions. (suresh)
 
     HDFS-1696. Federation: when build version doesn't match - 
-    datanode should wait (keep connecting) untill NN comes up 
+    datanode should wait (keep connecting) until NN comes up 
     with the right version (boryas)
 
     HDFS-1681. Balancer: support per pool and per node policies. (szetszwo)
