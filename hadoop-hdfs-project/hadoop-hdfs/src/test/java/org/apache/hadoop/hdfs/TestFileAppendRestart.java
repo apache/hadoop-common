@@ -23,7 +23,6 @@ import static org.junit.Assert.assertEquals;
 import java.io.File;
 import java.io.IOException;
 import java.util.EnumMap;
-import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
@@ -32,8 +31,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
-import org.apache.hadoop.hdfs.server.namenode.FSEditLog;
-import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes;
 import org.apache.hadoop.hdfs.server.namenode.FSImageTestUtil;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage;
@@ -174,6 +171,34 @@ public class TestFileAppendRestart {
       assertEquals(2*1024*1024, fs.getFileStatus(testPath).getLen());
     } finally {
       cluster.shutdown();
+    }
+  }
+
+  /**
+   * Test to append to the file, when one of datanode in the existing pipeline is down.
+   * @throws Exception
+   */
+  @Test
+  public void testAppendWithPipelineRecovery() throws Exception {
+    Configuration conf = new Configuration();
+    MiniDFSCluster cluster = null;
+    try {
+      cluster = new MiniDFSCluster.Builder(conf).manageDataDfsDirs(true)
+          .manageNameDfsDirs(true).numDataNodes(4)
+          .racks(new String[] { "/rack1", "/rack1", "/rack1", "/rack2" })
+          .build();
+      cluster.waitActive();
+
+      DistributedFileSystem fs = cluster.getFileSystem();
+      Path path = new Path("/test1");
+      DFSTestUtil.createFile(fs, path, 1024, (short) 3, 1l);
+
+      cluster.stopDataNode(3);
+      DFSTestUtil.appendFile(fs, path, "hello");
+    } finally {
+      if (null != cluster) {
+        cluster.shutdown();
+      }
     }
   }
 }

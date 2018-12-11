@@ -15,44 +15,45 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.lib.wsrs;
 
-import org.apache.hadoop.lib.util.Check;
+import org.apache.hadoop.classification.InterfaceAudience;
 
 import java.text.MessageFormat;
 import java.util.regex.Pattern;
 
+@InterfaceAudience.Private
 public abstract class StringParam extends Param<String> {
   private Pattern pattern;
 
-  public StringParam(String name, String str) {
-    this(name, str, null);
+  public StringParam(String name, String defaultValue) {
+    this(name, defaultValue, null);
   }
 
-  public StringParam(String name, String str, Pattern pattern) {
+  public StringParam(String name, String defaultValue, Pattern pattern) {
+    super(name, defaultValue);
     this.pattern = pattern;
-    value = parseParam(name, str);
+    parseParam(defaultValue);
   }
 
-  public String parseParam(String name, String str) {
-    String ret = null;
-    Check.notNull(name, "name");
+  @Override
+  public String parseParam(String str) {
     try {
       if (str != null) {
         str = str.trim();
         if (str.length() > 0) {
-          return parse(str);
+          value = parse(str);
         }
       }
     } catch (Exception ex) {
       throw new IllegalArgumentException(
         MessageFormat.format("Parameter [{0}], invalid value [{1}], value must be [{2}]",
-                             name, str, getDomain()));
+                             getName(), str, getDomain()));
     }
-    return ret;
+    return value;
   }
 
+  @Override
   protected String parse(String str) throws Exception {
     if (pattern != null) {
       if (!pattern.matcher(str).matches()) {

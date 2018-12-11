@@ -59,7 +59,8 @@ public class TestDatanodeRestart {
     try {
       // test finalized replicas
       final String TopDir = "/test";
-      DFSTestUtil util = new DFSTestUtil("TestCrcCorruption", 2, 3, 8*1024);
+      DFSTestUtil util = new DFSTestUtil.Builder().
+          setName("TestDatanodeRestart").setNumFiles(2).build();
       util.createFiles(fs, TopDir, (short)3);
       util.waitReplication(fs, TopDir, (short)3);
       util.checkFiles(fs, TopDir);
@@ -136,7 +137,7 @@ public class TestDatanodeRestart {
   }
 
   // test recovering unlinked tmp replicas
-  @Test public void testRecoverReplicas() throws IOException {
+  @Test public void testRecoverReplicas() throws Exception {
     Configuration conf = new HdfsConfiguration();
     conf.setLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY, 1024L);
     conf.setInt(DFSConfigKeys.DFS_CLIENT_WRITE_PACKET_SIZE_KEY, 512);

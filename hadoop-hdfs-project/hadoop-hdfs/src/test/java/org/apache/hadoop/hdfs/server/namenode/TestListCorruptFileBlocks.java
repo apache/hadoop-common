@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import static org.junit.Assert.assertTrue;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -25,9 +27,6 @@ import java.nio.channels.FileChannel;
 import java.util.Collection;
 import java.util.Random;
 
-import org.junit.Test;
-import static org.junit.Assert.assertTrue;
-
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -35,13 +34,14 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.hdfs.BlockMissingException;
 import org.apache.hadoop.hdfs.CorruptFileBlockIterator;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSTestUtil;
+import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.hdfs.DFSConfigKeys;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.util.StringUtils;
+import org.junit.Test;
 
 /**
  * This class tests the listCorruptFileBlocks API.
@@ -68,7 +68,9 @@ public class TestListCorruptFileBlocks {
       FileSystem fs = cluster.getFileSystem();
 
       // create two files with one block each
-      DFSTestUtil util = new DFSTestUtil("testCorruptFilesCorruptedBlock", 2, 1, 512);
+      DFSTestUtil util = new DFSTestUtil.Builder().
+          setName("testCorruptFilesCorruptedBlock").setNumFiles(2).
+          setMaxLevels(1).setMaxSize(512).build();
       util.createFiles(fs, "/srcdat10");
 
       // fetch bad file list from namenode. There should be none.
@@ -152,8 +154,9 @@ public class TestListCorruptFileBlocks {
       FileSystem fs = cluster.getFileSystem();
 
       // create two files with one block each
-      DFSTestUtil util = new DFSTestUtil("testListCorruptFileBlocksInSafeMode",
-                                         2, 1, 512);
+      DFSTestUtil util = new DFSTestUtil.Builder().
+          setName("testListCorruptFileBlocksInSafeMode").setNumFiles(2).
+          setMaxLevels(1).setMaxSize(512).build();
       util.createFiles(fs, "/srcdat10");
 
       // fetch bad file list from namenode. There should be none.
@@ -272,7 +275,9 @@ public class TestListCorruptFileBlocks {
       cluster = new MiniDFSCluster.Builder(conf).build();
       cluster.waitActive();
       fs = cluster.getFileSystem();
-      DFSTestUtil util = new DFSTestUtil("testGetCorruptFiles", 3, 1, 1024);
+      DFSTestUtil util = new DFSTestUtil.Builder().
+          setName("testGetCorruptFiles").setNumFiles(3).setMaxLevels(1).
+          setMaxSize(1024).build();
       util.createFiles(fs, "/corruptData");
 
       final NameNode namenode = cluster.getNameNode();
@@ -381,7 +386,9 @@ public class TestListCorruptFileBlocks {
       cluster.waitActive();
       fs = cluster.getFileSystem();
       DistributedFileSystem dfs = (DistributedFileSystem) fs;
-      DFSTestUtil util = new DFSTestUtil("testGetCorruptFiles", 3, 1, 1024);
+      DFSTestUtil util = new DFSTestUtil.Builder().
+          setName("testGetCorruptFiles").setNumFiles(3).
+          setMaxLevels(1).setMaxSize(1024).build();
       util.createFiles(fs, "/corruptData");
 
       RemoteIterator<Path> corruptFileBlocks = 
@@ -451,8 +458,9 @@ public class TestListCorruptFileBlocks {
         FSNamesystem.DEFAULT_MAX_CORRUPT_FILEBLOCKS_RETURNED;
 
       // create 110 files with one block each
-      DFSTestUtil util = new DFSTestUtil("testMaxCorruptFiles", 
-          maxCorruptFileBlocks * 3, 1, 512);
+      DFSTestUtil util = new DFSTestUtil.Builder().setName("testMaxCorruptFiles").
+          setNumFiles(maxCorruptFileBlocks * 3).setMaxLevels(1).setMaxSize(512).
+          build();
       util.createFiles(fs, "/srcdat2", (short) 1);
       util.waitReplication(fs, "/srcdat2", (short) 1);
 

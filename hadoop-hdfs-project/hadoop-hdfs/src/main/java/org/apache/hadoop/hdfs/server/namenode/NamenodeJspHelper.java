@@ -41,7 +41,6 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
-import org.apache.hadoop.hdfs.protocol.HdfsConstants.UpgradeAction;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
@@ -49,17 +48,20 @@ import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeManager;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
-import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
+import org.apache.hadoop.hdfs.server.namenode.JournalSet.JournalAndStream;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.ServletUtil;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.util.Time;
 import org.apache.hadoop.util.VersionInfo;
 import org.znerd.xmlenc.XMLOutputter;
+
+import com.google.common.base.Preconditions;
 
 class NamenodeJspHelper {
   static String getSafeModeText(FSNamesystem fsn) {
@@ -67,16 +69,16 @@ class NamenodeJspHelper {
       return "";
     return "Safe mode is ON. <em>" + fsn.getSafeModeTip() + "</em><br>";
   }
-  
+
   /**
    * returns security mode of the cluster (namenode)
    * @return "on" if security is on, and "off" otherwise
    */
-  static String getSecurityModeText() {  
+  static String getSecurityModeText() {
     if(UserGroupInformation.isSecurityEnabled()) {
-      return "Security is <em>ON</em> <br>";
+      return "<div class=\"security\">Security is <em>ON</em></div>";
     } else {
-      return "Security is <em>OFF</em> <br>";
+      return "<div class=\"security\">Security is <em>OFF</em></div>";
     }
   }
 
@@ -99,53 +101,36 @@ class NamenodeJspHelper {
     long used = (totalMemory * 100) / commitedMemory;
     long usedNonHeap = (totalNonHeap * 100) / commitedNonHeap;
 
-    String str = inodes + " files and directories, " + blocks + " blocks = "
+    String str = "<div>" + inodes + " files and directories, " + blocks + " blocks = "
         + (inodes + blocks) + " total";
     if (maxobjects != 0) {
       long pct = ((inodes + blocks) * 100) / maxobjects;
       str += " / " + maxobjects + " (" + pct + "%)";
     }
-    str += ".<br>";
-    str += "Heap Memory used " + StringUtils.byteDesc(totalMemory) + " is "
-        + " " + used + "% of Commited Heap Memory " 
+    str += ".</div>";
+    str += "<div>Heap Memory used " + StringUtils.byteDesc(totalMemory) + " is "
+        + " " + used + "% of Commited Heap Memory "
         + StringUtils.byteDesc(commitedMemory)
         + ". Max Heap Memory is " + StringUtils.byteDesc(maxMemory) +
-        ". <br>";
-    str += "Non Heap Memory used " + StringUtils.byteDesc(totalNonHeap) + " is"
+        ". </div>";
+    str += "<div>Non Heap Memory used " + StringUtils.byteDesc(totalNonHeap) + " is"
         + " " + usedNonHeap + "% of " + " Commited Non Heap Memory "
         + StringUtils.byteDesc(commitedNonHeap) + ". Max Non Heap Memory is "
-        + StringUtils.byteDesc(maxNonHeap) + ".<br>";
+        + StringUtils.byteDesc(maxNonHeap) + ".</div>";
     return str;
-  }
-
-  static String getUpgradeStatusText(FSNamesystem fsn) {
-    String statusText = "";
-    try {
-      UpgradeStatusReport status = fsn
-          .distributedUpgradeProgress(UpgradeAction.GET_STATUS);
-      statusText = (status == null ? "There are no upgrades in progress."
-          : status.getStatusText(false));
-    } catch (IOException e) {
-      statusText = "Upgrade status unknown.";
-    }
-    return statusText;
   }
 
   /** Return a table containing version information. */
   static String getVersionTable(FSNamesystem fsn) {
-    return "<div id='dfstable'><table>"
-        + "\n  <tr><td id='col1'>Started:</td><td>" + fsn.getStartTime()
-        + "</td></tr>\n" + "\n  <tr><td id='col1'>Version:</td><td>"
+    return "<div class='dfstable'><table>"
+        + "\n  <tr><td class='col1'>Started:</td><td>" + fsn.getStartTime()
+        + "</td></tr>\n" + "\n  <tr><td class='col1'>Version:</td><td>"
         + VersionInfo.getVersion() + ", " + VersionInfo.getRevision()
-        + "\n  <tr><td id='col1'>Compiled:</td><td>" + VersionInfo.getDate()
+        + "</td></tr>\n" + "\n  <tr><td class='col1'>Compiled:</td><td>" + VersionInfo.getDate()
         + " by " + VersionInfo.getUser() + " from " + VersionInfo.getBranch()
-        + "\n  <tr><td id='col1'>Upgrades:</td><td>"
-        + getUpgradeStatusText(fsn) 
-        + "\n  <tr><td id='col1'>Cluster ID:</td><td>" + fsn.getClusterId()
-        + "</td></tr>\n" 
-        + "\n  <tr><td id='col1'>Block Pool ID:</td><td>" + fsn.getBlockPoolId()
-        + "</td></tr>\n" 
-        + "\n</table></div>";
+        + "</td></tr>\n  <tr><td class='col1'>Cluster ID:</td><td>" + fsn.getClusterId()
+        + "</td></tr>\n  <tr><td class='col1'>Block Pool ID:</td><td>" + fsn.getBlockPoolId()
+        + "</td></tr>\n</table></div>";
   }
 
   /**
@@ -157,14 +142,15 @@ class NamenodeJspHelper {
     if (missingBlocks > 0) {
       StringBuilder result = new StringBuilder();
 
-      // Warning class is typically displayed in RED
-      result.append("<br/><a class=\"warning\" href=\"/corrupt_files.jsp\" title=\"List corrupt files\">\n");
+      // Warning class is typically displayed in RED.
+      result.append("<div>"); // opening tag of outer <div>.
+      result.append("<a class=\"warning\" href=\"/corrupt_files.jsp\" title=\"List corrupt files\">\n");
       result.append("<b>WARNING : There are " + missingBlocks
           + " missing blocks. Please check the logs or run fsck in order to identify the missing blocks.</b>");
       result.append("</a>");
 
-      result.append("<br/><div class=\"small\">See the Hadoop FAQ for common causes and potential solutions.");
-      result.append("<br/><br/>\n");
+      result.append("<div class=\"small\">See the Hadoop FAQ for common causes and potential solutions.</div>");
+      result.append("</div>\n"); // closing tag of outer <div>.
 
       return result.toString();
     }
@@ -205,11 +191,11 @@ class NamenodeJspHelper {
 
       // FS Image storage configuration
       out.print("<h3> " + nn.getRole() + " Storage: </h3>");
-      out.print("<div id=\"dfstable\"> <table border=1 cellpadding=10 cellspacing=0 title=\"NameNode Storage\">\n"
+      out.print("<div class=\"dfstable\"> <table class=\"storage\" title=\"NameNode Storage\">\n"
               + "<thead><tr><td><b>Storage Directory</b></td><td><b>Type</b></td><td><b>State</b></td></tr></thead>");
 
       StorageDirectory st = null;
-      for (Iterator<StorageDirectory> it 
+      for (Iterator<StorageDirectory> it
              = fsImage.getStorage().dirIterator(); it.hasNext();) {
         st = it.next();
         String dir = "" + st.getRoot();
@@ -224,10 +210,56 @@ class NamenodeJspHelper {
         String dir = "" + st.getRoot();
         String type = "" + st.getStorageDirType();
         out.print("<tr><td>" + dir + "</td><td>" + type
-            + "</td><td><font color=red>Failed</font></td></tr>");
+            + "</td><td><span class=\"failed\">Failed</span></td></tr>");
       }
 
-      out.print("</table></div><br>\n");
+      out.print("</table></div>\n");
+    }
+    
+    /**
+     * Generate an HTML report containing the current status of the HDFS
+     * journals.
+     */
+    void generateJournalReport(JspWriter out, NameNode nn,
+        HttpServletRequest request) throws IOException {
+      FSEditLog log = nn.getFSImage().getEditLog();
+      Preconditions.checkArgument(log != null, "no edit log set in %s", nn);
+      
+      out.println("<h3> " + nn.getRole() + " Journal Status: </h3>");
+
+      out.println("<b>Current transaction ID:</b> " +
+          nn.getFSImage().getLastAppliedOrWrittenTxId() + "<br/>");
+      
+      
+      boolean openForWrite = log.isOpenForWrite();
+      
+      out.println("<div class=\"dfstable\">");
+      out.println("<table class=\"storage\" title=\"NameNode Journals\">\n"
+              + "<thead><tr><td><b>Journal Manager</b></td><td><b>State</b></td></tr></thead>");
+      for (JournalAndStream jas : log.getJournals()) {
+        out.print("<tr>");
+        out.print("<td>" + jas.getManager());
+        if (jas.isRequired()) {
+          out.print(" [required]");
+        }
+        out.print("</td><td>");
+        
+        if (jas.isDisabled()) {
+          out.print("<span class=\"failed\">Failed</span>");
+        } else if (openForWrite) {
+          EditLogOutputStream elos = jas.getCurrentStream();
+          if (elos != null) {
+            out.println(elos.generateHtmlReport());
+          } else {
+            out.println("not currently writing");
+          }
+        } else {
+          out.println("open for read");
+        }
+        out.println("</td></tr>");
+      }
+      
+      out.println("</table></div>");
     }
 
     void generateHealthReport(JspWriter out, NameNode nn,
@@ -320,7 +352,7 @@ class NamenodeJspHelper {
               + "Number of Under-Replicated Blocks" + colTxt() + ":" + colTxt()
               + fsn.getBlockManager().getUnderReplicatedNotMissingBlocks(); 
       }
-      out.print("<div id=\"dfstable\"> <table>\n" + rowTxt() + colTxt()
+      out.print("<div class=\"dfstable\"> <table>\n" + rowTxt() + colTxt()
           + "Configured Capacity" + colTxt() + ":" + colTxt()
           + StringUtils.byteDesc(total) + rowTxt() + colTxt() + "DFS Used"
           + colTxt() + ":" + colTxt() + StringUtils.byteDesc(used) + rowTxt()
@@ -359,7 +391,7 @@ class NamenodeJspHelper {
           + "</table></div><br>\n");
 
       if (live.isEmpty() && dead.isEmpty()) {
-        out.print("There are no datanodes in the cluster");
+        out.print("There are no datanodes in the cluster.");
       }
     }
   }
@@ -369,6 +401,7 @@ class NamenodeJspHelper {
       final UserGroupInformation ugi) throws IOException, InterruptedException {
     Token<DelegationTokenIdentifier> token = ugi
         .doAs(new PrivilegedExceptionAction<Token<DelegationTokenIdentifier>>() {
+          @Override
           public Token<DelegationTokenIdentifier> run() throws IOException {
             return nn.getDelegationToken(new Text(ugi.getUserName()));
           }
@@ -410,9 +443,9 @@ class NamenodeJspHelper {
       nodeToRedirect = nn.getHttpAddress().getHostName();
       redirectPort = nn.getHttpAddress().getPort();
     }
-    String addr = NetUtils.getHostPortString(nn.getNameNodeAddress());
+    String addr = nn.getNameNodeAddressHostPortString();
     String fqdn = InetAddress.getByName(nodeToRedirect).getCanonicalHostName();
-    redirectLocation = "http://" + fqdn + ":" + redirectPort
+    redirectLocation = HttpConfig.getSchemePrefix() + fqdn + ":" + redirectPort
         + "/browseDirectory.jsp?namenodeInfoPort="
         + nn.getHttpAddress().getPort() + "&dir=/"
         + (tokenString == null ? "" :
@@ -461,7 +494,8 @@ class NamenodeJspHelper {
         String suffix, boolean alive, int nnHttpPort, String nnaddr)
         throws IOException {
       // from nn_browsedfscontent.jsp:
-      String url = "http://" + d.getHostName() + ":" + d.getInfoPort()
+      String url = HttpConfig.getSchemePrefix() + d.getHostName() + ":"
+          + d.getInfoPort()
           + "/browseDirectory.jsp?namenodeInfoPort=" + nnHttpPort + "&dir="
           + URLEncoder.encode("/", "UTF-8")
           + JspHelper.getUrlParam(JspHelper.NAMENODE_ADDRESS, nnaddr);
@@ -488,7 +522,7 @@ class NamenodeJspHelper {
 
       long decommRequestTime = d.decommissioningStatus.getStartTime();
       long timestamp = d.getLastUpdate();
-      long currentTime = System.currentTimeMillis();
+      long currentTime = Time.now();
       long hoursSinceDecommStarted = (currentTime - decommRequestTime)/3600000;
       long remainderMinutes = ((currentTime - decommRequestTime)/60000) % 60;
       out.print("<td class=\"lastcontact\"> "
@@ -535,7 +569,7 @@ class NamenodeJspHelper {
       String adminState = d.getAdminState().toString();
 
       long timestamp = d.getLastUpdate();
-      long currentTime = System.currentTimeMillis();
+      long currentTime = Time.now();
       
       long bpUsed = d.getBlockPoolUsed();
       String percentBpUsed = StringUtils.limitDecimalTo2(d
@@ -580,8 +614,9 @@ class NamenodeJspHelper {
       final List<DatanodeDescriptor> dead = new ArrayList<DatanodeDescriptor>();
       dm.fetchDatanodes(live, dead, true);
 
-      InetSocketAddress nnSocketAddress = (InetSocketAddress) context
-          .getAttribute(NameNodeHttpServer.NAMENODE_ADDRESS_ATTRIBUTE_KEY);
+      InetSocketAddress nnSocketAddress =
+          (InetSocketAddress)context.getAttribute(
+              NameNodeHttpServer.NAMENODE_ADDRESS_ATTRIBUTE_KEY);
       String nnaddr = nnSocketAddress.getAddress().getHostAddress() + ":"
           + nnSocketAddress.getPort();
 
@@ -633,7 +668,7 @@ class NamenodeJspHelper {
         if (whatNodes.equals("LIVE")) {
           out.print("<a name=\"LiveNodes\" id=\"title\">" + "Live Datanodes : "
               + live.size() + "</a>"
-              + "<br><br>\n<table border=1 cellspacing=0>\n");
+              + "<br><br>\n<table class=\"nodes\">\n");
 
           counterReset();
 

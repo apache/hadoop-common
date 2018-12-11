@@ -63,7 +63,9 @@ public class CommonConfigurationKeysPublic {
   /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
   public static final String  NET_TOPOLOGY_NODE_SWITCH_MAPPING_IMPL_KEY =
     "net.topology.node.switch.mapping.impl";
-  
+  /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
+  public static final String  NET_TOPOLOGY_IMPL_KEY =
+    "net.topology.impl";
   /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
   public static final String  NET_TOPOLOGY_TABLE_MAPPING_FILE_KEY =
     "net.topology.table.file.name";
@@ -233,5 +235,18 @@ public class CommonConfigurationKeysPublic {
   /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
   public static final String  HADOOP_SECURITY_SERVICE_USER_NAME_KEY =
     "hadoop.security.service.user.name.key";
+  /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
+  public static final String  HADOOP_SECURITY_AUTH_TO_LOCAL =
+    "hadoop.security.auth_to_local";
+
+  public static final String HADOOP_SSL_ENABLED_KEY = "hadoop.ssl.enabled";
+  public static final boolean HADOOP_SSL_ENABLED_DEFAULT = false;
+
+  /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
+  public static final String HADOOP_KERBEROS_MIN_SECONDS_BEFORE_RELOGIN =
+          "hadoop.kerberos.min.seconds.before.relogin";
+  /** Default value for HADOOP_KERBEROS_MIN_SECONDS_BEFORE_RELOGIN */
+  public static final int HADOOP_KERBEROS_MIN_SECONDS_BEFORE_RELOGIN_DEFAULT =
+          60;
 }
 

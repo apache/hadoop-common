@@ -18,49 +18,54 @@
 
 package org.apache.hadoop.ipc;
 
+import static org.apache.hadoop.test.MetricsAsserts.assertCounter;
+import static org.apache.hadoop.test.MetricsAsserts.assertCounterGt;
+import static org.apache.hadoop.test.MetricsAsserts.getMetrics;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.ConnectException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.net.ConnectException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 
 import javax.net.SocketFactory;
 
-import org.apache.commons.logging.*;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.retry.RetryPolicies;
+import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.io.retry.RetryProxy;
 import org.apache.hadoop.ipc.Client.ConnectionId;
-import org.apache.hadoop.ipc.TestSaslRPC.TestSaslImpl;
-import org.apache.hadoop.ipc.TestSaslRPC.TestSaslProtocol;
 import org.apache.hadoop.metrics2.MetricsRecordBuilder;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AuthorizationException;
 import org.apache.hadoop.security.authorize.PolicyProvider;
 import org.apache.hadoop.security.authorize.Service;
 import org.apache.hadoop.security.token.SecretManager;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.test.MockitoUtil;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
-
-import static org.apache.hadoop.test.MetricsAsserts.*;
 
 /** Unit tests for RPC. */
 @SuppressWarnings("deprecation")
@@ -101,17 +106,21 @@ public class TestRPC {
   public static class TestImpl implements TestProtocol {
     int fastPingCounter = 0;
     
+    @Override
     public long getProtocolVersion(String protocol, long clientVersion) {
       return TestProtocol.versionID;
     }
     
+    @Override
     public ProtocolSignature getProtocolSignature(String protocol, long clientVersion,
         int hashcode) {
       return new ProtocolSignature(TestProtocol.versionID, null);
     }
     
+    @Override
     public void ping() {}
 
+    @Override
     public synchronized void slowPing(boolean shouldSlow) {
       if (shouldSlow) {
         while (fastPingCounter < 2) {
@@ -126,17 +135,22 @@ public class TestRPC {
       }
     }
     
+    @Override
     public String echo(String value) throws IOException { return value; }
 
+    @Override
     public String[] echo(String[] values) throws IOException { return values; }
 
+    @Override
     public Writable echo(Writable writable) {
       return writable;
     }
+    @Override
     public int add(int v1, int v2) {
       return v1 + v2;
     }
 
+    @Override
     public int add(int[] values) {
       int sum = 0;
       for (int i = 0; i < values.length; i++) {
@@ -145,16 +159,19 @@ public class TestRPC {
       return sum;
     }
 
+    @Override
     public int error() throws IOException {
       throw new IOException("bobo");
     }
 
+    @Override
     public void testServerGet() throws IOException {
       if (!(Server.get() instanceof RPC.Server)) {
         throw new IOException("Server.get() failed");
       }
     }
 
+    @Override
     public int[] exchange(int[] values) {
       for (int i = 0; i < values.length; i++) {
         values[i] = i;
@@ -181,6 +198,7 @@ public class TestRPC {
     }
 
     // do two RPC that transfers data.
+    @Override
     public void run() {
       int[] indata = new int[datasize];
       int[] outdata = null;
@@ -215,6 +233,7 @@ public class TestRPC {
       return done;
     }
 
+    @Override
     public void run() {
       try {
         proxy.slowPing(true);   // this would hang until two fast pings happened
@@ -239,18 +258,12 @@ public class TestRPC {
    */
   private static class StoppedRpcEngine implements RpcEngine {
 
-    @Override
-    public Object[] call(Method method, Object[][] params, InetSocketAddress[] addrs,
-        UserGroupInformation ticket, Configuration conf)
-        throws IOException, InterruptedException {
-      return null;
-    }
-
     @SuppressWarnings("unchecked")
     @Override
     public <T> ProtocolProxy<T> getProxy(Class<T> protocol, long clientVersion,
         InetSocketAddress addr, UserGroupInformation ticket, Configuration conf,
-        SocketFactory factory, int rpcTimeout) throws IOException {
+        SocketFactory factory, int rpcTimeout, RetryPolicy connectionRetryPolicy
+        ) throws IOException {
       T proxy = (T) Proxy.newProxyInstance(protocol.getClassLoader(),
               new Class[] { protocol }, new StoppedInvocationHandler());
       return new ProtocolProxy<T>(protocol, proxy, false);
@@ -301,8 +314,9 @@ public class TestRPC {
   
   @Test
   public void testConfRpc() throws Exception {
-    Server server = RPC.getServer(TestProtocol.class,
-                                  new TestImpl(), ADDRESS, 0, 1, false, conf, null);
+    Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(1).setVerbose(false).build();
     // Just one handler
     int confQ = conf.getInt(
               CommonConfigurationKeys.IPC_SERVER_HANDLER_QUEUE_SIZE_KEY,
@@ -315,8 +329,11 @@ public class TestRPC {
     assertEquals(confReaders, server.getNumReaders());
     server.stop();
     
-    server = RPC.getServer(TestProtocol.class,
-                                  new TestImpl(), ADDRESS, 0, 1, 3, 200, false, conf, null);
+    server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(1).setnumReaders(3).setQueueSizePerHandler(200)
+        .setVerbose(false).build();        
+        
     assertEquals(3, server.getNumReaders());
     assertEquals(200, server.getMaxQueueSize());
     server.stop();    
@@ -324,8 +341,8 @@ public class TestRPC {
 
   @Test
   public void testProxyAddress() throws Exception {
-    Server server = RPC.getServer(TestProtocol.class,
-                                  new TestImpl(), ADDRESS, 0, conf);
+    Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0).build();
     TestProtocol proxy = null;
     
     try {
@@ -349,8 +366,10 @@ public class TestRPC {
   public void testSlowRpc() throws Exception {
     System.out.println("Testing Slow RPC");
     // create a server with two handlers
-    Server server = RPC.getServer(TestProtocol.class,
-                                  new TestImpl(), ADDRESS, 0, 2, false, conf, null);
+    Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(2).setVerbose(false).build();
+    
     TestProtocol proxy = null;
     
     try {
@@ -396,8 +415,8 @@ public class TestRPC {
   }
   
   private void testCallsInternal(Configuration conf) throws Exception {
-    Server server = RPC.getServer(TestProtocol.class,
-                                  new TestImpl(), ADDRESS, 0, conf);
+    Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0).build();
     TestProtocol proxy = null;
     try {
     server.start();
@@ -485,17 +504,6 @@ public class TestRPC {
       }
     }
 
-    // try some multi-calls
-    Method echo =
-      TestProtocol.class.getMethod("echo", new Class[] { String.class });
-    String[] strings = (String[])RPC.call(echo, new String[][]{{"a"},{"b"}},
-                                          new InetSocketAddress[] {addr, addr}, conf);
-    assertTrue(Arrays.equals(strings, new String[]{"a","b"}));
-
-    Method ping = TestProtocol.class.getMethod("ping", new Class[] {});
-    Object[] voids = RPC.call(ping, new Object[][]{{},{}},
-                              new InetSocketAddress[] {addr, addr}, conf);
-    assertEquals(voids, null);
     } finally {
       server.stop();
       if(proxy!=null) RPC.stopProxy(proxy);
@@ -526,8 +534,9 @@ public class TestRPC {
   }
   
   private void doRPCs(Configuration conf, boolean expectFailure) throws Exception {
-    Server server = RPC.getServer(TestProtocol.class,
-                                  new TestImpl(), ADDRESS, 0, 5, true, conf, null);
+    Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(5).setVerbose(true).build();
 
     server.refreshServiceAcl(conf, new TestPolicyProvider());
 
@@ -571,8 +580,9 @@ public class TestRPC {
   
   @Test
   public void testServerAddress() throws IOException {
-    Server server = RPC.getServer(TestProtocol.class,
-        new TestImpl(), ADDRESS, 0, 5, true, conf, null);
+    Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(5).setVerbose(true).build();
     InetSocketAddress bindAddr = null;
     try {
       bindAddr = NetUtils.getConnectAddress(server);
@@ -666,8 +676,9 @@ public class TestRPC {
   
   @Test
   public void testErrorMsgForInsecureClient() throws Exception {
-    final Server server = RPC.getServer(TestProtocol.class,
-        new TestImpl(), ADDRESS, 0, 5, true, conf, null);
+    final Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(5).setVerbose(true).build();
     server.enableSecurity();
     server.start();
     boolean succeeded = false;
@@ -691,8 +702,10 @@ public class TestRPC {
 
     conf.setInt(CommonConfigurationKeys.IPC_SERVER_RPC_READ_THREADS_KEY, 2);
 
-    final Server multiServer = RPC.getServer(TestProtocol.class,
-        new TestImpl(), ADDRESS, 0, 5, true, conf, null);
+    final Server multiServer = new RPC.Builder(conf)
+        .setProtocol(TestProtocol.class).setInstance(new TestImpl())
+        .setBindAddress(ADDRESS).setPort(0).setNumHandlers(5).setVerbose(true)
+        .build();
     multiServer.enableSecurity();
     multiServer.start();
     succeeded = false;
@@ -746,8 +759,9 @@ public class TestRPC {
     assertEquals("Expect no Reader threads running before test",
       0, threadsBefore);
 
-    final Server server = RPC.getServer(TestProtocol.class,
-        new TestImpl(), ADDRESS, 0, 5, true, conf, null);
+    final Server server = new RPC.Builder(conf).setProtocol(TestProtocol.class)
+        .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(5).setVerbose(true).build();
     server.start();
     try {
       int threadsRunning = countThreads("Server$Listener$Reader");
@@ -758,6 +772,42 @@ public class TestRPC {
     int threadsAfter = countThreads("Server$Listener$Reader");
     assertEquals("Expect no Reader threads left running after test",
       0, threadsAfter);
+  }
+  
+  @Test
+  public void testRPCBuilder() throws Exception {
+    // Test mandatory field conf
+    try {
+      new RPC.Builder(null).setProtocol(TestProtocol.class)
+          .setInstance(new TestImpl()).setBindAddress(ADDRESS).setPort(0)
+          .setNumHandlers(5).setVerbose(true).build();
+      fail("Didn't throw HadoopIllegalArgumentException");
+    } catch (Exception e) {
+      if (!(e instanceof HadoopIllegalArgumentException)) {
+        fail("Expecting HadoopIllegalArgumentException but caught " + e);
+      }
+    }
+    // Test mandatory field protocol
+    try {
+      new RPC.Builder(conf).setInstance(new TestImpl()).setBindAddress(ADDRESS)
+          .setPort(0).setNumHandlers(5).setVerbose(true).build();
+      fail("Didn't throw HadoopIllegalArgumentException");
+    } catch (Exception e) {
+      if (!(e instanceof HadoopIllegalArgumentException)) {
+        fail("Expecting HadoopIllegalArgumentException but caught " + e);
+      }
+    }
+    // Test mandatory field instance
+    try {
+      new RPC.Builder(conf).setProtocol(TestProtocol.class)
+          .setBindAddress(ADDRESS).setPort(0).setNumHandlers(5)
+          .setVerbose(true).build();
+      fail("Didn't throw HadoopIllegalArgumentException");
+    } catch (Exception e) {
+      if (!(e instanceof HadoopIllegalArgumentException)) {
+        fail("Expecting HadoopIllegalArgumentException but caught " + e);
+      }
+    }
   }
   
   public static void main(String[] args) throws Exception {

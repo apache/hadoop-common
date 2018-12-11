@@ -18,27 +18,33 @@
 
 package org.apache.hadoop.hdfs;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.IOException;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.MiniDFSCluster.DataNodeProperties;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerTestUtil;
-import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
-import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
+import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeAdapter;
+import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.test.GenericTestUtils;
-
-import static org.junit.Assert.*;
-import org.junit.Before;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.base.Supplier;
@@ -275,36 +281,43 @@ public class TestSafeMode {
         dfs.setSafeMode(SafeModeAction.SAFEMODE_ENTER));
 
     runFsFun("Set quota while in SM", new FSRun() { 
+      @Override
       public void run(FileSystem fs) throws IOException {
         ((DistributedFileSystem)fs).setQuota(file1, 1, 1); 
       }});
 
     runFsFun("Set perm while in SM", new FSRun() {
+      @Override
       public void run(FileSystem fs) throws IOException {
         fs.setPermission(file1, FsPermission.getDefault());
       }});
 
     runFsFun("Set owner while in SM", new FSRun() {
+      @Override
       public void run(FileSystem fs) throws IOException {
         fs.setOwner(file1, "user", "group");
       }});
 
     runFsFun("Set repl while in SM", new FSRun() {
+      @Override
       public void run(FileSystem fs) throws IOException {
         fs.setReplication(file1, (short)1);
       }});
 
     runFsFun("Append file while in SM", new FSRun() {
+      @Override
       public void run(FileSystem fs) throws IOException {
         DFSTestUtil.appendFile(fs, file1, "new bytes");
       }});
 
     runFsFun("Delete file while in SM", new FSRun() {
+      @Override
       public void run(FileSystem fs) throws IOException {
         fs.delete(file1, false);
       }});
 
     runFsFun("Rename file while in SM", new FSRun() {
+      @Override
       public void run(FileSystem fs) throws IOException {
         fs.rename(file1, new Path("file2"));
       }});
@@ -371,5 +384,77 @@ public class TestSafeMode {
     // Exit safemode.
     dfs.setSafeMode(SafeModeAction.SAFEMODE_LEAVE);
     assertFalse("State was expected to be out of safemode.", dfs.isInSafeMode());
+  }
+  
+  @Test
+  public void testSafeModeWhenZeroBlockLocations() throws IOException {
+
+    try {
+      Path file1 = new Path("/tmp/testManualSafeMode/file1");
+      Path file2 = new Path("/tmp/testManualSafeMode/file2");
+      
+      System.out.println("Created file1 and file2.");
+      
+      // create two files with one block each.
+      DFSTestUtil.createFile(fs, file1, 1000, (short)1, 0);
+      DFSTestUtil.createFile(fs, file2, 2000, (short)1, 0);
+      checkGetBlockLocationsWorks(fs, file1);
+      
+      NameNode namenode = cluster.getNameNode();
+
+      // manually set safemode.
+      dfs.setSafeMode(SafeModeAction.SAFEMODE_ENTER);
+      assertTrue("should still be in SafeMode", namenode.isInSafeMode());
+      // getBlock locations should still work since block locations exists
+      checkGetBlockLocationsWorks(fs, file1);
+      dfs.setSafeMode(SafeModeAction.SAFEMODE_LEAVE);
+      assertFalse("should not be in SafeMode", namenode.isInSafeMode());
+      
+      
+      // Now 2nd part of the tests where there aren't block locations
+      cluster.shutdownDataNodes();
+      cluster.shutdownNameNode(0);
+      
+      // now bring up just the NameNode.
+      cluster.restartNameNode();
+      cluster.waitActive();
+      
+      System.out.println("Restarted cluster with just the NameNode");
+      
+      namenode = cluster.getNameNode();
+      
+      assertTrue("No datanode is started. Should be in SafeMode", 
+                 namenode.isInSafeMode());
+      FileStatus stat = fs.getFileStatus(file1);
+      try {
+        fs.getFileBlockLocations(stat, 0, 1000);
+        assertTrue("Should have got safemode exception", false);
+      } catch (SafeModeException e) {
+        // as expected 
+      } catch (RemoteException re) {
+        if (!re.getClassName().equals(SafeModeException.class.getName()))
+          assertTrue("Should have got safemode exception", false);   
+      }
+
+
+      dfs.setSafeMode(SafeModeAction.SAFEMODE_LEAVE);      
+      assertFalse("Should not be in safemode", namenode.isInSafeMode());
+      checkGetBlockLocationsWorks(fs, file1);
+
+    } finally {
+      if(fs != null) fs.close();
+      if(cluster!= null) cluster.shutdown();
+    }
+  }
+  
+  void checkGetBlockLocationsWorks(FileSystem fs, Path fileName) throws IOException {
+    FileStatus stat = fs.getFileStatus(fileName);
+    try {  
+      fs.getFileBlockLocations(stat, 0, 1000);
+    } catch (SafeModeException e) {
+      assertTrue("Should have not got safemode exception", false);
+    } catch (RemoteException re) {
+      assertTrue("Should have not got safemode exception", false);   
+    }    
   }
 }

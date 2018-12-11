@@ -207,7 +207,7 @@ checkout () {
 }
 
 ###############################################################################
-setup () {
+downloadPatch () {
   ### Download latest patch file (ignoring .htm and .html) when run from patch process
   if [[ $JENKINS == "true" ]] ; then
     $WGET -q -O $PATCH_DIR/jira http://issues.apache.org/jira/browse/$defect
@@ -240,6 +240,25 @@ setup () {
       cleanupAndExit 0
     fi
   fi
+}
+
+###############################################################################
+verifyPatch () {
+  # Before building, check to make sure that the patch is valid
+  $bindir/smart-apply-patch.sh $PATCH_DIR/patch dryrun
+  if [[ $? != 0 ]] ; then
+    echo "PATCH APPLICATION FAILED"
+    JIRA_COMMENT="$JIRA_COMMENT
+
+    {color:red}-1 patch{color}.  The patch command could not apply the patch."
+    return 1
+  else
+    return 0
+  fi
+}
+
+###############################################################################
+buildWithPatch () {
   echo ""
   echo ""
   echo "======================================================================"
@@ -286,12 +305,12 @@ checkAuthor () {
   if [[ $authorTags != 0 ]] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 @author.  The patch appears to contain $authorTags @author tags which the Hadoop community has agreed to not allow in code contributions."
+    {color:red}-1 @author{color}.  The patch appears to contain $authorTags @author tags which the Hadoop community has agreed to not allow in code contributions."
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 @author.  The patch does not contain any @author tags."
+    {color:green}+1 @author{color}.  The patch does not contain any @author tags."
   return 0
 }
 
@@ -316,20 +335,20 @@ checkTests () {
         echo "The patch appears to be a documentation patch that doesn't require tests."
         JIRA_COMMENT="$JIRA_COMMENT
 
-    +0 tests included.  The patch appears to be a documentation patch that doesn't require tests."
+    {color:green}+0 tests included{color}.  The patch appears to be a documentation patch that doesn't require tests."
         return 0
       fi
     fi
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 tests included.  The patch doesn't appear to include any new or modified tests.
+    {color:red}-1 tests included{color}.  The patch doesn't appear to include any new or modified tests.
                         Please justify why no new tests are needed for this patch.
                         Also please list what manual steps were performed to verify this patch."
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 tests included.  The patch appears to include $testReferences new or modified test files."
+    {color:green}+1 tests included{color}.  The patch appears to include $testReferences new or modified test files."
   return 0
 }
 
@@ -360,7 +379,7 @@ applyPatch () {
     echo "PATCH APPLICATION FAILED"
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 patch.  The patch command could not apply the patch."
+    {color:red}-1 patch{color}.  The patch command could not apply the patch."
     return 1
   fi
   return 0
@@ -397,12 +416,12 @@ checkJavadocWarnings () {
   if [[ $javadocWarnings -ne $OK_JAVADOC_WARNINGS ]] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 javadoc.  The javadoc tool appears to have generated `expr $(($javadocWarnings-$OK_JAVADOC_WARNINGS))` warning messages."
+    {color:red}-1 javadoc{color}.  The javadoc tool appears to have generated `expr $(($javadocWarnings-$OK_JAVADOC_WARNINGS))` warning messages."
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 javadoc.  The javadoc tool did not generate any warning messages."
+    {color:green}+1 javadoc{color}.  The javadoc tool did not generate any warning messages."
   return 0
 }
 
@@ -418,12 +437,12 @@ checkJavacWarnings () {
   echo "======================================================================"
   echo ""
   echo ""
-  echo "$MVN clean test -DskipTests -D${PROJECT_NAME}PatchProcess -Ptest-patch > $PATCH_DIR/patchJavacWarnings.txt 2>&1"
-  $MVN clean test -DskipTests -D${PROJECT_NAME}PatchProcess -Ptest-patch > $PATCH_DIR/patchJavacWarnings.txt 2>&1
+  echo "$MVN clean test -DskipTests -D${PROJECT_NAME}PatchProcess -Pnative -Ptest-patch > $PATCH_DIR/patchJavacWarnings.txt 2>&1"
+  $MVN clean test -DskipTests -D${PROJECT_NAME}PatchProcess -Pnative -Ptest-patch > $PATCH_DIR/patchJavacWarnings.txt 2>&1
   if [[ $? != 0 ]] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 javac.  The patch appears to cause the build to fail."
+    {color:red}-1 javac{color:red}.  The patch appears to cause the build to fail."
     return 2
   fi
   ### Compare trunk and patch javac warning numbers
@@ -437,10 +456,10 @@ checkJavacWarnings () {
       if [[ $patchJavacWarnings -gt $trunkJavacWarnings ]] ; then
         JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 javac.  The applied patch generated $patchJavacWarnings javac compiler warnings (more than the trunk's current $trunkJavacWarnings warnings)."
+      {color:red}-1 javac{color}.  The applied patch generated $patchJavacWarnings javac compiler warnings (more than the trunk's current $trunkJavacWarnings warnings)."
 
     $DIFF $PATCH_DIR/filteredTrunkJavacWarnings.txt $PATCH_DIR/filteredPatchJavacWarnings.txt > $PATCH_DIR/diffJavacWarnings.txt 
-        JIRA_COMMENT_FOOTER="Javac warnings: $BUILD_URL/artifact/trunk/$(basename $BASEDIR)/patchprocess/diffJavacWarnings.txt
+        JIRA_COMMENT_FOOTER="Javac warnings: $BUILD_URL/artifact/trunk/patchprocess/diffJavacWarnings.txt
 $JIRA_COMMENT_FOOTER"
 
         return 1
@@ -449,7 +468,7 @@ $JIRA_COMMENT_FOOTER"
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 javac.  The applied patch does not increase the total number of javac compiler warnings."
+    {color:green}+1 javac{color}.  The applied patch does not increase the total number of javac compiler warnings."
   return 0
 }
 
@@ -479,7 +498,7 @@ checkReleaseAuditWarnings () {
       if [[ $patchReleaseAuditWarnings -gt 0 ]] ; then
         JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 release audit.  The applied patch generated $patchReleaseAuditWarnings release audit warnings."
+        {color:red}-1 release audit{color}.  The applied patch generated $patchReleaseAuditWarnings release audit warnings."
         $GREP '\!?????' $PATCH_DIR/patchReleaseAuditWarnings.txt > $PATCH_DIR/patchReleaseAuditProblems.txt
         echo "Lines that start with ????? in the release audit report indicate files that do not have an Apache license header." >> $PATCH_DIR/patchReleaseAuditProblems.txt
         JIRA_COMMENT_FOOTER="Release audit warnings: $BUILD_URL/artifact/trunk/patchprocess/patchReleaseAuditProblems.txt
@@ -490,7 +509,7 @@ $JIRA_COMMENT_FOOTER"
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 release audit.  The applied patch does not increase the total number of release audit warnings."
+    {color:green}+1 release audit{color}.  The applied patch does not increase the total number of release audit warnings."
   return 0
 }
 
@@ -519,12 +538,12 @@ $JIRA_COMMENT_FOOTER"
 #  if [[ $patchStyleErrors != 0 ]] ; then
 #    JIRA_COMMENT="$JIRA_COMMENT
 #
-#    -1 checkstyle.  The patch generated $patchStyleErrors code style errors."
+#    {color:red}-1 checkstyle{color}.  The patch generated $patchStyleErrors code style errors."
 #    return 1
 #  fi
 #  JIRA_COMMENT="$JIRA_COMMENT
 #
-#    +1 checkstyle.  The patch generated 0 code style errors."
+#    {color:green}+1 checkstyle{color}.  The patch generated 0 code style errors."
   return 0
 }
 
@@ -576,7 +595,7 @@ checkFindbugsWarnings () {
   if [ $rc != 0 ] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 findbugs.  The patch appears to cause Findbugs (version ${findbugs_version}) to fail."
+    {color:red}-1 findbugs{color}.  The patch appears to cause Findbugs (version ${findbugs_version}) to fail."
     return 1
   fi
     
@@ -601,7 +620,7 @@ checkFindbugsWarnings () {
       $PATCH_DIR/newPatchFindbugsWarnings${module_suffix}.xml \
       $PATCH_DIR/newPatchFindbugsWarnings${module_suffix}.html
     if [[ $newFindbugsWarnings > 0 ]] ; then
-      JIRA_COMMENT_FOOTER="Findbugs warnings: $BUILD_URL/artifact/trunk/$(basename $BASEDIR)/patchprocess/newPatchFindbugsWarnings${module_suffix}.html
+      JIRA_COMMENT_FOOTER="Findbugs warnings: $BUILD_URL/artifact/trunk/patchprocess/newPatchFindbugsWarnings${module_suffix}.html
 $JIRA_COMMENT_FOOTER"
     fi
   done
@@ -609,12 +628,12 @@ $JIRA_COMMENT_FOOTER"
   if [[ $findbugsWarnings -gt 0 ]] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 findbugs.  The patch appears to introduce $findbugsWarnings new Findbugs (version ${findbugs_version}) warnings."
+    {color:red}-1 findbugs{color}.  The patch appears to introduce $findbugsWarnings new Findbugs (version ${findbugs_version}) warnings."
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 findbugs.  The patch does not introduce any new Findbugs (version ${findbugs_version}) warnings."
+    {color:green}+1 findbugs{color}.  The patch does not introduce any new Findbugs (version ${findbugs_version}) warnings."
   return 0
 }
 
@@ -636,12 +655,12 @@ checkEclipseGeneration () {
   if [[ $? != 0 ]] ; then
       JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 eclipse:eclipse.  The patch failed to build with eclipse:eclipse."
+    {color:red}-1 eclipse:eclipse{color}.  The patch failed to build with eclipse:eclipse."
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 eclipse:eclipse.  The patch built with eclipse:eclipse."
+    {color:green}+1 eclipse:eclipse{color}.  The patch built with eclipse:eclipse."
   return 0
 }
 
@@ -662,12 +681,46 @@ runTests () {
 
   failed_tests=""
   modules=$(findModules)
-  for module in $modules;
-  do
+  #
+  # If we are building hadoop-hdfs-project, we must build the native component
+  # of hadoop-common-project first.  In order to accomplish this, we move the
+  # hadoop-hdfs subprojects to the end of the list so that common will come
+  # first.
+  #
+  # Of course, we may not be building hadoop-common at all-- in this case, we
+  # explicitly insert a mvn compile -Pnative of common, to ensure that the
+  # native libraries show up where we need them.
+  #
+  building_common=0
+  for module in $modules; do
+      if [[ $module == hadoop-hdfs-project* ]]; then
+          hdfs_modules="$hdfs_modules $module"
+      elif [[ $module == hadoop-common-project* ]]; then
+          ordered_modules="$ordered_modules $module"
+          building_common=1
+      else
+          ordered_modules="$ordered_modules $module"
+      fi
+  done
+  if [ -n $hdfs_modules ]; then
+      ordered_modules="$ordered_modules $hdfs_modules"
+      if [[ $building_common -eq 0 ]]; then
+          echo "  Building hadoop-common with -Pnative in order to provide \
+libhadoop.so to the hadoop-hdfs unit tests."
+          echo "  $MVN compile -Pnative -D${PROJECT_NAME}PatchProcess"
+          if ! $MVN compile -Pnative -D${PROJECT_NAME}PatchProcess; then
+              JIRA_COMMENT="$JIRA_COMMENT
+        {color:red}-1 core tests{color}.  Failed to build the native portion \
+of hadoop-common prior to running the unit tests in $ordered_modules"
+              return 1
+          fi
+      fi
+  fi
+  for module in $ordered_modules; do
     cd $module
     echo "  Running tests in $module"
     echo "  $MVN clean install -fn -Pnative -D${PROJECT_NAME}PatchProcess"
-    $MVN clean install -fn -Pnative -D${PROJECT_NAME}PatchProcess
+    $MVN clean install -fn -Pnative -Drequire.test.libhadoop -D${PROJECT_NAME}PatchProcess
     module_failed_tests=`find . -name 'TEST*.xml' | xargs $GREP  -l -E "<failure|<error" | sed -e "s|.*target/surefire-reports/TEST-|                  |g" | sed -e "s|\.xml||g"`
     # With -fn mvn always exits with a 0 exit code.  Because of this we need to
     # find the errors instead of using the exit code.  We assume that if the build
@@ -681,13 +734,13 @@ ${module_failed_tests}"
   if [[ -n "$failed_tests" ]] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 core tests.  The patch failed these unit tests in $modules:
+    {color:red}-1 core tests{color}.  The patch failed these unit tests in $modules:
 $failed_tests"
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 core tests.  The patch passed unit tests in $modules."
+    {color:green}+1 core tests{color}.  The patch passed unit tests in $modules."
   return 0
 }
 
@@ -763,12 +816,12 @@ runContribTests () {
   if [[ $? != 0 ]] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 contrib tests.  The patch failed contrib unit tests."
+    {color:red}-1 contrib tests{color}.  The patch failed contrib unit tests."
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 contrib tests.  The patch passed contrib unit tests."
+    {color:green}+1 contrib tests{color}.  The patch passed contrib unit tests."
   return 0
 }
 
@@ -795,12 +848,12 @@ checkInjectSystemFaults () {
   if [[ $? != 0 ]] ; then
     JIRA_COMMENT="$JIRA_COMMENT
 
-    -1 system test framework.  The patch failed system test framework compile."
+    {color:red}-1 system test framework{color}.  The patch failed system test framework compile."
     return 1
   fi
   JIRA_COMMENT="$JIRA_COMMENT
 
-    +1 system test framework.  The patch passed system test framework compile."
+    {color:green}+1 system test framework{color}.  The patch passed system test framework compile."
   return 0
 }
 
@@ -813,11 +866,11 @@ submitJiraComment () {
     JIRA_COMMENT_FOOTER=""
   fi
   if [[ $result == 0 ]] ; then
-    comment="+1 overall.  $JIRA_COMMENT
+    comment="{color:green}+1 overall{color}.  $JIRA_COMMENT
 
 $JIRA_COMMENT_FOOTER"
   else
-    comment="-1 overall.  $JIRA_COMMENT
+    comment="{color:red}-1 overall{color}.  $JIRA_COMMENT
 
 $JIRA_COMMENT_FOOTER"
   fi
@@ -886,9 +939,16 @@ if [[ $JENKINS == "true" ]] ; then
     exit 100
   fi
 fi
-setup
+downloadPatch
+verifyPatch
+(( RESULT = RESULT + $? ))
+if [[ $RESULT != 0 ]] ; then
+  submitJiraComment 1
+  cleanupAndExit 1
+fi
+buildWithPatch
 checkAuthor
-RESULT=$?
+(( RESULT = RESULT + $? ))
 
 if [[ $JENKINS == "true" ]] ; then
   cleanUpXml
@@ -896,7 +956,9 @@ fi
 checkTests
 (( RESULT = RESULT + $? ))
 applyPatch
-if [[ $? != 0 ]] ; then
+APPLY_PATCH_RET=$?
+(( RESULT = RESULT + $APPLY_PATCH_RET ))
+if [[ $APPLY_PATCH_RET != 0 ]] ; then
   submitJiraComment 1
   cleanupAndExit 1
 fi

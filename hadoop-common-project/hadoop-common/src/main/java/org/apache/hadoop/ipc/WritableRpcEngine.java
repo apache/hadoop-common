@@ -20,7 +20,6 @@ package org.apache.hadoop.ipc;
 
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Method;
-import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 
 import java.net.InetSocketAddress;
@@ -31,12 +30,14 @@ import javax.net.SocketFactory;
 import org.apache.commons.logging.*;
 
 import org.apache.hadoop.io.*;
+import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.ipc.Client.ConnectionId;
 import org.apache.hadoop.ipc.RPC.RpcInvoker;
 import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.SecretManager;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.util.Time;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.*;
@@ -141,6 +142,7 @@ public class WritableRpcEngine implements RpcEngine {
       return rpcVersion;
     }
 
+    @Override
     @SuppressWarnings("deprecation")
     public void readFields(DataInput in) throws IOException {
       rpcVersion = in.readLong();
@@ -158,6 +160,7 @@ public class WritableRpcEngine implements RpcEngine {
       }
     }
 
+    @Override
     @SuppressWarnings("deprecation")
     public void write(DataOutput out) throws IOException {
       out.writeLong(rpcVersion);
@@ -172,6 +175,7 @@ public class WritableRpcEngine implements RpcEngine {
       }
     }
 
+    @Override
     public String toString() {
       StringBuilder buffer = new StringBuilder();
       buffer.append(methodName);
@@ -188,10 +192,12 @@ public class WritableRpcEngine implements RpcEngine {
       return buffer.toString();
     }
 
+    @Override
     public void setConf(Configuration conf) {
       this.conf = conf;
     }
 
+    @Override
     public Configuration getConf() {
       return this.conf;
     }
@@ -214,23 +220,25 @@ public class WritableRpcEngine implements RpcEngine {
       this.client = CLIENTS.getClient(conf, factory);
     }
 
+    @Override
     public Object invoke(Object proxy, Method method, Object[] args)
       throws Throwable {
       long startTime = 0;
       if (LOG.isDebugEnabled()) {
-        startTime = System.currentTimeMillis();
+        startTime = Time.now();
       }
 
       ObjectWritable value = (ObjectWritable)
         client.call(RPC.RpcKind.RPC_WRITABLE, new Invocation(method, args), remoteId);
       if (LOG.isDebugEnabled()) {
-        long callTime = System.currentTimeMillis() - startTime;
+        long callTime = Time.now() - startTime;
         LOG.debug("Call: " + method.getName() + " " + callTime);
       }
       return value.get();
     }
     
     /* close the IPC client that's responsible for this invoker's RPCs */ 
+    @Override
     synchronized public void close() {
       if (!isClosed) {
         isClosed = true;
@@ -259,8 +267,13 @@ public class WritableRpcEngine implements RpcEngine {
   public <T> ProtocolProxy<T> getProxy(Class<T> protocol, long clientVersion,
                          InetSocketAddress addr, UserGroupInformation ticket,
                          Configuration conf, SocketFactory factory,
-                         int rpcTimeout)
+                         int rpcTimeout, RetryPolicy connectionRetryPolicy)
     throws IOException {    
+
+    if (connectionRetryPolicy != null) {
+      throw new UnsupportedOperationException(
+          "Not supported: connectionRetryPolicy=" + connectionRetryPolicy);
+    }
 
     T proxy = (T) Proxy.newProxyInstance(protocol.getClassLoader(),
         new Class[] { protocol }, new Invoker(protocol, addr, ticket, conf,
@@ -268,36 +281,6 @@ public class WritableRpcEngine implements RpcEngine {
     return new ProtocolProxy<T>(protocol, proxy, true);
   }
   
-  /** Expert: Make multiple, parallel calls to a set of servers. */
-  public Object[] call(Method method, Object[][] params,
-                       InetSocketAddress[] addrs, 
-                       UserGroupInformation ticket, Configuration conf)
-    throws IOException, InterruptedException {
-
-    Invocation[] invocations = new Invocation[params.length];
-    for (int i = 0; i < params.length; i++)
-      invocations[i] = new Invocation(method, params[i]);
-    Client client = CLIENTS.getClient(conf);
-    try {
-    Writable[] wrappedValues = 
-      client.call(invocations, addrs, method.getDeclaringClass(), ticket, conf);
-    
-    if (method.getReturnType() == Void.TYPE) {
-      return null;
-    }
-
-    Object[] values =
-      (Object[])Array.newInstance(method.getReturnType(), wrappedValues.length);
-    for (int i = 0; i < values.length; i++)
-      if (wrappedValues[i] != null)
-        values[i] = ((ObjectWritable)wrappedValues[i]).get();
-    
-    return values;
-    } finally {
-      CLIENTS.stopClient(client);
-    }
-  }
-
   /* Construct a server for a protocol implementation instance listening on a
    * port and address. */
   @Override
@@ -489,7 +472,7 @@ public class WritableRpcEngine implements RpcEngine {
 
           // Invoke the protocol method
 
-          long startTime = System.currentTimeMillis();
+          long startTime = Time.now();
           Method method = 
               protocolImpl.protocolClass.getMethod(call.getMethodName(),
               call.getParameterClasses());
@@ -497,7 +480,7 @@ public class WritableRpcEngine implements RpcEngine {
           server.rpcDetailedMetrics.init(protocolImpl.protocolClass);
           Object value = 
               method.invoke(protocolImpl.protocolImpl, call.getParameters());
-          int processingTime = (int) (System.currentTimeMillis() - startTime);
+          int processingTime = (int) (Time.now() - startTime);
           int qTime = (int) (startTime-receivedTime);
           if (LOG.isDebugEnabled()) {
             LOG.debug("Served: " + call.getMethodName() +

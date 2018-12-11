@@ -105,10 +105,19 @@ public class DataNodeTestUtils {
   }
 
   public static InterDatanodeProtocol createInterDatanodeProtocolProxy(
-      DataNode dn, DatanodeID datanodeid, final Configuration conf
-      ) throws IOException {
+      DataNode dn, DatanodeID datanodeid, final Configuration conf,
+      boolean connectToDnViaHostname) throws IOException {
+    if (connectToDnViaHostname != dn.getDnConf().connectToDnViaHostname) {
+      throw new AssertionError("Unexpected DN hostname configuration");
+    }
     return DataNode.createInterDataNodeProtocolProxy(datanodeid, conf,
-        dn.getDnConf().socketTimeout);
+        dn.getDnConf().socketTimeout, dn.getDnConf().connectToDnViaHostname);
+  }
+  
+  public static void runBlockScannerForBlock(DataNode dn, ExtendedBlock b) {
+    DataBlockScanner scanner = dn.getBlockScanner();
+    BlockPoolSliceScanner bpScanner = scanner.getBPScanner(b.getBlockPoolId());
+    bpScanner.verifyBlock(b);
   }
   
   public static void shutdownBlockScanner(DataNode dn) {
@@ -137,6 +146,11 @@ public class DataNodeTestUtils {
     return FsDatasetTestUtil.getBlockFile(dn.getFSDataset(), bpid, b);
   }
 
+  public static File getMetaFile(DataNode dn, String bpid, Block b)
+      throws IOException {
+    return FsDatasetTestUtil.getMetaFile(dn.getFSDataset(), bpid, b);
+  }
+  
   public static boolean unlinkBlock(DataNode dn, ExtendedBlock bk, int numLinks
       ) throws IOException {
     return FsDatasetTestUtil.unlinkBlock(dn.getFSDataset(), bk, numLinks);

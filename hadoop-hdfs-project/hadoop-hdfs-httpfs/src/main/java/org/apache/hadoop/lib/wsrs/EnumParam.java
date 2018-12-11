@@ -18,18 +18,21 @@
 
 package org.apache.hadoop.lib.wsrs;
 
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.util.StringUtils;
 
 import java.util.Arrays;
 
+@InterfaceAudience.Private
 public abstract class EnumParam<E extends Enum<E>> extends Param<E> {
   Class<E> klass;
 
-  public EnumParam(String label, String str, Class<E> e) {
+  public EnumParam(String name, Class<E> e, E defaultValue) {
+    super(name, defaultValue);
     klass = e;
-    value = parseParam(label, str);
   }
 
+  @Override
   protected E parse(String str) throws Exception {
     return Enum.valueOf(klass, str.toUpperCase());
   }

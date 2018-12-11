@@ -31,6 +31,8 @@ import java.nio.channels.WritableByteChannel;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.metrics2.lib.MutableRate;
 
 /**
  * This implements an output stream that can have a timeout while writing.
@@ -56,6 +58,7 @@ public class SocketOutputStream extends OutputStream
       this.channel = channel;
     }
     
+    @Override
     int performIO(ByteBuffer buf) throws IOException {
       return channel.write(buf);
     }
@@ -96,6 +99,7 @@ public class SocketOutputStream extends OutputStream
     this(socket.getChannel(), timeout);
   }
   
+  @Override
   public void write(int b) throws IOException {
     /* If we need to, we can optimize this allocation.
      * probably no need to optimize or encourage single byte writes.
@@ -105,6 +109,7 @@ public class SocketOutputStream extends OutputStream
     write(buf, 0, 1);
   }
   
+  @Override
   public void write(byte[] b, int off, int len) throws IOException {
     ByteBuffer buf = ByteBuffer.wrap(b, off, len);
     while (buf.hasRemaining()) {
@@ -124,6 +129,7 @@ public class SocketOutputStream extends OutputStream
     }
   }
 
+  @Override
   public synchronized void close() throws IOException {
     /* close the channel since Socket.getOuputStream().close() 
      * closes the socket.
@@ -143,10 +149,12 @@ public class SocketOutputStream extends OutputStream
 
   //WritableByteChannle interface 
   
+  @Override
   public boolean isOpen() {
     return writer.isOpen();
   }
 
+  @Override
   public int write(ByteBuffer src) throws IOException {
     return writer.doIO(src, SelectionKey.OP_WRITE);
   }
@@ -166,7 +174,10 @@ public class SocketOutputStream extends OutputStream
   
   /**
    * Transfers data from FileChannel using 
-   * {@link FileChannel#transferTo(long, long, WritableByteChannel)}. 
+   * {@link FileChannel#transferTo(long, long, WritableByteChannel)}.
+   * Updates <code>waitForWritableTime</code> and <code>transferToTime</code>
+   * with the time spent blocked on the network and the time spent transferring
+   * data from disk to network respectively.
    * 
    * Similar to readFully(), this waits till requested amount of 
    * data is transfered.
@@ -174,6 +185,9 @@ public class SocketOutputStream extends OutputStream
    * @param fileCh FileChannel to transfer data from.
    * @param position position within the channel where the transfer begins
    * @param count number of bytes to transfer.
+   * @param waitForWritableTime nanoseconds spent waiting for the socket 
+   *        to become writable
+   * @param transferTime nanoseconds spent transferring data
    * 
    * @throws EOFException 
    *         If end of input file is reached before requested number of 
@@ -186,9 +200,11 @@ public class SocketOutputStream extends OutputStream
    * @throws IOException Includes any exception thrown by 
    *         {@link FileChannel#transferTo(long, long, WritableByteChannel)}. 
    */
-  public void transferToFully(FileChannel fileCh, long position, int count) 
-                              throws IOException {
-    
+  public void transferToFully(FileChannel fileCh, long position, int count,
+      LongWritable waitForWritableTime,
+      LongWritable transferToTime) throws IOException {
+    long waitTime = 0;
+    long transferTime = 0;
     while (count > 0) {
       /* 
        * Ideally we should wait after transferTo returns 0. But because of
@@ -200,7 +216,10 @@ public class SocketOutputStream extends OutputStream
        * 
        * Once we move to JAVA SE 7, wait should be moved to correct place.
        */
+      long start = System.nanoTime();
       waitForWritable();
+      long wait = System.nanoTime();
+
       int nTransfered = (int) fileCh.transferTo(position, count, getChannel());
       
       if (nTransfered == 0) {
@@ -219,6 +238,26 @@ public class SocketOutputStream extends OutputStream
         position += nTransfered;
         count -= nTransfered;
       }
+      long transfer = System.nanoTime();
+      waitTime += wait - start;
+      transferTime += transfer - wait;
     }
-  }  
+    
+    if (waitForWritableTime != null) {
+      waitForWritableTime.set(waitTime);
+    }
+    if (transferToTime != null) {
+      transferToTime.set(transferTime);
+    }
+  }
+
+  /**
+   * Call
+   * {@link #transferToFully(FileChannel, long, int, MutableRate, MutableRate)}
+   * with null <code>waitForWritableTime</code> and <code>transferToTime</code>
+   */
+  public void transferToFully(FileChannel fileCh, long position, int count)
+      throws IOException {
+    transferToFully(fileCh, position, count, null, null);
+  }
 }

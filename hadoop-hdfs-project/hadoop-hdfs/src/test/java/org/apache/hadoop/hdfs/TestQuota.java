@@ -20,6 +20,7 @@ package org.apache.hadoop.hdfs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.OutputStream;
 import java.security.PrivilegedExceptionAction;
@@ -773,7 +774,60 @@ public class TestQuota {
       final ContentSummary computed) {
     assertEquals(expected.toString(), computed.toString());
   }
-
+ 
+  /**
+   * Test limit cases for setting space quotas.
+   */
+  @Test
+  public void testMaxSpaceQuotas() throws Exception {
+    final Configuration conf = new HdfsConfiguration();
+    final MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).numDataNodes(2).build();
+    final FileSystem fs = cluster.getFileSystem();
+    assertTrue("Not a HDFS: "+fs.getUri(),
+                fs instanceof DistributedFileSystem);
+    final DistributedFileSystem dfs = (DistributedFileSystem)fs;
+    
+    // create test directory
+    final Path testFolder = new Path("/testFolder");
+    assertTrue(dfs.mkdirs(testFolder));
+    
+    // setting namespace quota to Long.MAX_VALUE - 1 should work
+    dfs.setQuota(testFolder, Long.MAX_VALUE - 1, 10);
+    ContentSummary c = dfs.getContentSummary(testFolder);
+    assertTrue("Quota not set properly", c.getQuota() == Long.MAX_VALUE - 1);
+    
+    // setting diskspace quota to Long.MAX_VALUE - 1 should work
+    dfs.setQuota(testFolder, 10, Long.MAX_VALUE - 1);
+    c = dfs.getContentSummary(testFolder);
+    assertTrue("Quota not set properly", c.getSpaceQuota() == Long.MAX_VALUE - 1);
+    
+    // setting namespace quota to Long.MAX_VALUE should not work + no error
+    dfs.setQuota(testFolder, Long.MAX_VALUE, 10);
+    c = dfs.getContentSummary(testFolder);
+    assertTrue("Quota should not have changed", c.getQuota() == 10);
+    
+    // setting diskspace quota to Long.MAX_VALUE should not work + no error
+    dfs.setQuota(testFolder, 10, Long.MAX_VALUE);
+    c = dfs.getContentSummary(testFolder);
+    assertTrue("Quota should not have changed", c.getSpaceQuota() == 10);
+    
+    // setting namespace quota to Long.MAX_VALUE + 1 should not work + error
+    try {
+      dfs.setQuota(testFolder, Long.MAX_VALUE + 1, 10);
+      fail("Exception not thrown");
+    } catch (IllegalArgumentException e) {
+      // Expected
+    }
+    
+    // setting diskspace quota to Long.MAX_VALUE + 1 should not work + error
+    try {
+      dfs.setQuota(testFolder, 10, Long.MAX_VALUE + 1);
+      fail("Exception not thrown");
+    } catch (IllegalArgumentException e) {
+      // Expected
+    }
+  }
+  
   /**
    * Violate a space quota using files of size < 1 block. Test that block
    * allocation conservatively assumes that for quota checking the entire
@@ -875,8 +929,8 @@ public class TestQuota {
       // 6kb block
       // 192kb quota
       final int FILE_SIZE = 1024;
-      final int QUOTA_SIZE = 32 * (int) fs.getDefaultBlockSize();
-      assertEquals(6 * 1024, fs.getDefaultBlockSize());
+      final int QUOTA_SIZE = 32 * (int) fs.getDefaultBlockSize(dir);
+      assertEquals(6 * 1024, fs.getDefaultBlockSize(dir));
       assertEquals(192 * 1024, QUOTA_SIZE);
 
       // Create the dir and set the quota. We need to enable the quota before
@@ -903,7 +957,7 @@ public class TestQuota {
       assertEquals("Invalid space consumed", 59 * FILE_SIZE * 3,
           c.getSpaceConsumed());
       assertEquals("Invalid space consumed", QUOTA_SIZE - (59 * FILE_SIZE * 3),
-          3 * (fs.getDefaultBlockSize() - FILE_SIZE));
+          3 * (fs.getDefaultBlockSize(dir) - FILE_SIZE));
 
       // Now check that trying to create another file violates the quota
       try {

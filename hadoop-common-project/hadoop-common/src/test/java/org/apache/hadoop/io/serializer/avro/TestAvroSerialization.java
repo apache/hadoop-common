@@ -21,6 +21,7 @@ package org.apache.hadoop.io.serializer.avro;
 import junit.framework.TestCase;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.serializer.SerializationFactory;
 import org.apache.hadoop.io.serializer.SerializationTestUtil;
 
 public class TestAvroSerialization extends TestCase {
@@ -43,6 +44,12 @@ public class TestAvroSerialization extends TestCase {
     assertEquals(before, after);
   }
 
+  public void testAcceptHandlingPrimitivesAndArrays() throws Exception {
+    SerializationFactory factory = new SerializationFactory(conf);
+    assertNull(factory.getSerializer(byte[].class));
+    assertNull(factory.getSerializer(byte.class));
+  }
+
   public void testReflectInnerClass() throws Exception {
     InnerRecord before = new InnerRecord();
     before.x = 10;
@@ -63,10 +70,12 @@ public class TestAvroSerialization extends TestCase {
   public static class InnerRecord {
     public int x = 7;
 
+    @Override
     public int hashCode() {
       return x;
     }
 
+    @Override
     public boolean equals(Object obj) {
       if (this == obj)
         return true;
@@ -84,10 +93,12 @@ public class TestAvroSerialization extends TestCase {
   public static class RefSerializable implements AvroReflectSerializable {
     public int x = 7;
 
+    @Override
     public int hashCode() {
       return x;
     }
 
+    @Override
     public boolean equals(Object obj) {
       if (this == obj)
         return true;

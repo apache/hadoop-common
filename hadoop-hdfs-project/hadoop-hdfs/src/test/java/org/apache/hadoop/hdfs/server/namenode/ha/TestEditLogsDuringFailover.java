@@ -17,9 +17,11 @@
  */
 package org.apache.hadoop.hdfs.server.namenode.ha;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
@@ -32,9 +34,11 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.HAUtil;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.MiniDFSNNTopology;
+import org.apache.hadoop.hdfs.server.namenode.EditLogFileOutputStream;
 import org.apache.hadoop.hdfs.server.namenode.FSImageTestUtil;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeAdapter;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.test.GenericTestUtils;
 import org.junit.Test;
 
@@ -49,6 +53,12 @@ public class TestEditLogsDuringFailover {
   private static final Log LOG =
     LogFactory.getLog(TestEditLogsDuringFailover.class);
   private static final int NUM_DIRS_IN_LOG = 5;
+
+  static {
+    // No need to fsync for the purposes of tests. This makes
+    // the tests run much faster.
+    EditLogFileOutputStream.setShouldSkipFsyncForTesting(true);
+  }
   
   @Test
   public void testStartup() throws Exception {
@@ -118,8 +128,8 @@ public class TestEditLogsDuringFailover {
     }
   }
   
-  @Test
-  public void testFailoverFinalizesAndReadsInProgress() throws Exception {
+  private void testFailoverFinalizesAndReadsInProgress(
+      boolean partialTxAtEnd) throws Exception {
     Configuration conf = new Configuration();
     MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf)
       .nnTopology(MiniDFSNNTopology.simpleHATopology())
@@ -130,8 +140,21 @@ public class TestEditLogsDuringFailover {
       URI sharedUri = cluster.getSharedEditsDir(0, 1);
       File sharedDir = new File(sharedUri.getPath(), "current");
       FSImageTestUtil.createAbortedLogWithMkdirs(sharedDir, NUM_DIRS_IN_LOG, 1);
+      
       assertEditFiles(Collections.singletonList(sharedUri),
           NNStorage.getInProgressEditsFileName(1));
+      if (partialTxAtEnd) {
+        FileOutputStream outs = null;
+        try {
+          File editLogFile =
+              new File(sharedDir, NNStorage.getInProgressEditsFileName(1));
+          outs = new FileOutputStream(editLogFile, true);
+          outs.write(new byte[] { 0x18, 0x00, 0x00, 0x00 } );
+          LOG.error("editLogFile = " + editLogFile);
+        } finally {
+          IOUtils.cleanup(LOG, outs);
+        }
+     }
 
       // Transition one of the NNs to active
       cluster.transitionToActive(0);
@@ -149,7 +172,18 @@ public class TestEditLogsDuringFailover {
     } finally {
       cluster.shutdown();
     }
+  }
+  
+  @Test
+  public void testFailoverFinalizesAndReadsInProgressSimple()
+      throws Exception {
+    testFailoverFinalizesAndReadsInProgress(false);
+  }
 
+  @Test
+  public void testFailoverFinalizesAndReadsInProgressWithPartialTxAtEnd()
+      throws Exception {
+    testFailoverFinalizesAndReadsInProgress(true);
   }
 
   /**

@@ -47,14 +47,17 @@ import org.apache.hadoop.hdfs.protocolPB.RefreshAuthorizationPolicyProtocolPB;
 import org.apache.hadoop.hdfs.protocolPB.RefreshUserMappingsProtocolClientSideTranslatorPB;
 import org.apache.hadoop.hdfs.protocolPB.RefreshUserMappingsProtocolPB;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.server.protocol.JournalProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.retry.DefaultFailoverProxyProvider;
 import org.apache.hadoop.io.retry.FailoverProxyProvider;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.io.retry.RetryProxy;
+import org.apache.hadoop.io.retry.RetryUtils;
 import org.apache.hadoop.ipc.ProtobufRpcEngine;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
@@ -243,9 +246,24 @@ public class NameNodeProxies {
   private static ClientProtocol createNNProxyWithClientProtocol(
       InetSocketAddress address, Configuration conf, UserGroupInformation ugi,
       boolean withRetries) throws IOException {
-    ClientNamenodeProtocolPB proxy = (ClientNamenodeProtocolPB) NameNodeProxies
-        .createNameNodeProxy(address, conf, ugi, ClientNamenodeProtocolPB.class, 0);
+    RPC.setProtocolEngine(conf, ClientNamenodeProtocolPB.class, ProtobufRpcEngine.class);
+
+    final RetryPolicy defaultPolicy = 
+        RetryUtils.getDefaultRetryPolicy(
+            conf, 
+            DFSConfigKeys.DFS_CLIENT_RETRY_POLICY_ENABLED_KEY, 
+            DFSConfigKeys.DFS_CLIENT_RETRY_POLICY_ENABLED_DEFAULT, 
+            DFSConfigKeys.DFS_CLIENT_RETRY_POLICY_SPEC_KEY,
+            DFSConfigKeys.DFS_CLIENT_RETRY_POLICY_SPEC_DEFAULT,
+            SafeModeException.class);
+    
+    final long version = RPC.getProtocolVersion(ClientNamenodeProtocolPB.class);
+    ClientNamenodeProtocolPB proxy = RPC.getProtocolProxy(
+        ClientNamenodeProtocolPB.class, version, address, ugi, conf,
+        NetUtils.getDefaultSocketFactory(conf), 0, defaultPolicy).getProxy();
+
     if (withRetries) { // create the proxy with retries
+
       RetryPolicy createPolicy = RetryPolicies
           .retryUpToMaximumCountWithFixedSleep(5,
               HdfsConstants.LEASE_SOFTLIMIT_PERIOD, TimeUnit.MILLISECONDS);
@@ -258,17 +276,21 @@ public class NameNodeProxies {
       Map<Class<? extends Exception>, RetryPolicy> exceptionToPolicyMap
                  = new HashMap<Class<? extends Exception>, RetryPolicy>();
       exceptionToPolicyMap.put(RemoteException.class, RetryPolicies
-          .retryByRemoteException(RetryPolicies.TRY_ONCE_THEN_FAIL,
+          .retryByRemoteException(defaultPolicy,
               remoteExceptionToPolicyMap));
       RetryPolicy methodPolicy = RetryPolicies.retryByException(
-          RetryPolicies.TRY_ONCE_THEN_FAIL, exceptionToPolicyMap);
+          defaultPolicy, exceptionToPolicyMap);
       Map<String, RetryPolicy> methodNameToPolicyMap 
                  = new HashMap<String, RetryPolicy>();
     
       methodNameToPolicyMap.put("create", methodPolicy);
     
-      proxy = (ClientNamenodeProtocolPB) RetryProxy
-          .create(ClientNamenodeProtocolPB.class, proxy, methodNameToPolicyMap);
+      proxy = (ClientNamenodeProtocolPB) RetryProxy.create(
+          ClientNamenodeProtocolPB.class,
+          new DefaultFailoverProxyProvider<ClientNamenodeProtocolPB>(
+              ClientNamenodeProtocolPB.class, proxy),
+          methodNameToPolicyMap,
+          defaultPolicy);
     }
     return new ClientNamenodeProtocolTranslatorPB(proxy);
   }

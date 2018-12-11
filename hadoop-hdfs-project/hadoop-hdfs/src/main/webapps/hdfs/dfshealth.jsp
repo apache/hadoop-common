@@ -34,15 +34,15 @@
   boolean isActive = (nnHAState == HAServiceState.ACTIVE);
   String namenodeRole = nn.getRole().toString();
   String namenodeState = nnHAState.toString();
-  String namenodeLabel = nn.getNameNodeAddress().getHostName() + ":" + nn.getNameNodeAddress().getPort();
+  String namenodeLabel = nn.getNameNodeAddressHostPortString();
 %>
 
 <!DOCTYPE html>
 <html>
-
+<head>
 <link rel="stylesheet" type="text/css" href="/static/hadoop.css">
 <title>Hadoop <%=namenodeRole%>&nbsp;<%=namenodeLabel%></title>
-    
+</head>    
 <body>
 <h1><%=namenodeRole%> '<%=namenodeLabel%>' (<%=namenodeState%>)</h1>
 <%= NamenodeJspHelper.getVersionTable(fsn) %>
@@ -60,8 +60,10 @@
 <%= NamenodeJspHelper.getCorruptFilesWarning(fsn)%>
 
 <% healthjsp.generateHealthReport(out, nn, request); %>
-<hr>
+<% healthjsp.generateJournalReport(out, nn, request); %>
+<hr/>
 <% healthjsp.generateConfReport(out, nn, request); %>
+<hr>
 <%
 out.println(ServletUtil.htmlFooter());
 %>

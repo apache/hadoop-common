@@ -17,7 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.namenode.ha;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,9 +55,9 @@ import com.google.common.collect.Lists;
 
 public class TestStandbyCheckpoints {
   private static final int NUM_DIRS_IN_LOG = 200000;
-  private MiniDFSCluster cluster;
-  private NameNode nn0, nn1;
-  private FileSystem fs;
+  protected MiniDFSCluster cluster;
+  protected NameNode nn0, nn1;
+  protected FileSystem fs;
 
   @SuppressWarnings("rawtypes")
   @Before

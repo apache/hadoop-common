@@ -17,21 +17,22 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import static org.mockito.Mockito.mock;
 import static org.junit.Assert.*;
-import org.apache.hadoop.hdfs.MiniDFSCluster;
+import static org.mockito.Mockito.mock;
+
+import java.io.IOException;
+import java.net.URI;
+import java.util.Collection;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
-import org.apache.hadoop.io.Writable;
-
-import java.net.URI;
-import java.io.IOException;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
+import org.junit.Test;
 
 public class TestGenericJournalConf {
+  private static final String DUMMY_URI = "dummy://test";
+
   /** 
    * Test that an exception is thrown if a journal class doesn't exist
    * in the configuration 
@@ -116,12 +117,19 @@ public class TestGenericJournalConf {
 
     conf.set(DFSConfigKeys.DFS_NAMENODE_EDITS_PLUGIN_PREFIX + ".dummy",
              DummyJournalManager.class.getName());
-    conf.set(DFSConfigKeys.DFS_NAMENODE_EDITS_DIR_KEY,
-             "dummy://test");
+    conf.set(DFSConfigKeys.DFS_NAMENODE_EDITS_DIR_KEY, DUMMY_URI);
     conf.setInt(DFSConfigKeys.DFS_NAMENODE_CHECKED_VOLUMES_MINIMUM_KEY, 0);
     try {
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0).build();
       cluster.waitActive();
+      
+      assertTrue(DummyJournalManager.shouldPromptCalled);
+      assertTrue(DummyJournalManager.formatCalled);
+      assertNotNull(DummyJournalManager.conf);
+      assertEquals(new URI(DUMMY_URI), DummyJournalManager.uri);
+      assertNotNull(DummyJournalManager.nsInfo);
+      assertEquals(DummyJournalManager.nsInfo.getClusterID(),
+          cluster.getNameNode().getNamesystem().getClusterId());
     } finally {
       if (cluster != null) {
         cluster.shutdown();
@@ -130,7 +138,24 @@ public class TestGenericJournalConf {
   }
 
   public static class DummyJournalManager implements JournalManager {
-    public DummyJournalManager(Configuration conf, URI u) {}
+    static Configuration conf = null;
+    static URI uri = null;
+    static NamespaceInfo nsInfo = null;
+    static boolean formatCalled = false;
+    static boolean shouldPromptCalled = false;
+    
+    public DummyJournalManager(Configuration conf, URI u,
+        NamespaceInfo nsInfo) {
+      // Set static vars so the test case can verify them.
+      DummyJournalManager.conf = conf;
+      DummyJournalManager.uri = u;
+      DummyJournalManager.nsInfo = nsInfo; 
+    }
+    
+    @Override
+    public void format(NamespaceInfo nsInfo) throws IOException {
+      formatCalled = true;
+    }
     
     @Override
     public EditLogOutputStream startLogSegment(long txId) throws IOException {
@@ -144,15 +169,8 @@ public class TestGenericJournalConf {
     }
 
     @Override
-    public EditLogInputStream getInputStream(long fromTxnId, boolean inProgressOk)
-        throws IOException {
-      return null;
-    }
-
-    @Override
-    public long getNumberOfTransactions(long fromTxnId, boolean inProgressOk)
-        throws IOException {
-      return 0;
+    public void selectInputStreams(Collection<EditLogInputStream> streams,
+        long fromTxnId, boolean inProgressOk) {
     }
 
     @Override
@@ -167,11 +185,17 @@ public class TestGenericJournalConf {
 
     @Override
     public void close() throws IOException {}
+
+    @Override
+    public boolean hasSomeData() throws IOException {
+      shouldPromptCalled = true;
+      return false;
+    }
   }
 
   public static class BadConstructorJournalManager extends DummyJournalManager {
     public BadConstructorJournalManager() {
-      super(null, null);
+      super(null, null, null);
     }
   }
 }

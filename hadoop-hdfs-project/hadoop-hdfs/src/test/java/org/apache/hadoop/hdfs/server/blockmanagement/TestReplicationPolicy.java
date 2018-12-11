@@ -17,13 +17,16 @@
  */
 package org.apache.hadoop.hdfs.server.blockmanagement;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
@@ -34,13 +37,14 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 public class TestReplicationPolicy {
   private Random random = DFSUtil.getRandom();
@@ -52,6 +56,9 @@ public class TestReplicationPolicy {
   private static final String filename = "/dummyfile.txt";
   private static DatanodeDescriptor dataNodes[];
 
+  @Rule
+  public ExpectedException exception = ExpectedException.none();
+  
   @BeforeClass
   public static void setupCluster() throws Exception {
     Configuration conf = new HdfsConfiguration();
@@ -61,7 +68,7 @@ public class TestReplicationPolicy {
         DFSTestUtil.getDatanodeDescriptor("3.3.3.3", "/d1/r2"),
         DFSTestUtil.getDatanodeDescriptor("4.4.4.4", "/d1/r2"),
         DFSTestUtil.getDatanodeDescriptor("5.5.5.5", "/d2/r3"),
-        DFSTestUtil.getDatanodeDescriptor("6.6.6.6", "/d2/r3")        
+        DFSTestUtil.getDatanodeDescriptor("6.6.6.6", "/d2/r3")
       };
 
     FileSystem.setDefaultUri(conf, "hdfs://localhost:0");
@@ -104,30 +111,30 @@ public class TestReplicationPolicy {
         HdfsConstants.MIN_BLOCKS_FOR_WRITE*BLOCK_SIZE, 0L, 4, 0); // overloaded
 
     DatanodeDescriptor[] targets;
-    targets = replicator.chooseTarget(filename,
-                                      0, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 0, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 0);
     
-    targets = replicator.chooseTarget(filename,
-                                      1, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 1, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 1);
     assertEquals(targets[0], dataNodes[0]);
     
     targets = replicator.chooseTarget(filename,
-                                      2, dataNodes[0], BLOCK_SIZE);
+                                      2, dataNodes[0], new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 2);
     assertEquals(targets[0], dataNodes[0]);
     assertFalse(cluster.isOnSameRack(targets[0], targets[1]));
     
-    targets = replicator.chooseTarget(filename,
-                                      3, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 3, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 3);
     assertEquals(targets[0], dataNodes[0]);
     assertFalse(cluster.isOnSameRack(targets[0], targets[1]));
     assertTrue(cluster.isOnSameRack(targets[1], targets[2]));
 
-    targets = replicator.chooseTarget(filename,
-                                     4, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 4, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 4);
     assertEquals(targets[0], dataNodes[0]);
     assertTrue(cluster.isOnSameRack(targets[1], targets[2]) ||
@@ -242,30 +249,30 @@ public class TestReplicationPolicy {
         (HdfsConstants.MIN_BLOCKS_FOR_WRITE-1)*BLOCK_SIZE, 0L, 0, 0); // no space
         
     DatanodeDescriptor[] targets;
-    targets = replicator.chooseTarget(filename,
-                                      0, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 0, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 0);
     
-    targets = replicator.chooseTarget(filename,
-                                      1, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 1, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 1);
     assertEquals(targets[0], dataNodes[1]);
     
-    targets = replicator.chooseTarget(filename,
-                                      2, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 2, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 2);
     assertEquals(targets[0], dataNodes[1]);
     assertFalse(cluster.isOnSameRack(targets[0], targets[1]));
     
-    targets = replicator.chooseTarget(filename,
-                                      3, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 3, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 3);
     assertEquals(targets[0], dataNodes[1]);
     assertTrue(cluster.isOnSameRack(targets[1], targets[2]));
     assertFalse(cluster.isOnSameRack(targets[0], targets[1]));
     
-    targets = replicator.chooseTarget(filename,
-                                      4, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 4, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 4);
     assertEquals(targets[0], dataNodes[1]);
     for(int i=1; i<4; i++) {
@@ -298,23 +305,23 @@ public class TestReplicationPolicy {
     }
       
     DatanodeDescriptor[] targets;
-    targets = replicator.chooseTarget(filename,
-                                      0, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 0, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 0);
     
-    targets = replicator.chooseTarget(filename,
-                                      1, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 1, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 1);
     assertFalse(cluster.isOnSameRack(targets[0], dataNodes[0]));
     
-    targets = replicator.chooseTarget(filename,
-                                      2, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 2, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 2);
     assertFalse(cluster.isOnSameRack(targets[0], dataNodes[0]));
     assertFalse(cluster.isOnSameRack(targets[0], targets[1]));
     
-    targets = replicator.chooseTarget(filename,
-                                      3, dataNodes[0], BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 3, dataNodes[0],
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 3);
     for(int i=0; i<3; i++) {
       assertFalse(cluster.isOnSameRack(targets[i], dataNodes[0]));
@@ -343,21 +350,21 @@ public class TestReplicationPolicy {
       DFSTestUtil.getDatanodeDescriptor("7.7.7.7", "/d2/r4");
 
     DatanodeDescriptor[] targets;
-    targets = replicator.chooseTarget(filename,
-                                      0, writerDesc, BLOCK_SIZE);
+    targets = replicator.chooseTarget(filename, 0, writerDesc,
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 0);
-    
-    targets = replicator.chooseTarget(filename,
-                                      1, writerDesc, BLOCK_SIZE);
+
+    targets = replicator.chooseTarget(filename, 1, writerDesc,
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 1);
-    
-    targets = replicator.chooseTarget(filename,
-                                      2, writerDesc, BLOCK_SIZE);
+
+    targets = replicator.chooseTarget(filename, 2, writerDesc,
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 2);
     assertFalse(cluster.isOnSameRack(targets[0], targets[1]));
-    
-    targets = replicator.chooseTarget(filename,
-                                      3, writerDesc, BLOCK_SIZE);
+
+    targets = replicator.chooseTarget(filename, 3, writerDesc,
+        new ArrayList<DatanodeDescriptor>(), BLOCK_SIZE);
     assertEquals(targets.length, 3);
     assertTrue(cluster.isOnSameRack(targets[1], targets[2]));
     assertFalse(cluster.isOnSameRack(targets[0], targets[1]));    
@@ -586,5 +593,139 @@ public class TestReplicationPolicy {
         "Not returned the expected number of QUEUE_WITH_CORRUPT_BLOCKS blocks",
         fifthPrioritySize, chosenBlocks.get(
             UnderReplicatedBlocks.QUEUE_WITH_CORRUPT_BLOCKS).size());
+  }
+  
+  /**
+   * Test for the chooseReplicaToDelete are processed based on 
+   * block locality and free space
+   */
+  @Test
+  public void testChooseReplicaToDelete() throws Exception {
+    List<DatanodeDescriptor> replicaNodeList = new 
+        ArrayList<DatanodeDescriptor>();
+    final Map<String, List<DatanodeDescriptor>> rackMap
+        = new HashMap<String, List<DatanodeDescriptor>>();
+    
+    dataNodes[0].setRemaining(4*1024*1024);
+    replicaNodeList.add(dataNodes[0]);
+    
+    dataNodes[1].setRemaining(3*1024*1024);
+    replicaNodeList.add(dataNodes[1]);
+    
+    dataNodes[2].setRemaining(2*1024*1024);
+    replicaNodeList.add(dataNodes[2]);
+    
+    dataNodes[5].setRemaining(1*1024*1024);
+    replicaNodeList.add(dataNodes[5]);
+    
+    List<DatanodeDescriptor> first = new ArrayList<DatanodeDescriptor>();
+    List<DatanodeDescriptor> second = new ArrayList<DatanodeDescriptor>();
+    replicator.splitNodesWithRack(
+        replicaNodeList, rackMap, first, second);
+    // dataNodes[0] and dataNodes[1] are in first set as their rack has two 
+    // replica nodes, while datanodes[2] and dataNodes[5] are in second set.
+    assertEquals(2, first.size());
+    assertEquals(2, second.size());
+    DatanodeDescriptor chosenNode = replicator.chooseReplicaToDelete(
+        null, null, (short)3, first, second);
+    // Within first set, dataNodes[1] with less free space
+    assertEquals(chosenNode, dataNodes[1]);
+
+    replicator.adjustSetsWithChosenReplica(
+        rackMap, first, second, chosenNode);
+    assertEquals(0, first.size());
+    assertEquals(3, second.size());
+    // Within second set, dataNodes[5] with less free space
+    chosenNode = replicator.chooseReplicaToDelete(
+        null, null, (short)2, first, second);
+    assertEquals(chosenNode, dataNodes[5]);
+  }
+  
+  /**
+   * This testcase tests whether the default value returned by
+   * DFSUtil.getInvalidateWorkPctPerIteration() is positive, 
+   * and whether an IllegalArgumentException will be thrown 
+   * when 0.0f is retrieved
+   */
+  @Test
+  public void testGetInvalidateWorkPctPerIteration() {
+    Configuration conf = new Configuration();
+    float blocksInvalidateWorkPct = DFSUtil
+        .getInvalidateWorkPctPerIteration(conf);
+    assertTrue(blocksInvalidateWorkPct > 0);
+
+    conf.set(DFSConfigKeys.DFS_NAMENODE_INVALIDATE_WORK_PCT_PER_ITERATION,
+        "0.5f");
+    blocksInvalidateWorkPct = DFSUtil.getInvalidateWorkPctPerIteration(conf);
+    assertEquals(blocksInvalidateWorkPct, 0.5f, blocksInvalidateWorkPct * 1e-7);
+    
+    conf.set(DFSConfigKeys.
+        DFS_NAMENODE_INVALIDATE_WORK_PCT_PER_ITERATION, "1.0f");
+    blocksInvalidateWorkPct = DFSUtil.getInvalidateWorkPctPerIteration(conf);
+    assertEquals(blocksInvalidateWorkPct, 1.0f, blocksInvalidateWorkPct * 1e-7);
+    
+    conf.set(DFSConfigKeys.
+        DFS_NAMENODE_INVALIDATE_WORK_PCT_PER_ITERATION, "0.0f");
+    exception.expect(IllegalArgumentException.class);
+    blocksInvalidateWorkPct = DFSUtil.getInvalidateWorkPctPerIteration(conf);
+  }
+  
+  /**
+   * This testcase tests whether an IllegalArgumentException 
+   * will be thrown when a negative value is retrieved by 
+   * DFSUtil#getInvalidateWorkPctPerIteration
+   */
+  @Test
+  public void testGetInvalidateWorkPctPerIteration_NegativeValue() {
+    Configuration conf = new Configuration();
+    float blocksInvalidateWorkPct = DFSUtil
+        .getInvalidateWorkPctPerIteration(conf);
+    assertTrue(blocksInvalidateWorkPct > 0);
+    
+    conf.set(DFSConfigKeys.
+        DFS_NAMENODE_INVALIDATE_WORK_PCT_PER_ITERATION, "-0.5f");
+    exception.expect(IllegalArgumentException.class);
+    blocksInvalidateWorkPct = DFSUtil.getInvalidateWorkPctPerIteration(conf);
+  }
+  
+  /**
+   * This testcase tests whether an IllegalArgumentException 
+   * will be thrown when a value greater than 1 is retrieved by 
+   * DFSUtil#getInvalidateWorkPctPerIteration
+   */
+  @Test
+  public void testGetInvalidateWorkPctPerIteration_GreaterThanOne() {
+    Configuration conf = new Configuration();
+    float blocksInvalidateWorkPct = DFSUtil
+        .getInvalidateWorkPctPerIteration(conf);
+    assertTrue(blocksInvalidateWorkPct > 0);
+    
+    conf.set(DFSConfigKeys.
+        DFS_NAMENODE_INVALIDATE_WORK_PCT_PER_ITERATION, "1.5f");
+    exception.expect(IllegalArgumentException.class);
+    blocksInvalidateWorkPct = DFSUtil.getInvalidateWorkPctPerIteration(conf);
+  }
+
+  /**
+   * This testcase tests whether the value returned by
+   * DFSUtil.getReplWorkMultiplier() is positive,
+   * and whether an IllegalArgumentException will be thrown 
+   * when a non-positive value is retrieved
+   */
+  @Test
+  public void testGetReplWorkMultiplier() {
+    Configuration conf = new Configuration();
+    int blocksReplWorkMultiplier = DFSUtil.getReplWorkMultiplier(conf);
+    assertTrue(blocksReplWorkMultiplier > 0);
+
+    conf.set(DFSConfigKeys.
+        DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION,"3");
+    blocksReplWorkMultiplier = DFSUtil.getReplWorkMultiplier(conf);
+    assertEquals(blocksReplWorkMultiplier, 3);
+    
+    conf.set(DFSConfigKeys.
+        DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION,"-1");
+    exception.expect(IllegalArgumentException.class);
+    blocksReplWorkMultiplier = DFSUtil.getReplWorkMultiplier(conf);
   }
 }

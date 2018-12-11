@@ -18,9 +18,11 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.hadoop.hdfs.server.protocol.JournalInfo;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
+import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 
 /**
  * A JournalManager implementation that uses RPCs to log transactions
@@ -37,6 +39,20 @@ class BackupJournalManager implements JournalManager {
     this.bnReg = bnReg;
   }
 
+  @Override
+  public void format(NamespaceInfo nsInfo) {
+    // format() should only get called at startup, before any BNs
+    // can register with the NN.
+    throw new UnsupportedOperationException(
+        "BackupNode journal should never get formatted");
+  }
+  
+  @Override
+  public boolean hasSomeData() {
+    throw new UnsupportedOperationException();
+  }
+
+  
   @Override
   public EditLogOutputStream startLogSegment(long txId) throws IOException {
     EditLogBackupOutputStream stm = new EditLogBackupOutputStream(bnReg,
@@ -60,19 +76,10 @@ class BackupJournalManager implements JournalManager {
   }
 
   @Override
-  public long getNumberOfTransactions(long fromTxnId, boolean inProgressOk)
-      throws IOException, CorruptionException {
+  public void selectInputStreams(Collection<EditLogInputStream> streams,
+      long fromTxnId, boolean inProgressOk) {
     // This JournalManager is never used for input. Therefore it cannot
     // return any transactions
-    return 0;
-  }
-  
-  @Override
-  public EditLogInputStream getInputStream(long fromTxnId, boolean inProgressOk)
-      throws IOException {
-    // This JournalManager is never used for input. Therefore it cannot
-    // return any transactions
-    throw new IOException("Unsupported operation");
   }
 
   @Override

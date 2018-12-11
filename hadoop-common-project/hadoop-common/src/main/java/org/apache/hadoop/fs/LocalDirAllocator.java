@@ -66,8 +66,8 @@ import org.apache.hadoop.conf.Configuration;
 @InterfaceStability.Unstable
 public class LocalDirAllocator {
   
-  //A Map from the config item names like "mapred.local.dir", 
-  //"dfs.client.buffer.dir" to the instance of the AllocatorPerContext. This
+  //A Map from the config item names like "mapred.local.dir"
+  //to the instance of the AllocatorPerContext. This
   //is a static object to make sure there exists exactly one instance per JVM
   private static Map <String, AllocatorPerContext> contexts = 
                  new TreeMap<String, AllocatorPerContext>();
@@ -207,6 +207,19 @@ public class LocalDirAllocator {
       return contexts.containsKey(contextCfgItemName);
     }
   }
+  
+  /**
+   * Removes the context from the context config items
+   * 
+   * @param contextCfgItemName
+   */
+  @Deprecated
+  @InterfaceAudience.LimitedPrivate({"MapReduce"})
+  public static void removeContext(String contextCfgItemName) {
+    synchronized (contexts) {
+      contexts.remove(contextCfgItemName);
+    }
+  }
     
   /** We search through all the configured dirs for the file's existence
    *  and return true when we find  
@@ -252,6 +265,9 @@ public class LocalDirAllocator {
     private synchronized void confChanged(Configuration conf) 
         throws IOException {
       String newLocalDirs = conf.get(contextCfgItemName);
+      if (null == newLocalDirs) {
+        throw new IOException(contextCfgItemName + " not configured");
+      }
       if (!newLocalDirs.equals(savedLocalDirs)) {
         localDirs = StringUtils.getTrimmedStrings(newLocalDirs);
         localFS = FileSystem.getLocal(conf);

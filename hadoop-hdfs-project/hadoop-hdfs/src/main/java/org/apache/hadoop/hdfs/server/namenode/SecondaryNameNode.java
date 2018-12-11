@@ -25,10 +25,8 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -57,6 +55,11 @@ import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageState;
+
+import static org.apache.hadoop.util.ExitUtil.terminate;
+
+import org.apache.hadoop.hdfs.server.namenode.FileJournalManager.EditLogFile;
+import org.apache.hadoop.hdfs.server.namenode.NNStorageRetentionManager.StoragePurger;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
@@ -68,13 +71,14 @@ import org.apache.hadoop.metrics2.source.JvmMetrics;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.authentication.server.AuthenticationFilter;
 import org.apache.hadoop.security.authorize.AccessControlList;
 
 import org.apache.hadoop.util.Daemon;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.util.Time;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 /**********************************************************
@@ -99,7 +103,7 @@ public class SecondaryNameNode implements Runnable {
   public static final Log LOG = 
     LogFactory.getLog(SecondaryNameNode.class.getName());
 
-  private final long starttime = System.currentTimeMillis();
+  private final long starttime = Time.now();
   private volatile long lastCheckpointTime = 0;
 
   private String fsName;
@@ -119,6 +123,8 @@ public class SecondaryNameNode implements Runnable {
   private CheckpointConf checkpointConf;
   private FSNamesystem namesystem;
 
+  private Thread checkpointThread;
+
 
   @Override
   public String toString() {
@@ -136,6 +142,11 @@ public class SecondaryNameNode implements Runnable {
   @VisibleForTesting
   FSImage getFSImage() {
     return checkpointImage;
+  }
+
+  @VisibleForTesting
+  FSNamesystem getFSNamesystem() {
+    return namesystem;
   }
   
   @VisibleForTesting
@@ -239,20 +250,8 @@ public class SecondaryNameNode implements Runnable {
                                 new AccessControlList(conf.get(DFS_ADMIN, " "))) {
       {
         if (UserGroupInformation.isSecurityEnabled()) {
-          Map<String, String> params = new HashMap<String, String>();
-          String principalInConf = conf.get(DFSConfigKeys.DFS_SECONDARY_NAMENODE_INTERNAL_SPENGO_USER_NAME_KEY);
-          if (principalInConf != null && !principalInConf.isEmpty()) {
-            params.put("kerberos.principal",
-                       SecurityUtil.getServerPrincipal(principalInConf, infoSocAddr.getHostName()));
-          }
-          String httpKeytab = conf.get(DFSConfigKeys.DFS_SECONDARY_NAMENODE_KEYTAB_FILE_KEY);
-          if (httpKeytab != null && !httpKeytab.isEmpty()) {
-            params.put("kerberos.keytab", httpKeytab);
-          }
-          params.put(AuthenticationFilter.AUTH_TYPE, "kerberos");
-
-          defineFilter(webAppContext, SPNEGO_FILTER, AuthenticationFilter.class.getName(),
-                       params, null);
+          initSpnego(conf, DFSConfigKeys.DFS_SECONDARY_NAMENODE_INTERNAL_SPNEGO_USER_NAME_KEY,
+              DFSConfigKeys.DFS_SECONDARY_NAMENODE_KEYTAB_FILE_KEY);
         }
       }
     };
@@ -281,6 +280,15 @@ public class SecondaryNameNode implements Runnable {
    */
   public void shutdown() {
     shouldRun = false;
+    if (checkpointThread != null) {
+      checkpointThread.interrupt();
+      try {
+        checkpointThread.join(10000);
+      } catch (InterruptedException e) {
+        LOG.info("Interrupted waiting to join on checkpointer thread");
+        Thread.currentThread().interrupt(); // maintain status
+      }
+    }
     try {
       if (infoServer != null) infoServer.stop();
     } catch (Exception e) {
@@ -293,6 +301,7 @@ public class SecondaryNameNode implements Runnable {
     }
   }
 
+  @Override
   public void run() {
     SecurityUtil.doAsLoginUserOrFatal(
         new PrivilegedAction<Object>() {
@@ -327,7 +336,7 @@ public class SecondaryNameNode implements Runnable {
         if(UserGroupInformation.isSecurityEnabled())
           UserGroupInformation.getCurrentUser().reloginFromKeytab();
         
-        long now = System.currentTimeMillis();
+        long now = Time.now();
 
         if (shouldCheckpointBasedOnCount() ||
             now >= lastCheckpointTime + 1000 * checkpointConf.getPeriod()) {
@@ -338,9 +347,9 @@ public class SecondaryNameNode implements Runnable {
         LOG.error("Exception in doCheckpoint", e);
         e.printStackTrace();
       } catch (Throwable e) {
-        LOG.error("Throwable Exception in doCheckpoint", e);
+        LOG.fatal("Throwable Exception in doCheckpoint", e);
         e.printStackTrace();
-        Runtime.getRuntime().exit(-1);
+        terminate(1, e);
       }
     }
   }
@@ -386,6 +395,7 @@ public class SecondaryNameNode implements Runnable {
               downloadImage = false;
               LOG.info("Image has not changed. Will not download image.");
             } else {
+              LOG.info("Image has changed. Downloading updated image from NN.");
               MD5Hash downloadedHash = TransferFsImage.downloadImageToStorage(
                   nnHostPort, sig.mostRecentCheckpointTxId, dstImage.getStorage(), true);
               dstImage.saveDigestAndRenameCheckpointImage(
@@ -447,18 +457,16 @@ public class SecondaryNameNode implements Runnable {
     // Returns a token that would be used to upload the merged image.
     CheckpointSignature sig = namenode.rollEditLog();
     
-    // Make sure we're talking to the same NN!
-    if (checkpointImage.getNamespaceID() != 0) {
-      // If the image actually has some data, make sure we're talking
-      // to the same NN as we did before.
-      sig.validateStorageInfo(checkpointImage);
-    } else {
-      // if we're a fresh 2NN, just take the storage info from the server
-      // we first talk to.
+    if ((checkpointImage.getNamespaceID() == 0) ||
+        (sig.isSameCluster(checkpointImage) &&
+         !sig.storageVersionMatches(checkpointImage.getStorage()))) {
+      // if we're a fresh 2NN, or if we're on the same cluster and our storage
+      // needs an upgrade, just take the storage info from the server.
       dstStorage.setStorageInfo(sig);
       dstStorage.setClusterID(sig.getClusterID());
       dstStorage.setBlockPoolID(sig.getBlockpoolID());
     }
+    sig.validateStorageInfo(checkpointImage);
 
     // error simulation code for junit test
     CheckpointFaultInjector.getInstance().afterSecondaryCallsRollEditLog();
@@ -483,10 +491,6 @@ public class SecondaryNameNode implements Runnable {
 
     LOG.warn("Checkpoint done. New Image Size: " 
              + dstStorage.getFsImageName(txid).length());
-    
-    // Since we've successfully checkpointed, we can remove some old
-    // image files
-    checkpointImage.purgeOldStorage();
     
     return loadImage;
   }
@@ -532,7 +536,7 @@ public class SecondaryNameNode implements Runnable {
       //
       // This is a error returned by hadoop server. Print
       // out the first line of the error mesage, ignore the stack trace.
-      exitCode = -1;
+      exitCode = 1;
       try {
         String[] content;
         content = e.getLocalizedMessage().split("\n");
@@ -544,7 +548,7 @@ public class SecondaryNameNode implements Runnable {
       //
       // IO exception encountered locally.
       //
-      exitCode = -1;
+      exitCode = 1;
       LOG.error(cmd + ": " + e.getLocalizedMessage());
     } finally {
       // Does the RPC connection need to be closed?
@@ -572,7 +576,11 @@ public class SecondaryNameNode implements Runnable {
   public static void main(String[] argv) throws Exception {
     CommandLineOpts opts = SecondaryNameNode.parseArgs(argv);
     if (opts == null) {
-      System.exit(-1);
+      LOG.fatal("Failed to parse options");
+      terminate(1);
+    } else if (opts.shouldPrintHelp()) {
+      opts.usage();
+      System.exit(0);
     }
     
     StringUtils.startupShutdownMessage(SecondaryNameNode.class, argv, LOG);
@@ -582,20 +590,28 @@ public class SecondaryNameNode implements Runnable {
       secondary = new SecondaryNameNode(tconf, opts);
     } catch (IOException ioe) {
       LOG.fatal("Failed to start secondary namenode", ioe);
-      System.exit(-1);
+      terminate(1);
     }
 
-    if (opts.getCommand() != null) {
+    if (opts != null && opts.getCommand() != null) {
       int ret = secondary.processStartupCommand(opts);
-      System.exit(ret);
+      terminate(ret);
     }
 
-    // Create a never ending deamon
-    Daemon checkpointThread = new Daemon(secondary);
-    checkpointThread.start();
+    secondary.startCheckpointThread();
   }
   
   
+  public void startCheckpointThread() {
+    Preconditions.checkState(checkpointThread == null,
+        "Should not already have a thread");
+    Preconditions.checkState(shouldRun, "shouldRun should be true");
+    
+    checkpointThread = new Daemon(this);
+    checkpointThread.start();
+  }
+
+
   /**
    * Container for parsed command-line options.
    */
@@ -606,6 +622,7 @@ public class SecondaryNameNode implements Runnable {
     private final Option geteditsizeOpt;
     private final Option checkpointOpt;
     private final Option formatOpt;
+    private final Option helpOpt;
 
 
     Command cmd;
@@ -616,6 +633,7 @@ public class SecondaryNameNode implements Runnable {
     
     private boolean shouldForce;
     private boolean shouldFormat;
+    private boolean shouldPrintHelp;
 
     CommandLineOpts() {
       geteditsizeOpt = new Option("geteditsize",
@@ -623,19 +641,31 @@ public class SecondaryNameNode implements Runnable {
       checkpointOpt = OptionBuilder.withArgName("force")
         .hasOptionalArg().withDescription("checkpoint on startup").create("checkpoint");;
       formatOpt = new Option("format", "format the local storage during startup");
+      helpOpt = new Option("h", "help", false, "get help information");
       
       options.addOption(geteditsizeOpt);
       options.addOption(checkpointOpt);
       options.addOption(formatOpt);
+      options.addOption(helpOpt);
     }
     
     public boolean shouldFormat() {
       return shouldFormat;
     }
 
+    public boolean shouldPrintHelp() {
+      return shouldPrintHelp;
+    }
+    
     public void parse(String ... argv) throws ParseException {
       CommandLineParser parser = new PosixParser();
       CommandLine cmdLine = parser.parse(options, argv);
+      
+      if (cmdLine.hasOption(helpOpt.getOpt())
+          || cmdLine.hasOption(helpOpt.getLongOpt())) {
+        shouldPrintHelp = true;
+        return;
+      }
       
       boolean hasGetEdit = cmdLine.hasOption(geteditsizeOpt.getOpt());
       boolean hasCheckpoint = cmdLine.hasOption(checkpointOpt.getOpt()); 
@@ -673,8 +703,13 @@ public class SecondaryNameNode implements Runnable {
     }
     
     void usage() {
+      String header = "The Secondary NameNode is a helper "
+          + "to the primary NameNode. The Secondary is responsible "
+          + "for supporting periodic checkpoints of the HDFS metadata. "
+          + "The current design allows only one Secondary NameNode "
+          + "per HDFS cluster.";
       HelpFormatter formatter = new HelpFormatter();
-      formatter.printHelp("secondarynamenode", options);
+      formatter.printHelp("secondarynamenode", header, options, "", false);
     }
   }
 
@@ -691,6 +726,34 @@ public class SecondaryNameNode implements Runnable {
   }
   
   static class CheckpointStorage extends FSImage {
+    
+    private static class CheckpointLogPurger implements LogsPurgeable {
+      
+      private NNStorage storage;
+      private StoragePurger purger
+          = new NNStorageRetentionManager.DeletionStoragePurger();
+      
+      public CheckpointLogPurger(NNStorage storage) {
+        this.storage = storage;
+      }
+
+      @Override
+      public void purgeLogsOlderThan(long minTxIdToKeep) throws IOException {
+        Iterator<StorageDirectory> iter = storage.dirIterator();
+        while (iter.hasNext()) {
+          StorageDirectory dir = iter.next();
+          List<EditLogFile> editFiles = FileJournalManager.matchEditLogs(
+              dir.getCurrentDir());
+          for (EditLogFile f : editFiles) {
+            if (f.getLastTxId() < minTxIdToKeep) {
+              purger.purgeLog(f);
+            }
+          }
+        }
+      }
+      
+    }
+    
     /**
      * Construct a checkpoint image.
      * @param conf Node configuration.
@@ -707,12 +770,17 @@ public class SecondaryNameNode implements Runnable {
       // we shouldn't have any editLog instance. Setting to null
       // makes sure we don't accidentally depend on it.
       editLog = null;
+      
+      // Replace the archival manager with one that can actually work on the
+      // 2NN's edits storage.
+      this.archivalManager = new NNStorageRetentionManager(conf, storage,
+          new CheckpointLogPurger(storage));
     }
 
     /**
      * Analyze checkpoint directories.
      * Create directories if they do not exist.
-     * Recover from an unsuccessful checkpoint is necessary.
+     * Recover from an unsuccessful checkpoint if necessary.
      *
      * @throws IOException
      */
@@ -803,6 +871,7 @@ public class SecondaryNameNode implements Runnable {
     }
     
     Checkpointer.rollForwardByApplyingLogs(manifest, dstImage, dstNamesystem);
+    // The following has the side effect of purging old fsimages/edit logs.
     dstImage.saveFSImageInAllDirs(dstNamesystem, dstImage.getLastAppliedTxId());
     dstStorage.writeAll();
   }

@@ -32,6 +32,7 @@ import java.io.IOException;
 @InterfaceStability.Unstable
 public class PermissionStatus implements Writable {
   static final WritableFactory FACTORY = new WritableFactory() {
+    @Override
     public Writable newInstance() { return new PermissionStatus(); }
   };
   static {                                      // register a ctor
@@ -42,9 +43,11 @@ public class PermissionStatus implements Writable {
   public static PermissionStatus createImmutable(
       String user, String group, FsPermission permission) {
     return new PermissionStatus(user, group, permission) {
+      @Override
       public PermissionStatus applyUMask(FsPermission umask) {
         throw new UnsupportedOperationException();
       }
+      @Override
       public void readFields(DataInput in) throws IOException {
         throw new UnsupportedOperationException();
       }
@@ -82,14 +85,14 @@ public class PermissionStatus implements Writable {
     return this;
   }
 
-  /** {@inheritDoc} */
+  @Override
   public void readFields(DataInput in) throws IOException {
-    username = Text.readString(in, Text.ONE_MEGABYTE);
-    groupname = Text.readString(in, Text.ONE_MEGABYTE);
+    username = Text.readString(in, Text.DEFAULT_MAX_LEN);
+    groupname = Text.readString(in, Text.DEFAULT_MAX_LEN);
     permission = FsPermission.read(in);
   }
 
-  /** {@inheritDoc} */
+  @Override
   public void write(DataOutput out) throws IOException {
     write(out, username, groupname, permission);
   }
@@ -110,12 +113,12 @@ public class PermissionStatus implements Writable {
                            String username, 
                            String groupname,
                            FsPermission permission) throws IOException {
-    Text.writeString(out, username, Text.ONE_MEGABYTE);
-    Text.writeString(out, groupname, Text.ONE_MEGABYTE);
+    Text.writeString(out, username, Text.DEFAULT_MAX_LEN);
+    Text.writeString(out, groupname, Text.DEFAULT_MAX_LEN);
     permission.write(out);
   }
 
-  /** {@inheritDoc} */
+  @Override
   public String toString() {
     return username + ":" + groupname + ":" + permission;
   }

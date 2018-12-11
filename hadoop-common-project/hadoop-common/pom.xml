@@ -12,7 +12,10 @@
   See the License for the specific language governing permissions and
   limitations under the License. See accompanying LICENSE file.
 -->
-<project>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                      http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.hadoop</groupId>
@@ -28,9 +31,6 @@
   <packaging>jar</packaging>
 
   <properties>
-    <snappy.prefix>/usr/local</snappy.prefix>
-    <snappy.lib>${snappy.prefix}/lib</snappy.lib>
-    <bundle.snappy>false</bundle.snappy>
     <kdc.resource.dir>src/test/resources/kdc</kdc.resource.dir>
     <hadoop.component>common</hadoop.component>
     <is.hadoop.component>true</is.hadoop.component>
@@ -41,7 +41,7 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-annotations</artifactId>
-      <scope>provided</scope>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>
@@ -74,13 +74,13 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
-      <groupId>commons-net</groupId>
-      <artifactId>commons-net</artifactId>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
-      <groupId>commons-io</groupId>
-      <artifactId>commons-io</artifactId>
+      <groupId>commons-net</groupId>
+      <artifactId>commons-net</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -99,16 +99,12 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
-      <groupId>asm</groupId>
-      <artifactId>asm</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
       <groupId>com.sun.jersey</groupId>
       <artifactId>jersey-core</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
+      <!-- Used, even though 'mvn dependency:analyze' doesn't find it -->
       <groupId>com.sun.jersey</groupId>
       <artifactId>jersey-json</artifactId>
       <scope>compile</scope>
@@ -121,31 +117,26 @@
     <dependency>
       <groupId>tomcat</groupId>
       <artifactId>jasper-compiler</artifactId>
-      <scope>compile</scope>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>tomcat</groupId>
       <artifactId>jasper-runtime</artifactId>
-      <scope>compile</scope>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>javax.servlet.jsp</groupId>
       <artifactId>jsp-api</artifactId>
-      <scope>compile</scope>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>commons-el</groupId>
       <artifactId>commons-el</artifactId>
-      <scope>compile</scope>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>commons-logging</groupId>
-      <artifactId>commons-logging-api</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -159,26 +150,6 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.mina</groupId>
-      <artifactId>mina-core</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.ftpserver</groupId>
-      <artifactId>ftplet-api</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.ftpserver</groupId>
-      <artifactId>ftpserver-core</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.ftpserver</groupId>
-      <artifactId>ftpserver-deprecated</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
@@ -186,11 +157,6 @@
     <dependency>
       <groupId>commons-lang</groupId>
       <artifactId>commons-lang</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>commons-collections</groupId>
-      <artifactId>commons-collections</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -206,26 +172,16 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
-      <scope>compile</scope>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.jdt</groupId>
-      <artifactId>core</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>oro</groupId>
-      <artifactId>oro</artifactId>
+      <groupId>org.codehaus.jackson</groupId>
+      <artifactId>jackson-core-asl</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.codehaus.jackson</groupId>
       <artifactId>jackson-mapper-asl</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.aspectj</groupId>
-      <artifactId>aspectjrt</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -236,11 +192,6 @@
     <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>net.sf.kosmosfs</groupId>
-      <artifactId>kfs</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -256,11 +207,6 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-auth</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.googlecode.json-simple</groupId>
-      <artifactId>json-simple</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -340,7 +286,7 @@
                 <echo file="target/compile-proto.sh">
                     PROTO_DIR=src/main/proto
                     JAVA_DIR=target/generated-sources/java
-                    which cygpath 2> /dev/null
+                    which cygpath 2&gt; /dev/null
                     if [ $? = 1 ]; then
                       IS_WIN=false
                     else
@@ -348,8 +294,8 @@
                       WIN_PROTO_DIR=`cygpath --windows $PROTO_DIR`
                       WIN_JAVA_DIR=`cygpath --windows $JAVA_DIR`
                     fi
-                    mkdir -p $JAVA_DIR 2> /dev/null
-                    for PROTO_FILE in `ls $PROTO_DIR/*.proto 2> /dev/null`
+                    mkdir -p $JAVA_DIR 2&gt; /dev/null
+                    for PROTO_FILE in `ls $PROTO_DIR/*.proto 2&gt; /dev/null`
                     do
                         if [ "$IS_WIN" = "true" ]; then
                           protoc -I$WIN_PROTO_DIR --java_out=$WIN_JAVA_DIR $PROTO_FILE
@@ -375,7 +321,7 @@
                 <echo file="target/compile-test-proto.sh">
                     PROTO_DIR=src/test/proto
                     JAVA_DIR=target/generated-test-sources/java
-                    which cygpath 2> /dev/null
+                    which cygpath 2&gt; /dev/null
                     if [ $? = 1 ]; then
                       IS_WIN=false
                     else
@@ -383,8 +329,8 @@
                       WIN_PROTO_DIR=`cygpath --windows $PROTO_DIR`
                       WIN_JAVA_DIR=`cygpath --windows $JAVA_DIR`
                     fi
-                    mkdir -p $JAVA_DIR 2> /dev/null
-                    for PROTO_FILE in `ls $PROTO_DIR/*.proto 2> /dev/null`
+                    mkdir -p $JAVA_DIR 2&gt; /dev/null
+                    for PROTO_FILE in `ls $PROTO_DIR/*.proto 2&gt; /dev/null`
                     do
                         if [ "$IS_WIN" = "true" ]; then
                           protoc -I$WIN_PROTO_DIR --java_out=$WIN_JAVA_DIR $PROTO_FILE
@@ -530,34 +476,13 @@
         <activeByDefault>false</activeByDefault>
       </activation>
       <properties>
-        <snappy.prefix>/usr/local</snappy.prefix>
-        <snappy.lib>${snappy.prefix}/lib</snappy.lib>
-        <snappy.include>${snappy.prefix}/include</snappy.include>
+        <snappy.prefix></snappy.prefix>
+        <snappy.lib></snappy.lib>
+        <snappy.include></snappy.include>
+        <require.snappy>false</require.snappy>
       </properties>
       <build>
         <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-antrun-plugin</artifactId>
-            <executions>
-              <execution>
-                <id>compile</id>
-                <phase>compile</phase>
-                <goals>
-                  <goal>run</goal>
-                </goals>
-                <configuration>
-                  <target>
-                    <mkdir dir="${project.build.directory}/native/javah"/>
-                    <copy toDir="${project.build.directory}/native">
-                      <fileset dir="${basedir}/src/main/native"/>
-                    </copy>
-                    <mkdir dir="${project.build.directory}/native/m4"/>
-                  </target>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>native-maven-plugin</artifactId>
@@ -587,73 +512,39 @@
             </executions>
           </plugin>
           <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>make-maven-plugin</artifactId>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
             <executions>
               <execution>
-                <id>compile</id>
+                <id>make</id>
                 <phase>compile</phase>
-                <goals>
-                  <goal>autoreconf</goal>
-                  <goal>configure</goal>
-                  <goal>make-install</goal>
-                </goals>
+                <goals><goal>run</goal></goals>
+                <configuration>
+                  <target>
+                    <exec executable="cmake" dir="${project.build.directory}/native" failonerror="true">
+                      <arg line="${basedir}/src/ -DGENERATED_JAVAH=${project.build.directory}/native/javah -DJVM_ARCH_DATA_MODEL=${sun.arch.data.model} -DREQUIRE_SNAPPY=${require.snappy} -DCUSTOM_SNAPPY_PREFIX=${snappy.prefix} -DCUSTOM_SNAPPY_LIB=${snappy.lib} -DCUSTOM_SNAPPY_INCLUDE=${snappy.include}"/>
+                    </exec>
+                    <exec executable="make" dir="${project.build.directory}/native" failonerror="true">
+                      <arg line="VERBOSE=1"/>
+                    </exec>
+                  </target>
+                </configuration>
+              </execution>
+              <execution>
+                <id>native_tests</id>
+                <phase>test</phase>
+                <goals><goal>run</goal></goals>
+                <configuration>
+                  <target>
+                    <exec executable="sh" failonerror="true" dir="${project.build.directory}/native">
+                      <arg value="-c"/>
+                      <arg value="[ x$SKIPTESTS = xtrue ] || ${project.build.directory}/native/test_bulk_crc32"/>
+                      <env key="SKIPTESTS" value="${skipTests}"/>
+                    </exec>
+                  </target>
+                </configuration>
               </execution>
             </executions>
-            <configuration>
-              <!-- autoreconf settings -->
-              <workDir>${project.build.directory}/native</workDir>
-              <arguments>
-                <argument>-i</argument>
-                <argument>-f</argument>
-              </arguments>
-
-              <!-- configure settings -->
-              <configureEnvironment>
-                <property>
-                  <name>OS_NAME</name>
-                  <value>${os.name}</value>
-                </property>
-                <property>
-                  <name>OS_ARCH</name>
-                  <value>${os.arch}</value>
-                </property>
-                <property>
-                  <name>JVM_DATA_MODEL</name>
-                  <value>${sun.arch.data.model}</value>
-                </property>
-              </configureEnvironment>
-              <configureOptions>
-                <configureOption>CPPFLAGS=-I${snappy.include}</configureOption>
-                <configureOption>LDFLAGS=-L${snappy.lib}</configureOption>
-              </configureOptions>
-              <configureWorkDir>${project.build.directory}/native</configureWorkDir>
-              <prefix>/usr/local</prefix>
-
-              <!-- make settings -->
-              <installEnvironment>
-                <property>
-                  <name>OS_NAME</name>
-                  <value>${os.name}</value>
-                </property>
-                <property>
-                  <name>OS_ARCH</name>
-                  <value>${os.arch}</value>
-                </property>
-                <property>
-                  <name>JVM_DATA_MODEL</name>
-                  <value>${sun.arch.data.model}</value>
-                </property>
-                <property>
-                  <name>HADOOP_NATIVE_SRCDIR</name>
-                  <value>${project.build.directory}/native</value>
-                </property>
-              </installEnvironment>
-
-              <!-- configure & make settings -->
-              <destDir>${project.build.directory}/native/target</destDir>
-
-            </configuration>
           </plugin>
         </plugins>
       </build>
@@ -697,7 +588,7 @@
             <artifactId>maven-antrun-plugin</artifactId>
             <executions>
               <execution>
-                <id>compile</id>
+                <id>kdc</id>
                 <phase>compile</phase>
                 <goals>
                   <goal>run</goal>

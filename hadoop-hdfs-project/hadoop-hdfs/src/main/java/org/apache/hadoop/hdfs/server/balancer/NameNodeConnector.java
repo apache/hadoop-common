@@ -29,10 +29,12 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.NameNodeProxies;
 import org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
+import org.apache.hadoop.hdfs.security.token.block.DataEncryptionKey;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenSecretManager;
 import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
@@ -60,10 +62,12 @@ class NameNodeConnector {
   final OutputStream out;
 
   private final boolean isBlockTokenEnabled;
+  private final boolean encryptDataTransfer;
   private boolean shouldRun;
   private long keyUpdaterInterval;
   private BlockTokenSecretManager blockTokenSecretManager;
   private Daemon keyupdaterthread; // AccessKeyUpdater thread
+  private DataEncryptionKey encryptionKey;
 
   NameNodeConnector(URI nameNodeUri,
       Configuration conf) throws IOException {
@@ -88,9 +92,12 @@ class NameNodeConnector {
       LOG.info("Block token params received from NN: keyUpdateInterval="
           + blockKeyUpdateInterval / (60 * 1000) + " min(s), tokenLifetime="
           + blockTokenLifetime / (60 * 1000) + " min(s)");
-      this.blockTokenSecretManager = new BlockTokenSecretManager(false,
-          blockKeyUpdateInterval, blockTokenLifetime);
-      this.blockTokenSecretManager.setKeys(keys);
+      String encryptionAlgorithm = conf.get(
+          DFSConfigKeys.DFS_DATA_ENCRYPTION_ALGORITHM_KEY);
+      this.blockTokenSecretManager = new BlockTokenSecretManager(
+          blockKeyUpdateInterval, blockTokenLifetime, blockpoolID,
+          encryptionAlgorithm);
+      this.blockTokenSecretManager.addKeys(keys);
       /*
        * Balancer should sync its block keys with NN more frequently than NN
        * updates its block keys
@@ -102,7 +109,8 @@ class NameNodeConnector {
       this.shouldRun = true;
       this.keyupdaterthread.start();
     }
-
+    this.encryptDataTransfer = fs.getServerDefaults(new Path("/"))
+        .getEncryptDataTransfer();
     // Check if there is another balancer running.
     // Exit if there is another one running.
     out = checkAndMarkRunningBalancer(); 
@@ -124,6 +132,20 @@ class NameNodeConnector {
       return blockTokenSecretManager.generateToken(null, eb,
           EnumSet.of(BlockTokenSecretManager.AccessMode.REPLACE,
           BlockTokenSecretManager.AccessMode.COPY));
+    }
+  }
+  
+  DataEncryptionKey getDataEncryptionKey()
+      throws IOException {
+    if (encryptDataTransfer) {
+      synchronized (this) {
+        if (encryptionKey == null) {
+          encryptionKey = blockTokenSecretManager.generateDataEncryptionKey();
+        }
+        return encryptionKey;
+      }
+    } else {
+      return null;
     }
   }
 
@@ -189,18 +211,19 @@ class NameNodeConnector {
    * Periodically updates access keys.
    */
   class BlockKeyUpdater implements Runnable {
+    @Override
     public void run() {
       try {
         while (shouldRun) {
           try {
-            blockTokenSecretManager.setKeys(namenode.getBlockKeys());
+            blockTokenSecretManager.addKeys(namenode.getBlockKeys());
           } catch (IOException e) {
             LOG.error("Failed to set keys", e);
           }
           Thread.sleep(keyUpdaterInterval);
         }
       } catch (InterruptedException e) {
-        LOG.info("InterruptedException in block key updater thread", e);
+        LOG.debug("InterruptedException in block key updater thread", e);
       } catch (Throwable e) {
         LOG.error("Exception in block key updater thread", e);
         shouldRun = false;

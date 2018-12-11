@@ -25,6 +25,17 @@ option java_generate_equals_and_hash = true;
 
 import "hdfs.proto";
 
+message DataTransferEncryptorMessageProto {
+  enum DataTransferEncryptorStatus {
+    SUCCESS = 0;
+    ERROR_UNKNOWN_KEY = 1;
+    ERROR = 2;
+  }
+  required DataTransferEncryptorStatus status = 1;
+  optional bytes payload = 2;
+  optional string message = 3;
+}
+
 message BaseHeaderProto {
   required ExtendedBlockProto block = 1;
   optional BlockTokenIdentifierProto token = 2;
@@ -113,6 +124,7 @@ message PacketHeaderProto {
   required sfixed64 seqno = 2;
   required bool lastPacketInBlock = 3;
   required sfixed32 dataLen = 4;
+  optional bool syncBlock = 5 [default = false];
 }
 
 enum Status {
@@ -128,6 +140,7 @@ enum Status {
 message PipelineAckProto {
   required sint64 seqno = 1;
   repeated Status status = 2;
+  optional uint64 downstreamAckTimeNanos = 3 [default = 0];
 }
 
 /**
@@ -172,4 +185,5 @@ message OpBlockChecksumResponseProto {
   required uint32 bytesPerCrc = 1;
   required uint64 crcPerBlock = 2;
   required bytes md5 = 3;
+  optional ChecksumTypeProto crcType = 4 [default = CRC32];
 }

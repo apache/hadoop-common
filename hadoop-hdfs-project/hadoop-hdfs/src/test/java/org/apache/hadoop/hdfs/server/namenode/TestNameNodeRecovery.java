@@ -18,15 +18,17 @@
 
 package org.apache.hadoop.hdfs.server.namenode;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.spy;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.HashSet;
 import java.util.Set;
-
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.spy;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -37,10 +39,8 @@ import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
-import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp.OpInstanceCache;
-import org.apache.hadoop.hdfs.server.namenode.FSImage;
-import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp.DeleteOp;
+import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp.OpInstanceCache;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.util.StringUtils;
@@ -57,6 +57,7 @@ public class TestNameNodeRecovery {
 
   static {
     recoverStartOpt.setForce(MetaRecoveryContext.FORCE_ALL);
+    EditLogFileOutputStream.setShouldSkipFsyncForTesting(true);
   }
 
   static void runEditLogTest(EditLogTestSetup elts) throws IOException {
@@ -73,7 +74,7 @@ public class TestNameNodeRecovery {
 
       elts.addTransactionsToLog(elfos, cache);
       elfos.setReadyToFlush();
-      elfos.flushAndSync();
+      elfos.flushAndSync(true);
       elfos.close();
       elfos = null;
       file = new File(TEST_LOG_NAME);
@@ -124,7 +125,7 @@ public class TestNameNodeRecovery {
           }
         } catch (Throwable e) {
           fail("caught IOException while trying to skip over bad " +
-              "transaction.  message was " + e.getMessage() + 
+              "transaction.   message was " + e.getMessage() + 
               "\nstack trace\n" + StringUtils.stringifyException(e));
         }
       }
@@ -135,6 +136,9 @@ public class TestNameNodeRecovery {
     }
   }
 
+  /**
+   * A test scenario for the edit log
+   */
   private interface EditLogTestSetup {
     /** 
      * Set up the edit log.
@@ -156,16 +160,59 @@ public class TestNameNodeRecovery {
     abstract public Set<Long> getValidTxIds();
   }
   
-  private class EltsTestEmptyLog implements EditLogTestSetup {
-    public void addTransactionsToLog(EditLogOutputStream elos,
+  static void padEditLog(EditLogOutputStream elos, int paddingLength)
+      throws IOException {
+    if (paddingLength <= 0) {
+      return;
+    }
+    byte buf[] = new byte[4096];
+    for (int i = 0; i < buf.length; i++) {
+      buf[i] = (byte)-1;
+    }
+    int pad = paddingLength;
+    while (pad > 0) {
+      int toWrite = pad > buf.length ? buf.length : pad;
+      elos.writeRaw(buf, 0, toWrite);
+      pad -= toWrite;
+    }
+  }
+
+  static void addDeleteOpcode(EditLogOutputStream elos,
         OpInstanceCache cache) throws IOException {
-        // do nothing
+    DeleteOp op = DeleteOp.getInstance(cache);
+    op.setTransactionId(0x0);
+    op.setPath("/foo");
+    op.setTimestamp(0);
+    elos.write(op);
+  }
+  
+  /**
+   * Test the scenario where we have an empty edit log.
+   *
+   * This class is also useful in testing whether we can correctly handle
+   * various amounts of padding bytes at the end of the log.  We should be
+   * able to handle any amount of padding (including no padding) without
+   * throwing an exception.
+   */
+  private static class EltsTestEmptyLog implements EditLogTestSetup {
+    private int paddingLength;
+
+    public EltsTestEmptyLog(int paddingLength) {
+      this.paddingLength = paddingLength;
     }
 
+    @Override
+    public void addTransactionsToLog(EditLogOutputStream elos,
+        OpInstanceCache cache) throws IOException {
+      padEditLog(elos, paddingLength);
+    }
+
+    @Override
     public long getLastValidTxId() {
       return -1;
     }
 
+    @Override
     public Set<Long> getValidTxIds() {
       return new HashSet<Long>();
     } 
@@ -174,13 +221,72 @@ public class TestNameNodeRecovery {
   /** Test an empty edit log */
   @Test(timeout=180000)
   public void testEmptyLog() throws IOException {
-    runEditLogTest(new EltsTestEmptyLog());
+    runEditLogTest(new EltsTestEmptyLog(0));
+  }
+
+  /** Test an empty edit log with padding */
+  @Test(timeout=180000)
+  public void testEmptyPaddedLog() throws IOException {
+    runEditLogTest(new EltsTestEmptyLog(
+        EditLogFileOutputStream.MIN_PREALLOCATION_LENGTH));
   }
   
-  private class EltsTestGarbageInEditLog implements EditLogTestSetup {
+  /** Test an empty edit log with extra-long padding */
+  @Test(timeout=180000)
+  public void testEmptyExtraPaddedLog() throws IOException {
+    runEditLogTest(new EltsTestEmptyLog(
+        3 * EditLogFileOutputStream.MIN_PREALLOCATION_LENGTH));
+  }
+
+  /**
+   * Test the scenario where an edit log contains some padding (0xff) bytes
+   * followed by valid opcode data.
+   *
+   * These edit logs are corrupt, but all the opcodes should be recoverable
+   * with recovery mode.
+   */
+  private static class EltsTestOpcodesAfterPadding implements EditLogTestSetup {
+    private int paddingLength;
+
+    public EltsTestOpcodesAfterPadding(int paddingLength) {
+      this.paddingLength = paddingLength;
+    }
+
+    @Override
+    public void addTransactionsToLog(EditLogOutputStream elos,
+        OpInstanceCache cache) throws IOException {
+      padEditLog(elos, paddingLength);
+      addDeleteOpcode(elos, cache);
+    }
+
+    @Override
+    public long getLastValidTxId() {
+      return 0;
+    }
+
+    @Override
+    public Set<Long> getValidTxIds() {
+      return Sets.newHashSet(0L);
+    } 
+  }
+
+  @Test(timeout=180000)
+  public void testOpcodesAfterPadding() throws IOException {
+    runEditLogTest(new EltsTestOpcodesAfterPadding(
+        EditLogFileOutputStream.MIN_PREALLOCATION_LENGTH));
+  }
+
+  @Test(timeout=180000)
+  public void testOpcodesAfterExtraPadding() throws IOException {
+    runEditLogTest(new EltsTestOpcodesAfterPadding(
+        3 * EditLogFileOutputStream.MIN_PREALLOCATION_LENGTH));
+  }
+
+  private static class EltsTestGarbageInEditLog implements EditLogTestSetup {
     final private long BAD_TXID = 4;
     final private long MAX_TXID = 10;
     
+    @Override
     public void addTransactionsToLog(EditLogOutputStream elos,
         OpInstanceCache cache) throws IOException {
       for (long txid = 1; txid <= MAX_TXID; txid++) {
@@ -199,10 +305,12 @@ public class TestNameNodeRecovery {
       }
     }
 
+    @Override
     public long getLastValidTxId() {
       return BAD_TXID - 1;
     }
 
+    @Override
     public Set<Long> getValidTxIds() {
       return Sets.newHashSet(1L , 2L, 3L, 5L, 6L, 7L, 8L, 9L, 10L);
     }
@@ -333,7 +441,7 @@ public class TestNameNodeRecovery {
   static void testNameNodeRecoveryImpl(Corruptor corruptor, boolean finalize)
       throws IOException {
     final String TEST_PATH = "/test/path/dir";
-    final int NUM_TEST_MKDIRS = 10;
+    final String TEST_PATH2 = "/second/dir";
     final boolean needRecovery = corruptor.needRecovery(finalize);
 
     // start a cluster
@@ -343,7 +451,7 @@ public class TestNameNodeRecovery {
     StorageDirectory sd = null;
     try {
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0)
-          .build();
+          .enableManagedDfsDirsRedundancy(false).build();
       cluster.waitActive();
       if (!finalize) {
         // Normally, the in-progress edit log would be finalized by
@@ -357,9 +465,8 @@ public class TestNameNodeRecovery {
       fileSys = cluster.getFileSystem();
       final FSNamesystem namesystem = cluster.getNamesystem();
       FSImage fsimage = namesystem.getFSImage();
-      for (int i = 0; i < NUM_TEST_MKDIRS; i++) {
-        fileSys.mkdirs(new Path(TEST_PATH));
-      }
+      fileSys.mkdirs(new Path(TEST_PATH));
+      fileSys.mkdirs(new Path(TEST_PATH2));
       sd = fsimage.getStorage().dirIterator(NameNodeDirType.EDITS).next();
     } finally {
       if (cluster != null) {
@@ -371,6 +478,7 @@ public class TestNameNodeRecovery {
     assertTrue("Should exist: " + editFile, editFile.exists());
 
     // Corrupt the edit log
+    LOG.info("corrupting edit log file '" + editFile + "'");
     corruptor.corrupt(editFile);
 
     // If needRecovery == true, make sure that we can't start the
@@ -379,7 +487,7 @@ public class TestNameNodeRecovery {
     try {
       LOG.debug("trying to start normally (this should fail)...");
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0)
-          .format(false).build();
+          .enableManagedDfsDirsRedundancy(false).format(false).build();
       cluster.waitActive();
       cluster.shutdown();
       if (needRecovery) {
@@ -404,7 +512,8 @@ public class TestNameNodeRecovery {
     try {
       LOG.debug("running recovery...");
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0)
-          .format(false).startupOption(recoverStartOpt).build();
+          .enableManagedDfsDirsRedundancy(false).format(false)
+          .startupOption(recoverStartOpt).build();
     } catch (IOException e) {
       fail("caught IOException while trying to recover. " +
           "message was " + e.getMessage() +
@@ -420,9 +529,10 @@ public class TestNameNodeRecovery {
     try {
       LOG.debug("starting cluster normally after recovery...");
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0)
-          .format(false).build();
+          .enableManagedDfsDirsRedundancy(false).format(false).build();
       LOG.debug("successfully recovered the " + corruptor.getName() +
           " corrupted edit log");
+      cluster.waitActive();
       assertTrue(cluster.getFileSystem().exists(new Path(TEST_PATH)));
     } catch (IOException e) {
       fail("failed to recover.  Error message: " + e.getMessage());

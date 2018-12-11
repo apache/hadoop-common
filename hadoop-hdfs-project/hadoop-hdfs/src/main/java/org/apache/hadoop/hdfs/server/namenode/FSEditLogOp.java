@@ -33,7 +33,6 @@ import org.apache.hadoop.fs.Options.Rename;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
@@ -44,6 +43,7 @@ import org.apache.hadoop.security.token.delegation.DelegationKey;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.ArrayWritable;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableFactories;
@@ -182,6 +182,7 @@ public abstract class FSEditLogOp {
       return (T)this;
     }
     
+    @Override
     public String getPath() {
       return path;
     }
@@ -215,6 +216,7 @@ public abstract class FSEditLogOp {
       return (T)this;
     }
     
+    @Override
     public Block[] getBlocks() {
       return blocks;
     }
@@ -408,6 +410,7 @@ public abstract class FSEditLogOp {
       return (AddOp)cache.get(OP_ADD);
     }
 
+    @Override
     public boolean shouldCompleteLastBlock() {
       return false;
     }
@@ -430,6 +433,7 @@ public abstract class FSEditLogOp {
       return (CloseOp)cache.get(OP_CLOSE);
     }
 
+    @Override
     public boolean shouldCompleteLastBlock() {
       return true;
     }
@@ -461,6 +465,7 @@ public abstract class FSEditLogOp {
       return this;
     }
     
+    @Override
     public String getPath() {
       return path;
     }
@@ -470,6 +475,7 @@ public abstract class FSEditLogOp {
       return this;
     }
     
+    @Override
     public Block[] getBlocks() {
       return blocks;
     }
@@ -2081,6 +2087,7 @@ public abstract class FSEditLogOp {
       return (LogSegmentOp)cache.get(code);
     }
 
+    @Override
     public void readFields(DataInputStream in, int logVersion)
         throws IOException {
       // no data stored in these ops yet
@@ -2173,6 +2180,7 @@ public abstract class FSEditLogOp {
       WritableFactories.setFactory
         (BlockTwo.class,
          new WritableFactory() {
+           @Override
            public Writable newInstance() { return new BlockTwo(); }
          });
     }
@@ -2185,11 +2193,13 @@ public abstract class FSEditLogOp {
     /////////////////////////////////////
     // Writable
     /////////////////////////////////////
+    @Override
     public void write(DataOutput out) throws IOException {
       out.writeLong(blkid);
       out.writeLong(len);
     }
 
+    @Override
     public void readFields(DataInput in) throws IOException {
       this.blkid = in.readLong();
       this.len = in.readLong();
@@ -2277,23 +2287,7 @@ public abstract class FSEditLogOp {
     public FSEditLogOp readOp(boolean skipBrokenEdits) throws IOException {
       while (true) {
         try {
-          limiter.setLimit(MAX_OP_SIZE);
-          in.mark(MAX_OP_SIZE);
           return decodeOp();
-        } catch (GarbageAfterTerminatorException e) {
-          in.reset();
-          if (!skipBrokenEdits) {
-            throw e;
-          }
-          // If we saw a terminator opcode followed by a long region of 0x00 or
-          // 0xff, we want to skip over that region, because there's nothing
-          // interesting there.
-          long numSkip = e.getNumAfterTerminator();
-          if (in.skip(numSkip) < numSkip) {
-            FSImage.LOG.error("Failed to skip " + numSkip + " bytes of " +
-              "garbage after an OP_INVALID.  Unexpected early EOF.");
-            return null;
-          }
         } catch (IOException e) {
           in.reset();
           if (!skipBrokenEdits) {
@@ -2322,7 +2316,6 @@ public abstract class FSEditLogOp {
     }
 
     private void verifyTerminator() throws IOException {
-      long off = 0;
       /** The end of the edit log should contain only 0x00 or 0xff bytes.
        * If it contains other bytes, the log itself may be corrupt.
        * It is important to check this; if we don't, a stray OP_INVALID byte 
@@ -2330,21 +2323,49 @@ public abstract class FSEditLogOp {
        * know that we had lost data.
        */
       byte[] buf = new byte[4096];
+      limiter.clearLimit();
+      int numRead = -1, idx = 0;
       while (true) {
-        int numRead = in.read(buf);
-        if (numRead == -1) {
-          return;
-        }
-        for (int i = 0; i < numRead; i++, off++) {
-          if ((buf[i] != (byte)0) && (buf[i] != (byte)-1)) {
-            throw new GarbageAfterTerminatorException("Read garbage after " +
-            		"the terminator!", off);
+        try {
+          numRead = -1;
+          idx = 0;
+          numRead = in.read(buf);
+          if (numRead == -1) {
+            return;
+          }
+          while (idx < numRead) {
+            if ((buf[idx] != (byte)0) && (buf[idx] != (byte)-1)) {
+              throw new IOException("Read extra bytes after " +
+                "the terminator!");
+            }
+            idx++;
+          }
+        } finally {
+          // After reading each group of bytes, we reposition the mark one
+          // byte before the next group.  Similarly, if there is an error, we
+          // want to reposition the mark one byte before the error
+          if (numRead != -1) { 
+            in.reset();
+            IOUtils.skipFully(in, idx);
+            in.mark(buf.length + 1);
+            IOUtils.skipFully(in, 1);
           }
         }
       }
     }
 
+    /**
+     * Read an opcode from the input stream.
+     *
+     * @return   the opcode, or null on EOF.
+     *
+     * If an exception is thrown, the stream's mark will be set to the first
+     * problematic byte.  This usually means the beginning of the opcode.
+     */
     private FSEditLogOp decodeOp() throws IOException {
+      limiter.setLimit(MAX_OP_SIZE);
+      in.mark(MAX_OP_SIZE);
+
       if (checksum != null) {
         checksum.reset();
       }
@@ -2530,36 +2551,5 @@ public abstract class FSEditLogOp {
     String groupname = st.getValue("GROUPNAME");
     short mode = Short.valueOf(st.getValue("MODE"));
     return new PermissionStatus(username, groupname, new FsPermission(mode));
-  }
-
-  /**
-   * Exception indicating that we found an OP_INVALID followed by some 
-   * garbage.  An OP_INVALID should signify the end of the file... if there 
-   * is additional content after that, then the edit log is corrupt. 
-   */
-  static class GarbageAfterTerminatorException extends IOException {
-    private static final long serialVersionUID = 1L;
-    private final long numAfterTerminator;
-
-    public GarbageAfterTerminatorException(String str,
-        long numAfterTerminator) {
-      super(str);
-      this.numAfterTerminator = numAfterTerminator;
-    }
-
-    /**
-     * Get the number of bytes after the terminator at which the garbage
-     * appeared.
-     *
-     * So if you had an OP_INVALID followed immediately by another valid opcode,
-     * this would be 0.
-     * If you had an OP_INVALID followed by some padding bytes, followed by a
-     * stray byte at the end, this would be the number of padding bytes.
-     * 
-     * @return numAfterTerminator
-     */
-    public long getNumAfterTerminator() {
-      return numAfterTerminator;
-    }
   }
 }

@@ -60,6 +60,7 @@ import org.apache.hadoop.security.token.TokenInfo;
 import org.apache.hadoop.security.token.TokenSelector;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.log4j.Level;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 /** Unit tests for using Sasl over RPC. */
@@ -76,7 +77,8 @@ public class TestSaslRPC {
   static final String SERVER_PRINCIPAL_2 = "p2/foo@BAR";
   
   private static Configuration conf;
-  static {
+  @BeforeClass
+  public static void setup() {
     conf = new Configuration();
     conf.set(HADOOP_SECURITY_AUTHENTICATION, "kerberos");
     UserGroupInformation.setConfiguration(conf);
@@ -112,7 +114,7 @@ public class TestSaslRPC {
     }
     @Override
     public UserGroupInformation getUser() {
-      if ("".equals(realUser.toString())) {
+      if (realUser.toString().isEmpty()) {
         return UserGroupInformation.createRemoteUser(tokenid.toString());
       } else {
         UserGroupInformation realUgi = UserGroupInformation
@@ -136,15 +138,18 @@ public class TestSaslRPC {
   
   public static class TestTokenSecretManager extends
       SecretManager<TestTokenIdentifier> {
+    @Override
     public byte[] createPassword(TestTokenIdentifier id) {
       return id.getBytes();
     }
 
+    @Override
     public byte[] retrievePassword(TestTokenIdentifier id) 
         throws InvalidToken {
       return id.getBytes();
     }
     
+    @Override
     public TestTokenIdentifier createIdentifier() {
       return new TestTokenIdentifier();
     }
@@ -152,6 +157,7 @@ public class TestSaslRPC {
   
   public static class BadTokenSecretManager extends TestTokenSecretManager {
 
+    @Override
     public byte[] retrievePassword(TestTokenIdentifier id) 
         throws InvalidToken {
       throw new InvalidToken(ERROR_MESSAGE);
@@ -186,6 +192,7 @@ public class TestSaslRPC {
   
   public static class TestSaslImpl extends TestRPC.TestImpl implements
       TestSaslProtocol {
+    @Override
     public AuthenticationMethod getAuthMethod() throws IOException {
       return UserGroupInformation.getCurrentUser().getAuthenticationMethod();
     }
@@ -230,9 +237,11 @@ public class TestSaslRPC {
   @Test
   public void testDigestRpc() throws Exception {
     TestTokenSecretManager sm = new TestTokenSecretManager();
-    final Server server = RPC.getServer(TestSaslProtocol.class,
-        new TestSaslImpl(), ADDRESS, 0, 5, true, conf, sm);
-
+    final Server server = new RPC.Builder(conf)
+        .setProtocol(TestSaslProtocol.class).setInstance(new TestSaslImpl())
+        .setBindAddress(ADDRESS).setPort(0).setNumHandlers(5).setVerbose(true)
+        .setSecretManager(sm).build();
+    
     doDigestRpc(server, sm);
   }
 
@@ -241,9 +250,10 @@ public class TestSaslRPC {
     TestTokenSecretManager sm = new TestTokenSecretManager();
     try {
       SecurityUtil.setSecurityInfoProviders(new CustomSecurityInfo());
-      final Server server = RPC.getServer(TestSaslProtocol.class,
-                                          new TestSaslImpl(), ADDRESS, 0, 5, 
-                                          true, conf, sm);
+      final Server server = new RPC.Builder(conf)
+          .setProtocol(TestSaslProtocol.class).setInstance(new TestSaslImpl())
+          .setBindAddress(ADDRESS).setPort(0).setNumHandlers(5)
+          .setVerbose(true).setSecretManager(sm).build();
       doDigestRpc(server, sm);
     } finally {
       SecurityUtil.setSecurityInfoProviders(new SecurityInfo[0]);
@@ -252,8 +262,9 @@ public class TestSaslRPC {
 
   @Test
   public void testSecureToInsecureRpc() throws Exception {
-    Server server = RPC.getServer(TestSaslProtocol.class,
-        new TestSaslImpl(), ADDRESS, 0, 5, true, conf, null);
+    Server server = new RPC.Builder(conf).setProtocol(TestSaslProtocol.class)
+        .setInstance(new TestSaslImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(5).setVerbose(true).build();
     server.disableSecurity();
     TestTokenSecretManager sm = new TestTokenSecretManager();
     doDigestRpc(server, sm);
@@ -262,8 +273,10 @@ public class TestSaslRPC {
   @Test
   public void testErrorMessage() throws Exception {
     BadTokenSecretManager sm = new BadTokenSecretManager();
-    final Server server = RPC.getServer(TestSaslProtocol.class,
-        new TestSaslImpl(), ADDRESS, 0, 5, true, conf, sm);
+    final Server server = new RPC.Builder(conf)
+        .setProtocol(TestSaslProtocol.class).setInstance(new TestSaslImpl())
+        .setBindAddress(ADDRESS).setPort(0).setNumHandlers(5).setVerbose(true)
+        .setSecretManager(sm).build();
 
     boolean succeeded = false;
     try {
@@ -350,8 +363,10 @@ public class TestSaslRPC {
   @Test
   public void testPerConnectionConf() throws Exception {
     TestTokenSecretManager sm = new TestTokenSecretManager();
-    final Server server = RPC.getServer(TestSaslProtocol.class,
-        new TestSaslImpl(), ADDRESS, 0, 5, true, conf, sm);
+    final Server server = new RPC.Builder(conf)
+        .setProtocol(TestSaslProtocol.class).setInstance(new TestSaslImpl())
+        .setBindAddress(ADDRESS).setPort(0).setNumHandlers(5).setVerbose(true)
+        .setSecretManager(sm).build();
     server.start();
     final UserGroupInformation current = UserGroupInformation.getCurrentUser();
     final InetSocketAddress addr = NetUtils.getConnectAddress(server);
@@ -413,8 +428,10 @@ public class TestSaslRPC {
     UserGroupInformation current = UserGroupInformation.getCurrentUser();
     System.out.println("UGI: " + current);
 
-    Server server = RPC.getServer(TestSaslProtocol.class, new TestSaslImpl(),
-        ADDRESS, 0, 5, true, newConf, null);
+    Server server = new RPC.Builder(newConf)
+        .setProtocol(TestSaslProtocol.class).setInstance(new TestSaslImpl())
+        .setBindAddress(ADDRESS).setPort(0).setNumHandlers(5).setVerbose(true)
+        .build();
     TestSaslProtocol proxy = null;
 
     server.start();
@@ -434,10 +451,25 @@ public class TestSaslRPC {
   }
   
   @Test
-  public void testDigestAuthMethod() throws Exception {
+  public void testDigestAuthMethodSecureServer() throws Exception {
+    checkDigestAuthMethod(true);
+  }
+
+  @Test
+  public void testDigestAuthMethodInsecureServer() throws Exception {
+    checkDigestAuthMethod(false);
+  }
+
+  private void checkDigestAuthMethod(boolean secureServer) throws Exception {
     TestTokenSecretManager sm = new TestTokenSecretManager();
-    Server server = RPC.getServer(TestSaslProtocol.class,
-        new TestSaslImpl(), ADDRESS, 0, 5, true, conf, sm);
+    Server server = new RPC.Builder(conf).setProtocol(TestSaslProtocol.class)
+        .setInstance(new TestSaslImpl()).setBindAddress(ADDRESS).setPort(0)
+        .setNumHandlers(5).setVerbose(true).setSecretManager(sm).build();      
+    if (secureServer) {
+      server.enableSecurity();
+    } else {
+      server.disableSecurity();
+    }
     server.start();
 
     final UserGroupInformation current = UserGroupInformation.getCurrentUser();
@@ -450,6 +482,7 @@ public class TestSaslRPC {
     current.addToken(token);
 
     current.doAs(new PrivilegedExceptionAction<Object>() {
+      @Override
       public Object run() throws IOException {
         TestSaslProtocol proxy = null;
         try {

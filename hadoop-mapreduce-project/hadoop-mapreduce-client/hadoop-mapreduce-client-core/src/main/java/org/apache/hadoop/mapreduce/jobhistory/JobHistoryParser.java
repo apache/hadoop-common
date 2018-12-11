@@ -282,9 +282,12 @@ public class JobHistoryParser {
       if(attemptInfo.getAttemptId().equals(taskInfo.getSuccessfulAttemptId()))
       {
         // the failed attempt is the one that made this task successful
-        // so its no longer successful
+        // so its no longer successful. Reset fields set in
+        // handleTaskFinishedEvent()
+        taskInfo.counters = null;
+        taskInfo.finishTime = -1;
         taskInfo.status = null;
-        // not resetting the other fields set in handleTaskFinishedEvent()
+        taskInfo.successfulAttemptId = null;
       }
     }
   }
@@ -438,6 +441,7 @@ public class JobHistoryParser {
       username = jobname = jobConfPath = jobQueueName = "";
       tasksMap = new HashMap<TaskID, TaskInfo>();
       jobACLs = new HashMap<JobACL, AccessControlList>();
+      priority = JobPriority.NORMAL;
     }
     
     /** Print all the job information */
@@ -451,12 +455,20 @@ public class JobHistoryParser {
       System.out.println("PRIORITY: " + priority);
       System.out.println("TOTAL_MAPS: " + totalMaps);
       System.out.println("TOTAL_REDUCES: " + totalReduces);
-      System.out.println("MAP_COUNTERS:" + mapCounters.toString());
-      System.out.println("REDUCE_COUNTERS:" + reduceCounters.toString());
-      System.out.println("TOTAL_COUNTERS: " + totalCounters.toString());
+      if (mapCounters != null) {
+        System.out.println("MAP_COUNTERS:" + mapCounters.toString());
+      }
+      if (reduceCounters != null) {
+        System.out.println("REDUCE_COUNTERS:" + reduceCounters.toString());
+      }
+      if (totalCounters != null) {
+        System.out.println("TOTAL_COUNTERS: " + totalCounters.toString());
+      }
       System.out.println("UBERIZED: " + uberized);
-      for (AMInfo amInfo : amInfos) {
-        amInfo.printAll();
+      if (amInfos != null) {
+        for (AMInfo amInfo : amInfos) {
+          amInfo.printAll();
+        }
       }
       for (TaskInfo ti: tasksMap.values()) {
         ti.printAll();

@@ -19,18 +19,28 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.SortedSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
+
+import static org.apache.hadoop.util.ExitUtil.terminate;
+
+import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ComparisonChain;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Lists;
@@ -46,6 +56,17 @@ import com.google.common.collect.Sets;
 public class JournalSet implements JournalManager {
 
   static final Log LOG = LogFactory.getLog(FSEditLog.class);
+  
+  static final public Comparator<EditLogInputStream>
+    EDIT_LOG_INPUT_STREAM_COMPARATOR = new Comparator<EditLogInputStream>() {
+      @Override
+      public int compare(EditLogInputStream a, EditLogInputStream b) {
+        return ComparisonChain.start().
+          compare(a.getFirstTxId(), b.getFirstTxId()).
+          compare(b.getLastTxId(), a.getLastTxId()).
+          result();
+      }
+    };
   
   /**
    * Container for a JournalManager paired with its currently
@@ -127,7 +148,7 @@ public class JournalSet implements JournalManager {
       return journal;
     }
 
-    private boolean isDisabled() {
+    boolean isDisabled() {
       return disabled;
     }
 
@@ -145,19 +166,31 @@ public class JournalSet implements JournalManager {
       return required;
     }
   }
-  
-  private List<JournalAndStream> journals = Lists.newArrayList();
+ 
+  // COW implementation is necessary since some users (eg the web ui) call
+  // getAllJournalStreams() and then iterate. Since this is rarely
+  // mutated, there is no performance concern.
+  private List<JournalAndStream> journals =
+      new CopyOnWriteArrayList<JournalSet.JournalAndStream>();
   final int minimumRedundantJournals;
-  private volatile Runtime runtime = Runtime.getRuntime();
   
   JournalSet(int minimumRedundantResources) {
     this.minimumRedundantJournals = minimumRedundantResources;
   }
   
-  @VisibleForTesting
-  public void setRuntimeForTesting(Runtime runtime) {
-    this.runtime = runtime;
+  @Override
+  public void format(NamespaceInfo nsInfo) throws IOException {
+    // The iteration is done by FSEditLog itself
+    throw new UnsupportedOperationException();
   }
+
+  @Override
+  public boolean hasSomeData() throws IOException {
+    // This is called individually on the underlying journals,
+    // not on the JournalSet.
+    throw new UnsupportedOperationException();
+  }
+
   
   @Override
   public EditLogOutputStream startLogSegment(final long txId) throws IOException {
@@ -194,75 +227,71 @@ public class JournalSet implements JournalManager {
     }, "close journal");
   }
 
-  
   /**
-   * Find the best editlog input stream to read from txid.
-   * If a journal throws an CorruptionException while reading from a txn id,
-   * it means that it has more transactions, but can't find any from fromTxId. 
-   * If this is the case and no other journal has transactions, we should throw
-   * an exception as it means more transactions exist, we just can't load them.
-   *
-   * @param fromTxnId Transaction id to start from.
-   * @return A edit log input stream with tranactions fromTxId 
-   *         or null if no more exist
+   * In this function, we get a bunch of streams from all of our JournalManager
+   * objects.  Then we add these to the collection one by one.
+   * 
+   * @param streams          The collection to add the streams to.  It may or 
+   *                         may not be sorted-- this is up to the caller.
+   * @param fromTxId         The transaction ID to start looking for streams at
+   * @param inProgressOk     Should we consider unfinalized streams?
    */
   @Override
-  public EditLogInputStream getInputStream(long fromTxnId, boolean inProgressOk)
-      throws IOException {
-    JournalManager bestjm = null;
-    long bestjmNumTxns = 0;
-    CorruptionException corruption = null;
-
+  public void selectInputStreams(Collection<EditLogInputStream> streams,
+      long fromTxId, boolean inProgressOk) {
+    final PriorityQueue<EditLogInputStream> allStreams = 
+        new PriorityQueue<EditLogInputStream>(64,
+            EDIT_LOG_INPUT_STREAM_COMPARATOR);
     for (JournalAndStream jas : journals) {
-      if (jas.isDisabled()) continue;
-      
-      JournalManager candidate = jas.getManager();
-      long candidateNumTxns = 0;
-      try {
-        candidateNumTxns = candidate.getNumberOfTransactions(fromTxnId,
-            inProgressOk);
-      } catch (CorruptionException ce) {
-        corruption = ce;
-      } catch (IOException ioe) {
-        LOG.warn("Unable to read input streams from JournalManager " + candidate,
-            ioe);
-        continue; // error reading disk, just skip
-      }
-      
-      if (candidateNumTxns > bestjmNumTxns) {
-        bestjm = candidate;
-        bestjmNumTxns = candidateNumTxns;
-      }
-    }
-    
-    if (bestjm == null) {
-      if (corruption != null) {
-        throw new IOException("No non-corrupt logs for txid " 
-                                        + fromTxnId, corruption);
-      } else {
-        return null;
-      }
-    }
-    return bestjm.getInputStream(fromTxnId, inProgressOk);
-  }
-  
-  @Override
-  public long getNumberOfTransactions(long fromTxnId, boolean inProgressOk)
-      throws IOException {
-    long num = 0;
-    for (JournalAndStream jas: journals) {
       if (jas.isDisabled()) {
         LOG.info("Skipping jas " + jas + " since it's disabled");
         continue;
+      }
+      try {
+        jas.getManager().selectInputStreams(allStreams, fromTxId, inProgressOk);
+      } catch (IOException ioe) {
+        LOG.warn("Unable to determine input streams from " + jas.getManager() +
+            ". Skipping.", ioe);
+      }
+    }
+    chainAndMakeRedundantStreams(streams, allStreams, fromTxId, inProgressOk);
+  }
+  
+  public static void chainAndMakeRedundantStreams(
+      Collection<EditLogInputStream> outStreams,
+      PriorityQueue<EditLogInputStream> allStreams,
+      long fromTxId, boolean inProgressOk) {
+    // We want to group together all the streams that start on the same start
+    // transaction ID.  To do this, we maintain an accumulator (acc) of all
+    // the streams we've seen at a given start transaction ID.  When we see a
+    // higher start transaction ID, we select a stream from the accumulator and
+    // clear it.  Then we begin accumulating streams with the new, higher start
+    // transaction ID.
+    LinkedList<EditLogInputStream> acc =
+        new LinkedList<EditLogInputStream>();
+    EditLogInputStream elis;
+    while ((elis = allStreams.poll()) != null) {
+      if (acc.isEmpty()) {
+        acc.add(elis);
       } else {
-        long newNum = jas.getManager().getNumberOfTransactions(fromTxnId,
-            inProgressOk);
-        if (newNum > num) {
-          num = newNum;
+        long accFirstTxId = acc.get(0).getFirstTxId();
+        if (accFirstTxId == elis.getFirstTxId()) {
+          acc.add(elis);
+        } else if (accFirstTxId < elis.getFirstTxId()) {
+          outStreams.add(new RedundantEditLogInputStream(acc, fromTxId));
+          acc.clear();
+          acc.add(elis);
+        } else if (accFirstTxId > elis.getFirstTxId()) {
+          throw new RuntimeException("sorted set invariants violated!  " +
+              "Got stream with first txid " + elis.getFirstTxId() +
+              ", but the last firstTxId was " + accFirstTxId);
         }
       }
     }
-    return num;
+    if (!acc.isEmpty()) {
+      outStreams.add(new RedundantEditLogInputStream(acc, fromTxId));
+      acc.clear();
+    }
   }
 
   /**
@@ -322,7 +351,7 @@ public class JournalSet implements JournalManager {
         closure.apply(jas);
       } catch (Throwable t) {
         if (jas.isRequired()) {
-          String msg = "Error: " + status + " failed for required journal ("
+          final String msg = "Error: " + status + " failed for required journal ("
             + jas + ")";
           LOG.fatal(msg, t);
           // If we fail on *any* of the required journals, then we must not
@@ -334,8 +363,7 @@ public class JournalSet implements JournalManager {
           // roll of edits etc. All of them go through this common function 
           // where the isRequired() check is made. Applying exit policy here 
           // to catch all code paths.
-          runtime.exit(1);
-          throw new IOException(msg);
+          terminate(1, msg);
         } else {
           LOG.error("Error: " + status + " failed for (journal " + jas + ")", t);
           badJAS.add(jas);          
@@ -443,12 +471,12 @@ public class JournalSet implements JournalManager {
     }
 
     @Override
-    protected void flushAndSync() throws IOException {
+    protected void flushAndSync(final boolean durable) throws IOException {
       mapJournalsAndReportErrors(new JournalClosure() {
         @Override
         public void apply(JournalAndStream jas) throws IOException {
           if (jas.isActive()) {
-            jas.getCurrentStream().flushAndSync();
+            jas.getCurrentStream().flushAndSync(durable);
           }
         }
       }, "flushAndSync");
@@ -501,7 +529,6 @@ public class JournalSet implements JournalManager {
     }
   }
   
-  @VisibleForTesting
   List<JournalAndStream> getAllJournalStreams() {
     return journals;
   }

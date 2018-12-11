@@ -16,38 +16,16 @@
  * limitations under the License.
  */
 
-#if defined HAVE_CONFIG_H
-  #include <config.h>
-#endif
+#include <dlfcn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#if defined HADOOP_SNAPPY_LIBRARY
-
-#if defined HAVE_STDIO_H
-  #include <stdio.h>
-#else
-  #error 'stdio.h not found'
-#endif
-
-#if defined HAVE_STDLIB_H
-  #include <stdlib.h>
-#else
-  #error 'stdlib.h not found'
-#endif
-
-#if defined HAVE_STRING_H
-  #include <string.h>
-#else
-  #error 'string.h not found'
-#endif
-
-#if defined HAVE_DLFCN_H
-  #include <dlfcn.h>
-#else
-  #error 'dlfcn.h not found'
-#endif
-
+#include "config.h"
 #include "org_apache_hadoop_io_compress_snappy.h"
 #include "org_apache_hadoop_io_compress_snappy_SnappyCompressor.h"
+
+#define JINT_MAX 0x7fffffff
 
 static jfieldID SnappyCompressor_clazz;
 static jfieldID SnappyCompressor_uncompressedDirectBuf;
@@ -63,7 +41,7 @@ JNIEXPORT void JNICALL Java_org_apache_hadoop_io_compress_snappy_SnappyCompresso
   // Load libsnappy.so
   void *libsnappy = dlopen(HADOOP_SNAPPY_LIBRARY, RTLD_LAZY | RTLD_GLOBAL);
   if (!libsnappy) {
-    char* msg = (char*)malloc(1000);
+    char msg[1000];
     snprintf(msg, 1000, "%s (%s)!", "Cannot load " HADOOP_SNAPPY_LIBRARY, dlerror());
     THROW(env, "java/lang/UnsatisfiedLinkError", msg);
     return;
@@ -95,6 +73,7 @@ JNIEXPORT jint JNICALL Java_org_apache_hadoop_io_compress_snappy_SnappyCompresso
   jint uncompressed_direct_buf_len = (*env)->GetIntField(env, thisj, SnappyCompressor_uncompressedDirectBufLen);
   jobject compressed_direct_buf = (*env)->GetObjectField(env, thisj, SnappyCompressor_compressedDirectBuf);
   jint compressed_direct_buf_len = (*env)->GetIntField(env, thisj, SnappyCompressor_directBufferSize);
+  size_t buf_len;
 
   // Get the input direct buffer
   LOCK_CLASS(env, clazz, "SnappyCompressor");
@@ -102,7 +81,7 @@ JNIEXPORT jint JNICALL Java_org_apache_hadoop_io_compress_snappy_SnappyCompresso
   UNLOCK_CLASS(env, clazz, "SnappyCompressor");
 
   if (uncompressed_bytes == 0) {
-    return (jint)0;
+    return 0;
   }
 
   // Get the output direct buffer
@@ -111,17 +90,22 @@ JNIEXPORT jint JNICALL Java_org_apache_hadoop_io_compress_snappy_SnappyCompresso
   UNLOCK_CLASS(env, clazz, "SnappyCompressor");
 
   if (compressed_bytes == 0) {
-    return (jint)0;
+    return 0;
   }
 
-  snappy_status ret = dlsym_snappy_compress(uncompressed_bytes, uncompressed_direct_buf_len, compressed_bytes, &compressed_direct_buf_len);
+  /* size_t should always be 4 bytes or larger. */
+  buf_len = (size_t)compressed_direct_buf_len;
+  snappy_status ret = dlsym_snappy_compress(uncompressed_bytes,
+        uncompressed_direct_buf_len, compressed_bytes, &buf_len);
   if (ret != SNAPPY_OK){
-    THROW(env, "Ljava/lang/InternalError", "Could not compress data. Buffer length is too small.");
+    THROW(env, "java/lang/InternalError", "Could not compress data. Buffer length is too small.");
+    return 0;
+  }
+  if (buf_len > JINT_MAX) {
+    THROW(env, "java/lang/InternalError", "Invalid return buffer length.");
+    return 0;
   }
 
   (*env)->SetIntField(env, thisj, SnappyCompressor_uncompressedDirectBufLen, 0);
-
-  return (jint)compressed_direct_buf_len;
+  return (jint)buf_len;
 }
-
-#endif //define HADOOP_SNAPPY_LIBRARY

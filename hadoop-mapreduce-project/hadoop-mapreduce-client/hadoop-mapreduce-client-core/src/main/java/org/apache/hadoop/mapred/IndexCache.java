@@ -67,8 +67,8 @@ class IndexCache {
     if (info == null) {
       info = readIndexFileToCache(fileName, mapId, expectedIndexOwner);
     } else {
-      synchronized (info) {
-        while (null == info.mapSpillRecord) {
+      synchronized(info) {
+        while (isUnderConstruction(info)) {
           try {
             info.wait();
           } catch (InterruptedException e) {
@@ -88,6 +88,12 @@ class IndexCache {
     return info.mapSpillRecord.getIndex(reduce);
   }
 
+  private boolean isUnderConstruction(IndexInformation info) {
+    synchronized(info) {
+      return (null == info.mapSpillRecord);
+    }
+  }
+
   private IndexInformation readIndexFileToCache(Path indexFileName,
                                                 String mapId,
                                                 String expectedIndexOwner)
@@ -95,8 +101,8 @@ class IndexCache {
     IndexInformation info;
     IndexInformation newInd = new IndexInformation();
     if ((info = cache.putIfAbsent(mapId, newInd)) != null) {
-      synchronized (info) {
-        while (null == info.mapSpillRecord) {
+      synchronized(info) {
+        while (isUnderConstruction(info)) {
           try {
             info.wait();
           } catch (InterruptedException e) {
@@ -139,7 +145,7 @@ class IndexCache {
    */
   public void removeMap(String mapId) {
     IndexInformation info = cache.get(mapId);
-    if ((info != null) && (info.getSize() == 0)) {
+    if (info == null || ((info != null) && isUnderConstruction(info))) {
       return;
     }
     info = cache.remove(mapId);

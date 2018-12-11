@@ -18,13 +18,18 @@
 package org.apache.hadoop.contrib.bkjournal;
 
 import java.io.IOException;
-import org.apache.zookeeper.ZooKeeper;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.ZooDefs.Ids;
-import org.apache.zookeeper.data.Stat;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.ZooDefs.Ids;
+import org.apache.zookeeper.data.Stat;
+
+import org.apache.hadoop.contrib.bkjournal.BKJournalProtos.MaxTxIdProto;
+import com.google.protobuf.TextFormat;
+import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * Utility class for storing and reading
@@ -49,18 +54,26 @@ class MaxTxId {
       if (LOG.isTraceEnabled()) {
         LOG.trace("Setting maxTxId to " + maxTxId);
       }
-      String txidStr = Long.toString(maxTxId);
-      try {
-        if (currentStat != null) {
-          currentStat = zkc.setData(path, txidStr.getBytes("UTF-8"), 
-                                    currentStat.getVersion());
-        } else {
-          zkc.create(path, txidStr.getBytes("UTF-8"), 
-                     Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        }
-      } catch (Exception e) {
-        throw new IOException("Error writing max tx id", e);
+      reset(maxTxId);
+    }
+  }
+
+  synchronized void reset(long maxTxId) throws IOException {
+    try {
+      MaxTxIdProto.Builder builder = MaxTxIdProto.newBuilder().setTxId(maxTxId);
+
+      byte[] data = TextFormat.printToString(builder.build()).getBytes(UTF_8);
+      if (currentStat != null) {
+        currentStat = zkc.setData(path, data, currentStat
+            .getVersion());
+      } else {
+        zkc.create(path, data, Ids.OPEN_ACL_UNSAFE,
+                   CreateMode.PERSISTENT);
       }
+    } catch (KeeperException e) {
+      throw new IOException("Error writing max tx id", e);
+    } catch (InterruptedException e) {
+      throw new IOException("Interrupted while writing max tx id", e);
     }
   }
 
@@ -70,12 +83,21 @@ class MaxTxId {
       if (currentStat == null) {
         return 0;
       } else {
+
         byte[] bytes = zkc.getData(path, false, currentStat);
-        String txidString = new String(bytes, "UTF-8");
-        return Long.valueOf(txidString);
+
+        MaxTxIdProto.Builder builder = MaxTxIdProto.newBuilder();
+        TextFormat.merge(new String(bytes, UTF_8), builder);
+        if (!builder.isInitialized()) {
+          throw new IOException("Invalid/Incomplete data in znode");
+        }
+
+        return builder.build().getTxId();
       }
-    } catch (Exception e) {
+    } catch (KeeperException e) {
       throw new IOException("Error reading the max tx id from zk", e);
+    } catch (InterruptedException ie) {
+      throw new IOException("Interrupted while reading thr max tx id", ie);
     }
   }
 }

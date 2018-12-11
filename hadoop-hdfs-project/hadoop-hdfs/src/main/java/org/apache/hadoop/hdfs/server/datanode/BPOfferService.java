@@ -42,7 +42,6 @@ import org.apache.hadoop.hdfs.server.protocol.NNHAStatusHeartbeat;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.ReceivedDeletedBlockInfo;
 import org.apache.hadoop.hdfs.server.protocol.ReceivedDeletedBlockInfo.BlockStatus;
-import org.apache.hadoop.hdfs.server.protocol.UpgradeCommand;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -74,7 +73,6 @@ class BPOfferService {
    */
   DatanodeRegistration bpRegistration;
   
-  UpgradeManagerDatanode upgradeManager = null;
   private final DataNode dn;
 
   /**
@@ -260,33 +258,6 @@ class BPOfferService {
     }
   }
 
-  synchronized UpgradeManagerDatanode getUpgradeManager() {
-    if(upgradeManager == null)
-      upgradeManager = 
-        new UpgradeManagerDatanode(dn, getBlockPoolId());
-    
-    return upgradeManager;
-  }
-  
-  void processDistributedUpgradeCommand(UpgradeCommand comm)
-  throws IOException {
-    UpgradeManagerDatanode upgradeManager = getUpgradeManager();
-    upgradeManager.processUpgradeCommand(comm);
-  }
-
-  /**
-   * Start distributed upgrade if it should be initiated by the data-node.
-   */
-  synchronized void startDistributedUpgradeIfNeeded() throws IOException {
-    UpgradeManagerDatanode um = getUpgradeManager();
-    
-    if(!um.getUpgradeState())
-      return;
-    um.setUpgradeState(false, um.getUpgradeVersion());
-    um.startUpgrade();
-    return;
-  }
-  
   DataNode getDataNode() {
     return dn;
   }
@@ -334,6 +305,11 @@ class BPOfferService {
     }
     
     dn.bpRegistrationSucceeded(bpRegistration, getBlockPoolId());
+    // Add the initial block token secret keys to the DN's secret manager.
+    if (dn.isBlockTokenEnabled) {
+      dn.blockPoolTokenSecretManager.addKeys(getBlockPoolId(),
+          reg.getExportedKeys());
+    }
   }
 
   /**
@@ -369,9 +345,6 @@ class BPOfferService {
 
     if (bpServices.isEmpty()) {
       dn.shutdownBlockPool(this);
-      
-      if(upgradeManager != null)
-        upgradeManager.shutdownUpgrade();
     }
   }
 
@@ -586,10 +559,6 @@ class BPOfferService {
 
       dn.finalizeUpgradeForPool(bp);
       break;
-    case UpgradeCommand.UC_ACTION_START_UPGRADE:
-      // start distributed upgrade here
-      processDistributedUpgradeCommand((UpgradeCommand)cmd);
-      break;
     case DatanodeProtocol.DNA_RECOVERBLOCK:
       String who = "NameNode at " + actor.getNNSocketAddress();
       dn.recoverBlocks(who, ((BlockRecoveryCommand)cmd).getRecoveringBlocks());
@@ -597,7 +566,7 @@ class BPOfferService {
     case DatanodeProtocol.DNA_ACCESSKEYUPDATE:
       LOG.info("DatanodeCommand action: DNA_ACCESSKEYUPDATE");
       if (dn.isBlockTokenEnabled) {
-        dn.blockPoolTokenSecretManager.setKeys(
+        dn.blockPoolTokenSecretManager.addKeys(
             getBlockPoolId(), 
             ((KeyUpdateCommand) cmd).getExportedKeys());
       }
@@ -609,6 +578,9 @@ class BPOfferService {
       if (bandwidth > 0) {
         DataXceiverServer dxcs =
                      (DataXceiverServer) dn.dataXceiverServer.getRunnable();
+        LOG.info("Updating balance throttler bandwidth from "
+            + dxcs.balanceThrottler.getBandwidth() + " bytes/s "
+            + "to: " + bandwidth + " bytes/s.");
         dxcs.balanceThrottler.setBandwidth(bandwidth);
       }
       break;
@@ -625,17 +597,24 @@ class BPOfferService {
     switch(cmd.getAction()) {
     case DatanodeProtocol.DNA_REGISTER:
       // namenode requested a registration - at start or if NN lost contact
-      LOG.info("DatanodeCommand action: DNA_REGISTER");
+      LOG.info("DatanodeCommand action from standby: DNA_REGISTER");
       actor.reRegister();
-      return true;
+      break;
+    case DatanodeProtocol.DNA_ACCESSKEYUPDATE:
+      LOG.info("DatanodeCommand action from standby: DNA_ACCESSKEYUPDATE");
+      if (dn.isBlockTokenEnabled) {
+        dn.blockPoolTokenSecretManager.addKeys(
+            getBlockPoolId(), 
+            ((KeyUpdateCommand) cmd).getExportedKeys());
+      }
+      break;
     case DatanodeProtocol.DNA_TRANSFER:
     case DatanodeProtocol.DNA_INVALIDATE:
     case DatanodeProtocol.DNA_SHUTDOWN:
     case DatanodeProtocol.DNA_RECOVERBLOCK:
-    case DatanodeProtocol.DNA_ACCESSKEYUPDATE:
     case DatanodeProtocol.DNA_BALANCERBANDWIDTHUPDATE:
       LOG.warn("Got a command from standby NN - ignoring command:" + cmd.getAction());
-      return true;   
+      break;
     default:
       LOG.warn("Unknown DatanodeCommand action: " + cmd.getAction());
     }

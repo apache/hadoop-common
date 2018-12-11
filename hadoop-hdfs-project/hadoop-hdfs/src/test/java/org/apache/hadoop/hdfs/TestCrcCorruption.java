@@ -18,21 +18,23 @@
 
 package org.apache.hadoop.hdfs;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.File;
-import java.io.RandomAccessFile;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Random;
-
-import org.junit.Test;
-import static org.junit.Assert.*;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.io.IOUtils;
+import org.junit.Test;
 
 /**
  * A JUnit test for corrupted file handling.
@@ -206,7 +208,8 @@ public class TestCrcCorruption {
     System.out.println("TestCrcCorruption with default parameters");
     Configuration conf1 = new HdfsConfiguration();
     conf1.setInt(DFSConfigKeys.DFS_BLOCKREPORT_INTERVAL_MSEC_KEY, 3 * 1000);
-    DFSTestUtil util1 = new DFSTestUtil("TestCrcCorruption", 40, 3, 8*1024);
+    DFSTestUtil util1 = new DFSTestUtil.Builder().setName("TestCrcCorruption").
+        setNumFiles(40).build();
     thistest(conf1, util1);
 
     //
@@ -216,7 +219,8 @@ public class TestCrcCorruption {
     Configuration conf2 = new HdfsConfiguration();
     conf2.setInt(DFSConfigKeys.DFS_BYTES_PER_CHECKSUM_KEY, 17);
     conf2.setInt(DFSConfigKeys.DFS_BLOCK_SIZE_KEY, 34);
-    DFSTestUtil util2 = new DFSTestUtil("TestCrcCorruption", 40, 3, 400);
+    DFSTestUtil util2 = new DFSTestUtil.Builder().setName("TestCrcCorruption").
+        setNumFiles(40).setMaxSize(400).build();
     thistest(conf2, util2);
   }
 

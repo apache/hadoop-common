@@ -18,10 +18,22 @@
 
 package org.apache.hadoop.hdfs;
 
-import org.junit.Before;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.FS_DEFAULT_NAME_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_AUTHENTICATION;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_HA_NAMENODES_KEY_PREFIX;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_BACKUP_ADDRESS_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HTTPS_PORT_DEFAULT;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HTTP_PORT_DEFAULT;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMESERVICES;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMESERVICE_ID;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -34,18 +46,18 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.HadoopIllegalArgumentException;
-import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
-import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
-import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
-import org.apache.hadoop.hdfs.server.namenode.NameNode;
-import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
-
-import static org.apache.hadoop.hdfs.DFSConfigKeys.*;
+import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
+import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.junit.Before;
+import org.junit.Test;
 
 public class TestDFSUtil {
   
@@ -100,7 +112,7 @@ public class TestDFSUtil {
 
   private Configuration setupAddress(String key) {
     HdfsConfiguration conf = new HdfsConfiguration();
-    conf.set(DFS_FEDERATION_NAMESERVICES, "nn1");
+    conf.set(DFS_NAMESERVICES, "nn1");
     conf.set(DFSUtil.addKeySuffixes(key, "nn1"), "localhost:9000");
     return conf;
   }
@@ -112,7 +124,7 @@ public class TestDFSUtil {
   @Test
   public void getNameServiceId() {
     HdfsConfiguration conf = new HdfsConfiguration();
-    conf.set(DFS_FEDERATION_NAMESERVICE_ID, "nn1");
+    conf.set(DFS_NAMESERVICE_ID, "nn1");
     assertEquals("nn1", DFSUtil.getNamenodeNameServiceId(conf));
   }
   
@@ -157,7 +169,7 @@ public class TestDFSUtil {
   @Test(expected = HadoopIllegalArgumentException.class)
   public void testGetNameServiceIdException() {
     HdfsConfiguration conf = new HdfsConfiguration();
-    conf.set(DFS_FEDERATION_NAMESERVICES, "nn1,nn2");
+    conf.set(DFS_NAMESERVICES, "nn1,nn2");
     conf.set(DFSUtil.addKeySuffixes(DFS_NAMENODE_RPC_ADDRESS_KEY, "nn1"),
         "localhost:9000");
     conf.set(DFSUtil.addKeySuffixes(DFS_NAMENODE_RPC_ADDRESS_KEY, "nn2"),
@@ -172,7 +184,7 @@ public class TestDFSUtil {
   @Test
   public void testGetNameServiceIds() {
     HdfsConfiguration conf = new HdfsConfiguration();
-    conf.set(DFS_FEDERATION_NAMESERVICES, "nn1,nn2");
+    conf.set(DFS_NAMESERVICES, "nn1,nn2");
     Collection<String> nameserviceIds = DFSUtil.getNameServiceIds(conf);
     Iterator<String> it = nameserviceIds.iterator();
     assertEquals(2, nameserviceIds.size());
@@ -183,11 +195,11 @@ public class TestDFSUtil {
   @Test
   public void testGetOnlyNameServiceIdOrNull() {
     HdfsConfiguration conf = new HdfsConfiguration();
-    conf.set(DFS_FEDERATION_NAMESERVICES, "ns1,ns2");
+    conf.set(DFS_NAMESERVICES, "ns1,ns2");
     assertNull(DFSUtil.getOnlyNameServiceIdOrNull(conf));
-    conf.set(DFS_FEDERATION_NAMESERVICES, "");
+    conf.set(DFS_NAMESERVICES, "");
     assertNull(DFSUtil.getOnlyNameServiceIdOrNull(conf));
-    conf.set(DFS_FEDERATION_NAMESERVICES, "ns1");
+    conf.set(DFS_NAMESERVICES, "ns1");
     assertEquals("ns1", DFSUtil.getOnlyNameServiceIdOrNull(conf));
   }
 
@@ -199,7 +211,7 @@ public class TestDFSUtil {
   @Test
   public void testMultipleNamenodes() throws IOException {
     HdfsConfiguration conf = new HdfsConfiguration();
-    conf.set(DFS_FEDERATION_NAMESERVICES, "nn1,nn2");
+    conf.set(DFS_NAMESERVICES, "nn1,nn2");
     // Test - configured list of namenodes are returned
     final String NN1_ADDRESS = "localhost:9000";
     final String NN2_ADDRESS = "localhost:9001";
@@ -270,8 +282,8 @@ public class TestDFSUtil {
     final HdfsConfiguration conf = new HdfsConfiguration();
     String nsId = "ns1";
     
-    conf.set(DFS_FEDERATION_NAMESERVICES, nsId);
-    conf.set(DFS_FEDERATION_NAMESERVICE_ID, nsId);
+    conf.set(DFS_NAMESERVICES, nsId);
+    conf.set(DFS_NAMESERVICE_ID, nsId);
 
     // Set the nameservice specific keys with nameserviceId in the config key
     for (String key : NameNode.NAMENODE_SPECIFIC_KEYS) {
@@ -299,8 +311,8 @@ public class TestDFSUtil {
     String nsId = "ns1";
     String nnId = "nn1";
     
-    conf.set(DFS_FEDERATION_NAMESERVICES, nsId);
-    conf.set(DFS_FEDERATION_NAMESERVICE_ID, nsId);
+    conf.set(DFS_NAMESERVICES, nsId);
+    conf.set(DFS_NAMESERVICE_ID, nsId);
     conf.set(DFS_HA_NAMENODES_KEY_PREFIX + "." + nsId, nnId);
 
     // Set the nameservice specific keys with nameserviceId in the config key
@@ -409,14 +421,20 @@ public class TestDFSUtil {
   }
 
   @Test
-  public void testGetServerInfo() {
+  public void testGetInfoServer() throws IOException {
     HdfsConfiguration conf = new HdfsConfiguration();
     conf.set(HADOOP_SECURITY_AUTHENTICATION, "kerberos");
     UserGroupInformation.setConfiguration(conf);
+    
     String httpsport = DFSUtil.getInfoServer(null, conf, true);
     assertEquals("0.0.0.0:"+DFS_NAMENODE_HTTPS_PORT_DEFAULT, httpsport);
+    
     String httpport = DFSUtil.getInfoServer(null, conf, false);
     assertEquals("0.0.0.0:"+DFS_NAMENODE_HTTP_PORT_DEFAULT, httpport);
+    
+    String httpAddress = DFSUtil.getInfoServer(new InetSocketAddress(
+        "localhost", 8020), conf, false);
+    assertEquals("localhost:" + DFS_NAMENODE_HTTP_PORT_DEFAULT, httpAddress);
   }
   
   @Test
@@ -430,7 +448,7 @@ public class TestDFSUtil {
     conf.set(CommonConfigurationKeys.FS_DEFAULT_NAME_KEY, "hdfs://ns1");
     
     // Two nameservices, each with two NNs.
-    conf.set(DFS_FEDERATION_NAMESERVICES, "ns1,ns2");
+    conf.set(DFS_NAMESERVICES, "ns1,ns2");
     conf.set(DFSUtil.addKeySuffixes(DFS_HA_NAMENODES_KEY_PREFIX, "ns1"),
         "ns1-nn1,ns1-nn2");
     conf.set(DFSUtil.addKeySuffixes(DFS_HA_NAMENODES_KEY_PREFIX, "ns2"),
@@ -491,7 +509,7 @@ public class TestDFSUtil {
     final String NS1_NN2_HOST = "ns1-nn1.example.com:8020";
     final String NS1_NN2_HOST_SVC = "ns1-nn2.example.com:8021";
    
-    conf.set(DFS_FEDERATION_NAMESERVICES, "ns1");
+    conf.set(DFS_NAMESERVICES, "ns1");
     conf.set(DFSUtil.addKeySuffixes(DFS_HA_NAMENODES_KEY_PREFIX, "ns1"),"nn1,nn2"); 
 
     conf.set(DFSUtil.addKeySuffixes(
@@ -540,7 +558,7 @@ public class TestDFSUtil {
     final String NN1_SRVC_ADDR  = "nn.example.com:8021";
     final String NN2_ADDR       = "nn2.example.com:8020";
     
-    conf.set(DFS_FEDERATION_NAMESERVICES, "ns1,ns2");
+    conf.set(DFS_NAMESERVICES, "ns1,ns2");
     conf.set(DFSUtil.addKeySuffixes(DFS_HA_NAMENODES_KEY_PREFIX, "ns1"),"nn1,nn2");
     conf.set(DFSUtil.addKeySuffixes(
         DFS_NAMENODE_RPC_ADDRESS_KEY, "ns1", "nn1"), NS1_NN1_ADDR);
@@ -601,5 +619,13 @@ public class TestDFSUtil {
     
     assertEquals(1, uris.size());
     assertTrue(uris.contains(new URI("hdfs://" + NN1_SRVC_ADDR)));
+  }
+  
+  @Test
+  public void testIsValidName() {
+    assertFalse(DFSUtil.isValidName("/foo/../bar"));
+    assertFalse(DFSUtil.isValidName("/foo//bar"));
+    assertTrue(DFSUtil.isValidName("/"));
+    assertTrue(DFSUtil.isValidName("/bar/"));
   }
 }

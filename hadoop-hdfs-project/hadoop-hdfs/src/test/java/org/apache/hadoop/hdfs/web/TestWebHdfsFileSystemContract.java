@@ -26,6 +26,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Random;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.MediaType;
@@ -44,6 +45,7 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.web.resources.DoAsParam;
 import org.apache.hadoop.hdfs.web.resources.GetOpParam;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam;
+import org.apache.hadoop.hdfs.web.resources.NamenodeRpcAddressParam;
 import org.apache.hadoop.hdfs.web.resources.PutOpParam;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -204,15 +206,20 @@ public class TestWebHdfsFileSystemContract extends FileSystemContractBaseTest {
       assertEquals(0, count);
     }
 
-    final Path p = new Path(dir, "file");
-    createFile(p);
+    final byte[] mydata = new byte[1 << 20];
+    new Random().nextBytes(mydata);
 
-    final int one_third = data.length/3;
+    final Path p = new Path(dir, "file");
+    FSDataOutputStream out = fs.create(p, false, 4096, (short)3, 1L << 17);
+    out.write(mydata, 0, mydata.length);
+    out.close();
+
+    final int one_third = mydata.length/3;
     final int two_third = one_third*2;
 
     { //test seek
       final int offset = one_third; 
-      final int len = data.length - offset;
+      final int len = mydata.length - offset;
       final byte[] buf = new byte[len];
 
       final FSDataInputStream in = fs.open(p);
@@ -224,13 +231,13 @@ public class TestWebHdfsFileSystemContract extends FileSystemContractBaseTest {
   
       for (int i = 0; i < buf.length; i++) {
         assertEquals("Position " + i + ", offset=" + offset + ", length=" + len,
-            data[i + offset], buf[i]);
+            mydata[i + offset], buf[i]);
       }
     }
 
     { //test position read (read the data after the two_third location)
       final int offset = two_third; 
-      final int len = data.length - offset;
+      final int len = mydata.length - offset;
       final byte[] buf = new byte[len];
 
       final FSDataInputStream in = fs.open(p);
@@ -239,7 +246,7 @@ public class TestWebHdfsFileSystemContract extends FileSystemContractBaseTest {
   
       for (int i = 0; i < buf.length; i++) {
         assertEquals("Position " + i + ", offset=" + offset + ", length=" + len,
-            data[i + offset], buf[i]);
+            mydata[i + offset], buf[i]);
       }
     }
   }
@@ -258,8 +265,8 @@ public class TestWebHdfsFileSystemContract extends FileSystemContractBaseTest {
     assertTrue(status != null);
     assertEquals(0777, status.getPermission().toShort());
 
-    //delete root - disabled due to a sticky bit bug 
-    //assertFalse(fs.delete(root, true));
+    //delete root
+    assertFalse(fs.delete(root, true));
 
     //create file using root path 
     try {
@@ -286,6 +293,10 @@ public class TestWebHdfsFileSystemContract extends FileSystemContractBaseTest {
     final Path root = new Path("/");
     final Path dir = new Path("/test/testUrl");
     assertTrue(webhdfs.mkdirs(dir));
+    final Path file = new Path("/test/file");
+    final FSDataOutputStream out = webhdfs.create(file);
+    out.write(1);
+    out.close();
 
     {//test GETHOMEDIRECTORY
       final URL url = webhdfs.toUrl(GetOpParam.Op.GETHOMEDIRECTORY, root);
@@ -350,6 +361,48 @@ public class TestWebHdfsFileSystemContract extends FileSystemContractBaseTest {
 
     {//test append.
       AppendTestUtil.testAppend(fs, new Path(dir, "append"));
+    }
+
+    {//test NamenodeRpcAddressParam not set.
+      final HttpOpParam.Op op = PutOpParam.Op.CREATE;
+      final URL url = webhdfs.toUrl(op, dir);
+      HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+      conn.setRequestMethod(op.getType().toString());
+      conn.setDoOutput(false);
+      conn.setInstanceFollowRedirects(false);
+      conn.connect();
+      final String redirect = conn.getHeaderField("Location");
+      conn.disconnect();
+
+      //remove NamenodeRpcAddressParam
+      WebHdfsFileSystem.LOG.info("redirect = " + redirect);
+      final int i = redirect.indexOf(NamenodeRpcAddressParam.NAME);
+      final int j = redirect.indexOf("&", i);
+      String modified = redirect.substring(0, i - 1) + redirect.substring(j);
+      WebHdfsFileSystem.LOG.info("modified = " + modified);
+
+      //connect to datanode
+      conn = (HttpURLConnection)new URL(modified).openConnection();
+      conn.setRequestMethod(op.getType().toString());
+      conn.setDoOutput(op.getDoOutput());
+      conn.connect();
+      assertEquals(HttpServletResponse.SC_BAD_REQUEST, conn.getResponseCode());
+    }
+
+    {//test jsonParse with non-json type.
+      final HttpOpParam.Op op = GetOpParam.Op.OPEN;
+      final URL url = webhdfs.toUrl(op, file);
+      final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+      conn.setRequestMethod(op.getType().toString());
+      conn.connect();
+
+      try {
+        WebHdfsFileSystem.jsonParse(conn, false);
+        fail();
+      } catch(IOException ioe) {
+        WebHdfsFileSystem.LOG.info("GOOD", ioe);
+      }
+      conn.disconnect();
     }
   }
 }

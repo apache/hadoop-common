@@ -41,11 +41,34 @@
 </property>
 
 <property>
+  <name>dfs.namenode.rpc-address</name>
+  <value></value>
+  <description>
+    RPC address that handles all clients requests. In the case of HA/Federation where multiple namenodes exist,
+    the name service id is added to the name e.g. dfs.namenode.rpc-address.ns1
+    dfs.namenode.rpc-address.EXAMPLENAMESERVICE
+    The value of this property will take the form of hdfs://nn-host1:rpc-port.
+  </description>
+</property>
+
+<property>
+  <name>dfs.namenode.servicerpc-address</name>
+  <value></value>
+  <description>
+    RPC address for HDFS Services communication. BackupNode, Datanodes and all other services should be
+    connecting to this address if it is configured. In the case of HA/Federation where multiple namenodes exist,
+    the name service id is added to the name e.g. dfs.namenode.servicerpc-address.ns1
+    dfs.namenode.rpc-address.EXAMPLENAMESERVICE
+    The value of this property will take the form of hdfs://nn-host1:rpc-port.
+    If the value of this property is unset the value of dfs.namenode.rpc-address will be used as the default.
+  </description>
+</property>
+
+<property>
   <name>dfs.namenode.secondary.http-address</name>
   <value>0.0.0.0:50090</value>
   <description>
     The secondary namenode http server address and port.
-    If the port is 0 then the server will start on a free port.
   </description>
 </property>
 
@@ -53,8 +76,7 @@
   <name>dfs.datanode.address</name>
   <value>0.0.0.0:50010</value>
   <description>
-    The address where the datanode server will listen to.
-    If the port is 0 then the server will start on a free port.
+    The datanode server address and port for data transfer.
   </description>
 </property>
 
@@ -63,7 +85,6 @@
   <value>0.0.0.0:50075</value>
   <description>
     The datanode http server address and port.
-    If the port is 0 then the server will start on a free port.
   </description>
 </property>
 
@@ -72,13 +93,12 @@
   <value>0.0.0.0:50020</value>
   <description>
     The datanode ipc server address and port.
-    If the port is 0 then the server will start on a free port.
   </description>
 </property>
 
 <property>
   <name>dfs.datanode.handler.count</name>
-  <value>3</value>
+  <value>10</value>
   <description>The number of server threads for the datanode.</description>
 </property>
 
@@ -87,7 +107,6 @@
   <value>0.0.0.0:50070</value>
   <description>
     The address and the base port where the dfs namenode web ui will listen on.
-    If the port is 0 then the server will start on a free port.
   </description>
 </property>
 
@@ -239,13 +258,10 @@
   left empty in a non-HA cluster.
   </description>
 </property>
-  
+
 <property>
-  <name>dfs.web.ugi</name>
-  <value>webuser,webgroup</value>
-  <description>The user account used by the web interface.
-    Syntax: USERNAME,GROUP1,GROUP2, ...
-  </description>
+  <name>dfs.namenode.edits.journal-plugin.qjournal</name>
+  <value>org.apache.hadoop.hdfs.qjournal.client.QuorumJournalManager</value>
 </property>
 
 <property>
@@ -723,6 +739,80 @@
 </property>
 
 <property>
+  <name>dfs.datanode.readahead.bytes</name>
+  <value>4193404</value>
+  <description>
+        While reading block files, if the Hadoop native libraries are available,
+        the datanode can use the posix_fadvise system call to explicitly
+        page data into the operating system buffer cache ahead of the current
+        reader's position. This can improve performance especially when
+        disks are highly contended.
+
+        This configuration specifies the number of bytes ahead of the current
+        read position which the datanode will attempt to read ahead. This
+        feature may be disabled by configuring this property to 0.
+
+        If the native libraries are not available, this configuration has no
+        effect.
+  </description>
+</property>
+
+<property>
+  <name>dfs.datanode.drop.cache.behind.reads</name>
+  <value>false</value>
+  <description>
+        In some workloads, the data read from HDFS is known to be significantly
+        large enough that it is unlikely to be useful to cache it in the
+        operating system buffer cache. In this case, the DataNode may be
+        configured to automatically purge all data from the buffer cache
+        after it is delivered to the client. This behavior is automatically
+        disabled for workloads which read only short sections of a block
+        (e.g HBase random-IO workloads).
+
+        This may improve performance for some workloads by freeing buffer
+        cache spage usage for more cacheable data.
+
+        If the Hadoop native libraries are not available, this configuration
+        has no effect.
+  </description>
+</property>
+
+<property>
+  <name>dfs.datanode.drop.cache.behind.writes</name>
+  <value>false</value>
+  <description>
+        In some workloads, the data written to HDFS is known to be significantly
+        large enough that it is unlikely to be useful to cache it in the
+        operating system buffer cache. In this case, the DataNode may be
+        configured to automatically purge all data from the buffer cache
+        after it is written to disk.
+
+        This may improve performance for some workloads by freeing buffer
+        cache spage usage for more cacheable data.
+
+        If the Hadoop native libraries are not available, this configuration
+        has no effect.
+  </description>
+</property>
+
+<property>
+  <name>dfs.datanode.sync.behind.writes</name>
+  <value>false</value>
+  <description>
+        If this configuration is enabled, the datanode will instruct the
+        operating system to enqueue all written data to the disk immediately
+        after it is written. This differs from the usual OS policy which
+        may wait for up to 30 seconds before triggering writeback.
+
+        This may improve performance for some workloads by smoothing the
+        IO profile for data written to disk.
+
+        If the Hadoop native libraries are not available, this configuration
+        has no effect.
+  </description>
+</property>
+
+<property>
   <name>dfs.client.failover.max.attempts</name>
   <value>15</value>
   <description>
@@ -778,7 +868,7 @@
 </property>
 
 <property>
-  <name>dfs.federation.nameservices</name>
+  <name>dfs.nameservices</name>
   <value></value>
   <description>
     Comma-separated list of nameservices.
@@ -786,12 +876,12 @@
 </property>
 
 <property>
-  <name>dfs.federation.nameservice.id</name>
+  <name>dfs.nameservice.id</name>
   <value></value>
   <description>
     The ID of this nameservice. If the nameservice ID is not
     configured or more than one nameservice is configured for
-    dfs.federation.nameservices it is determined automatically by
+    dfs.nameservices it is determined automatically by
     matching the local node's address with the configured address.
   </description>
 </property>
@@ -855,6 +945,22 @@
 </property>
 
 <property>
+  <name>dfs.client.use.datanode.hostname</name>
+  <value>false</value>
+  <description>Whether clients should use datanode hostnames when
+    connecting to datanodes.
+  </description>
+</property>
+
+<property>
+  <name>dfs.datanode.use.datanode.hostname</name>
+  <value>false</value>
+  <description>Whether datanodes should use datanode hostnames when
+    connecting to other datanodes for data transfer.
+  </description>
+</property>
+
+<property>
   <name>dfs.client.local.interfaces</name>
   <value></value>
   <description>A comma separated list of network interface names to use
@@ -878,5 +984,160 @@
   <value>${dfs.web.authentication.kerberos.principal}</value>
 </property>
 
+<property>
+  <name>dfs.namenode.check.stale.datanode</name>
+  <value>false</value>
+  <description>
+  	Indicate whether or not to check "stale" datanodes whose 
+  	heartbeat messages have not been received by the namenode 
+  	for more than a specified time interval. If this configuration 
+  	parameter is set as true, the stale datanodes will be moved to 
+  	the end of the target node list for reading. The writing will 
+  	also try to avoid stale nodes.
+  </description>
+</property>
+
+<property>
+  <name>dfs.namenode.stale.datanode.interval</name>
+  <value>30000</value>
+  <description>
+  	Default time interval for marking a datanode as "stale", i.e., if 
+  	the namenode has not received heartbeat msg from a datanode for 
+  	more than this time interval, the datanode will be marked and treated 
+  	as "stale" by default.
+  </description>
+</property>
+
+<property>
+  <name>dfs.namenode.invalidate.work.pct.per.iteration</name>
+  <value>0.32f</value>
+  <description>
+    *Note*: Advanced property. Change with caution.
+    This determines the percentage amount of block
+    invalidations (deletes) to do over a single DN heartbeat
+    deletion command. The final deletion count is determined by applying this
+    percentage to the number of live nodes in the system.
+    The resultant number is the number of blocks from the deletion list
+    chosen for proper invalidation over a single heartbeat of a single DN.
+    Value should be a positive, non-zero percentage in float notation (X.Yf),
+    with 1.0f meaning 100%.
+  </description>
+</property>
+
+<property>
+  <name>dfs.namenode.replication.work.multiplier.per.iteration</name>
+  <value>2</value>
+  <description>
+    *Note*: Advanced property. Change with caution.
+    This determines the total amount of block transfers to begin in
+    parallel at a DN, for replication, when such a command list is being
+    sent over a DN heartbeat by the NN. The actual number is obtained by
+    multiplying this multiplier with the total number of live nodes in the
+    cluster. The result number is the number of blocks to begin transfers
+    immediately for, per DN heartbeat. This number can be any positive,
+    non-zero integer.
+  </description>
+</property>
+
+<property>
+  <name>dfs.webhdfs.enabled</name>
+  <value>false</value>
+  <description>
+    Enable WebHDFS (REST API) in Namenodes and Datanodes.
+  </description>
+</property>
+
+<property>
+  <name>hadoop.fuse.connection.timeout</name>
+  <value>300</value>
+  <description>
+    The minimum number of seconds that we'll cache libhdfs connection objects
+    in fuse_dfs. Lower values will result in lower memory consumption; higher
+    values may speed up access by avoiding the overhead of creating new
+    connection objects.
+  </description>
+</property>
+
+<property>
+  <name>hadoop.fuse.timer.period</name>
+  <value>5</value>
+  <description>
+    The number of seconds between cache expiry checks in fuse_dfs. Lower values
+    will result in fuse_dfs noticing changes to Kerberos ticket caches more
+    quickly.
+  </description>
+</property>
+
+<property>
+  <name>dfs.metrics.percentiles.intervals</name>
+  <value></value>
+  <description>
+    Comma-delimited set of integers denoting the desired rollover intervals 
+    (in seconds) for percentile latency metrics on the Namenode and Datanode.
+    By default, percentile latency metrics are disabled.
+  </description>
+</property>
+
+<property>
+  <name>dfs.encrypt.data.transfer</name>
+  <value>false</value>
+  <description>
+    Whether or not actual block data that is read/written from/to HDFS should
+    be encrypted on the wire. This only needs to be set on the NN and DNs,
+    clients will deduce this automatically.
+  </description>
+</property>
+
+<property>
+  <name>dfs.encrypt.data.transfer.algorithm</name>
+  <value></value>
+  <description>
+    This value may be set to either "3des" or "rc4". If nothing is set, then
+    the configured JCE default on the system is used (usually 3DES.) It is
+    widely believed that 3DES is more cryptographically secure, but RC4 is
+    substantially faster.
+  </description>
+</property>
+
+<property>
+  <name>dfs.datanode.hdfs-blocks-metadata.enabled</name>
+  <value>false</value>
+  <description>
+    Boolean which enables backend datanode-side support for the experimental DistributedFileSystem#getFileVBlockStorageLocations API.
+  </description>
+</property>
+
+<property>
+  <name>dfs.client.file-block-storage-locations.num-threads</name>
+  <value>10</value>
+  <description>
+    Number of threads used for making parallel RPCs in DistributedFileSystem#getFileBlockStorageLocations().
+  </description>
+</property>
+
+<property>
+  <name>dfs.client.file-block-storage-locations.timeout</name>
+  <value>60</value>
+  <description>
+    Timeout (in seconds) for the parallel RPCs made in DistributedFileSystem#getFileBlockStorageLocations().
+  </description>
+</property>
+
+<property>
+  <name>dfs.journalnode.rpc-address</name>
+  <value>0.0.0.0:8485</value>
+  <description>
+    The JournalNode RPC server address and port.
+  </description>
+</property>
+
+<property>
+  <name>dfs.journalnode.http-address</name>
+  <value>0.0.0.0:8480</value>
+  <description>
+    The address and port the JournalNode web UI listens on.
+    If the port is 0 then the server will start on a free port.
+  </description>
+</property>
 
 </configuration>

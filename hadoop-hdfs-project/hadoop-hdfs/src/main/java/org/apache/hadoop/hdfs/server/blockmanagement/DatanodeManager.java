@@ -17,7 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.blockmanagement;
 
-import static org.apache.hadoop.hdfs.server.common.Util.now;
+import static org.apache.hadoop.util.Time.now;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -38,6 +39,7 @@ import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
@@ -49,7 +51,6 @@ import org.apache.hadoop.hdfs.protocol.HdfsConstants.DatanodeReportType;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.UnregisteredNodeException;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor.BlockTargetPair;
-import org.apache.hadoop.hdfs.server.common.Util;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.Namesystem;
 import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
@@ -66,10 +67,13 @@ import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.net.CachedDNSToSwitchMapping;
 import org.apache.hadoop.net.DNSToSwitchMapping;
 import org.apache.hadoop.net.NetworkTopology;
+import org.apache.hadoop.net.Node;
+import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.net.ScriptBasedMapping;
 import org.apache.hadoop.util.Daemon;
 import org.apache.hadoop.util.HostsFileReader;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.Time;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.net.InetAddresses;
@@ -108,7 +112,7 @@ public class DatanodeManager {
       = new TreeMap<String, DatanodeDescriptor>();
 
   /** Cluster network topology */
-  private final NetworkTopology networktopology = new NetworkTopology();
+  private final NetworkTopology networktopology;
 
   /** Host names to datanode descriptors mapping. */
   private final Host2NodesMap host2DatanodeMap = new Host2NodesMap();
@@ -129,11 +133,22 @@ public class DatanodeManager {
    */
   private boolean hasClusterEverBeenMultiRack = false;
   
+  /** Whether or not to check the stale datanodes */
+  private volatile boolean checkForStaleNodes;
+  /** The time interval for detecting stale datanodes */
+  private volatile long staleInterval;
+  
   DatanodeManager(final BlockManager blockManager,
       final Namesystem namesystem, final Configuration conf
       ) throws IOException {
     this.namesystem = namesystem;
     this.blockManager = blockManager;
+    
+    Class<? extends NetworkTopology> networkTopologyClass =
+        conf.getClass(CommonConfigurationKeysPublic.NET_TOPOLOGY_IMPL_KEY,
+            NetworkTopology.class, NetworkTopology.class);
+    networktopology = (NetworkTopology) ReflectionUtils.newInstance(
+        networkTopologyClass, conf);
 
     this.heartbeatManager = new HeartbeatManager(namesystem, blockManager, conf);
 
@@ -166,6 +181,21 @@ public class DatanodeManager {
         DFSConfigKeys.DFS_BLOCK_INVALIDATE_LIMIT_KEY, blockInvalidateLimit);
     LOG.info(DFSConfigKeys.DFS_BLOCK_INVALIDATE_LIMIT_KEY
         + "=" + this.blockInvalidateLimit);
+    // set the value of stale interval based on configuration
+    this.checkForStaleNodes = conf.getBoolean(
+        DFSConfigKeys.DFS_NAMENODE_CHECK_STALE_DATANODE_KEY,
+        DFSConfigKeys.DFS_NAMENODE_CHECK_STALE_DATANODE_DEFAULT);
+    if (this.checkForStaleNodes) {
+      this.staleInterval = conf.getLong(
+          DFSConfigKeys.DFS_NAMENODE_STALE_DATANODE_INTERVAL_KEY,
+          DFSConfigKeys.DFS_NAMENODE_STALE_DATANODE_INTERVAL_MILLI_DEFAULT);
+      if (this.staleInterval < DFSConfigKeys.DFS_NAMENODE_STALE_DATANODE_INTERVAL_MILLI_DEFAULT) {
+        LOG.warn("The given interval for marking stale datanode = "
+            + this.staleInterval + ", which is smaller than the default value "
+            + DFSConfigKeys.DFS_NAMENODE_STALE_DATANODE_INTERVAL_MILLI_DEFAULT
+            + ".");
+      }
+    }
   }
 
   private Daemon decommissionthread = null;
@@ -183,7 +213,13 @@ public class DatanodeManager {
   }
 
   void close() {
-    if (decommissionthread != null) decommissionthread.interrupt();
+    if (decommissionthread != null) {
+      decommissionthread.interrupt();
+      try {
+        decommissionthread.join(3000);
+      } catch (InterruptedException e) {
+      }
+    }
     heartbeatManager.close();
   }
 
@@ -206,15 +242,27 @@ public class DatanodeManager {
   public void sortLocatedBlocks(final String targethost,
       final List<LocatedBlock> locatedblocks) {
     //sort the blocks
-    final DatanodeDescriptor client = getDatanodeByHost(targethost);
+    // As it is possible for the separation of node manager and datanode, 
+    // here we should get node but not datanode only .
+    Node client = getDatanodeByHost(targethost);
+    if (client == null) {
+      List<String> hosts = new ArrayList<String> (1);
+      hosts.add(targethost);
+      String rName = dnsToSwitchMapping.resolve(hosts).get(0);
+      if (rName != null)
+        client = new NodeBase(rName + NodeBase.PATH_SEPARATOR_STR + targethost);
+    }
+    
+    Comparator<DatanodeInfo> comparator = checkForStaleNodes ? 
+                    new DFSUtil.DecomStaleComparator(staleInterval) : 
+                    DFSUtil.DECOM_COMPARATOR;
     for (LocatedBlock b : locatedblocks) {
       networktopology.pseudoSortByDistance(client, b.getLocations());
-      
-      // Move decommissioned datanodes to the bottom
-      Arrays.sort(b.getLocations(), DFSUtil.DECOM_COMPARATOR);
-    }    
+      // Move decommissioned/stale datanodes to the bottom
+      Arrays.sort(b.getLocations(), comparator);
+    }
   }
-
+  
   CyclicIteration<String, DatanodeDescriptor> getDatanodeCyclicIteration(
       final String firstkey) {
     return new CyclicIteration<String, DatanodeDescriptor>(
@@ -320,7 +368,7 @@ public class DatanodeManager {
   /** Is the datanode dead? */
   boolean isDatanodeDead(DatanodeDescriptor node) {
     return (node.getLastUpdate() <
-            (Util.now() - heartbeatExpireInterval));
+            (Time.now() - heartbeatExpireInterval));
   }
 
   /** Add a datanode. */
@@ -564,7 +612,8 @@ public class DatanodeManager {
         + " storage " + nodeReg.getStorageID());
 
     DatanodeDescriptor nodeS = datanodeMap.get(nodeReg.getStorageID());
-    DatanodeDescriptor nodeN = getDatanodeByHost(nodeReg.getXferAddr());
+    DatanodeDescriptor nodeN = host2DatanodeMap.getDatanodeByXferAddr(
+        nodeReg.getIpAddr(), nodeReg.getXferPort());
       
     if (nodeN != null && nodeN != nodeS) {
       NameNode.LOG.info("BLOCK* NameSystem.registerDatanode: "
@@ -1035,4 +1084,8 @@ public class DatanodeManager {
     }
   }
 
+  @Override
+  public String toString() {
+    return getClass().getSimpleName() + ": " + host2DatanodeMap;
+  }
 }

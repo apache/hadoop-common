@@ -41,13 +41,15 @@ import com.google.common.annotations.VisibleForTesting;
 @InterfaceAudience.Private
 public class EditLogFileOutputStream extends EditLogOutputStream {
   private static Log LOG = LogFactory.getLog(EditLogFileOutputStream.class);
-  public static final int PREALLOCATION_LENGTH = 1024 * 1024;
+  public static final int MIN_PREALLOCATION_LENGTH = 1024 * 1024;
 
   private File file;
   private FileOutputStream fp; // file stream for storing edit logs
   private FileChannel fc; // channel of the file stream for sync
   private EditsDoubleBuffer doubleBuf;
-  static ByteBuffer fill = ByteBuffer.allocateDirect(PREALLOCATION_LENGTH);
+  static ByteBuffer fill = ByteBuffer.allocateDirect(MIN_PREALLOCATION_LENGTH);
+
+  private static boolean shouldSkipFsyncForTests = false;
 
   static {
     fill.position(0);
@@ -132,7 +134,7 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
         doubleBuf = null;
       }
       
-      // remove the last INVALID marker from transaction log.
+      // remove any preallocated padding bytes from the transaction log.
       if (fc != null && fc.isOpen()) {
         fc.truncate(fc.position());
         fc.close();
@@ -166,7 +168,6 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
    */
   @Override
   public void setReadyToFlush() throws IOException {
-    doubleBuf.getCurrentBuf().write(FSEditLogOpCodes.OP_INVALID.getOpCode()); // insert eof marker
     doubleBuf.setReadyToFlush();
   }
 
@@ -175,7 +176,7 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
    * accumulates new log records while readyBuffer will be flushed and synced.
    */
   @Override
-  public void flushAndSync() throws IOException {
+  public void flushAndSync(boolean durable) throws IOException {
     if (fp == null) {
       throw new IOException("Trying to use aborted output stream");
     }
@@ -183,10 +184,11 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
       LOG.info("Nothing to flush");
       return;
     }
+    preallocate(); // preallocate file if necessay
     doubleBuf.flushTo(fp);
-    fc.force(false); // metadata updates not needed
-    fc.position(fc.position() - 1); // skip back the end-of-file marker
-    preallocate(); // preallocate file if necessary
+    if (durable && !shouldSkipFsyncForTests) {
+      fc.force(false); // metadata updates not needed
+    }
   }
 
   /**
@@ -197,20 +199,27 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
     return doubleBuf.shouldForceSync();
   }
 
-  // allocate a big chunk of data
   private void preallocate() throws IOException {
     long position = fc.position();
-    if (position + 4096 >= fc.size()) {
-      if(FSNamesystem.LOG.isDebugEnabled()) {
-        FSNamesystem.LOG.debug("Preallocating Edit log, current size "
-            + fc.size());
-      }
+    long size = fc.size();
+    int bufSize = doubleBuf.getReadyBuf().getLength();
+    long need = bufSize - (size - position);
+    if (need <= 0) {
+      return;
+    }
+    long oldSize = size;
+    long total = 0;
+    long fillCapacity = fill.capacity();
+    while (need > 0) {
       fill.position(0);
-      int written = fc.write(fill, position);
-      if(FSNamesystem.LOG.isDebugEnabled()) {
-        FSNamesystem.LOG.debug("Edit log size is now " + fc.size() +
-            " written " + written + " bytes " + " at offset " + position);
-      }
+      IOUtils.writeFully(fc, fill, size);
+      need -= fillCapacity;
+      size += fillCapacity;
+      total += fillCapacity;
+    }
+    if(FSNamesystem.LOG.isDebugEnabled()) {
+      FSNamesystem.LOG.debug("Preallocated " + total + " bytes at the end of " +
+      		"the edit log (offset " + oldSize + ")");
     }
   }
 
@@ -241,5 +250,16 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
   @VisibleForTesting
   public FileChannel getFileChannelForTesting() {
     return fc;
+  }
+  
+  /**
+   * For the purposes of unit tests, we don't need to actually
+   * write durably to disk. So, we can skip the fsync() calls
+   * for a speed improvement.
+   * @param skip true if fsync should <em>not</em> be called
+   */
+  @VisibleForTesting
+  public static void setShouldSkipFsyncForTesting(boolean skip) {
+    shouldSkipFsyncForTests = skip;
   }
 }

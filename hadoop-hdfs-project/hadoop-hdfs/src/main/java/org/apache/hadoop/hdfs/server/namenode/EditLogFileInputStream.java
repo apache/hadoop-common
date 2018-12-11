@@ -18,30 +18,53 @@
 
 package org.apache.hadoop.hdfs.server.namenode;
 
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.BufferedInputStream;
-import java.io.EOFException;
-import java.io.DataInputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.PrivilegedExceptionAction;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.Storage;
+import org.apache.hadoop.hdfs.server.namenode.TransferFsImage.HttpGetFailedException;
 import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.security.SecurityUtil;
+
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 
 /**
  * An implementation of the abstract class {@link EditLogInputStream}, which
- * reads edits from a local file.
+ * reads edits from a file. That file may be either on the local disk or
+ * accessible via a URL.
  */
+@InterfaceAudience.Private
 public class EditLogFileInputStream extends EditLogInputStream {
-  private final File file;
-  private final FileInputStream fStream;
-  final private long firstTxId;
-  final private long lastTxId;
-  private final int logVersion;
-  private final FSEditLogOp.Reader reader;
-  private final FSEditLogLoader.PositionTrackingInputStream tracker;
+  private final LogSource log;
+  private final long firstTxId;
+  private final long lastTxId;
   private final boolean isInProgress;
+  static private enum State {
+    UNINIT,
+    OPEN,
+    CLOSED
+  }
+  private State state = State.UNINIT;
+  private InputStream fStream = null;
+  private int logVersion = 0;
+  private FSEditLogOp.Reader reader = null;
+  private FSEditLogLoader.PositionTrackingInputStream tracker = null;
+  private DataInputStream dataIn = null;
+  static final Log LOG = LogFactory.getLog(EditLogInputStream.class);
   
   /**
    * Open an EditLogInputStream for the given file.
@@ -68,103 +91,171 @@ public class EditLogFileInputStream extends EditLogInputStream {
    *         header
    */
   public EditLogFileInputStream(File name, long firstTxId, long lastTxId,
-      boolean isInProgress)
-      throws LogHeaderCorruptException, IOException {
-    file = name;
-    fStream = new FileInputStream(name);
-
-    BufferedInputStream bin = new BufferedInputStream(fStream);
-    tracker = new FSEditLogLoader.PositionTrackingInputStream(bin);
-    DataInputStream in = new DataInputStream(tracker);
-
-    try {
-      logVersion = readLogVersion(in);
-    } catch (EOFException eofe) {
-      throw new LogHeaderCorruptException("No header found in log");
-    }
-
-    reader = new FSEditLogOp.Reader(in, tracker, logVersion);
+      boolean isInProgress) {
+    this(new FileLog(name), firstTxId, lastTxId, isInProgress);
+  }
+  
+  /**
+   * Open an EditLogInputStream for the given URL.
+   *
+   * @param url the url hosting the log
+   * @param startTxId the expected starting txid
+   * @param endTxId the expected ending txid
+   * @param inProgress whether the log is in-progress
+   * @return a stream from which edits may be read
+   */
+  public static EditLogInputStream fromUrl(URL url, long startTxId,
+      long endTxId, boolean inProgress) {
+    return new EditLogFileInputStream(new URLLog(url),
+        startTxId, endTxId, inProgress);
+  }
+  
+  private EditLogFileInputStream(LogSource log,
+      long firstTxId, long lastTxId,
+      boolean isInProgress) {
+      
+    this.log = log;
     this.firstTxId = firstTxId;
     this.lastTxId = lastTxId;
     this.isInProgress = isInProgress;
   }
 
+  private void init() throws LogHeaderCorruptException, IOException {
+    Preconditions.checkState(state == State.UNINIT);
+    BufferedInputStream bin = null;
+    try {
+      fStream = log.getInputStream();
+      bin = new BufferedInputStream(fStream);
+      tracker = new FSEditLogLoader.PositionTrackingInputStream(bin);
+      dataIn = new DataInputStream(tracker);
+      try {
+        logVersion = readLogVersion(dataIn);
+      } catch (EOFException eofe) {
+        throw new LogHeaderCorruptException("No header found in log");
+      }
+      reader = new FSEditLogOp.Reader(dataIn, tracker, logVersion);
+      state = State.OPEN;
+    } finally {
+      if (reader == null) {
+        IOUtils.cleanup(LOG, dataIn, tracker, bin, fStream);
+        state = State.CLOSED;
+      }
+    }
+  }
+
   @Override
-  public long getFirstTxId() throws IOException {
+  public long getFirstTxId() {
     return firstTxId;
   }
   
   @Override
-  public long getLastTxId() throws IOException {
+  public long getLastTxId() {
     return lastTxId;
   }
 
   @Override
   public String getName() {
-    return file.getPath();
+    return log.getName();
+  }
+
+  private FSEditLogOp nextOpImpl(boolean skipBrokenEdits) throws IOException {
+    FSEditLogOp op = null;
+    switch (state) {
+    case UNINIT:
+      try {
+        init();
+      } catch (Throwable e) {
+        LOG.error("caught exception initializing " + this, e);
+        if (skipBrokenEdits) {
+          return null;
+        }
+        Throwables.propagateIfPossible(e, IOException.class);
+      }
+      Preconditions.checkState(state != State.UNINIT);
+      return nextOpImpl(skipBrokenEdits);
+    case OPEN:
+      op = reader.readOp(skipBrokenEdits);
+      if ((op != null) && (op.hasTransactionId())) {
+        long txId = op.getTransactionId();
+        if ((txId >= lastTxId) &&
+            (lastTxId != HdfsConstants.INVALID_TXID)) {
+          //
+          // Sometimes, the NameNode crashes while it's writing to the
+          // edit log.  In that case, you can end up with an unfinalized edit log
+          // which has some garbage at the end.
+          // JournalManager#recoverUnfinalizedSegments will finalize these
+          // unfinished edit logs, giving them a defined final transaction 
+          // ID.  Then they will be renamed, so that any subsequent
+          // readers will have this information.
+          //
+          // Since there may be garbage at the end of these "cleaned up"
+          // logs, we want to be sure to skip it here if we've read everything
+          // we were supposed to read out of the stream.
+          // So we force an EOF on all subsequent reads.
+          //
+          long skipAmt = log.length() - tracker.getPos();
+          if (skipAmt > 0) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("skipping " + skipAmt + " bytes at the end " +
+                  "of edit log  '" + getName() + "': reached txid " + txId +
+                  " out of " + lastTxId);
+            }
+            tracker.clearLimit();
+            IOUtils.skipFully(tracker, skipAmt);
+          }
+        }
+      }
+      break;
+      case CLOSED:
+        break; // return null
+    }
+    return op;
   }
 
   @Override
   protected FSEditLogOp nextOp() throws IOException {
-    FSEditLogOp op = reader.readOp(false);
-    if ((op != null) && (op.hasTransactionId())) {
-      long txId = op.getTransactionId();
-      if ((txId >= lastTxId) &&
-          (lastTxId != HdfsConstants.INVALID_TXID)) {
-        //
-        // Sometimes, the NameNode crashes while it's writing to the
-        // edit log.  In that case, you can end up with an unfinalized edit log
-        // which has some garbage at the end.
-        // JournalManager#recoverUnfinalizedSegments will finalize these
-        // unfinished edit logs, giving them a defined final transaction 
-        // ID.  Then they will be renamed, so that any subsequent
-        // readers will have this information.
-        //
-        // Since there may be garbage at the end of these "cleaned up"
-        // logs, we want to be sure to skip it here if we've read everything
-        // we were supposed to read out of the stream.
-        // So we force an EOF on all subsequent reads.
-        //
-        long skipAmt = file.length() - tracker.getPos();
-        if (skipAmt > 0) {
-          FSImage.LOG.warn("skipping " + skipAmt + " bytes at the end " +
-              "of edit log  '" + getName() + "': reached txid " + txId +
-              " out of " + lastTxId);
-          tracker.skip(skipAmt);
-        }
-      }
-    }
-    return op;
+    return nextOpImpl(false);
   }
-  
+
   @Override
   protected FSEditLogOp nextValidOp() {
     try {
-      return reader.readOp(true);
-    } catch (IOException e) {
+      return nextOpImpl(true);
+    } catch (Throwable e) {
+      LOG.error("nextValidOp: got exception while reading " + this, e);
       return null;
     }
   }
 
   @Override
   public int getVersion() throws IOException {
+    if (state == State.UNINIT) {
+      init();
+    }
     return logVersion;
   }
 
   @Override
   public long getPosition() {
-    return tracker.getPos();
+    if (state == State.OPEN) {
+      return tracker.getPos();
+    } else {
+      return 0;
+    }
   }
 
   @Override
   public void close() throws IOException {
-    fStream.close();
+    if (state == State.OPEN) {
+      dataIn.close();
+    }
+    state = State.CLOSED;
   }
 
   @Override
   public long length() throws IOException {
     // file size + size of both buffers
-    return file.length();
+    return log.length();
   }
   
   @Override
@@ -181,12 +272,12 @@ public class EditLogFileInputStream extends EditLogInputStream {
     EditLogFileInputStream in;
     try {
       in = new EditLogFileInputStream(file);
-    } catch (LogHeaderCorruptException corrupt) {
+      in.getVersion(); // causes us to read the header
+    } catch (LogHeaderCorruptException e) {
       // If the header is malformed or the wrong value, this indicates a corruption
-      FSImage.LOG.warn("Log at " + file + " has no valid header",
-          corrupt);
+      LOG.warn("Log file " + file + " has no valid header", e);
       return new FSEditLogLoader.EditLogValidation(0,
-          HdfsConstants.INVALID_TXID, HdfsConstants.INVALID_TXID, true);
+          HdfsConstants.INVALID_TXID, true);
     }
     
     try {
@@ -235,4 +326,91 @@ public class EditLogFileInputStream extends EditLogInputStream {
       super(msg);
     }
   }
+  
+  private interface LogSource {
+    public InputStream getInputStream() throws IOException;
+    public long length();
+    public String getName();
+  }
+  
+  private static class FileLog implements LogSource {
+    private final File file;
+    
+    public FileLog(File file) {
+      this.file = file;
+    }
+
+    @Override
+    public InputStream getInputStream() throws IOException {
+      return new FileInputStream(file);
+    }
+
+    @Override
+    public long length() {
+      return file.length();
+    }
+
+    @Override
+    public String getName() {
+      return file.getPath();
+    }
+  }
+
+  private static class URLLog implements LogSource {
+    private final URL url;
+    private long advertisedSize = -1;
+
+    private final static String CONTENT_LENGTH = "Content-Length";
+
+    public URLLog(URL url) {
+      this.url = url;
+    }
+
+    @Override
+    public InputStream getInputStream() throws IOException {
+      return SecurityUtil.doAsCurrentUser(
+          new PrivilegedExceptionAction<InputStream>() {
+            @Override
+            public InputStream run() throws IOException {
+              HttpURLConnection connection = (HttpURLConnection)
+                  SecurityUtil.openSecureHttpConnection(url);
+              
+              if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                throw new HttpGetFailedException(
+                    "Fetch of " + url +
+                    " failed with status code " + connection.getResponseCode() +
+                    "\nResponse message:\n" + connection.getResponseMessage(),
+                    connection);
+              }
+        
+              String contentLength = connection.getHeaderField(CONTENT_LENGTH);
+              if (contentLength != null) {
+                advertisedSize = Long.parseLong(contentLength);
+                if (advertisedSize <= 0) {
+                  throw new IOException("Invalid " + CONTENT_LENGTH + " header: " +
+                      contentLength);
+                }
+              } else {
+                throw new IOException(CONTENT_LENGTH + " header is not provided " +
+                                      "by the server when trying to fetch " + url);
+              }
+        
+              return connection.getInputStream();
+            }
+          });
+    }
+
+    @Override
+    public long length() {
+      Preconditions.checkState(advertisedSize != -1,
+          "must get input stream before length is available");
+      return advertisedSize;
+    }
+
+    @Override
+    public String getName() {
+      return url.toString();
+    }
+  }
+  
 }

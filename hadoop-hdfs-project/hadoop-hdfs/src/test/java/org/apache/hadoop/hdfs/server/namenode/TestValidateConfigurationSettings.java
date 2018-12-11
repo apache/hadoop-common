@@ -17,19 +17,21 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import static org.junit.Assert.*;
-import org.junit.Test;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.File;
 import java.io.IOException;
-import junit.framework.Assert;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
-import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.test.GenericTestUtils;
+import org.junit.Test;
 
 /**
  * This class tests the validation of the configuration object when passed 
@@ -53,7 +55,7 @@ public class TestValidateConfigurationSettings {
     DFSTestUtil.formatNameNode(conf);
     try {
       NameNode nameNode = new NameNode(conf);
-      Assert.fail("Should have throw the exception since the ports match");
+      fail("Should have throw the exception since the ports match");
     } catch (IOException e) {
       // verify we're getting the right IOException
       assertTrue(e.toString().contains("dfs.namenode.rpc-address (")); 
@@ -92,7 +94,7 @@ public class TestValidateConfigurationSettings {
     conf.set(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY,
         "127.0.0.1:0");
     
-    conf.set(DFSConfigKeys.DFS_FEDERATION_NAMESERVICES, "ns1");
+    conf.set(DFSConfigKeys.DFS_NAMESERVICES, "ns1");
     
     // Set a nameservice-specific configuration for name dir
     File dir = new File(MiniDFSCluster.getBaseDirectory(),

@@ -21,12 +21,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.server.namenode.FSClusterStats;
 import org.apache.hadoop.net.NetworkTopology;
@@ -67,21 +69,6 @@ public abstract class BlockPlacementPolicy {
                                              DatanodeDescriptor writer,
                                              List<DatanodeDescriptor> chosenNodes,
                                              long blocksize);
-
-  /**
-   * Same as
-   * {{@link #chooseTarget(String, int, DatanodeDescriptor, List, boolean, HashMap, long)}
-   * with returnChosenNodes equal to false.
-   */
-  final DatanodeDescriptor[] chooseTarget(String srcPath,
-                                          int numOfReplicas,
-                                          DatanodeDescriptor writer,
-                                          List<DatanodeDescriptor> chosenNodes,
-                                          HashMap<Node, Node> excludedNodes,
-                                          long blocksize) {
-    return chooseTarget(srcPath, numOfReplicas, writer, chosenNodes, false,
-        excludedNodes, blocksize);
-  }
 
   /**
    * choose <i>numOfReplicas</i> data nodes for <i>writer</i> 
@@ -129,7 +116,7 @@ public abstract class BlockPlacementPolicy {
                                     HashMap<Node, Node> excludedNodes,
                                     long blocksize) {
     return chooseTarget(srcBC.getName(), numOfReplicas, writer,
-                        chosenNodes, excludedNodes, blocksize);
+                        chosenNodes, false, excludedNodes, blocksize);
   }
 
   /**
@@ -196,50 +183,80 @@ public abstract class BlockPlacementPolicy {
     replicator.initialize(conf, stats, clusterMap);
     return replicator;
   }
-
+  
   /**
-   * choose <i>numOfReplicas</i> nodes for <i>writer</i> to replicate
-   * a block with size <i>blocksize</i> 
-   * If not, return as many as we can.
-   * 
-   * @param srcPath a string representation of the file for which chooseTarget is invoked
-   * @param numOfReplicas number of replicas wanted.
-   * @param writer the writer's machine, null if not in the cluster.
-   * @param blocksize size of the data to be written.
-   * @return array of DatanodeDescriptor instances chosen as targets
-   * and sorted as a pipeline.
+   * Adjust rackmap, moreThanOne, and exactlyOne after removing replica on cur.
+   *
+   * @param rackMap a map from rack to replica
+   * @param moreThanOne The List of replica nodes on rack which has more than 
+   *        one replica
+   * @param exactlyOne The List of replica nodes on rack with only one replica
+   * @param cur current replica to remove
    */
-  DatanodeDescriptor[] chooseTarget(String srcPath,
-                                    int numOfReplicas,
-                                    DatanodeDescriptor writer,
-                                    long blocksize) {
-    return chooseTarget(srcPath, numOfReplicas, writer,
-                        new ArrayList<DatanodeDescriptor>(),
-                        blocksize);
+  public void adjustSetsWithChosenReplica(final Map<String, 
+      List<DatanodeDescriptor>> rackMap,
+      final List<DatanodeDescriptor> moreThanOne,
+      final List<DatanodeDescriptor> exactlyOne, final DatanodeInfo cur) {
+    
+    String rack = getRack(cur);
+    final List<DatanodeDescriptor> datanodes = rackMap.get(rack);
+    datanodes.remove(cur);
+    if (datanodes.isEmpty()) {
+      rackMap.remove(rack);
+    }
+    if (moreThanOne.remove(cur)) {
+      if (datanodes.size() == 1) {
+        moreThanOne.remove(datanodes.get(0));
+        exactlyOne.add(datanodes.get(0));
+      }
+    } else {
+      exactlyOne.remove(cur);
+    }
   }
 
   /**
-   * choose <i>numOfReplicas</i> nodes for <i>writer</i> to replicate
-   * a block with size <i>blocksize</i>
-   * If not, return as many as we can.
-   *
-   * @param srcPath a string representation of the file for which chooseTarget is invoked
-   * @param numOfReplicas number of replicas wanted.
-   * @param writer the writer's machine, null if not in the cluster.
-   * @param blocksize size of the data to be written.
-   * @param excludedNodes datanodes that should not be considered as targets.
-   * @return array of DatanodeDescriptor instances chosen as targets
-   * and sorted as a pipeline.
+   * Get rack string from a data node
+   * @param datanode
+   * @return rack of data node
    */
-  public DatanodeDescriptor[] chooseTarget(String srcPath,
-                                    int numOfReplicas,
-                                    DatanodeDescriptor writer,
-                                    HashMap<Node, Node> excludedNodes,
-                                    long blocksize) {
-    return chooseTarget(srcPath, numOfReplicas, writer,
-                        new ArrayList<DatanodeDescriptor>(),
-                        excludedNodes,
-                        blocksize);
+  protected String getRack(final DatanodeInfo datanode) {
+    return datanode.getNetworkLocation();
+  }
+  
+  /**
+   * Split data nodes into two sets, one set includes nodes on rack with
+   * more than one  replica, the other set contains the remaining nodes.
+   * 
+   * @param dataNodes
+   * @param rackMap a map from rack to datanodes
+   * @param moreThanOne contains nodes on rack with more than one replica
+   * @param exactlyOne remains contains the remaining nodes
+   */
+  public void splitNodesWithRack(
+      Collection<DatanodeDescriptor> dataNodes,
+      final Map<String, List<DatanodeDescriptor>> rackMap,
+      final List<DatanodeDescriptor> moreThanOne,
+      final List<DatanodeDescriptor> exactlyOne) {
+    for(DatanodeDescriptor node : dataNodes) {
+      final String rackName = getRack(node);
+      List<DatanodeDescriptor> datanodeList = rackMap.get(rackName);
+      if (datanodeList == null) {
+        datanodeList = new ArrayList<DatanodeDescriptor>();
+        rackMap.put(rackName, datanodeList);
+      }
+      datanodeList.add(node);
+    }
+    
+    // split nodes into two sets
+    for(List<DatanodeDescriptor> datanodeList : rackMap.values()) {
+      if (datanodeList.size() == 1) {
+        // exactlyOne contains nodes on rack with only one replica
+        exactlyOne.add(datanodeList.get(0));
+      } else {
+        // moreThanOne contains nodes on rack with more than one replica
+        moreThanOne.addAll(datanodeList);
+      }
+    }
   }
 
 }

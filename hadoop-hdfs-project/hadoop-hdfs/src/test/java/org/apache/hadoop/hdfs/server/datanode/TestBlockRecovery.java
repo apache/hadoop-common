@@ -38,21 +38,27 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSTestUtil;
+import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.MiniDFSNNTopology;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.RecoveryInProgressException;
 import org.apache.hadoop.hdfs.protocolPB.DatanodeProtocolClientSideTranslatorPB;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.ReplicaState;
@@ -141,7 +147,7 @@ public class TestBlockRecovery {
         Mockito.any(DatanodeRegistration.class));
 
     when(namenode.versionRequest()).thenReturn(new NamespaceInfo
-        (1, CLUSTER_ID, POOL_ID, 1L, 1));
+        (1, CLUSTER_ID, POOL_ID, 1L));
 
     when(namenode.sendHeartbeat(
             Mockito.any(DatanodeRegistration.class),
@@ -544,7 +550,7 @@ public class TestBlockRecovery {
     ReplicaOutputStreams streams = null;
     try {
       streams = replicaInfo.createStreams(true,
-          DataChecksum.newDataChecksum(DataChecksum.CHECKSUM_CRC32, 512));
+          DataChecksum.newDataChecksum(DataChecksum.Type.CRC32, 512));
       streams.getChecksumOut().write('a');
       dn.data.initReplicaRecovery(new RecoveringBlock(block, null, RECOVERY_ID+1));
       try {
@@ -559,6 +565,71 @@ public class TestBlockRecovery {
           anyBoolean(), any(DatanodeID[].class), any(String[].class));
     } finally {
       streams.close();
+    }
+  }
+  
+  /**
+   * Test to verify the race between finalizeBlock and Lease recovery
+   * 
+   * @throws Exception
+   */
+  @Test(timeout = 20000)
+  public void testRaceBetweenReplicaRecoveryAndFinalizeBlock() throws Exception {
+    tearDown();// Stop the Mocked DN started in startup()
+
+    Configuration conf = new HdfsConfiguration();
+    MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf)
+        .nnTopology(MiniDFSNNTopology.simpleSingleNN(8020, 50070))
+        .numDataNodes(1).build();
+    try {
+      cluster.waitClusterUp();
+      DistributedFileSystem fs = cluster.getFileSystem();
+      Path path = new Path("/test");
+      FSDataOutputStream out = fs.create(path);
+      out.writeBytes("data");
+      out.hsync();
+      
+      List<LocatedBlock> blocks = DFSTestUtil.getAllBlocks(fs.open(path));
+      final LocatedBlock block = blocks.get(0);
+      final DataNode dataNode = cluster.getDataNodes().get(0);
+      
+      final AtomicBoolean recoveryInitResult = new AtomicBoolean(true);
+      Thread recoveryThread = new Thread() {
+        @Override
+        public void run() {
+          try {
+            DatanodeInfo[] locations = block.getLocations();
+            final RecoveringBlock recoveringBlock = new RecoveringBlock(
+                block.getBlock(), locations, block.getBlock()
+                    .getGenerationStamp() + 1);
+            synchronized (dataNode.data) {
+              Thread.sleep(2000);
+              dataNode.initReplicaRecovery(recoveringBlock);
+            }
+          } catch (Exception e) {
+            recoveryInitResult.set(false);
+          }
+        }
+      };
+      recoveryThread.start();
+      try {
+        out.close();
+      } catch (IOException e) {
+        Assert.assertTrue("Writing should fail",
+            e.getMessage().contains("are bad. Aborting..."));
+      } finally {
+        recoveryThread.join();
+      }
+      Assert.assertTrue("Recovery should be initiated successfully",
+          recoveryInitResult.get());
+      
+      dataNode.updateReplicaUnderRecovery(block.getBlock(), block.getBlock()
+          .getGenerationStamp() + 1, block.getBlockSize());
+    } finally {
+      if (null != cluster) {
+        cluster.shutdown();
+        cluster = null;
+      }
     }
   }
 }

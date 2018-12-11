@@ -20,6 +20,7 @@ package org.apache.hadoop.fs;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.http.lib.StaticUserWebFilter;
 
 /** 
  * This class contains constants for configuration keys used
@@ -43,11 +44,6 @@ public class CommonConfigurationKeys extends CommonConfigurationKeysPublic {
     "fs.permissions.umask-mode";
   /** Default value for FS_PERMISSIONS_UMASK_KEY */
   public static final int     FS_PERMISSIONS_UMASK_DEFAULT = 0022;
-  /** @deprecated not used, jira was created to remove this constant:
-   * https://issues.apache.org/jira/browse/HADOOP-6802
-   */
-  public static final String  FS_CLIENT_BUFFER_DIR_KEY =
-    "fs.client.buffer.dir";
   /** How often does RPC client send pings to RPC server */
   public static final String  IPC_PING_INTERVAL_KEY = "ipc.ping.interval";
   /** Default value for IPC_PING_INTERVAL_KEY */
@@ -158,10 +154,35 @@ public class CommonConfigurationKeys extends CommonConfigurationKeysPublic {
     "ha.failover-controller.graceful-fence.rpc-timeout.ms";
   public static final int HA_FC_GRACEFUL_FENCE_TIMEOUT_DEFAULT = 5000;
   
+  /* FC connection retries for graceful fencing */
+  public static final String HA_FC_GRACEFUL_FENCE_CONNECTION_RETRIES =
+      "ha.failover-controller.graceful-fence.connection.retries";
+  public static final int HA_FC_GRACEFUL_FENCE_CONNECTION_RETRIES_DEFAULT = 1;
+
   /* Timeout that the CLI (manual) FC waits for monitorHealth, getServiceState */
   public static final String HA_FC_CLI_CHECK_TIMEOUT_KEY =
     "ha.failover-controller.cli-check.rpc-timeout.ms";
   public static final int HA_FC_CLI_CHECK_TIMEOUT_DEFAULT = 20000;
 
+  /** Static user web-filter properties.
+   * See {@link StaticUserWebFilter}.
+   */
+  public static final String HADOOP_HTTP_STATIC_USER =
+    "hadoop.http.staticuser.user";
+  public static final String DEFAULT_HADOOP_HTTP_STATIC_USER =
+    "dr.who";
+
+  /** Enable/Disable aliases serving from jetty */
+  public static final String HADOOP_JETTY_LOGS_SERVE_ALIASES =
+    "hadoop.jetty.logs.serve.aliases";
+  public static final boolean DEFAULT_HADOOP_JETTY_LOGS_SERVE_ALIASES =
+    true;
+
+  /* Path to the Kerberos ticket cache.  Setting this will force
+   * UserGroupInformation to use only this ticket cache file when creating a
+   * FileSystem instance.
+   */
+  public static final String KERBEROS_TICKET_CACHE_PATH =
+      "hadoop.security.kerberos.ticket.cache.path";
 }
 

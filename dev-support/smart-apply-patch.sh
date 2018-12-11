@@ -14,6 +14,7 @@
 set -e
 
 PATCH_FILE=$1
+DRY_RUN=$2
 if [ -z "$PATCH_FILE" ]; then
   echo usage: $0 patch-file
   exit 1
@@ -78,15 +79,15 @@ if $PATCH -p0 -E --dry-run < $PATCH_FILE 2>&1 > $TMP; then
     if [[ -d hadoop-common-project ]]; then
       echo Looks like this is being run at project root
 
-    # if all of the lines start with hadoop-common/, hadoop-hdfs/, or hadoop-mapreduce/, this is
+    # if all of the lines start with hadoop-common/, hadoop-hdfs/, hadoop-yarn/ or hadoop-mapreduce/, this is
     # relative to the hadoop root instead of the subproject root, so we need
     # to chop off another layer
-    elif [[ "$PREFIX_DIRS_AND_FILES" =~ ^(hadoop-common-project|hadoop-hdfs-project|hadoop-mapreduce-project)$ ]]; then
+    elif [[ "$PREFIX_DIRS_AND_FILES" =~ ^(hadoop-common-project|hadoop-hdfs-project|hadoop-yarn-project|hadoop-mapreduce-project)$ ]]; then
 
       echo Looks like this is relative to project root. Increasing PLEVEL
       PLEVEL=$[$PLEVEL + 1]
 
-    elif ! echo "$PREFIX_DIRS_AND_FILES" | grep -vxq 'hadoop-common-project\|hadoop-hdfs-project\|hadoop-mapreduce-project' ; then
+    elif ! echo "$PREFIX_DIRS_AND_FILES" | grep -vxq 'hadoop-common-project\|hadoop-hdfs-project\|hadoop-yarn-project\|hadoop-mapreduce-project' ; then
       echo Looks like this is a cross-subproject patch. Try applying from the project root
       cleanup 1
     fi
@@ -98,6 +99,11 @@ elif $PATCH -p2 -E --dry-run < $PATCH_FILE 2>&1 > /dev/null; then
 else
   echo "The patch does not appear to apply with p0 to p2";
   cleanup 1;
+fi
+
+# If this is a dry run then exit instead of applying the patch
+if [[ -n $DRY_RUN ]]; then
+  cleanup 0;
 fi
 
 echo Going to apply patch with: $PATCH -p$PLEVEL

@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.fs.http.server;
 
+import com.sun.jersey.api.container.ContainerException;
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.lib.service.FileSystemAccessException;
 import org.apache.hadoop.lib.wsrs.ExceptionProvider;
 import org.slf4j.Logger;
@@ -34,6 +36,7 @@ import java.io.IOException;
  * exceptions to HTTP status codes.
  */
 @Provider
+@InterfaceAudience.Private
 public class HttpFSExceptionProvider extends ExceptionProvider {
   private static Logger AUDIT_LOG = LoggerFactory.getLogger("httpfsaudit");
   private static Logger LOG = LoggerFactory.getLogger(HttpFSExceptionProvider.class);
@@ -59,6 +62,9 @@ public class HttpFSExceptionProvider extends ExceptionProvider {
     if (throwable instanceof FileSystemAccessException) {
       throwable = throwable.getCause();
     }
+    if (throwable instanceof ContainerException) {
+      throwable = throwable.getCause();
+    }
     if (throwable instanceof SecurityException) {
       status = Response.Status.UNAUTHORIZED;
     } else if (throwable instanceof FileNotFoundException) {
@@ -66,6 +72,8 @@ public class HttpFSExceptionProvider extends ExceptionProvider {
     } else if (throwable instanceof IOException) {
       status = Response.Status.INTERNAL_SERVER_ERROR;
     } else if (throwable instanceof UnsupportedOperationException) {
+      status = Response.Status.BAD_REQUEST;
+    } else if (throwable instanceof IllegalArgumentException) {
       status = Response.Status.BAD_REQUEST;
     } else {
       status = Response.Status.INTERNAL_SERVER_ERROR;
@@ -85,7 +93,7 @@ public class HttpFSExceptionProvider extends ExceptionProvider {
     String path = MDC.get("path");
     String message = getOneLineMessage(throwable);
     AUDIT_LOG.warn("FAILED [{}:{}] response [{}] {}", new Object[]{method, path, status, message});
-    LOG.warn("[{}:{}] response [{}] {}", new Object[]{method, path, status, message, throwable});
+    LOG.warn("[{}:{}] response [{}] {}", new Object[]{method, path, status, message}, throwable);
   }
 
 }

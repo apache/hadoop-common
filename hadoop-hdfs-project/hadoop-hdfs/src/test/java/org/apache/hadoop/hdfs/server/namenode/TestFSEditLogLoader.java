@@ -21,6 +21,8 @@ package org.apache.hadoop.hdfs.server.namenode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.spy;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -40,6 +42,7 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLogLoader.EditLogValidation;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
@@ -69,7 +72,7 @@ public class TestFSEditLogLoader {
     MiniDFSCluster cluster = null;
     FileSystem fileSys = null;
     cluster = new MiniDFSCluster.Builder(conf).numDataNodes(NUM_DATA_NODES)
-        .build();
+        .enableManagedDfsDirsRedundancy(false).build();
     cluster.waitActive();
     fileSys = cluster.getFileSystem();
     final FSNamesystem namesystem = cluster.getNamesystem();
@@ -99,7 +102,7 @@ public class TestFSEditLogLoader {
     bld.append("Recent opcode offsets: (\\d+\\s*){4}$");
     try {
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(NUM_DATA_NODES)
-          .format(false).build();
+          .enableManagedDfsDirsRedundancy(false).format(false).build();
       fail("should not be able to start");
     } catch (IOException e) {
       assertTrue("error message contains opcodes message",
@@ -113,7 +116,7 @@ public class TestFSEditLogLoader {
    * automatically bumped up to the new minimum upon restart.
    */
   @Test
-  public void testReplicationAdjusted() throws IOException {
+  public void testReplicationAdjusted() throws Exception {
     // start a cluster 
     Configuration conf = new HdfsConfiguration();
     // Replicate and heartbeat fast to shave a few seconds off test
@@ -153,108 +156,6 @@ public class TestFSEditLogLoader {
     }
   }
   
-  /**
-   * Test that the valid number of transactions can be counted from a file.
-   * @throws IOException 
-   */
-  @Test
-  public void testCountValidTransactions() throws IOException {
-    File testDir = new File(TEST_DIR, "testCountValidTransactions");
-    File logFile = new File(testDir,
-        NNStorage.getInProgressEditsFileName(1));
-    
-    // Create a log file, and return the offsets at which each
-    // transaction starts.
-    FSEditLog fsel = null;
-    final int NUM_TXNS = 30;
-    SortedMap<Long, Long> offsetToTxId = Maps.newTreeMap();
-    try {
-      fsel = FSImageTestUtil.createStandaloneEditLog(testDir);
-      fsel.openForWrite();
-      assertTrue("should exist: " + logFile, logFile.exists());
-      
-      for (int i = 0; i < NUM_TXNS; i++) {
-        long trueOffset = getNonTrailerLength(logFile);
-        long thisTxId = fsel.getLastWrittenTxId() + 1;
-        offsetToTxId.put(trueOffset, thisTxId);
-        System.err.println("txid " + thisTxId + " at offset " + trueOffset);
-        fsel.logDelete("path" + i, i);
-        fsel.logSync();
-      }
-    } finally {
-      if (fsel != null) {
-        fsel.close();
-      }
-    }
-
-    // The file got renamed when the log was closed.
-    logFile = testDir.listFiles()[0];
-    long validLength = getNonTrailerLength(logFile);
-
-    // Make sure that uncorrupted log has the expected length and number
-    // of transactions.
-    EditLogValidation validation = EditLogFileInputStream.validateEditLog(logFile);
-    assertEquals(NUM_TXNS + 2, validation.getNumTransactions());
-    assertEquals(validLength, validation.getValidLength());
-    
-    // Back up the uncorrupted log
-    File logFileBak = new File(testDir, logFile.getName() + ".bak");
-    Files.copy(logFile, logFileBak);
-
-    // Corrupt the log file in various ways for each txn
-    for (Map.Entry<Long, Long> entry : offsetToTxId.entrySet()) {
-      long txOffset = entry.getKey();
-      long txid = entry.getValue();
-      
-      // Restore backup, truncate the file exactly before the txn
-      Files.copy(logFileBak, logFile);
-      truncateFile(logFile, txOffset);
-      validation = EditLogFileInputStream.validateEditLog(logFile);
-      assertEquals("Failed when truncating to length " + txOffset,
-          txid - 1, validation.getNumTransactions());
-      assertEquals(txOffset, validation.getValidLength());
-
-      // Restore backup, truncate the file with one byte in the txn,
-      // also isn't valid
-      Files.copy(logFileBak, logFile);
-      truncateFile(logFile, txOffset + 1);
-      validation = EditLogFileInputStream.validateEditLog(logFile);
-      assertEquals("Failed when truncating to length " + (txOffset + 1),
-          txid - 1, validation.getNumTransactions());
-      assertEquals(txOffset, validation.getValidLength());
-
-      // Restore backup, corrupt the txn opcode
-      Files.copy(logFileBak, logFile);
-      corruptByteInFile(logFile, txOffset);
-      validation = EditLogFileInputStream.validateEditLog(logFile);
-      assertEquals("Failed when corrupting txn opcode at " + txOffset,
-          txid - 1, validation.getNumTransactions());
-      assertEquals(txOffset, validation.getValidLength());
-
-      // Restore backup, corrupt a byte a few bytes into the txn
-      Files.copy(logFileBak, logFile);
-      corruptByteInFile(logFile, txOffset+5);
-      validation = EditLogFileInputStream.validateEditLog(logFile);
-      assertEquals("Failed when corrupting txn data at " + (txOffset+5),
-          txid - 1, validation.getNumTransactions());
-      assertEquals(txOffset, validation.getValidLength());
-    }
-    
-    // Corrupt the log at every offset to make sure that validation itself
-    // never throws an exception, and that the calculated lengths are monotonically
-    // increasing
-    long prevNumValid = 0;
-    for (long offset = 0; offset < validLength; offset++) {
-      Files.copy(logFileBak, logFile);
-      corruptByteInFile(logFile, offset);
-      EditLogValidation val = EditLogFileInputStream.validateEditLog(logFile);
-      assertTrue(String.format("%d should have been >= %d",
-          val.getNumTransactions(), prevNumValid),
-          val.getNumTransactions() >= prevNumValid);
-      prevNumValid = val.getNumTransactions();
-    }
-  }
-
   /**
    * Corrupt the byte at the given offset in the given file,
    * by subtracting 1 from it.
@@ -318,7 +219,7 @@ public class TestFSEditLogLoader {
       fis.close();
     }
   }
-  
+
   @Test
   public void testStreamLimiter() throws IOException {
     final File LIMITER_TEST_FILE = new File(TEST_DIR, "limiter.test");
@@ -360,5 +261,126 @@ public class TestFSEditLogLoader {
     } finally {
       tracker.close();
     }
+  }
+
+  /**
+   * Create an unfinalized edit log for testing purposes
+   *
+   * @param testDir           Directory to create the edit log in
+   * @param numTx             Number of transactions to add to the new edit log
+   * @param offsetToTxId      A map from transaction IDs to offsets in the 
+   *                          edit log file.
+   * @return                  The new edit log file name.
+   * @throws IOException
+   */
+  static private File prepareUnfinalizedTestEditLog(File testDir, int numTx,
+      SortedMap<Long, Long> offsetToTxId) throws IOException {
+    File inProgressFile = new File(testDir, NNStorage.getInProgressEditsFileName(1));
+    FSEditLog fsel = null, spyLog = null;
+    try {
+      fsel = FSImageTestUtil.createStandaloneEditLog(testDir);
+      spyLog = spy(fsel);
+      // Normally, the in-progress edit log would be finalized by
+      // FSEditLog#endCurrentLogSegment.  For testing purposes, we
+      // disable that here.
+      doNothing().when(spyLog).endCurrentLogSegment(true);
+      spyLog.openForWrite();
+      assertTrue("should exist: " + inProgressFile, inProgressFile.exists());
+      
+      for (int i = 0; i < numTx; i++) {
+        long trueOffset = getNonTrailerLength(inProgressFile);
+        long thisTxId = spyLog.getLastWrittenTxId() + 1;
+        offsetToTxId.put(trueOffset, thisTxId);
+        System.err.println("txid " + thisTxId + " at offset " + trueOffset);
+        spyLog.logDelete("path" + i, i);
+        spyLog.logSync();
+      }
+    } finally {
+      if (spyLog != null) {
+        spyLog.close();
+      } else if (fsel != null) {
+        fsel.close();
+      }
+    }
+    return inProgressFile;
+  }
+
+  @Test
+  public void testValidateEditLogWithCorruptHeader() throws IOException {
+    File testDir = new File(TEST_DIR, "testValidateEditLogWithCorruptHeader");
+    SortedMap<Long, Long> offsetToTxId = Maps.newTreeMap();
+    File logFile = prepareUnfinalizedTestEditLog(testDir, 2, offsetToTxId);
+    RandomAccessFile rwf = new RandomAccessFile(logFile, "rw");
+    try {
+      rwf.seek(0);
+      rwf.writeLong(42); // corrupt header
+    } finally {
+      rwf.close();
+    }
+    EditLogValidation validation = EditLogFileInputStream.validateEditLog(logFile);
+    assertTrue(validation.hasCorruptHeader());
+  }
+
+  @Test
+  public void testValidateEditLogWithCorruptBody() throws IOException {
+    File testDir = new File(TEST_DIR, "testValidateEditLogWithCorruptBody");
+    SortedMap<Long, Long> offsetToTxId = Maps.newTreeMap();
+    final int NUM_TXNS = 20;
+    File logFile = prepareUnfinalizedTestEditLog(testDir, NUM_TXNS,
+        offsetToTxId);
+    // Back up the uncorrupted log
+    File logFileBak = new File(testDir, logFile.getName() + ".bak");
+    Files.copy(logFile, logFileBak);
+    EditLogValidation validation =
+        EditLogFileInputStream.validateEditLog(logFile);
+    assertTrue(!validation.hasCorruptHeader());
+    // We expect that there will be an OP_START_LOG_SEGMENT, followed by
+    // NUM_TXNS opcodes, followed by an OP_END_LOG_SEGMENT.
+    assertEquals(NUM_TXNS + 1, validation.getEndTxId());
+    // Corrupt each edit and verify that validation continues to work
+    for (Map.Entry<Long, Long> entry : offsetToTxId.entrySet()) {
+      long txOffset = entry.getKey();
+      long txId = entry.getValue();
+
+      // Restore backup, corrupt the txn opcode
+      Files.copy(logFileBak, logFile);
+      corruptByteInFile(logFile, txOffset);
+      validation = EditLogFileInputStream.validateEditLog(logFile);
+      long expectedEndTxId = (txId == (NUM_TXNS + 1)) ?
+          NUM_TXNS : (NUM_TXNS + 1);
+      assertEquals("Failed when corrupting txn opcode at " + txOffset,
+          expectedEndTxId, validation.getEndTxId());
+      assertTrue(!validation.hasCorruptHeader());
+    }
+
+    // Truncate right before each edit and verify that validation continues
+    // to work
+    for (Map.Entry<Long, Long> entry : offsetToTxId.entrySet()) {
+      long txOffset = entry.getKey();
+      long txId = entry.getValue();
+
+      // Restore backup, corrupt the txn opcode
+      Files.copy(logFileBak, logFile);
+      truncateFile(logFile, txOffset);
+      validation = EditLogFileInputStream.validateEditLog(logFile);
+      long expectedEndTxId = (txId == 0) ?
+          HdfsConstants.INVALID_TXID : (txId - 1);
+      assertEquals("Failed when corrupting txid " + txId + " txn opcode " +
+        "at " + txOffset, expectedEndTxId, validation.getEndTxId());
+      assertTrue(!validation.hasCorruptHeader());
+    }
+  }
+
+  @Test
+  public void testValidateEmptyEditLog() throws IOException {
+    File testDir = new File(TEST_DIR, "testValidateEmptyEditLog");
+    SortedMap<Long, Long> offsetToTxId = Maps.newTreeMap();
+    File logFile = prepareUnfinalizedTestEditLog(testDir, 0, offsetToTxId);
+    // Truncate the file so that there is nothing except the header
+    truncateFile(logFile, 4);
+    EditLogValidation validation =
+        EditLogFileInputStream.validateEditLog(logFile);
+    assertTrue(!validation.hasCorruptHeader());
+    assertEquals(HdfsConstants.INVALID_TXID, validation.getEndTxId());
   }
 }

@@ -137,38 +137,38 @@ public class TestText extends TestCase {
     }
   }
   
-  public void doTestLimitedIO(String str, int strLen) throws IOException {
+  public void doTestLimitedIO(String str, int len) throws IOException {
     DataOutputBuffer out = new DataOutputBuffer();
     DataInputBuffer in = new DataInputBuffer();
 
     out.reset();
     try {
-      Text.writeString(out, str, strLen);
+      Text.writeString(out, str, len);
       fail("expected writeString to fail when told to write a string " +
           "that was too long!  The string was '" + str + "'");
     } catch (IOException e) {
     }
-    Text.writeString(out, str, strLen + 1);
+    Text.writeString(out, str, len + 1);
 
     // test that it reads correctly
     in.reset(out.getData(), out.getLength());
-    in.mark(strLen);
+    in.mark(len);
     String after;
     try {
-      after = Text.readString(in, strLen);
+      after = Text.readString(in, len);
       fail("expected readString to fail when told to read a string " +
           "that was too long!  The string was '" + str + "'");
     } catch (IOException e) {
     }
     in.reset();
-    after = Text.readString(in, strLen + 1);
+    after = Text.readString(in, len + 1);
     assertTrue(str.equals(after));
   }
   
   public void testLimitedIO() throws Exception {
-    doTestLimitedIO("abcd", 4);
-    doTestLimitedIO("", 0);
-    doTestLimitedIO("1", 1);
+    doTestLimitedIO("abcd", 3);
+    doTestLimitedIO("foo bar baz", 10);
+    doTestLimitedIO("1", 0);
   }
 
   public void testCompare() throws Exception {
@@ -241,6 +241,30 @@ public class TestText extends TestCase {
     Text.validateUTF8(utf8, 0, length);
   }
 
+  public void testClear() throws Exception {
+    // Test lengths on an empty text object
+    Text text = new Text();
+    assertEquals(
+        "Actual string on an empty text object must be an empty string",
+        "", text.toString());
+    assertEquals("Underlying byte array length must be zero",
+        0, text.getBytes().length);
+    assertEquals("String's length must be zero",
+        0, text.getLength());
+
+    // Test if clear works as intended
+    text = new Text("abcd\u20acbdcd\u20ac");
+    int len = text.getLength();
+    text.clear();
+    assertEquals("String must be empty after clear()",
+        "", text.toString());
+    assertTrue(
+        "Length of the byte array must not decrease after clear()",
+        text.getBytes().length >= len);
+    assertEquals("Length of the string must be reset to 0 after clear()",
+        0, text.getLength());
+  }
+
   public void testTextText() throws CharacterCodingException {
     Text a=new Text("abc");
     Text b=new Text("a");
@@ -260,6 +284,7 @@ public class TestText extends TestCase {
       super(name);
     }
 
+    @Override
     public void run() {
       String name = this.getName();
       DataOutputBuffer out = new DataOutputBuffer();

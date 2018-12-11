@@ -20,8 +20,12 @@ package org.apache.hadoop.io;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -33,6 +37,7 @@ import org.apache.hadoop.conf.Configuration;
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
 public class IOUtils {
+  public static final Log LOG = LogFactory.getLog(IOUtils.class);
 
   /**
    * Copies from one stream to another.
@@ -151,6 +156,28 @@ public class IOUtils {
   }
   
   /**
+   * Utility wrapper for reading from {@link InputStream}. It catches any errors
+   * thrown by the underlying stream (either IO or decompression-related), and
+   * re-throws as an IOException.
+   * 
+   * @param is - InputStream to be read from
+   * @param buf - buffer the data is read into
+   * @param off - offset within buf
+   * @param len - amount of data to be read
+   * @return number of bytes read
+   */
+  public static int wrappedReadForCompressedData(InputStream is, byte[] buf,
+      int off, int len) throws IOException {
+    try {
+      return is.read(buf, off, len);
+    } catch (IOException ie) {
+      throw ie;
+    } catch (Throwable t) {
+      throw new IOException("Error while reading compressed data", t);
+    }
+  }
+
+  /**
    * Reads len bytes in a loop.
    *
    * @param in InputStream to read from
@@ -181,12 +208,20 @@ public class IOUtils {
    * for any reason (including EOF)
    */
   public static void skipFully(InputStream in, long len) throws IOException {
-    while (len > 0) {
-      long ret = in.skip(len);
-      if (ret < 0) {
-        throw new IOException( "Premature EOF from inputStream");
+    long amt = len;
+    while (amt > 0) {
+      long ret = in.skip(amt);
+      if (ret == 0) {
+        // skip may return 0 even if we're not at EOF.  Luckily, we can 
+        // use the read() method to figure out if we're at the end.
+        int b = in.read();
+        if (b == -1) {
+          throw new EOFException( "Premature EOF from inputStream after " +
+              "skipping " + (len - amt) + " byte(s).");
+        }
+        ret = 1;
       }
-      len -= ret;
+      amt -= ret;
     }
   }
   
@@ -202,7 +237,7 @@ public class IOUtils {
       if (c != null) {
         try {
           c.close();
-        } catch(IOException e) {
+        } catch(Throwable e) {
           if (log != null && log.isDebugEnabled()) {
             log.debug("Exception in closing " + c, e);
           }
@@ -231,6 +266,7 @@ public class IOUtils {
       try {
         sock.close();
       } catch (IOException ignored) {
+        LOG.debug("Ignoring exception while closing socket", ignored);
       }
     }
   }
@@ -239,10 +275,42 @@ public class IOUtils {
    * The /dev/null of OutputStreams.
    */
   public static class NullOutputStream extends OutputStream {
+    @Override
     public void write(byte[] b, int off, int len) throws IOException {
     }
 
+    @Override
     public void write(int b) throws IOException {
     }
   }  
+  
+  /**
+   * Write a ByteBuffer to a WritableByteChannel, handling short writes.
+   * 
+   * @param bc               The WritableByteChannel to write to
+   * @param buf              The input buffer
+   * @throws IOException     On I/O error
+   */
+  public static void writeFully(WritableByteChannel bc, ByteBuffer buf)
+      throws IOException {
+    do {
+      bc.write(buf);
+    } while (buf.remaining() > 0);
+  }
+
+  /**
+   * Write a ByteBuffer to a FileChannel at a given offset, 
+   * handling short writes.
+   * 
+   * @param fc               The FileChannel to write to
+   * @param buf              The input buffer
+   * @param offset           The offset in the file to start writing at
+   * @throws IOException     On I/O error
+   */
+  public static void writeFully(FileChannel fc, ByteBuffer buf,
+      long offset) throws IOException {
+    do {
+      offset += fc.write(buf, offset);
+    } while (buf.remaining() > 0);
+  }
 }

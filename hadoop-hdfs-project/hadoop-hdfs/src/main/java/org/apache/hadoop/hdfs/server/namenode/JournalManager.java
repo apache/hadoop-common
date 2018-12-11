@@ -19,9 +19,12 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.hdfs.server.common.Storage.FormatConfirmable;
+import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 
 /**
  * A JournalManager is responsible for managing a single place of storing
@@ -32,7 +35,15 @@ import org.apache.hadoop.classification.InterfaceStability;
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public interface JournalManager extends Closeable {
+public interface JournalManager extends Closeable, FormatConfirmable,
+    LogsPurgeable {
+
+  /**
+   * Format the underlying storage, removing any previously
+   * stored data.
+   */
+  void format(NamespaceInfo ns) throws IOException;
+
   /**
    * Begin writing to a new segment of the log stream, which starts at
    * the given transaction ID.
@@ -46,42 +57,24 @@ public interface JournalManager extends Closeable {
   void finalizeLogSegment(long firstTxId, long lastTxId) throws IOException;
 
    /**
-   * Get the input stream starting with fromTxnId from this journal manager
+   * Get a list of edit log input streams.  The list will start with the
+   * stream that contains fromTxnId, and continue until the end of the journal
+   * being managed.
+   * 
    * @param fromTxnId the first transaction id we want to read
    * @param inProgressOk whether or not in-progress streams should be returned
-   * @return the stream starting with transaction fromTxnId
-   * @throws IOException if a stream cannot be found.
-   */
-  EditLogInputStream getInputStream(long fromTxnId, boolean inProgressOk)
-    throws IOException;
-
-  /**
-   * Get the number of transaction contiguously available from fromTxnId.
    *
-   * @param fromTxnId Transaction id to count from
-   * @param inProgressOk whether or not in-progress streams should be counted
-   * @return The number of transactions available from fromTxnId
-   * @throws IOException if the journal cannot be read.
-   * @throws CorruptionException if there is a gap in the journal at fromTxnId.
+   * @return a list of streams
+   * @throws IOException if the underlying storage has an error or is otherwise
+   * inaccessible
    */
-  long getNumberOfTransactions(long fromTxnId, boolean inProgressOk)
-      throws IOException, CorruptionException;
+  void selectInputStreams(Collection<EditLogInputStream> streams,
+      long fromTxnId, boolean inProgressOk) throws IOException;
 
   /**
    * Set the amount of memory that this stream should use to buffer edits
    */
   void setOutputBufferCapacity(int size);
-
-  /**
-   * The JournalManager may archive/purge any logs for transactions less than
-   * or equal to minImageTxId.
-   *
-   * @param minTxIdToKeep the earliest txid that must be retained after purging
-   *                      old logs
-   * @throws IOException if purging fails
-   */
-  void purgeLogsOlderThan(long minTxIdToKeep)
-    throws IOException;
 
   /**
    * Recover segments which have not been finalized.
@@ -91,8 +84,9 @@ public interface JournalManager extends Closeable {
   /**
    * Close the journal manager, freeing any resources it may hold.
    */
+  @Override
   void close() throws IOException;
-
+  
   /** 
    * Indicate that a journal is cannot be used to load a certain range of 
    * edits.

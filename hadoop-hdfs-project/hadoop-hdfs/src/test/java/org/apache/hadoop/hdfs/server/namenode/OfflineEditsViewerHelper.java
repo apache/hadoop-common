@@ -28,6 +28,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Options.Rename;
@@ -40,7 +41,6 @@ import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
-import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.Util;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
@@ -106,7 +106,7 @@ public class OfflineEditsViewerHelper {
     // blocksize for concat (file size must be multiple of blocksize)
     config.setLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY, blockSize);
     // for security to work (fake JobTracker user)
-    config.set("hadoop.security.auth_to_local",
+    config.set(CommonConfigurationKeysPublic.HADOOP_SECURITY_AUTH_TO_LOCAL,
       "RULE:[2:$1@$0](JobTracker@.*FOO.COM)s/@.*//" + "DEFAULT");
     config.setBoolean(
         DFSConfigKeys.DFS_NAMENODE_DELEGATION_TOKEN_ALWAYS_USE_KEY, true);
@@ -194,19 +194,21 @@ public class OfflineEditsViewerHelper {
     Path pathSymlink = new Path("/file_symlink");
     fc.createSymlink(pathConcatTarget, pathSymlink, false);
     // OP_GET_DELEGATION_TOKEN 18
-    final Token<DelegationTokenIdentifier> token =
-      dfs.getDelegationToken("JobTracker");
     // OP_RENEW_DELEGATION_TOKEN 19
     // OP_CANCEL_DELEGATION_TOKEN 20
     // see TestDelegationToken.java
     // fake the user to renew token for
+    final Token<?>[] tokens = dfs.addDelegationTokens("JobTracker", null);
     UserGroupInformation longUgi = UserGroupInformation.createRemoteUser(
       "JobTracker/foo.com@FOO.COM");
     try {
       longUgi.doAs(new PrivilegedExceptionAction<Object>() {
+        @Override
         public Object run() throws IOException, InterruptedException {
-          token.renew(config);
-          token.cancel(config);
+          for (Token<?> token : tokens) {
+            token.renew(config);
+            token.cancel(config);
+          }
           return null;
         }
       });

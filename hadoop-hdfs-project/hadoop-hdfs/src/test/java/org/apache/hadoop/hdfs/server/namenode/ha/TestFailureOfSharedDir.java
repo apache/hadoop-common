@@ -17,7 +17,12 @@
  */
 package org.apache.hadoop.hdfs.server.namenode.ha;
 
-import static org.junit.Assert.*;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RESOURCE_CHECK_INTERVAL_DEFAULT;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RESOURCE_CHECK_INTERVAL_KEY;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,8 +31,6 @@ import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
@@ -39,14 +42,12 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.test.GenericTestUtils;
+import org.apache.hadoop.util.ExitUtil.ExitException;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.base.Joiner;
 
 public class TestFailureOfSharedDir {
-  
-  private static final Log LOG = LogFactory.getLog(TestFailureOfSharedDir.class);
 
   /**
    * Test that the shared edits dir is automatically added to the list of edits
@@ -127,6 +128,7 @@ public class TestFailureOfSharedDir {
   @Test
   public void testFailureOfSharedDir() throws Exception {
     Configuration conf = new Configuration();
+    conf.setLong(DFS_NAMENODE_RESOURCE_CHECK_INTERVAL_KEY, 2000);
     
     // The shared edits dir will automatically be marked required.
     MiniDFSCluster cluster = null;
@@ -135,6 +137,7 @@ public class TestFailureOfSharedDir {
       cluster = new MiniDFSCluster.Builder(conf)
         .nnTopology(MiniDFSNNTopology.simpleHATopology())
         .numDataNodes(0)
+        .checkExitOnShutdown(false)
         .build();
       
       cluster.waitActive();
@@ -145,30 +148,28 @@ public class TestFailureOfSharedDir {
       assertTrue(fs.mkdirs(new Path("/test1")));
       
       // Blow away the shared edits dir.
-      Runtime mockRuntime = Mockito.mock(Runtime.class);
       URI sharedEditsUri = cluster.getSharedEditsDir(0, 1);
       sharedEditsDir = new File(sharedEditsUri);
       assertEquals(0, FileUtil.chmod(sharedEditsDir.getAbsolutePath(), "-w",
           true));
 
+      Thread.sleep(conf.getLong(DFS_NAMENODE_RESOURCE_CHECK_INTERVAL_KEY,
+          DFS_NAMENODE_RESOURCE_CHECK_INTERVAL_DEFAULT) * 2);
+
+      NameNode nn1 = cluster.getNameNode(1);
+      assertTrue(nn1.isStandbyState());
+      assertFalse(
+          "StandBy NameNode should not go to SafeMode on resource unavailability",
+          nn1.isInSafeMode());
+
       NameNode nn0 = cluster.getNameNode(0);
-      nn0.getNamesystem().getFSImage().getEditLog().getJournalSet()
-          .setRuntimeForTesting(mockRuntime);
       try {
         // Make sure that subsequent operations on the NN fail.
         nn0.getRpcServer().rollEditLog();
         fail("Succeeded in rolling edit log despite shared dir being deleted");
-      } catch (IOException ioe) {
+      } catch (ExitException ee) {
         GenericTestUtils.assertExceptionContains(
-            "Unable to start log segment 4: too few journals successfully started",
-            ioe);
-        // By current policy the NN should exit upon this error.
-        // exit() should be called once, but since it is mocked, exit gets
-        // called once during FSEditsLog.endCurrentLogSegment() and then after
-        // that during FSEditsLog.startLogSegment(). So the check is atLeast(1)
-        Mockito.verify(mockRuntime, Mockito.atLeastOnce()).exit(
-            Mockito.anyInt());
-        LOG.info("Got expected exception", ioe);
+            "finalize log segment 1, 3 failed for required journal", ee);
       }
       
       // Check that none of the edits dirs rolled, since the shared edits

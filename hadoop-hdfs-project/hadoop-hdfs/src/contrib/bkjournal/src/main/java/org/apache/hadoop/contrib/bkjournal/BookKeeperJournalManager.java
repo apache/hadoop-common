@@ -22,12 +22,14 @@ import org.apache.hadoop.hdfs.server.namenode.JournalManager;
 import org.apache.hadoop.hdfs.server.namenode.EditLogOutputStream;
 import org.apache.hadoop.hdfs.server.namenode.EditLogInputStream;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp;
+import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.conf.Configuration;
 
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.util.ZkUtils;
 
 import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.ZooKeeper;
@@ -36,7 +38,9 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.ZooDefs.Ids;
+import org.apache.zookeeper.AsyncCallback.StringCallback;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,9 +50,14 @@ import java.io.IOException;
 
 import java.net.URI;
 
+import org.apache.hadoop.hdfs.protocolPB.PBHelper;
+import org.apache.hadoop.contrib.bkjournal.BKJournalProtos.VersionProto;
+import com.google.protobuf.TextFormat;
+import static com.google.common.base.Charsets.UTF_8;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
+import com.google.common.annotations.VisibleForTesting;
 /**
  * BookKeeper Journal Manager
  *
@@ -61,7 +70,7 @@ import org.apache.commons.logging.LogFactory;
  * </property>
  *
  * <property>
- *   <name>dfs.namenode.edits.journalPlugin.bookkeeper</name>
+ *   <name>dfs.namenode.edits.journal-plugin.bookkeeper</name>
  *   <value>org.apache.hadoop.contrib.bkjournal.BookKeeperJournalManager</value>
  * </property>
  * }
@@ -90,6 +99,10 @@ import org.apache.commons.logging.LogFactory;
  *       Default is 2.</li>
  *   <li><b>dfs.namenode.bookkeeperjournal.digestPw</b>
  *       Password to use when creating ledgers. </li>
+ *   <li><b>dfs.namenode.bookkeeperjournal.zk.session.timeout</b>
+ *       Session timeout for Zookeeper client from BookKeeper Journal Manager.
+ *       Hadoop recommends that, this value should be less than the ZKFC 
+ *       session timeout value. Default value is 3000.</li>
  * </ul>
  */
 public class BookKeeperJournalManager implements JournalManager {
@@ -112,39 +125,40 @@ public class BookKeeperJournalManager implements JournalManager {
   public static final String BKJM_BOOKKEEPER_DIGEST_PW_DEFAULT = "";
 
   private static final int BKJM_LAYOUT_VERSION = -1;
+  
+  public static final String BKJM_ZK_SESSION_TIMEOUT 
+    = "dfs.namenode.bookkeeperjournal.zk.session.timeout";
+  public static final int BKJM_ZK_SESSION_TIMEOUT_DEFAULT = 3000;
 
-  private final ZooKeeper zkc;
+  private static final String BKJM_EDIT_INPROGRESS = "inprogress_";
+
+  public static final String BKJM_ZK_LEDGERS_AVAILABLE_PATH
+    = "dfs.namenode.bookkeeperjournal.zk.availablebookies";
+
+  public static final String BKJM_ZK_LEDGERS_AVAILABLE_PATH_DEFAULT
+    = "/ledgers/available";
+
+  private ZooKeeper zkc;
   private final Configuration conf;
   private final BookKeeper bkc;
-  private final WriteLock wl;
+  private final CurrentInprogress ci;
   private final String ledgerPath;
   private final MaxTxId maxTxId;
   private final int ensembleSize;
   private final int quorumSize;
   private final String digestpw;
   private final CountDownLatch zkConnectLatch;
-
+  private final NamespaceInfo nsInfo;
   private LedgerHandle currentLedger = null;
-
-  private int bytesToInt(byte[] b) {
-    assert b.length >= 4;
-    return b[0] << 24 | b[1] << 16 | b[2] << 8 | b[3];
-  }
-
-  private byte[] intToBytes(int i) {
-    return new byte[] {
-      (byte)(i >> 24),
-      (byte)(i >> 16),
-      (byte)(i >> 8),
-      (byte)(i) };
-  }
 
   /**
    * Construct a Bookkeeper journal manager.
    */
-  public BookKeeperJournalManager(Configuration conf, URI uri)
-      throws IOException {
+  public BookKeeperJournalManager(Configuration conf, URI uri,
+      NamespaceInfo nsInfo) throws IOException {
     this.conf = conf;
+    this.nsInfo = nsInfo;
+
     String zkConnect = uri.getAuthority().replace(";", ",");
     String zkPath = uri.getPath();
     ensembleSize = conf.getInt(BKJM_BOOKKEEPER_ENSEMBLE_SIZE,
@@ -154,14 +168,15 @@ public class BookKeeperJournalManager implements JournalManager {
 
     ledgerPath = zkPath + "/ledgers";
     String maxTxIdPath = zkPath + "/maxtxid";
-    String lockPath = zkPath + "/lock";
+    String currentInprogressNodePath = zkPath + "/CurrentInprogress";
     String versionPath = zkPath + "/version";
     digestpw = conf.get(BKJM_BOOKKEEPER_DIGEST_PW,
                         BKJM_BOOKKEEPER_DIGEST_PW_DEFAULT);
 
     try {
       zkConnectLatch = new CountDownLatch(1);
-      zkc = new ZooKeeper(zkConnect, 3000, new ZkConnectionWatcher());
+      zkc = new ZooKeeper(zkConnect, conf.getInt(BKJM_ZK_SESSION_TIMEOUT,
+          BKJM_ZK_SESSION_TIMEOUT_DEFAULT), new ZkConnectionWatcher());
       if (!zkConnectLatch.await(6000, TimeUnit.MILLISECONDS)) {
         throw new IOException("Error connecting to zookeeper");
       }
@@ -173,10 +188,32 @@ public class BookKeeperJournalManager implements JournalManager {
       Stat versionStat = zkc.exists(versionPath, false);
       if (versionStat != null) {
         byte[] d = zkc.getData(versionPath, false, versionStat);
+        VersionProto.Builder builder = VersionProto.newBuilder();
+        TextFormat.merge(new String(d, UTF_8), builder);
+        if (!builder.isInitialized()) {
+          throw new IOException("Invalid/Incomplete data in znode");
+        }
+        VersionProto vp = builder.build();
+
         // There's only one version at the moment
-        assert bytesToInt(d) == BKJM_LAYOUT_VERSION;
-      } else {
-        zkc.create(versionPath, intToBytes(BKJM_LAYOUT_VERSION),
+        assert vp.getLayoutVersion() == BKJM_LAYOUT_VERSION;
+
+        NamespaceInfo readns = PBHelper.convert(vp.getNamespaceInfo());
+
+        if (nsInfo.getNamespaceID() != readns.getNamespaceID() ||
+            !nsInfo.clusterID.equals(readns.getClusterID()) ||
+            !nsInfo.getBlockPoolID().equals(readns.getBlockPoolID())) {
+          String err = String.format("Environment mismatch. Running process %s"
+                                     +", stored in ZK %s", nsInfo, readns);
+          LOG.error(err);
+          throw new IOException(err);
+        }
+      } else if (nsInfo.getNamespaceID() > 0) {
+        VersionProto.Builder builder = VersionProto.newBuilder();
+        builder.setNamespaceInfo(PBHelper.convert(nsInfo))
+          .setLayoutVersion(BKJM_LAYOUT_VERSION);
+        byte[] data = TextFormat.printToString(builder.build()).getBytes(UTF_8);
+        zkc.create(versionPath, data,
                    Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
       }
 
@@ -184,15 +221,79 @@ public class BookKeeperJournalManager implements JournalManager {
         zkc.create(ledgerPath, new byte[] {'0'},
             Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
       }
-
-      bkc = new BookKeeper(new ClientConfiguration(),
-                           zkc);
-    } catch (Exception e) {
+      prepareBookKeeperEnv();
+      bkc = new BookKeeper(new ClientConfiguration(), zkc);
+    } catch (KeeperException e) {
       throw new IOException("Error initializing zk", e);
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted while initializing bk journal manager",
+                            ie);
     }
 
-    wl = new WriteLock(zkc, lockPath);
+    ci = new CurrentInprogress(zkc, currentInprogressNodePath);
     maxTxId = new MaxTxId(zkc, maxTxIdPath);
+  }
+
+  /**
+   * Pre-creating bookkeeper metadata path in zookeeper.
+   */
+  private void prepareBookKeeperEnv() throws IOException {
+    // create bookie available path in zookeeper if it doesn't exists
+    final String zkAvailablePath = conf.get(BKJM_ZK_LEDGERS_AVAILABLE_PATH,
+        BKJM_ZK_LEDGERS_AVAILABLE_PATH_DEFAULT);
+    final CountDownLatch zkPathLatch = new CountDownLatch(1);
+
+    StringCallback callback = new StringCallback() {
+      @Override
+      public void processResult(int rc, String path, Object ctx, String name) {
+        if (KeeperException.Code.OK.intValue() == rc
+            || KeeperException.Code.NODEEXISTS.intValue() == rc) {
+          LOG.info("Successfully created bookie available path : "
+              + zkAvailablePath);
+          zkPathLatch.countDown();
+        } else {
+          KeeperException.Code code = KeeperException.Code.get(rc);
+          LOG
+              .error("Error : "
+                  + KeeperException.create(code, path).getMessage()
+                  + ", failed to create bookie available path : "
+                  + zkAvailablePath);
+        }
+      }
+    };
+    ZkUtils.createFullPathOptimistic(zkc, zkAvailablePath, new byte[0],
+        Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, callback, null);
+
+    try {
+      if (!zkPathLatch.await(zkc.getSessionTimeout(), TimeUnit.MILLISECONDS)) {
+        throw new IOException("Couldn't create bookie available path :"
+            + zkAvailablePath + ", timed out " + zkc.getSessionTimeout()
+            + " millis");
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException(
+          "Interrupted when creating the bookie available path : "
+              + zkAvailablePath, e);
+    }
+  }
+
+  @Override
+  public void format(NamespaceInfo ns) throws IOException {
+    // Currently, BKJM automatically formats itself when first accessed.
+    // TODO: change over to explicit formatting so that the admin can
+    // clear out the BK storage when reformatting a cluster.
+    LOG.info("Not formatting " + this + " - BKJM does not currently " +
+        "support reformatting. If it has not been used before, it will" +
+        "be formatted automatically upon first use.");
+  }
+  
+  @Override
+  public boolean hasSomeData() throws IOException {
+    // Don't confirm format on BKJM, since format() is currently a
+    // no-op anyway
+    return false;
   }
 
   /**
@@ -206,23 +307,37 @@ public class BookKeeperJournalManager implements JournalManager {
    */
   @Override
   public EditLogOutputStream startLogSegment(long txId) throws IOException {
-    wl.acquire();
-
     if (txId <= maxTxId.get()) {
       throw new IOException("We've already seen " + txId
           + ". A new stream cannot be created with it");
     }
-    if (currentLedger != null) {
-      throw new IOException("Already writing to a ledger, id="
-                            + currentLedger.getId());
-    }
+
     try {
+      String existingInprogressNode = ci.read();
+      if (null != existingInprogressNode
+          && zkc.exists(existingInprogressNode, false) != null) {
+        throw new IOException("Inprogress node already exists");
+      }
+      if (currentLedger != null) {
+        // bookkeeper errored on last stream, clean up ledger
+        currentLedger.close();
+      }
       currentLedger = bkc.createLedger(ensembleSize, quorumSize,
                                        BookKeeper.DigestType.MAC,
                                        digestpw.getBytes());
-      String znodePath = inprogressZNode();
+    } catch (BKException bke) {
+      throw new IOException("Error creating ledger", bke);
+    } catch (KeeperException ke) {
+      throw new IOException("Error in zookeeper while creating ledger", ke);
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted creating ledger", ie);
+    }
+
+    try {
+      String znodePath = inprogressZNode(txId);
       EditLogLedgerMetadata l = new EditLogLedgerMetadata(znodePath,
-          HdfsConstants.LAYOUT_VERSION,  currentLedger.getId(), txId);
+          HdfsConstants.LAYOUT_VERSION, currentLedger.getId(), txId);
       /* Write the ledger metadata out to the inprogress ledger znode
        * This can fail if for some reason our write lock has
        * expired (@see WriteLock) and another process has managed to
@@ -232,19 +347,30 @@ public class BookKeeperJournalManager implements JournalManager {
        */
       l.write(zkc, znodePath);
 
-      return new BookKeeperEditLogOutputStream(conf, currentLedger, wl);
-    } catch (Exception e) {
-      if (currentLedger != null) {
-        try {
-          currentLedger.close();
-        } catch (Exception e2) {
-          //log & ignore, an IOException will be thrown soon
-          LOG.error("Error closing ledger", e2);
-        }
-      }
-      throw new IOException("Error creating ledger", e);
+      maxTxId.store(txId);
+      ci.update(znodePath);
+      return new BookKeeperEditLogOutputStream(conf, currentLedger);
+    } catch (KeeperException ke) {
+      cleanupLedger(currentLedger);
+      throw new IOException("Error storing ledger metadata", ke);
     }
   }
+
+  private void cleanupLedger(LedgerHandle lh) {
+    try {
+      long id = currentLedger.getId();
+      currentLedger.close();
+      bkc.deleteLedger(id);
+    } catch (BKException bke) {
+      //log & ignore, an IOException will be thrown soon
+      LOG.error("Error closing ledger", bke);
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      LOG.warn("Interrupted while closing ledger", ie);
+    }
+  }
+
+
 
   /**
    * Finalize a log segment. If the journal manager is currently
@@ -258,7 +384,7 @@ public class BookKeeperJournalManager implements JournalManager {
   @Override
   public void finalizeLogSegment(long firstTxId, long lastTxId)
       throws IOException {
-    String inprogressPath = inprogressZNode();
+    String inprogressPath = inprogressZNode(firstTxId);
     try {
       Stat inprogressStat = zkc.exists(inprogressPath, false);
       if (inprogressStat == null) {
@@ -266,7 +392,6 @@ public class BookKeeperJournalManager implements JournalManager {
                               + " doesn't exist");
       }
 
-      wl.checkWriteLock();
       EditLogLedgerMetadata l
         =  EditLogLedgerMetadata.read(zkc, inprogressPath);
 
@@ -303,55 +428,96 @@ public class BookKeeperJournalManager implements JournalManager {
       }
       maxTxId.store(lastTxId);
       zkc.delete(inprogressPath, inprogressStat.getVersion());
+      String inprogressPathFromCI = ci.read();
+      if (inprogressPath.equals(inprogressPathFromCI)) {
+        ci.clear();
+      }
     } catch (KeeperException e) {
       throw new IOException("Error finalising ledger", e);
     } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
       throw new IOException("Error finalising ledger", ie);
-    } finally {
-      wl.release();
-    }
+    } 
   }
 
-  // TODO(HA): Handle inProgressOk
-  @Override
-  public EditLogInputStream getInputStream(long fromTxnId, boolean inProgressOk)
+  EditLogInputStream getInputStream(long fromTxId, boolean inProgressOk)
       throws IOException {
-    for (EditLogLedgerMetadata l : getLedgerList()) {
-      if (l.getFirstTxId() == fromTxnId) {
+    for (EditLogLedgerMetadata l : getLedgerList(inProgressOk)) {
+      long lastTxId = l.getLastTxId();
+      if (l.isInProgress()) {
+        lastTxId = recoverLastTxId(l, false);
+      }
+
+      if (fromTxId >= l.getFirstTxId() && fromTxId <= lastTxId) {
         try {
-          LedgerHandle h = bkc.openLedger(l.getLedgerId(),
-                                          BookKeeper.DigestType.MAC,
-                                          digestpw.getBytes());
-          return new BookKeeperEditLogInputStream(h, l);
-        } catch (Exception e) {
-          throw new IOException("Could not open ledger for " + fromTxnId, e);
+          LedgerHandle h;
+          if (l.isInProgress()) { // we don't want to fence the current journal
+            h = bkc.openLedgerNoRecovery(l.getLedgerId(),
+                BookKeeper.DigestType.MAC, digestpw.getBytes());
+          } else {
+            h = bkc.openLedger(l.getLedgerId(), BookKeeper.DigestType.MAC,
+                digestpw.getBytes());
+          }
+          BookKeeperEditLogInputStream s = new BookKeeperEditLogInputStream(h,
+              l);
+          s.skipTo(fromTxId);
+          return s;
+        } catch (BKException e) {
+          throw new IOException("Could not open ledger for " + fromTxId, e);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          throw new IOException("Interrupted opening ledger for "
+                                         + fromTxId, ie);
         }
       }
     }
-    throw new IOException("No ledger for fromTxnId " + fromTxnId + " found.");
+    return null;
   }
 
-  // TODO(HA): Handle inProgressOk
   @Override
-  public long getNumberOfTransactions(long fromTxnId, boolean inProgressOk)
+  public void selectInputStreams(Collection<EditLogInputStream> streams,
+      long fromTxId, boolean inProgressOk) {
+    // NOTE: could probably be rewritten more efficiently
+    while (true) {
+      EditLogInputStream elis;
+      try {
+        elis = getInputStream(fromTxId, inProgressOk);
+      } catch (IOException e) {
+        LOG.error(e);
+        return;
+      }
+      if (elis == null) {
+        return;
+      }
+      streams.add(elis);
+      if (elis.getLastTxId() == HdfsConstants.INVALID_TXID) {
+        return;
+      }
+      fromTxId = elis.getLastTxId() + 1;
+    }
+  }
+
+  long getNumberOfTransactions(long fromTxId, boolean inProgressOk)
       throws IOException {
     long count = 0;
     long expectedStart = 0;
-    for (EditLogLedgerMetadata l : getLedgerList()) {
+    for (EditLogLedgerMetadata l : getLedgerList(inProgressOk)) {
+      long lastTxId = l.getLastTxId();
       if (l.isInProgress()) {
-        long endTxId = recoverLastTxId(l);
-        if (endTxId == HdfsConstants.INVALID_TXID) {
+        lastTxId = recoverLastTxId(l, false);
+        if (lastTxId == HdfsConstants.INVALID_TXID) {
           break;
         }
-        count += (endTxId - l.getFirstTxId()) + 1;
-        break;
       }
 
-      if (l.getFirstTxId() < fromTxnId) {
+      assert lastTxId >= l.getFirstTxId();
+
+      if (lastTxId < fromTxId) {
         continue;
-      } else if (l.getFirstTxId() == fromTxnId) {
-        count = (l.getLastTxId() - l.getFirstTxId()) + 1;
-        expectedStart = l.getLastTxId() + 1;
+      } else if (l.getFirstTxId() <= fromTxId && lastTxId >= fromTxId) {
+        // we can start in the middle of a segment
+        count = (lastTxId - l.getFirstTxId()) + 1;
+        expectedStart = lastTxId + 1;
       } else {
         if (expectedStart != l.getFirstTxId()) {
           if (count == 0) {
@@ -362,8 +528,8 @@ public class BookKeeperJournalManager implements JournalManager {
             break;
           }
         }
-        count += (l.getLastTxId() - l.getFirstTxId()) + 1;
-        expectedStart = l.getLastTxId() + 1;
+        count += (lastTxId - l.getFirstTxId()) + 1;
+        expectedStart = lastTxId + 1;
       }
     }
     return count;
@@ -371,26 +537,51 @@ public class BookKeeperJournalManager implements JournalManager {
 
   @Override
   public void recoverUnfinalizedSegments() throws IOException {
-    wl.acquire();
-
     synchronized (this) {
       try {
-        EditLogLedgerMetadata l
-          = EditLogLedgerMetadata.read(zkc, inprogressZNode());
-        long endTxId = recoverLastTxId(l);
-        if (endTxId == HdfsConstants.INVALID_TXID) {
-          LOG.error("Unrecoverable corruption has occurred in segment "
-                    + l.toString() + " at path " + inprogressZNode()
-                    + ". Unable to continue recovery.");
-          throw new IOException("Unrecoverable corruption, please check logs.");
+        List<String> children = zkc.getChildren(ledgerPath, false);
+        for (String child : children) {
+          if (!child.startsWith(BKJM_EDIT_INPROGRESS)) {
+            continue;
+          }
+          String znode = ledgerPath + "/" + child;
+          EditLogLedgerMetadata l = EditLogLedgerMetadata.read(zkc, znode);
+          try {
+            long endTxId = recoverLastTxId(l, true);
+            if (endTxId == HdfsConstants.INVALID_TXID) {
+              LOG.error("Unrecoverable corruption has occurred in segment "
+                  + l.toString() + " at path " + znode
+                  + ". Unable to continue recovery.");
+              throw new IOException("Unrecoverable corruption,"
+                  + " please check logs.");
+            }
+            finalizeLogSegment(l.getFirstTxId(), endTxId);
+          } catch (SegmentEmptyException see) {
+            LOG.warn("Inprogress znode " + child
+                + " refers to a ledger which is empty. This occurs when the NN"
+                + " crashes after opening a segment, but before writing the"
+                + " OP_START_LOG_SEGMENT op. It is safe to delete."
+                + " MetaData [" + l.toString() + "]");
+
+            // If the max seen transaction is the same as what would
+            // have been the first transaction of the failed ledger,
+            // decrement it, as that transaction never happened and as
+            // such, is _not_ the last seen
+            if (maxTxId.get() == l.getFirstTxId()) {
+              maxTxId.reset(maxTxId.get() - 1);
+            }
+
+            zkc.delete(znode, -1);
+          }
         }
-        finalizeLogSegment(l.getFirstTxId(), endTxId);
       } catch (KeeperException.NoNodeException nne) {
           // nothing to recover, ignore
-      } finally {
-        if (wl.haveLock()) {
-          wl.release();
-        }
+      } catch (KeeperException ke) {
+        throw new IOException("Couldn't get list of inprogress segments", ke);
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw new IOException("Interrupted getting list of inprogress segments",
+                              ie);
       }
     }
   }
@@ -398,14 +589,14 @@ public class BookKeeperJournalManager implements JournalManager {
   @Override
   public void purgeLogsOlderThan(long minTxIdToKeep)
       throws IOException {
-    for (EditLogLedgerMetadata l : getLedgerList()) {
-      if (!l.isInProgress()
-          && l.getLastTxId() < minTxIdToKeep) {
+    for (EditLogLedgerMetadata l : getLedgerList(false)) {
+      if (l.getLastTxId() < minTxIdToKeep) {
         try {
           Stat stat = zkc.exists(l.getZkPath(), false);
           zkc.delete(l.getZkPath(), stat.getVersion());
           bkc.deleteLedger(l.getLedgerId());
         } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
           LOG.error("Interrupted while purging " + l, ie);
         } catch (BKException bke) {
           LOG.error("Couldn't delete ledger from bookkeeper", bke);
@@ -421,8 +612,11 @@ public class BookKeeperJournalManager implements JournalManager {
     try {
       bkc.close();
       zkc.close();
-    } catch (Exception e) {
-      throw new IOException("Couldn't close zookeeper client", e);
+    } catch (BKException bke) {
+      throw new IOException("Couldn't close bookkeeper client", bke);
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted while closing journal manager", ie);
     }
   }
 
@@ -440,14 +634,35 @@ public class BookKeeperJournalManager implements JournalManager {
    * Find the id of the last edit log transaction writen to a edit log
    * ledger.
    */
-  private long recoverLastTxId(EditLogLedgerMetadata l) throws IOException {
+  private long recoverLastTxId(EditLogLedgerMetadata l, boolean fence)
+      throws IOException, SegmentEmptyException {
+    LedgerHandle lh = null;
     try {
-      LedgerHandle lh = bkc.openLedger(l.getLedgerId(),
-                                       BookKeeper.DigestType.MAC,
-                                       digestpw.getBytes());
+      if (fence) {
+        lh = bkc.openLedger(l.getLedgerId(),
+                            BookKeeper.DigestType.MAC,
+                            digestpw.getBytes());
+      } else {
+        lh = bkc.openLedgerNoRecovery(l.getLedgerId(),
+                                      BookKeeper.DigestType.MAC,
+                                      digestpw.getBytes());
+      }
+    } catch (BKException bke) {
+      throw new IOException("Exception opening ledger for " + l, bke);
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted opening ledger for " + l, ie);
+    }
+
+    BookKeeperEditLogInputStream in = null;
+
+    try {
       long lastAddConfirmed = lh.getLastAddConfirmed();
-      BookKeeperEditLogInputStream in
-        = new BookKeeperEditLogInputStream(lh, l, lastAddConfirmed);
+      if (lastAddConfirmed == -1) {
+        throw new SegmentEmptyException();
+      }
+
+      in = new BookKeeperEditLogInputStream(lh, l, lastAddConfirmed);
 
       long endTxId = HdfsConstants.INVALID_TXID;
       FSEditLogOp op = in.readOp();
@@ -459,25 +674,42 @@ public class BookKeeperJournalManager implements JournalManager {
         op = in.readOp();
       }
       return endTxId;
-    } catch (Exception e) {
-      throw new IOException("Exception retreiving last tx id for ledger " + l,
-                            e);
+    } finally {
+      if (in != null) {
+        in.close();
+      }
     }
   }
 
   /**
    * Get a list of all segments in the journal.
    */
-  private List<EditLogLedgerMetadata> getLedgerList() throws IOException {
+  List<EditLogLedgerMetadata> getLedgerList(boolean inProgressOk)
+      throws IOException {
     List<EditLogLedgerMetadata> ledgers
       = new ArrayList<EditLogLedgerMetadata>();
     try {
       List<String> ledgerNames = zkc.getChildren(ledgerPath, false);
-      for (String n : ledgerNames) {
-        ledgers.add(EditLogLedgerMetadata.read(zkc, ledgerPath + "/" + n));
+      for (String ledgerName : ledgerNames) {
+        if (!inProgressOk && ledgerName.contains(BKJM_EDIT_INPROGRESS)) {
+          continue;
+        }
+        String legderMetadataPath = ledgerPath + "/" + ledgerName;
+        try {
+          EditLogLedgerMetadata editLogLedgerMetadata = EditLogLedgerMetadata
+              .read(zkc, legderMetadataPath);
+          ledgers.add(editLogLedgerMetadata);
+        } catch (KeeperException.NoNodeException e) {
+          LOG.warn("ZNode: " + legderMetadataPath
+              + " might have finalized and deleted."
+              + " So ignoring NoNodeException.");
+        }
       }
-    } catch (Exception e) {
+    } catch (KeeperException e) {
       throw new IOException("Exception reading ledger list from zk", e);
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted getting list of ledgers from zk", ie);
     }
 
     Collections.sort(ledgers, EditLogLedgerMetadata.COMPARATOR);
@@ -495,8 +727,13 @@ public class BookKeeperJournalManager implements JournalManager {
   /**
    * Get the znode path for the inprogressZNode
    */
-  String inprogressZNode() {
-    return ledgerPath + "/inprogress";
+  String inprogressZNode(long startTxid) {
+    return ledgerPath + "/inprogress_" + Long.toString(startTxid, 16);
+  }
+
+  @VisibleForTesting
+  void setZooKeeper(ZooKeeper zk) {
+    this.zkc = zk;
   }
 
   /**
@@ -508,5 +745,8 @@ public class BookKeeperJournalManager implements JournalManager {
         zkConnectLatch.countDown();
       }
     }
+  }
+  
+  private static class SegmentEmptyException extends IOException {
   }
 }

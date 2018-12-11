@@ -19,13 +19,13 @@
 package org.apache.hadoop.ipc;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 
 import javax.net.SocketFactory;
 
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.ipc.Client.ConnectionId;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.SecretManager;
@@ -40,12 +40,8 @@ public interface RpcEngine {
   <T> ProtocolProxy<T> getProxy(Class<T> protocol,
                   long clientVersion, InetSocketAddress addr,
                   UserGroupInformation ticket, Configuration conf,
-                  SocketFactory factory, int rpcTimeout) throws IOException;
-
-  /** Expert: Make multiple, parallel calls to a set of servers. */
-  Object[] call(Method method, Object[][] params, InetSocketAddress[] addrs,
-                UserGroupInformation ticket, Configuration conf)
-    throws IOException, InterruptedException;
+                  SocketFactory factory, int rpcTimeout,
+                  RetryPolicy connectionRetryPolicy) throws IOException;
 
   /** 
    * Construct a server for a protocol implementation instance.

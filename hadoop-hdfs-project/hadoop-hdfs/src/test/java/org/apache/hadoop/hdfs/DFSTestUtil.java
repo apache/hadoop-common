@@ -85,6 +85,7 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.VersionInfo;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 
 /** Utilities for HDFS tests */
@@ -95,10 +96,10 @@ public class DFSTestUtil {
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"
   };
   
-  private int maxLevels;// = 3;
-  private int maxSize;// = 8*1024;
-  private int minSize = 1;
-  private int nFiles;
+  private final int maxLevels;
+  private final int maxSize;
+  private final int minSize;
+  private final int nFiles;
   private MyFile[] files;
   
   /** Creates a new instance of DFSTestUtil
@@ -108,10 +109,27 @@ public class DFSTestUtil {
    * @param maxLevels Maximum number of directory levels
    * @param maxSize Maximum size for file
    */
-  public DFSTestUtil(String testName, int nFiles, int maxLevels, int maxSize) {
+  private DFSTestUtil(int nFiles, int maxLevels, int maxSize, int minSize) {
     this.nFiles = nFiles;
     this.maxLevels = maxLevels;
     this.maxSize = maxSize;
+    this.minSize = minSize;
+  }
+
+  /** Creates a new instance of DFSTestUtil
+   *
+   * @param testName Name of the test from where this utility is used
+   * @param nFiles Number of files to be created
+   * @param maxLevels Maximum number of directory levels
+   * @param maxSize Maximum size for file
+   * @param minSize Minimum size for file
+   */
+  public DFSTestUtil(String testName, int nFiles, int maxLevels, int maxSize,
+      int minSize) {
+    this.nFiles = nFiles;
+    this.maxLevels = maxLevels;
+    this.maxSize = maxSize;
+    this.minSize = minSize;
   }
   
   /**
@@ -193,27 +211,40 @@ public class DFSTestUtil {
   
   public static void createFile(FileSystem fs, Path fileName, long fileLen, 
       short replFactor, long seed) throws IOException {
+    createFile(fs, fileName, 1024, fileLen, fs.getDefaultBlockSize(fileName),
+        replFactor, seed);
+  }
+  
+  public static void createFile(FileSystem fs, Path fileName, int bufferLen,
+      long fileLen, long blockSize, short replFactor, long seed)
+      throws IOException {
+    assert bufferLen > 0;
     if (!fs.mkdirs(fileName.getParent())) {
       throw new IOException("Mkdirs failed to create " + 
                             fileName.getParent().toString());
     }
     FSDataOutputStream out = null;
     try {
-      out = fs.create(fileName, replFactor);
-      byte[] toWrite = new byte[1024];
-      Random rb = new Random(seed);
-      long bytesToWrite = fileLen;
-      while (bytesToWrite>0) {
-        rb.nextBytes(toWrite);
-        int bytesToWriteNext = (1024<bytesToWrite)?1024:(int)bytesToWrite;
-
-        out.write(toWrite, 0, bytesToWriteNext);
-        bytesToWrite -= bytesToWriteNext;
+      out = fs.create(fileName, true, fs.getConf()
+        .getInt(CommonConfigurationKeys.IO_FILE_BUFFER_SIZE_KEY, 4096),
+        replFactor, blockSize);
+      if (fileLen > 0) {
+        byte[] toWrite = new byte[bufferLen];
+        Random rb = new Random(seed);
+        long bytesToWrite = fileLen;
+        while (bytesToWrite>0) {
+          rb.nextBytes(toWrite);
+          int bytesToWriteNext = (bufferLen < bytesToWrite) ? bufferLen
+              : (int) bytesToWrite;
+  
+          out.write(toWrite, 0, bytesToWriteNext);
+          bytesToWrite -= bytesToWriteNext;
+        }
       }
-      out.close();
-      out = null;
     } finally {
-      IOUtils.closeStream(out);
+      if (out != null) {
+        out.close();
+      }
     }
   }
   
@@ -256,7 +287,7 @@ public class DFSTestUtil {
    * specified target.
    */
   public void waitReplication(FileSystem fs, String topdir, short value) 
-                                              throws IOException {
+      throws IOException, InterruptedException, TimeoutException {
     Path root = new Path(topdir);
 
     /** wait for the replication factor to settle down */
@@ -323,7 +354,7 @@ public class DFSTestUtil {
    */
   public static void waitCorruptReplicas(FileSystem fs, FSNamesystem ns,
       Path file, ExtendedBlock b, int corruptRepls)
-      throws IOException, TimeoutException {
+      throws IOException, TimeoutException, InterruptedException {
     int count = 0;
     final int ATTEMPTS = 50;
     int repls = ns.getBlockManager().numCorruptReplicas(b.getLocalBlock());
@@ -337,6 +368,7 @@ public class DFSTestUtil {
       System.out.println("Waiting for "+corruptRepls+" corrupt replicas");
       repls = ns.getBlockManager().numCorruptReplicas(b.getLocalBlock());
       count++;
+      Thread.sleep(1000);
     }
     if (count == ATTEMPTS) {
       throw new TimeoutException("Timed out waiting for corrupt replicas."
@@ -480,36 +512,44 @@ public class DFSTestUtil {
       return fileNames;
     }
   }
-  
-  /** wait for the file's replication to be done */
-  public static void waitReplication(FileSystem fs, Path fileName, 
-      short replFactor)  throws IOException {
-    boolean good;
+
+  /**
+   * Wait for the given file to reach the given replication factor.
+   * @throws TimeoutException if we fail to sufficiently replicate the file
+   */
+  public static void waitReplication(FileSystem fs, Path fileName, short replFactor)
+      throws IOException, InterruptedException, TimeoutException {
+    boolean correctReplFactor;
+    final int ATTEMPTS = 40;
+    int count = 0;
+
     do {
-      good = true;
+      correctReplFactor = true;
       BlockLocation locs[] = fs.getFileBlockLocations(
         fs.getFileStatus(fileName), 0, Long.MAX_VALUE);
+      count++;
       for (int j = 0; j < locs.length; j++) {
         String[] hostnames = locs[j].getNames();
         if (hostnames.length != replFactor) {
-          String hostNameList = "";
-          for (String h : hostnames) hostNameList += h + " ";
-          System.out.println("Block " + j + " of file " + fileName 
-              + " has replication factor " + hostnames.length + "; locations "
-              + hostNameList);
-          good = false;
-          try {
-            System.out.println("Waiting for replication factor to drain");
-            Thread.sleep(100);
-          } catch (InterruptedException e) {} 
+          correctReplFactor = false;
+          System.out.println("Block " + j + " of file " + fileName
+              + " has replication factor " + hostnames.length
+              + " (desired " + replFactor + "); locations "
+              + Joiner.on(' ').join(hostnames));
+          Thread.sleep(1000);
           break;
         }
       }
-      if (good) {
+      if (correctReplFactor) {
         System.out.println("All blocks of file " + fileName
             + " verified to have replication factor " + replFactor);
       }
-    } while(!good);
+    } while (!correctReplFactor && count < ATTEMPTS);
+
+    if (count == ATTEMPTS) {
+      throw new TimeoutException("Timed out waiting for " + fileName +
+          " to reach " + replFactor + " replicas");
+    }
   }
   
   /** delete directory and everything underneath it.*/
@@ -568,12 +608,21 @@ public class DFSTestUtil {
     IOUtils.copyBytes(is, os, s.length(), true);
   }
   
-  // Returns url content as string.
+  /**
+   * @return url content as string (UTF-8 encoding assumed)
+   */
   public static String urlGet(URL url) throws IOException {
+    return new String(urlGetBytes(url), Charsets.UTF_8);
+  }
+  
+  /**
+   * @return URL contents as a byte array
+   */
+  public static byte[] urlGetBytes(URL url) throws IOException {
     URLConnection conn = url.openConnection();
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     IOUtils.copyBytes(conn.getInputStream(), out, 4096, true);
-    return out.toString();
+    return out.toByteArray();
   }
   
   /**
@@ -707,7 +756,7 @@ public class DFSTestUtil {
           info.nameserviceId), DFSUtil.createUri(HdfsConstants.HDFS_URI_SCHEME,
               info.nameNode.getNameNodeAddress()).toString());
     }
-    conf.set(DFSConfigKeys.DFS_FEDERATION_NAMESERVICES, Joiner.on(",")
+    conf.set(DFSConfigKeys.DFS_NAMESERVICES, Joiner.on(",")
         .join(nameservices));
   }
   
@@ -776,5 +825,43 @@ public class DFSTestUtil {
   public static DatanodeRegistration getLocalDatanodeRegistration() {
     return new DatanodeRegistration(getLocalDatanodeID(),
         new StorageInfo(), new ExportedBlockKeys(), VersionInfo.getVersion());
+  }
+
+  public static class Builder {
+    private int maxLevels = 3;
+    private int maxSize = 8*1024;
+    private int minSize = 1;
+    private int nFiles = 1;
+    
+    public Builder() {
+    }
+    
+    public Builder setName(String string) {
+      return this;
+    }
+
+    public Builder setNumFiles(int nFiles) {
+      this.nFiles = nFiles;
+      return this;
+    }
+    
+    public Builder setMaxLevels(int maxLevels) {
+      this.maxLevels = maxLevels;
+      return this;
+    }
+
+    public Builder setMaxSize(int maxSize) {
+      this.maxSize = maxSize;
+      return this;
+    }
+
+    public Builder setMinSize(int minSize) {
+      this.minSize = minSize;
+      return this;
+    }
+    
+    public DFSTestUtil build() {
+      return new DFSTestUtil(nFiles, maxLevels, maxSize, minSize);
+    }
   }
 }

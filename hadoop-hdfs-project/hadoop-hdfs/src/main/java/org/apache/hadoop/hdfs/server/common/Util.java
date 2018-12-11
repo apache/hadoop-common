@@ -34,14 +34,6 @@ public final class Util {
   private final static Log LOG = LogFactory.getLog(Util.class.getName());
 
   /**
-   * Current system time.
-   * @return current time in msec.
-   */
-  public static long now() {
-    return System.currentTimeMillis();
-  }
-  
-  /**
    * Interprets the passed string as a URI. In case of error it 
    * assumes the specified string is a file.
    *

@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -423,6 +424,7 @@ class MapTask extends Task {
       job.setLong(JobContext.MAP_INPUT_START, fileSplit.getStart());
       job.setLong(JobContext.MAP_INPUT_PATH, fileSplit.getLength());
     }
+    LOG.info("Processing split: " + inputSplit);
   }
 
   static class NewTrackingRecordReader<K,V> 
@@ -693,6 +695,7 @@ class MapTask extends Task {
     org.apache.hadoop.mapreduce.InputSplit split = null;
     split = getSplitDetails(new Path(splitIndex.getSplitLocation()),
         splitIndex.getStartOffset());
+    LOG.info("Processing split: " + split);
 
     org.apache.hadoop.mapreduce.RecordReader<INKEY,INVALUE> input =
       new NewTrackingRecordReader<INKEY,INVALUE>
@@ -911,7 +914,9 @@ class MapTask extends Task {
       maxMemUsage -= maxMemUsage % METASIZE;
       kvbuffer = new byte[maxMemUsage];
       bufvoid = kvbuffer.length;
-      kvmeta = ByteBuffer.wrap(kvbuffer).asIntBuffer();
+      kvmeta = ByteBuffer.wrap(kvbuffer)
+         .order(ByteOrder.nativeOrder())
+         .asIntBuffer();
       setEquator(0);
       bufstart = bufend = bufindex = equator;
       kvstart = kvend = kvindex;

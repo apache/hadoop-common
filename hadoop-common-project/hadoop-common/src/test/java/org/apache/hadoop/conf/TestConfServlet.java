@@ -24,7 +24,6 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.mortbay.util.ajax.JSON;
-import org.mortbay.util.ajax.JSON.Output;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -64,7 +63,7 @@ public class TestConfServlet extends TestCase {
       String resource = (String)propertyInfo.get("resource");
       System.err.println("k: " + key + " v: " + val + " r: " + resource);
       if (TEST_KEY.equals(key) && TEST_VAL.equals(val)
-          && Configuration.UNKNOWN_RESOURCE.equals(resource)) {
+          && "programatically".equals(resource)) {
         foundSetting = true;
       }
     }

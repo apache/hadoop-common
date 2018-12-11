@@ -38,7 +38,7 @@ import org.apache.hadoop.hdfs.util.Canceler;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
-import static org.apache.hadoop.hdfs.server.common.Util.now;
+import static org.apache.hadoop.util.Time.now;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -67,7 +67,8 @@ public class StandbyCheckpointer {
   // This is for use in tests.
   private static int canceledCount = 0;
   
-  public StandbyCheckpointer(Configuration conf, FSNamesystem ns) {
+  public StandbyCheckpointer(Configuration conf, FSNamesystem ns)
+      throws IOException {
     this.namesystem = ns;
     this.checkpointConf = new CheckpointConf(conf); 
     this.thread = new CheckpointerThread();
@@ -78,8 +79,9 @@ public class StandbyCheckpointer {
   /**
    * Determine the address of the NN we are checkpointing
    * as well as our own HTTP address from the configuration.
+   * @throws IOException 
    */
-  private void setNameNodeAddresses(Configuration conf) {
+  private void setNameNodeAddresses(Configuration conf) throws IOException {
     // Look up our own address.
     String myAddrString = getHttpAddress(conf);
 
@@ -95,7 +97,7 @@ public class StandbyCheckpointer {
     myNNAddress = NetUtils.createSocketAddr(myAddrString);
   }
   
-  private String getHttpAddress(Configuration conf) {
+  private String getHttpAddress(Configuration conf) throws IOException {
     String configuredAddr = DFSUtil.getInfoServer(null, conf, false);
     
     // Use the hostname from the RPC address as a default, in case
