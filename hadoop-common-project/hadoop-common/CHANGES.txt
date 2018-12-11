@@ -441,6 +441,9 @@ Release 0.23.0 - 2011-11-01
 
     HADOOP-7789. Improvements to site navigation. (acmurthy) 
 
+    HADOOP-7792. Add verifyToken method to AbstractDelegationTokenSecretManager.
+    (jitendra)
+
   OPTIMIZATIONS
   
     HADOOP-7333. Performance improvement in PureJavaCrc32. (Eric Caspole
@@ -724,6 +727,12 @@ Release 0.23.0 - 2011-11-01
 
     HADOOP-7770. ViewFS getFileChecksum throws FileNotFoundException for files in 
     /tmp and /user. (Ravi Prakash via jitendra)
+
+    HADOOP-7798. Add support gpg signatures for maven release artifacts.
+    (cutting via acmurthy) 
+
+    HADOOP-7797. Fix top-level pom.xml to refer to correct staging maven
+    repository. (omalley via acmurthy) 
 
 Release 0.22.0 - Unreleased
 
