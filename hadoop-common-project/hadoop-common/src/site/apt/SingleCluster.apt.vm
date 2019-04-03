@@ -42,8 +42,8 @@ Hadoop MapReduce Next Generation - Setting up a Single Node Cluster.
    Required software for Linux include:
 
    [[1]] Java\u2122 must be installed. Recommended Java versions are described
-         at {{{http://wiki.apache.org/hadoop/HadoopJavaVersions}
-         HadoopJavaVersions}}.
+         at {{{https://cwiki.apache.org/confluence/display/HADOOP/Hadoop+Java+Versions}
+         Hadoop Java Versions}}.
 
    [[2]] ssh must be installed and sshd must be running to use the Hadoop
          scripts that manage remote Hadoop daemons.
