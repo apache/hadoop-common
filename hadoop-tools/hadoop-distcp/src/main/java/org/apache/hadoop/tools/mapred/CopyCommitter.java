@@ -134,7 +134,7 @@ public class CopyCommitter extends FileOutputCommitter {
                                       String jobId) throws IOException {
 
     FileStatus[] tempFiles = targetFS.globStatus(
-        new Path(targetWorkPath, ".distcp.tmp." + jobId.replaceAll("job","attempt") + "*"));
+        new Path(targetWorkPath, ".distcp.tmp." + jobId.replace("job","attempt") + "*"));
 
     if (tempFiles != null && tempFiles.length > 0) {
       for (FileStatus file : tempFiles) {

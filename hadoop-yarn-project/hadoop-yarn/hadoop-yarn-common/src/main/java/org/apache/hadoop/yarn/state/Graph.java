@@ -138,7 +138,7 @@ public class Graph {
   private static String wrapSafeString(String label) {
     if (label.indexOf(',') >= 0) {
       if (label.length()>14) {
-        label = label.replaceAll(",", ",\n");
+        label = label.replace(",", ",\n");
       }
     }
     label = "\"" + StringEscapeUtils.escapeJava(label) + "\"";

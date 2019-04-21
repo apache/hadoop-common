@@ -41,7 +41,7 @@ public class PrintJarMainClass {
         if (manifest != null) {
           String value = manifest.getMainAttributes().getValue("Main-Class");
           if (value != null) {
-            System.out.println(value.replaceAll("/", "."));
+            System.out.println(value.replace("/", "."));
             return;
           }
         }
