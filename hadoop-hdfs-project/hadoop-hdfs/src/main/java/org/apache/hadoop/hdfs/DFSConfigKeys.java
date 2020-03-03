@@ -466,6 +466,8 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
   public static final long DFS_CLIENT_MMAP_RETRY_TIMEOUT_MS_DEFAULT = 5 * 60 * 1000;
   public static final String DFS_CLIENT_SHORT_CIRCUIT_REPLICA_STALE_THRESHOLD_MS = "dfs.client.short.circuit.replica.stale.threshold.ms";
   public static final long DFS_CLIENT_SHORT_CIRCUIT_REPLICA_STALE_THRESHOLD_MS_DEFAULT = 30 * 60 * 1000;
+  public static final String DFS_CLIENT_SHORT_CIRCUIT_NUM = "dfs.client.short.circuit.num";
+  public static final int DFS_CLIENT_SHORT_CIRCUIT_NUM_DEFAULT = 1;
 
   // property for fsimage compression
   public static final String DFS_IMAGE_COMPRESS_KEY = "dfs.image.compress";
