@@ -58,7 +58,7 @@ public class ClientContext {
   /**
    * Caches short-circuit file descriptors, mmap regions.
    */
-  private final ShortCircuitCache shortCircuitCache;
+  private final ShortCircuitCache[] shortCircuitCache;
 
   /**
    * Caches TCP and UNIX domain sockets for reuse.
@@ -90,10 +90,19 @@ public class ClientContext {
    */
   private boolean printedConfWarning = false;
 
+  /**
+   * ShorCircuitCache array size.
+   */
+  private final int clientShortCircuitNum;
+  
   private ClientContext(String name, Conf conf) {
     this.name = name;
     this.confString = confAsString(conf);
-    this.shortCircuitCache = new ShortCircuitCache(
+    
+    his.clientShortCircuitNum = conf.clientShortCircuitNum;
+    this.shortCircuitCache = new ShortCircuitCache[this.clientShortCircuitNum];
+    for (int i = 0; i < this.clientShortCircuitNum; i++) {
+      this.shortCircuitCache[i] = new ShortCircuitCache(
         conf.shortCircuitStreamsCacheSize,
         conf.shortCircuitStreamsCacheExpiryMs,
         conf.shortCircuitMmapCacheSize,
@@ -101,6 +110,8 @@ public class ClientContext {
         conf.shortCircuitMmapCacheRetryTimeout,
         conf.shortCircuitCacheStaleThresholdMs,
         conf.shortCircuitSharedMemoryWatcherInterruptCheckMs);
+    }
+
     this.peerCache =
           new PeerCache(conf.socketCacheCapacity, conf.socketCacheExpiry);
     this.useLegacyBlockReaderLocal = conf.useLegacyBlockReaderLocal;
@@ -181,8 +192,8 @@ public class ClientContext {
     return confString;
   }
 
-  public ShortCircuitCache getShortCircuitCache() {
-    return shortCircuitCache;
+  public ShortCircuitCache getShortCircuitCache(long idx) {
+    return shortCircuitCache[(int) (idx % clientShortCircuitNum)];
   }
 
   public PeerCache getPeerCache() {
