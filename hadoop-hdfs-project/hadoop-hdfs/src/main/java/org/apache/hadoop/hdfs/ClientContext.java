@@ -99,7 +99,7 @@ public class ClientContext {
     this.name = name;
     this.confString = confAsString(conf);
     
-    his.clientShortCircuitNum = conf.clientShortCircuitNum;
+    this.clientShortCircuitNum = conf.clientShortCircuitNum;
     this.shortCircuitCache = new ShortCircuitCache[this.clientShortCircuitNum];
     for (int i = 0; i < this.clientShortCircuitNum; i++) {
       this.shortCircuitCache[i] = new ShortCircuitCache(
