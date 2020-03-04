@@ -323,6 +323,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     final long shortCircuitMmapCacheExpiryMs;
     final long shortCircuitMmapCacheRetryTimeout;
     final long shortCircuitCacheStaleThresholdMs;
+    final int clientShortCircuitNum;
 
     public Conf(Configuration conf) {
       // The hdfsTimeout is currently the same as the ipc timeout 
@@ -463,6 +464,11 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       dfsclientSlowIoWarningThresholdMs = conf.getLong(
           DFSConfigKeys.DFS_CLIENT_SLOW_IO_WARNING_THRESHOLD_KEY,
           DFSConfigKeys.DFS_CLIENT_SLOW_IO_WARNING_THRESHOLD_DEFAULT);
+        
+      clientShortCircuitNum = conf.getInt(DFS_CLIENT_SHORT_CIRCUIT_NUM, 
+          DFS_CLIENT_SHORT_CIRCUIT_NUM_DEFAULT);
+      clientShortCircuitNum = clientShortCircuitNum > 3 ? 3 : this.clientShortCircuitNum;
+      clientShortCircuitNum = clientShortCircuitNum < 1 ? 1 : this.clientShortCircuitNum;           
     }
 
     public boolean isUseLegacyBlockReaderLocal() {
